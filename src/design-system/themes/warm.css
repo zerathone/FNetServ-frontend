@@ -1,0 +1,51 @@
+:root[data-theme="warm"] {
+  --color-canvas: #f3efe8;
+  --color-surface-default: #fffdf9;
+  --color-surface-subtle: #f8f3eb;
+  --color-surface-hover: #eee5d9;
+  --color-surface-elevated: #fffdf9;
+  --color-overlay: rgb(45 35 25 / 0.56);
+
+  --color-text-primary: #2b2520;
+  --color-text-secondary: #5f554c;
+  --color-text-muted: #766b61;
+  --color-text-inverse: #ffffff;
+
+  --color-border-default: #d8cdbf;
+  --color-border-strong: #aa9a88;
+  --color-focus: #0b7191;
+
+  --color-action-primary: #0b7191;
+  --color-action-primary-hover: #095f7a;
+  --color-action-primary-pressed: #084e64;
+  --color-action-disabled: #b4a99c;
+
+  --color-success: #26733f;
+  --color-success-surface: #e9f5e9;
+  --color-warning: #9b5b00;
+  --color-warning-surface: #fff2d6;
+  --color-danger: #b83238;
+  --color-danger-text: #a72c32;
+  --color-danger-surface: #fbeceb;
+  --color-info: #0b7191;
+  --color-info-surface: #e5f3f7;
+
+  --color-workstation-online: #26733f;
+  --color-workstation-in-use: #0b7191;
+  --color-workstation-attention: #9b5b00;
+  --color-workstation-debt: #b83238;
+  --color-workstation-disconnected: #766b61;
+  --color-workstation-maintenance: #7958a6;
+
+  --color-transaction-positive: #26733f;
+  --color-transaction-negative: #b83238;
+  --color-transaction-pending: #9b5b00;
+
+  --color-chart-1: #0b7191;
+  --color-chart-2: #26733f;
+  --color-chart-3: #9b5b00;
+  --color-chart-4: #7958a6;
+  --color-chart-grid: #d8cdbf;
+  --color-chart-axis: #766b61;
+  --color-chart-tooltip: #2b2520;
+}

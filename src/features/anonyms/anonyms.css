@@ -1,0 +1,139 @@
+.anonym-workspace {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.anonym-toolbar {
+  display: grid;
+  grid-template-columns: minmax(16rem, 30rem) auto;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.anonym-toolbar > div {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+}
+
+.anonym-toolbar strong {
+  color: var(--color-text-primary);
+}
+
+.anonym-toolbar span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.anonym-panel {
+  min-height: 22rem;
+}
+
+.anonym-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.anonym-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.9fr) minmax(16rem, 1.3fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.anonym-card__identity,
+.anonym-card__address {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.anonym-card__identity strong,
+.anonym-card__address strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anonym-card__identity > span,
+.anonym-card__address > span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.anonym-card__identity .ds-badge {
+  justify-self: start;
+}
+
+.anonym-card__address {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border-default);
+}
+
+.anonym-card__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.anonym-detail-form,
+.anonym-assign-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.anonym-address-input {
+  min-height: 5rem;
+  padding-top: var(--space-2);
+  resize: vertical;
+}
+
+@media (max-width: 1000px) {
+  .anonym-card {
+    grid-template-columns: minmax(12rem, 0.8fr) minmax(14rem, 1fr);
+  }
+
+  .anonym-card__actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .anonym-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .anonym-toolbar > div {
+    justify-items: start;
+  }
+
+  .anonym-card {
+    grid-template-columns: 1fr;
+  }
+
+  .anonym-card__address {
+    padding: var(--space-2) 0 0;
+    border-top: 1px solid var(--color-border-default);
+    border-left: 0;
+  }
+
+  .anonym-card__actions {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+}

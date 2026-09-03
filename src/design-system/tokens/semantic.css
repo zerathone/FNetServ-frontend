@@ -1,0 +1,57 @@
+:root {
+  color: var(--color-text-primary);
+  background: var(--color-canvas);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-normal);
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+
+  /* Compatibility aliases while legacy pages migrate route by route. */
+  --bg-main: var(--color-canvas);
+  --bg-card: var(--color-surface-default);
+  --bg-card-alt: var(--color-surface-subtle);
+  --bg-input: var(--color-surface-default);
+  --bg-hover: var(--color-surface-hover);
+  --background: var(--color-canvas);
+  --surface: var(--color-surface-default);
+  --border: var(--color-border-default);
+  --border-dark: var(--color-border-strong);
+  --color-border-subtle: color-mix(in srgb, var(--color-border-default) 62%, transparent);
+  --text: var(--color-text-primary);
+  --text-base: var(--color-text-primary);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --text-error: var(--color-danger-text);
+  --text-on-primary: var(--color-text-inverse);
+  --primary: var(--color-action-primary);
+  --primary-solid: var(--color-action-primary);
+  --primary-glow: color-mix(in srgb, var(--color-brand-accent) 24%, transparent);
+  --primary-alpha: color-mix(in srgb, var(--color-brand-primary) 16%, transparent);
+  --bg-active: color-mix(in srgb, var(--color-action-primary) 10%, var(--color-surface-default));
+  --success: var(--color-success);
+  --secondary-alpha: color-mix(in srgb, var(--color-brand-accent) 16%, transparent);
+  --glass-bg: color-mix(in srgb, var(--color-surface-default) 78%, transparent);
+  --glass-border: var(--color-border-default);
+  --glass-shadow: rgb(15 23 42 / 0.22);
+  --page-card-bg: var(--color-surface-default);
+  --page-card-shadow: rgb(15 23 42 / 0.08);
+
+  /* Component tokens: themes may change density and shape without changing components. */
+  --button-radius: var(--radius-md);
+  --input-radius: var(--radius-md);
+  --card-radius: var(--radius-lg);
+  --card-shadow: var(--shadow-sm);
+  --nav-item-radius: var(--radius-lg);
+  --table-cell-padding-x: 0.875rem;
+  --table-cell-padding-y: 0.75rem;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}

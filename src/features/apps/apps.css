@@ -1,0 +1,257 @@
+.app-policy-workspace {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.app-policy-workspace code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.app-policy-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-policy-tabs button {
+  min-height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 0;
+  border-right: 1px solid var(--color-border-default);
+  padding: 0 var(--space-4);
+  color: var(--color-text-secondary);
+  background: transparent;
+  font-weight: 700;
+}
+
+.app-policy-tabs button:last-child {
+  border-right: 0;
+}
+
+.app-policy-tabs button:hover,
+.app-policy-tabs button.is-active {
+  color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 7%, var(--color-surface-default));
+}
+
+.app-policy-tabs button.is-active {
+  box-shadow: inset 0 -3px var(--color-action-primary);
+}
+
+.app-policy-tabs strong {
+  font-size: var(--font-size-xl);
+}
+
+.app-policy-toolbar {
+  display: grid;
+  grid-template-columns: minmax(18rem, 30rem) 1fr;
+  align-items: end;
+  gap: var(--space-4);
+}
+
+.app-policy-toolbar > div {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+}
+
+.app-policy-toolbar > div > span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.app-policy-toolbar > div > div {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.app-policy-panel {
+  min-height: 24rem;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-policy-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.app-policy-panel > header > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-policy-panel > header strong {
+  color: var(--color-text-primary);
+}
+
+.app-policy-panel > header span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.app-policy-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.app-policy-table {
+  width: 100%;
+  min-width: 52rem;
+  border-collapse: collapse;
+}
+
+.app-policy-table th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  text-align: left;
+}
+
+.app-policy-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+.app-policy-table tbody tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.app-policy-table tbody tr.is-system-policy {
+  background: color-mix(in srgb, var(--color-text-muted) 6%, var(--color-surface-default));
+}
+
+.app-policy-table tbody tr.is-system-policy td,
+.app-policy-table tbody tr.is-system-policy td:first-child strong {
+  color: var(--color-text-muted);
+}
+
+.app-policy-table td:first-child strong,
+.app-policy-table td:first-child span {
+  display: block;
+}
+
+.app-policy-table td:first-child strong {
+  color: var(--color-text-primary);
+}
+
+.app-policy-table td:first-child span {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.app-policy-table td .ds-badge {
+  display: inline-flex;
+  margin: 0 var(--space-1) var(--space-1) 0;
+}
+
+.app-policy-table td code {
+  display: block;
+  max-width: 18rem;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-policy-row-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.app-policy-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.app-policy-form .ds-field > small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.app-policy-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+}
+
+.app-policy-form legend {
+  grid-column: 1 / -1;
+  margin-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.app-policy-form fieldset label,
+.app-policy-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+}
+
+.app-policy-form fieldset input,
+.app-policy-checkbox input {
+  margin-top: 0.2rem;
+}
+
+.app-policy-form fieldset span,
+.app-policy-checkbox span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-policy-form fieldset strong,
+.app-policy-checkbox strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.app-policy-form fieldset small,
+.app-policy-checkbox small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.app-policy-hash-input {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+@media (max-width: 700px) {
+  .app-policy-toolbar,
+  .app-policy-form fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .app-policy-toolbar > div {
+    justify-items: start;
+  }
+}

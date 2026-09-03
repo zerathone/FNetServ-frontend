@@ -1,0 +1,350 @@
+.deposit-method {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.deposit-method > legend {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.deposit-method__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.deposit-method__option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.1875rem;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.5rem 0.4375rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.deposit-method__option:hover {
+  border-color: var(--color-border-strong);
+}
+
+.deposit-method__option.is-selected {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary-subtle, var(--color-surface-subtle));
+}
+
+.deposit-method__option:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.deposit-method__option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.deposit-method__label {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.deposit-method__radio {
+  box-sizing: border-box;
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--color-text-muted);
+  border-radius: 50%;
+  transition: border-color 150ms ease;
+}
+
+.deposit-method__radio::after {
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: var(--color-action-primary);
+  content: '';
+  transform: scale(0);
+  transition: transform 150ms ease;
+}
+
+.deposit-method__option.is-selected .deposit-method__label {
+  color: var(--color-action-primary);
+}
+
+.deposit-method__option.is-selected .deposit-method__radio {
+  border-color: var(--color-action-primary);
+}
+
+.deposit-method__option.is-selected .deposit-method__radio::after {
+  transform: scale(1);
+}
+
+.deposit-amount,
+.deposit-qr-flow {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.deposit-amount__matrix {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.deposit-amount__matrix:empty {
+  display: none;
+}
+
+.deposit-amount__commands,
+.deposit-amount__editor-actions,
+.deposit-qr-flow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.deposit-amount__commands {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.deposit-amount__denominations {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.deposit-amount__denominations-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.deposit-amount__unit.ds-button {
+  min-height: 2.25rem;
+  padding: 0.375rem 0.5rem;
+  border-color: var(--color-border-default);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.deposit-amount__unit.ds-button:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-raised);
+}
+
+.deposit-amount__unit.ds-button.ds-button--primary {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text, #fff);
+}
+
+/* A selected denomination remains selected after mouse-up, even while hovered. */
+.deposit-amount__unit.ds-button.ds-button--primary:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text, #fff);
+}
+
+.deposit-amount__unit.ds-button.ds-button--primary:active:not(:disabled) {
+  border-color: var(--color-action-primary-pressed);
+  background: var(--color-action-primary-pressed);
+}
+
+.deposit-amount__icon-button {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.deposit-amount__icon-button:hover:not(:disabled),
+.deposit-amount__icon-button.is-active {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary-subtle, var(--color-surface-subtle));
+  color: var(--color-action-primary);
+}
+
+.deposit-amount__icon-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.deposit-amount__icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.deposit-amount__commands .deposit-amount__icon-button {
+  width: 100%;
+}
+
+.deposit-amount__status {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.deposit-amount__editor {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.deposit-amount__workstation-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.deposit-amount__workstation-setting > span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.deposit-amount__workstation-setting small {
+  color: var(--color-text-muted);
+}
+
+.deposit-amount__workstation-setting input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.deposit-qr-flow {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.deposit-qr-flow__target,
+.deposit-qr-flow__countdown {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.deposit-qr-flow__target span,
+.deposit-qr-flow__countdown span {
+  color: var(--color-text-muted);
+}
+
+.deposit-qr-flow__countdown strong {
+  color: var(--color-action-primary);
+  font-size: var(--font-size-2xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.deposit-qr-flow__visual {
+  display: grid;
+  grid-template-columns: minmax(9rem, 11rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+}
+
+.deposit-qr-flow__code {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.deposit-qr-flow__code img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0.25rem;
+  background: #fff;
+  object-fit: contain;
+}
+
+.deposit-qr-flow__visual dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.deposit-qr-flow__visual dl > div {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.deposit-qr-flow__visual dt {
+  color: var(--color-text-muted);
+}
+
+.deposit-qr-flow__visual dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.deposit-qr-flow__visual.is-cancelled .deposit-qr-flow__code img {
+  filter: blur(0.5rem) grayscale(1);
+}
+
+.deposit-qr-flow__visual.is-cancelled .deposit-qr-flow__code::after {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--color-overlay) 76%, transparent);
+  color: var(--color-text-inverse);
+  content: 'Mã QR đã ngừng hiệu lực';
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .deposit-amount__matrix {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deposit-qr-flow__visual {
+    grid-template-columns: 1fr;
+  }
+}

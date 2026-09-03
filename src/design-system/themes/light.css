@@ -1,0 +1,53 @@
+:root[data-theme="light"],
+:root {
+  color-scheme: light;
+  --color-canvas: #f3f7f9;
+  --color-surface-default: #ffffff;
+  --color-surface-subtle: #f8fafb;
+  --color-surface-hover: #eaf2f5;
+  --color-surface-elevated: #ffffff;
+  --color-overlay: rgb(16 42 56 / 0.46);
+
+  --color-text-primary: #102a38;
+  --color-text-secondary: #405b69;
+  --color-text-muted: #5b7280;
+  --color-text-inverse: #ffffff;
+
+  --color-border-default: #d7e3e8;
+  --color-border-strong: #b8cbd4;
+  --color-focus: var(--color-brand-primary);
+
+  --color-action-primary: var(--color-brand-primary);
+  --color-action-primary-hover: #1b5576;
+  --color-action-primary-pressed: #16445e;
+  --color-action-disabled: #9aaab2;
+
+  --color-success: #17c964;
+  --color-success-surface: #e8faf0;
+  --color-warning: #f5a524;
+  --color-warning-surface: #fefce8;
+  --color-danger: #f31260;
+  --color-danger-text: #c20e4d;
+  --color-danger-surface: #fee7ef;
+  --color-info: var(--color-brand-primary);
+  --color-info-surface: #e8f8fd;
+
+  --color-workstation-online: #17c964;
+  --color-workstation-in-use: var(--color-brand-primary);
+  --color-workstation-attention: #f5a524;
+  --color-workstation-debt: #f31260;
+  --color-workstation-disconnected: #a1a1aa;
+  --color-workstation-maintenance: #7828c8;
+
+  --color-transaction-positive: #17c964;
+  --color-transaction-negative: #f31260;
+  --color-transaction-pending: #f5a524;
+
+  --color-chart-1: var(--color-brand-primary);
+  --color-chart-2: #17c964;
+  --color-chart-3: #f5a524;
+  --color-chart-4: #7828c8;
+  --color-chart-grid: #d7e3e8;
+  --color-chart-axis: #5b7280;
+  --color-chart-tooltip: #102a38;
+}

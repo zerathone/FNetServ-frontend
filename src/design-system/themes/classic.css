@@ -1,0 +1,65 @@
+:root,
+:root[data-theme="classic"] {
+  --color-canvas: #e6eef2;
+  --color-surface-default: #ffffff;
+  --color-surface-subtle: #eef4f6;
+  --color-surface-hover: #dce9ee;
+  --color-surface-elevated: #ffffff;
+  --color-overlay: rgb(14 39 52 / 0.58);
+
+  --color-text-primary: #173444;
+  --color-text-secondary: #405d6c;
+  --color-text-muted: #5d7480;
+  --color-text-inverse: #ffffff;
+
+  --color-border-default: #b9ccd6;
+  --color-border-strong: #8caab9;
+  --color-focus: var(--color-brand-primary);
+
+  --color-action-primary: var(--color-brand-primary);
+  --color-action-primary-hover: #1b5576;
+  --color-action-primary-pressed: #16445e;
+  --color-action-disabled: #9baab2;
+
+  --color-success: #16803c;
+  --color-success-surface: #e8f7ed;
+  --color-warning: #a95f00;
+  --color-warning-surface: #fff4da;
+  --color-danger: #c42b31;
+  --color-danger-text: #b4232a;
+  --color-danger-surface: #fff0f0;
+  --color-info: var(--color-brand-primary);
+  --color-info-surface: #e3f5fb;
+
+  --color-workstation-online: #16803c;
+  --color-workstation-in-use: var(--color-brand-primary);
+  --color-workstation-attention: #b96700;
+  --color-workstation-debt: #c42b31;
+  --color-workstation-disconnected: #6b7280;
+  --color-workstation-maintenance: #7256a8;
+
+  --color-transaction-positive: #16803c;
+  --color-transaction-negative: #c42b31;
+  --color-transaction-pending: #a95f00;
+
+  --color-chart-1: var(--color-brand-primary);
+  --color-chart-2: #13866f;
+  --color-chart-3: #a95f00;
+  --color-chart-4: #7256a8;
+  --color-chart-grid: #c9d8df;
+  --color-chart-axis: #5d7480;
+  --color-chart-tooltip: #173444;
+
+  /* Familiar MFC density: crisp borders, square controls, minimal elevation. */
+  --button-radius: 0.1875rem;
+  --input-radius: 0.125rem;
+  --card-radius: 0.1875rem;
+  --card-shadow: 0 1px 1px rgb(23 52 68 / 0.06);
+  --nav-item-radius: 0.125rem;
+  --table-cell-padding-x: 0.625rem;
+  --table-cell-padding-y: 0.5rem;
+  --control-height-compact: 2.125rem;
+  --control-height-default: 2.375rem;
+  --motion-fast: 100ms;
+  --motion-normal: 150ms;
+}

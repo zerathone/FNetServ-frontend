@@ -1,0 +1,171 @@
+.web-policy-workspace {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.web-policy-filters {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(15rem, 1fr) auto auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.web-policy-panel {
+  min-height: 26rem;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.web-policy-panel > header,
+.web-policy-panel > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.web-policy-panel > header > div:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.web-policy-panel > header > div:last-child,
+.web-policy-panel > footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.web-policy-panel > header strong {
+  color: var(--color-text-primary);
+}
+
+.web-policy-panel > header span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.web-policy-panel > footer {
+  justify-content: flex-end;
+}
+
+.web-policy-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.web-policy-table {
+  width: 100%;
+  min-width: 62rem;
+  border-collapse: collapse;
+}
+
+.web-policy-table th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  text-align: left;
+}
+
+.web-policy-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+.web-policy-table tbody tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.web-policy-table td:first-child {
+  max-width: 24rem;
+}
+
+.web-policy-table td:first-child strong,
+.web-policy-table td:first-child span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-policy-table td:first-child strong {
+  color: var(--color-text-primary);
+}
+
+.web-policy-table td:first-child span {
+  margin-top: var(--space-1);
+  color: var(--color-action-primary);
+  font-size: var(--font-size-sm);
+}
+
+.web-policy-row-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.web-policy-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.web-policy-form .ds-field > small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.web-policy-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+}
+
+.web-policy-checkbox input {
+  margin-top: 0.2rem;
+}
+
+.web-policy-checkbox span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.web-policy-checkbox strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.web-policy-checkbox small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+@media (max-width: 900px) {
+  .web-policy-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .web-policy-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .web-policy-panel > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

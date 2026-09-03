@@ -1,0 +1,122 @@
+.customer-qr-display {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  gap: 1rem;
+  padding: clamp(1.25rem, 4vw, 3rem);
+  background: #eff4f7;
+  color: #163044;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.customer-qr-display__eyebrow {
+  margin: 0;
+  color: #5c7587;
+  font-size: 0.875rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.customer-qr-display__card,
+.customer-qr-display__empty {
+  width: min(100%, 29rem);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid #c8d7e0;
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 1.25rem 3rem rgb(23 58 80 / 14%);
+}
+
+.customer-qr-display__empty {
+  color: #5c7587;
+  text-align: center;
+}
+
+.customer-qr-display__status {
+  margin: 0;
+  color: #1f6f98;
+  font-weight: 750;
+  text-align: center;
+}
+
+.customer-qr-display h1 {
+  margin: 0.35rem 0 1.25rem;
+  font-size: clamp(2rem, 8vw, 3.25rem);
+  line-height: 1;
+  text-align: center;
+}
+
+.customer-qr-display__code {
+  position: relative;
+  overflow: hidden;
+  width: min(100%, 19rem);
+  margin: 0 auto 1.5rem;
+  padding: 0.75rem;
+  border: 1px solid #d3dee5;
+  border-radius: 1rem;
+  background: #fff;
+}
+
+.customer-qr-display__code img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.customer-qr-display__card.is-unavailable .customer-qr-display__code img {
+  filter: blur(0.75rem) grayscale(1);
+}
+
+.customer-qr-display__code span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(22 48 68 / 76%);
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+}
+
+.customer-qr-display dl {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.customer-qr-display dl > div {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.customer-qr-display dt {
+  color: #648091;
+  font-size: 0.875rem;
+}
+
+.customer-qr-display dd {
+  margin: 0;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.customer-qr-display__countdown {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dce6eb;
+  color: #648091;
+}
+
+.customer-qr-display__countdown strong {
+  color: #1f6f98;
+  font-size: clamp(1.75rem, 7vw, 2.5rem);
+  font-variant-numeric: tabular-nums;
+}

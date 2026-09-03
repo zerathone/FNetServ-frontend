@@ -1,0 +1,291 @@
+.user-group-workspace {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.user-group-filters {
+  display: grid;
+  grid-template-columns: minmax(16rem, 30rem) minmax(12rem, 18rem);
+  gap: var(--space-3);
+}
+
+.user-group-panel {
+  min-height: 26rem;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.user-group-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.user-group-panel > header > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.user-group-panel > header strong {
+  color: var(--color-text-primary);
+}
+
+.user-group-panel > header span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.user-group-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.user-group-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.user-group-table th {
+  min-width: 9rem;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  text-align: left;
+}
+
+.user-group-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+.user-group-table__identity-column {
+  position: sticky;
+  z-index: 2;
+  left: 0;
+  width: 15rem;
+  min-width: 15rem !important;
+  max-width: 15rem;
+  background: var(--color-surface-default);
+}
+
+.user-group-table__action-column {
+  position: sticky;
+  z-index: 2;
+  left: 15rem;
+  width: 12rem;
+  min-width: 12rem !important;
+  max-width: 12rem;
+  background: var(--color-surface-default);
+  box-shadow: 0.5rem 0 0.75rem -0.75rem var(--color-text-muted);
+}
+
+.user-group-table thead .user-group-table__identity-column,
+.user-group-table thead .user-group-table__action-column {
+  z-index: 4;
+  background: var(--color-surface-subtle);
+}
+
+.user-group-data-row:hover > td {
+  background: var(--color-surface-hover);
+}
+
+.user-group-type-row th {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-action-primary) 4%, var(--color-surface-subtle));
+  text-transform: none;
+}
+
+.user-group-type-row:first-child th {
+  border-top: 0;
+}
+
+.user-group-type-row th > * {
+  margin-right: var(--space-2);
+}
+
+.user-group-type-row th > span:last-child {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.user-group-type-row__caret {
+  color: var(--color-action-primary);
+  font-size: var(--font-size-md);
+}
+
+.user-group-type-row.is-system-type th {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  background: var(--color-surface-subtle);
+}
+
+.user-group-type-row.is-system-type .user-group-type-row__caret {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.user-group-tree-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.user-group-tree-item__branch {
+  flex: none;
+  color: var(--color-border-strong);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.user-group-tree-item__copy {
+  min-width: 0;
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+}
+
+.user-group-tree-item__copy strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-group-tree-item__copy > span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.user-group-tree-item > .ds-badge {
+  max-width: 7.5rem;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-group-money {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.user-group-row-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.user-group-row-actions .ds-button {
+  min-width: 5rem;
+  padding: 0 var(--space-2);
+}
+
+.user-group-row-actions__delete:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border-default));
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+
+.user-group-row-actions__delete:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--color-surface-default));
+}
+
+.user-group-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.user-group-form__identity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.user-group-form .ds-field > small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.user-group-price-editor {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-hover);
+}
+
+.user-group-price-editor > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.user-group-price-editor > header strong {
+  color: var(--color-text-primary);
+}
+
+.user-group-price-editor > header span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.user-group-price-editor > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.user-group-zero-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+@media (max-width: 700px) {
+  .user-group-filters,
+  .user-group-form__identity,
+  .user-group-price-editor > div {
+    grid-template-columns: 1fr;
+  }
+
+  .user-group-table__identity-column {
+    width: 12rem;
+    min-width: 12rem !important;
+    max-width: 12rem;
+  }
+
+  .user-group-table__action-column {
+    left: 12rem;
+    width: 10.5rem;
+    min-width: 10.5rem !important;
+    max-width: 10.5rem;
+  }
+
+  .user-group-row-actions {
+    gap: var(--space-1);
+  }
+
+  .user-group-row-actions .ds-button {
+    min-width: 4.5rem;
+  }
+}
