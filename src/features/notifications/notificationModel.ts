@@ -17,6 +17,23 @@ export function mergeNotificationEvent(
   }
 }
 
+// Task 6.6 (user chốt 2026-09-08): mấy `type` này là "đã xong rồi, đọc để biết" — KHÔNG phải
+// việc cần làm ⇒ để ngoài tab "Cần xử lý". Lý do: `qr_payment_success` là loại tần suất cao
+// nhất và mỗi đơn 1 bản ghi (dedupeKey theo `orderid` nên không gộp), nên ở tiệm đông **mỗi
+// lần nạp tiền thành công lại đẩy thông báo LỖI TIỀN xuống dưới** — đúng thứ hộp thông báo
+// sinh ra để bắt. Cùng luật với panel Qt (6.5): doc thiết kế §1 cũng bắt nó lọc
+// `payment_recorded`. Cả 2 type vẫn hiện đủ ở tab "Tất cả".
+//
+// ⚠️ Đây chỉ là nửa HIỂN THỊ. Nửa còn lại — ring 1024 drop-oldest có thể đẩy thông báo lỗi ra
+// khỏi RAM server — **không sửa được ở FE** (FE chỉ đọc được cái còn trong buffer); xem
+// `PROGRESS.md` mục "🔎 Review 6.1 + 6.2" và `FNetHttp/NotificationStore.h`.
+const INFORMATIONAL_TYPES = new Set(['payment_recorded', 'qr_payment_success'])
+
+export function notificationNeedsAction(notification: OperationNotification) {
+  if (notification.state === 'resolved') return false
+  return !INFORMATIONAL_TYPES.has(notification.type)
+}
+
 export function notificationTarget(notification: OperationNotification) {
   switch (notification.type) {
     case 'service_request':
