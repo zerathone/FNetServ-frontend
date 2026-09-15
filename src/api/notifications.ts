@@ -33,6 +33,13 @@ export type OperationNotification = {
   count: number
   claimedByStaffId: number
   actions: OperationNotificationAction[]
+  // Task 6.1 (N1) them 5 field nay o server. Khai bao OPTIONAL co y: WebUI phai chay duoc
+  // ca voi Server.exe ban CU (chua co 6.1) — 90% khach dung path cu.
+  source?: string
+  title?: string
+  body?: string
+  meta?: Record<string, unknown>
+  cleared?: boolean
 }
 
 export type OperationNotificationPage = {
@@ -40,6 +47,9 @@ export type OperationNotificationPage = {
   seq: number
   oldestSeq: number
   dropped: boolean
+  // Task 6.1 (N3): tong so muc chua doc toan buffer (khong phu thuoc limit/after).
+  // Optional vi Server.exe ban cu khong tra field nay.
+  unreadCount?: number
   items: OperationNotification[]
 }
 

@@ -13,6 +13,7 @@ import { pushToast } from '../../store/toast'
 import { useWsStatusStore } from '../../store/wsStatus'
 import {
   notificationDescription,
+  notificationNeedsAction,
   notificationTarget,
   notificationTitle,
 } from './notificationModel'
@@ -75,7 +76,10 @@ export function NotificationCenter() {
     () => [...(query.data?.items ?? [])].sort((left, right) => right.updatedAtMs - left.updatedAtMs),
     [query.data?.items],
   )
-  const openItems = items.filter((item) => item.state !== 'resolved')
+  // Task 6.6: "Cần xử lý" = việc còn phải làm. Loại `payment_recorded`/`qr_payment_success`
+  // (xem notificationNeedsAction) để giao dịch thành công — loại tần suất cao nhất — không
+  // đẩy thông báo lỗi tiền xuống dưới. Chúng vẫn nằm đủ ở tab "Tất cả".
+  const openItems = items.filter(notificationNeedsAction)
   const visibleItems = filter === 'open' ? openItems : items
   const newItems = items.filter((item) => item.state === 'new')
 
