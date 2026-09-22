@@ -134,6 +134,11 @@ export function closeAppWorkstations(data: { hostNames: string[] }) {
   return apiPost<{results: WsControlResult[]}, typeof data>('/workstations/close-app', data)
 }
 
+// ---- 2.44-B5: chat -- gui tin nhan tu quay xuong may tram (§11.1-IMPL) ----
+export function sendWorkstationMessage(data: { hostNames: string[], message: string }) {
+  return apiPost<{results: WsControlResult[]}, typeof data>('/workstations/message', data)
+}
+
 export function adminLoginWorkstations(data: { hostNames: string[] }) {
   return apiPost<{results: WsControlResult[]}, typeof data>('/workstations/admin-login', data)
 }

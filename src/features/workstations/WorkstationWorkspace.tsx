@@ -18,6 +18,7 @@ import {
   payoutWorkstation,
   payDebitWorkstation,
   restartWorkstations,
+  sendWorkstationMessage,
   shutdownWorkstations,
   suspendWorkstation,
   updateWorkstationNote,
@@ -26,6 +27,12 @@ import {
   type WorkstationRuntime,
   type WsControlResult,
 } from '../../api/workstations'
+import {
+  closeAllWorkstationApps,
+  closeWorkstationApp,
+  getWorkstationApps,
+  type WorkstationApp,
+} from '../../api/workstationRealtime'
 import { Select,
   Button,
   ConfirmAction,
@@ -273,6 +280,12 @@ export function WorkstationWorkspace() {
   const [prepaidAmount, setPrepaidAmount] = useState<number | null>(20_000)
   const [systemFunctionsOpen, setSystemFunctionsOpen] = useState(false)
   const [shutdownScheduleOpen, setShutdownScheduleOpen] = useState(false)
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false)
+  const [messageTargets, setMessageTargets] = useState<string[]>([])
+  const [messageText, setMessageText] = useState('')
+  const [appsDialogOpen, setAppsDialogOpen] = useState(false)
+  const [appsList, setAppsList] = useState<WorkstationApp[] | null>(null)
+  const [appsError, setAppsError] = useState<string | null>(null)
   const moneyIntent = useIdempotentIntent('workstation-workspace-money')
   const paymentWaitPayoutIntent = useIdempotentIntent('payment-wait-payout')
   const paymentWaitContinueIntent = useIdempotentIntent('payment-wait-continue')
@@ -384,6 +397,43 @@ export function WorkstationWorkspace() {
         pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
       }
       void queryClient.invalidateQueries({ queryKey: ['workstations'] })
+    },
+    onError: (error) => pushToast(error.message, 'error'),
+  })
+
+  const messageMutation = useMutation({
+    mutationFn: () => sendWorkstationMessage({ hostNames: messageTargets, message: messageText.trim() }),
+    onSuccess: ({ results }) => {
+      setCommandResults(results)
+      setMessageDialogOpen(false)
+      setMessageText('')
+      pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
+    },
+    onError: (error) => pushToast(error.message, 'error'),
+  })
+
+  const appsQueryMutation = useMutation({
+    mutationFn: (hostName: string) => getWorkstationApps(hostName),
+    onSuccess: (apps) => {
+      setAppsList(apps)
+      setAppsError(null)
+    },
+    onError: (error) => {
+      setAppsError(error.message)
+      setAppsList(null)
+    },
+  })
+
+  const closeAppMutation = useMutation({
+    mutationFn: (payload: { app: WorkstationApp } | { all: true }) => {
+      if (!inspectedMachine) throw new Error('Chưa chọn máy')
+      return 'all' in payload
+        ? closeAllWorkstationApps(inspectedMachine.hostName)
+        : closeWorkstationApp(inspectedMachine.hostName, payload.app)
+    },
+    onSuccess: () => {
+      pushToast('Đã gửi lệnh đóng ứng dụng.', 'success')
+      if (inspectedMachine) appsQueryMutation.mutate(inspectedMachine.hostName)
     },
     onError: (error) => pushToast(error.message, 'error'),
   })
@@ -579,6 +629,19 @@ export function WorkstationWorkspace() {
 
   const openInspector = (machine: WorkstationRuntime) => {
     setInspectorHost(machine.hostName)
+  }
+
+  const openMessageDialog = (hostNames: string[]) => {
+    setMessageTargets(hostNames)
+    setMessageText('')
+    setMessageDialogOpen(true)
+  }
+
+  const openAppsDialog = (machine: WorkstationRuntime) => {
+    setAppsList(null)
+    setAppsError(null)
+    setAppsDialogOpen(true)
+    appsQueryMutation.mutate(machine.hostName)
   }
 
   const openCommand = (kind: CommandKind, machines = selectedMachines) => {
@@ -792,6 +855,13 @@ export function WorkstationWorkspace() {
             </Button>
             <Button type="button" variant="secondary" onClick={() => setNoteDialogOpen(true)}>
               Ghi chú / giữ máy
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => openMessageDialog(selectedMachines.map((machine) => machine.hostName))}
+            >
+              Nhắn tin
             </Button>
             <span className="ws-selection-bar__divider" />
             <Button
@@ -1040,10 +1110,23 @@ export function WorkstationWorkspace() {
                     </Button>
                   )
                 })}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => openMessageDialog([inspectedMachine.hostName])}
+                >
+                  Nhắn tin
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => openAppsDialog(inspectedMachine)}
+                >
+                  Ứng dụng đang chạy
+                </Button>
               </div>
               <InlineAlert tone="info">
-                Chat, âm lượng, danh sách ứng dụng và điều khiển từ xa đang chờ backend
-                correlation/RBAC; màn hình không gửi lệnh giả.
+                Âm lượng, xem màn hình và điều khiển từ xa đang chờ backend (2.22).
               </InlineAlert>
             </section>
 
@@ -1591,6 +1674,138 @@ export function WorkstationWorkspace() {
             <span>Người thao tác</span>
             <strong>{staffName || '—'}</strong>
           </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={messageDialogOpen}
+        title="Nhắn tin tới máy trạm"
+        description={`Gửi tới ${messageTargets.length} máy: ${messageTargets.join(', ')}`}
+        size="sm"
+        onClose={() => {
+          if (messageMutation.isPending) return
+          setMessageDialogOpen(false)
+        }}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={messageMutation.isPending}
+              onClick={() => setMessageDialogOpen(false)}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={messageMutation.isPending}
+              disabled={!messageText.trim()}
+              onClick={() => messageMutation.mutate()}
+            >
+              Gửi tin nhắn
+            </Button>
+          </>
+        }
+      >
+        <div className="ws-dialog-stack">
+          <label className="ds-field">
+            <span className="ds-field__label">Nội dung (tối đa 500 ký tự)</span>
+            <textarea
+              className="ds-input ws-note-input"
+              maxLength={500}
+              value={messageText}
+              onChange={(event) => setMessageText(event.target.value)}
+            />
+          </label>
+          <InlineAlert tone="info">
+            Tin nhắn hiện ngay trên màn hình máy khách đang online; máy ngoại tuyến sẽ báo
+            "offline" trong kết quả. Không hiện lại trong cửa sổ chat MFC của thu ngân.
+          </InlineAlert>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={appsDialogOpen}
+        title="Ứng dụng đang chạy"
+        description={inspectedMachine?.hostName}
+        size="md"
+        onClose={() => {
+          if (closeAppMutation.isPending) return
+          setAppsDialogOpen(false)
+        }}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={appsQueryMutation.isPending}
+              onClick={() => inspectedMachine && appsQueryMutation.mutate(inspectedMachine.hostName)}
+            >
+              Làm mới
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={closeAppMutation.isPending}
+              disabled={!hasRight(RIGHTS.CLOSE_ALL_APPS) || !appsList || appsList.length === 0}
+              title={!hasRight(RIGHTS.CLOSE_ALL_APPS) ? `Thiếu quyền ${RIGHTS.CLOSE_ALL_APPS}` : undefined}
+              onClick={() => closeAppMutation.mutate({ all: true })}
+            >
+              Đóng tất cả
+            </Button>
+          </>
+        }
+      >
+        <div className="ws-dialog-stack">
+          <InlineAlert tone="warning">
+            Mở danh sách này sẽ hiện một cửa sổ chặn màn hình MFC tại quầy tới khi có người đóng —
+            chỉ dùng khi cần, đừng bấm lặp lại nhiều lần.
+          </InlineAlert>
+          {appsQueryMutation.isPending ? <StateView title="Đang lấy danh sách ứng dụng…" /> : null}
+          {appsError ? (
+            <StateView
+              title="Không lấy được danh sách"
+              description={appsError}
+              action={
+                <Button
+                  onClick={() => inspectedMachine && appsQueryMutation.mutate(inspectedMachine.hostName)}
+                >
+                  Thử lại
+                </Button>
+              }
+            />
+          ) : null}
+          {!appsQueryMutation.isPending && !appsError && appsList && appsList.length === 0 ? (
+            <StateView title="Không có ứng dụng nào đang chạy" />
+          ) : null}
+          {appsList && appsList.length > 0 ? (
+            <ul className="ws-apps-list">
+              {appsList.map((app) => (
+                <li key={app.pid} className="ws-apps-list__row">
+                  <div>
+                    <strong>{app.title || `PID ${app.pid}`}</strong>
+                    <small>{app.filePath || '—'}</small>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!app.closable || !hasRight(RIGHTS.CLOSE_ALL_APPS) || closeAppMutation.isPending}
+                    title={
+                      !app.closable
+                        ? 'Máy chủ chặn đóng ứng dụng này'
+                        : !hasRight(RIGHTS.CLOSE_ALL_APPS)
+                          ? `Thiếu quyền ${RIGHTS.CLOSE_ALL_APPS}`
+                          : undefined
+                    }
+                    onClick={() => closeAppMutation.mutate({ app })}
+                  >
+                    Đóng
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </Dialog>
 

@@ -213,11 +213,17 @@ export const deleteUserPortrait = (userId: number) =>
 export const generateUsers = (payload: GenerateUsersPayload) =>
   apiPost<GenerateUsersResult, GenerateUsersPayload>('/users/generate', payload)
 
-export const getRechargeHistory = (userId: number) =>
-  apiGet<UserRechargeHistory>(`/user/recharge-history?userId=${userId}`)
+export type UserHistoryDateRange = { from?: string; to?: string }
 
-export const getUserLogs = (userId: number, limit = 200, offset = 0) =>
-  apiGet<UserUsageLog[]>(`/user/logs?userId=${userId}&limit=${limit}&offset=${offset}`)
+function dateRangeQuery({ from, to }: UserHistoryDateRange) {
+  return from && to ? `&from=${from}&to=${to}` : ''
+}
+
+export const getRechargeHistory = (userId: number, range: UserHistoryDateRange = {}) =>
+  apiGet<UserRechargeHistory>(`/user/recharge-history?userId=${userId}${dateRangeQuery(range)}`)
+
+export const getUserLogs = (userId: number, limit = 200, offset = 0, range: UserHistoryDateRange = {}) =>
+  apiGet<UserUsageLog[]>(`/user/logs?userId=${userId}&limit=${limit}&offset=${offset}${dateRangeQuery(range)}`)
 
 export const usersApi = {
   generateUsers,

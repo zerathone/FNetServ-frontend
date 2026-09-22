@@ -97,13 +97,18 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           scheduleOrdersInvalidate()
           break
 
-        case 'member.updated':
-          // Signal-only: số dư thật vẫn lấy qua REST. Làm mới cả context hội viên và máy đang dùng.
+        case 'member.updated': {
+          // Signal-only: số dư thật vẫn lấy qua REST. task 2.44-A3: memberId > 0 ở 6 call-site
+          // mới (§16.1-IMPL) cho phép refetch đúng 1 hội viên; 2 nguồn cũ vẫn phát 0 -> refetch rộng.
+          const memberId = (msg.data as { memberId?: number } | undefined)?.memberId ?? 0
           void queryClient.invalidateQueries({ queryKey: ['users'] })
-          void queryClient.invalidateQueries({ queryKey: ['user-detail'] })
+          void queryClient.invalidateQueries({
+            queryKey: memberId > 0 ? ['user-detail', memberId] : ['user-detail'],
+          })
           void queryClient.invalidateQueries({ queryKey: ['workstation-user'] })
           void queryClient.invalidateQueries({ queryKey: ['workstations'] })
           break
+        }
 
         case 'usergroup.changed':
           void queryClient.invalidateQueries({ queryKey: ['user-groups'] })

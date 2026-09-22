@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRechargeHistory, getUserLogs, type UserAccount } from '../../api/users'
-import { Button, Dialog, StateView } from '../../design-system/components'
+import { Button, DateRangePicker, Dialog, StateView } from '../../design-system/components'
 
 export type CustomerHistoryKind = 'usage' | 'recharge'
 
@@ -50,14 +51,26 @@ function rechargeMethodLabel(paymentType: number) {
 
 export function CustomerHistoryDialog({ kind, user, onClose }: CustomerHistoryDialogProps) {
   const isRecharge = kind === 'recharge'
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+
+  useEffect(() => {
+    if (kind) {
+      setFromDate('')
+      setToDate('')
+    }
+  }, [kind, user.userId])
+
+  // Backend chỉ nhận cặp from/to đủ cả hai (§20.7) — gửi một đầu mút là lỗi.
+  const range = fromDate && toDate ? { from: fromDate, to: toDate } : {}
   const rechargeQuery = useQuery({
-    queryKey: ['user-recharge-history', user.userId],
-    queryFn: () => getRechargeHistory(user.userId),
+    queryKey: ['user-recharge-history', user.userId, range.from, range.to],
+    queryFn: () => getRechargeHistory(user.userId, range),
     enabled: isRecharge,
   })
   const usageQuery = useQuery({
-    queryKey: ['user-usage-logs', user.userId],
-    queryFn: () => getUserLogs(user.userId),
+    queryKey: ['user-usage-logs', user.userId, range.from, range.to],
+    queryFn: () => getUserLogs(user.userId, 200, 0, range),
     enabled: kind === 'usage',
   })
 
@@ -76,6 +89,14 @@ export function CustomerHistoryDialog({ kind, user, onClose }: CustomerHistoryDi
       footer={<Button type="button" variant="secondary" onClick={onClose}>Đóng</Button>}
     >
       <div className="customer-history-dialog">
+        <DateRangePicker
+          label="Lọc theo khoảng ngày"
+          fromDate={fromDate}
+          toDate={toDate}
+          onFromDateChange={setFromDate}
+          onToDateChange={setToDate}
+        />
+
         {isRecharge && rechargeQuery.data ? (
           <div className="customer-history-dialog__total">
             <span>Tổng đã nạp</span>

@@ -103,9 +103,12 @@ class WsClient {
     type: string,
     payload: Record<string, unknown>,
     timeoutMs = REQUEST_TIMEOUT_MS,
+    expectedTypeOverride?: string,
   ): Promise<TData> {
     const requestId = makeWsRequestId()
-    const expectedType = `${commandFamily(type)}.result`
+    // §17-IMPL: hầu hết command trả về `<family>.result`, nhưng `workstation.apps.close` trả
+    // riêng `workstation.apps.close.result` (khác `.get` cùng family) -- phải cho override.
+    const expectedType = expectedTypeOverride ?? `${commandFamily(type)}.result`
     return new Promise<TData>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(requestId)
