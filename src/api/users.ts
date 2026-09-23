@@ -156,9 +156,23 @@ export type UserUsageLog = {
   moneyUsed: string
 }
 
-export const getUsers = (type: 'member' | 'staff' | 'combo' = 'member', limit = 200, offset = 0, q?: string) => {
+/**
+ * Truong de tim khi type=member. Moi gia tri = 1 luot quet bang hoi vien o BE
+ * (DAOUser::filter_ids). Bo trong => BE giu hanh vi cu: OR ca 3 truong = 3 luot quet,
+ * cham gap 3. Xem handoff/fixbug/HANDOFF_fixbug_member_search_slow.md
+ */
+export type UserSearchField = 'username' | 'phone' | 'idnumber'
+
+export const getUsers = (
+  type: 'member' | 'staff' | 'combo' = 'member',
+  limit = 200,
+  offset = 0,
+  q?: string,
+  qby?: UserSearchField,
+) => {
   let url = `/users?type=${type}&limit=${limit}&offset=${offset}`;
   if (q) url += `&q=${encodeURIComponent(q)}`;
+  if (q && qby) url += `&qby=${qby}`;
   return apiGet<UsersResponse>(url);
 }
 

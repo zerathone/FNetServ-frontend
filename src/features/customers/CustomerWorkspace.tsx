@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
-import { getUsers, usersApi, type UserAccount } from '../../api/users'
+import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
 import {
   Button,
   ConfirmAction,
@@ -12,6 +12,7 @@ import {
   ListPagination,
   MoneyInput,
   PageHeader,
+  Select,
   StateView,
 } from '../../design-system/components'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
@@ -41,6 +42,19 @@ const RIGHTS = {
 } as const
 
 type UserType = 'member' | 'staff' | 'combo'
+
+// FIXBUG 2026-09-23: nhan cho tung truong tim. Chi ap dung cho tab "Hoi vien" --
+// tab staff/combo BE loc in-memory theo ten da giai ma, khong nhan tham so `qby`.
+const SEARCH_FIELD_LABELS: Record<UserSearchField, string> = {
+  username: 'Tên đăng nhập',
+  phone: 'Số điện thoại',
+  idnumber: 'CCCD',
+}
+const SEARCH_FIELD_PLACEHOLDERS: Record<UserSearchField, string> = {
+  username: 'Nhập từ đầu tên đăng nhập...',
+  phone: 'Nhập từ đầu số điện thoại...',
+  idnumber: 'Nhập từ đầu số CCCD...',
+}
 type CustomerAction = 'deposit' | 'give' | 'credit' | 'payDebt' | 'transfer'
 type CustomerColumn =
   | 'userName'
@@ -185,6 +199,8 @@ export function CustomerWorkspace() {
   const [userType, setUserType] = useState<UserType>('member')
   const [searchInput, setSearchInput] = useState(routeSearch)
   const [searchQuery, setSearchQuery] = useState(routeSearch)
+  // FIXBUG 2026-09-23: tim theo DUNG 1 truong. Gop 3 truong = 3 luot quet bang hoi vien o BE.
+  const [searchField, setSearchField] = useState<UserSearchField>('username')
   const [page, setPage] = useState(0)
   const [selectedSeed, setSelectedSeed] = useState<UserAccount | null>(null)
   const [action, setAction] = useState<CustomerAction | null>(null)
@@ -212,8 +228,17 @@ export function CustomerWorkspace() {
   }, [routeSearch])
 
   const usersQuery = useQuery({
-    queryKey: ['users', userType, page, searchQuery],
-    queryFn: () => getUsers(userType, PAGE_SIZE, page * PAGE_SIZE, searchQuery || undefined),
+    // `searchField` PHAI nam trong queryKey: thieu no thi doi truong tim se an cache cua
+    // truong truoc -> hien ket qua sai ma khong co loi nao bao.
+    queryKey: ['users', userType, page, searchQuery, searchField],
+    queryFn: () =>
+      getUsers(
+        userType,
+        PAGE_SIZE,
+        page * PAGE_SIZE,
+        searchQuery || undefined,
+        userType === 'member' ? searchField : undefined,
+      ),
   })
   const users = useMemo(() => usersQuery.data?.items ?? [], [usersQuery.data])
   const displayedColumns = useMemo(
@@ -455,7 +480,11 @@ export function CustomerWorkspace() {
       <PageHeader
         eyebrow="Thu ngân"
         title="Tài khoản"
-        description="Tìm theo đầu tên đăng nhập, số điện thoại hoặc CCCD; xác minh đúng người trước giao dịch."
+        description={
+          userType === 'member'
+            ? `Tìm theo đầu ${SEARCH_FIELD_LABELS[searchField].toLowerCase()}; xác minh đúng người trước giao dịch.`
+            : 'Tìm theo đầu tên đăng nhập; xác minh đúng người trước giao dịch.'
+        }
         actions={
           isAdmin ? (
             <>
@@ -498,15 +527,34 @@ export function CustomerWorkspace() {
 
       <form className="customer-search" onSubmit={submitSearch}>
         <label className="ds-field">
-          <span className="ds-visually-hidden">Tên đăng nhập, số điện thoại hoặc CCCD</span>
+          <span className="ds-visually-hidden">{SEARCH_FIELD_LABELS[searchField]}</span>
           <div className="ds-input-group ds-input-group--search">
+            {userType === 'member' ? (
+              <Select
+                value={searchField}
+                aria-label="Tìm theo trường"
+                onChange={(event) => {
+                  setSearchField(event.target.value as UserSearchField)
+                  setPage(0)
+                  setSelectedSeed(null)
+                }}
+              >
+                <option value="username">Tên đăng nhập</option>
+                <option value="phone">Điện thoại</option>
+                <option value="idnumber">CCCD</option>
+              </Select>
+            ) : null}
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
               <input
                 className="ds-input"
                 type="search"
                 value={searchInput}
-                placeholder="Nhập từ đầu tên đăng nhập, số điện thoại hoặc CCCD..."
+                placeholder={
+                  userType === 'member'
+                    ? SEARCH_FIELD_PLACEHOLDERS[searchField]
+                    : 'Nhập từ đầu tên đăng nhập...'
+                }
                 onChange={(event) => setSearchInput(event.target.value)}
               />
               {searchInput || searchQuery ? (
