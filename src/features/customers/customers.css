@@ -46,10 +46,11 @@
 }
 
 .customer-search {
-  display: grid;
-  grid-template-columns: minmax(18rem, 36rem) auto auto;
-  align-items: end;
-  gap: var(--space-2);
+  max-width: 26rem;
+}
+
+.customer-search .ds-field {
+  width: 100%;
 }
 
 .customer-list-card {
@@ -1355,11 +1356,7 @@
   }
 
   .customer-search {
-    grid-template-columns: 1fr auto;
-  }
-
-  .customer-search > .ds-button--ghost {
-    grid-column: 1 / -1;
+    max-width: none;
   }
 
   .customer-list-card {

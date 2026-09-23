@@ -1,7 +1,8 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { login } from '../api/auth'
+import { getServerInfo } from '../api/system'
 import { useAuthStore } from '../store/auth'
 
 export function LoginPage() {
@@ -9,6 +10,13 @@ export function LoginPage() {
   const setCredentials = useAuthStore((state) => state.setCredentials)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+
+  const serverInfoQuery = useQuery({
+    queryKey: ['server-info'],
+    queryFn: getServerInfo,
+    staleTime: Infinity,
+    retry: false,
+  })
 
   const loginMutation = useMutation({
     mutationFn: () => login(username, password),
@@ -79,13 +87,22 @@ export function LoginPage() {
           <p className="status-text error-text">{(loginMutation.error as Error).message}</p>
         ) : null}
 
-        <button
-          type="submit"
-          className="primary-button"
-          disabled={!username || !password || loginMutation.isPending}
-        >
-          {loginMutation.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
-        </button>
+        <div className="login-actions">
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={!username || !password || loginMutation.isPending}
+          >
+            {loginMutation.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
+          </button>
+
+          {serverInfoQuery.data?.ver ? (
+            <span className="login-version">
+              v{serverInfoQuery.data.ver}
+              {serverInfoQuery.data.rd ? ` · ${serverInfoQuery.data.rd}` : ''}
+            </span>
+          ) : null}
+        </div>
       </form>
     </main>
   )

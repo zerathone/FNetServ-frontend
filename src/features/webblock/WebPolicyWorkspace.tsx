@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import {
   acceptWebBlock,
   createWebBlock,
@@ -17,6 +18,7 @@ import {
   InlineAlert,
   ListPagination,
   PageHeader,
+  Select,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -54,8 +56,8 @@ export function WebPolicyWorkspace() {
   const hasRight = useAuthStore((state) => state.hasRight)
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const [page, setPage] = useState(0)
-  const [urlInput, setUrlInput] = useState('')
-  const [titleInput, setTitleInput] = useState('')
+  const [searchType, setSearchType] = useState<'url' | 'title'>('url')
+  const [searchInput, setSearchInput] = useState('')
   const [filters, setFilters] = useState({ url: '', title: '' })
   const [draft, setDraft] = useState<WebBlockWriteBody>(EMPTY_DRAFT)
   const [editing, setEditing] = useState<WebBlockItem | null>(null)
@@ -170,12 +172,12 @@ export function WebPolicyWorkspace() {
   const applyFilters = (event: React.FormEvent) => {
     event.preventDefault()
     setPage(0)
-    setFilters({ url: urlInput.trim(), title: titleInput.trim() })
+    const value = searchInput.trim()
+    setFilters(searchType === 'url' ? { url: value, title: '' } : { url: '', title: value })
   }
 
   const clearFilters = () => {
-    setUrlInput('')
-    setTitleInput('')
+    setSearchInput('')
     setFilters({ url: '', title: '' })
     setPage(0)
   }
@@ -231,38 +233,38 @@ export function WebPolicyWorkspace() {
 
       <form className="web-policy-filters" onSubmit={applyFilters}>
         <label className="ds-field">
-          <span className="ds-field__label">Địa chỉ website</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={urlInput}
-            maxLength={200}
-            placeholder="Ví dụ: facebook.com"
-            onChange={(event) => setUrlInput(event.target.value)}
-          />
+          <span className="ds-visually-hidden">Tìm kiếm website</span>
+          <div className="ds-input-group ds-input-group--search">
+            <Select
+              value={searchType}
+              onChange={(event) => {
+                setSearchType(event.target.value as 'url' | 'title')
+                setSearchInput('')
+                setFilters({ url: '', title: '' })
+                setPage(0)
+              }}
+            >
+              <option value="url">Địa chỉ</option>
+              <option value="title">Tên website</option>
+            </Select>
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={searchInput}
+                maxLength={searchType === 'url' ? 200 : 250}
+                placeholder={searchType === 'url' ? 'Ví dụ: facebook.com' : 'Ví dụ: Mạng xã hội'}
+                onChange={(event) => setSearchInput(event.target.value)}
+              />
+              {searchInput || filters.url || filters.title ? (
+                <button type="button" className="ds-search-input__clear" aria-label="Xóa lọc" onClick={clearFilters}>
+                  <XCircle size={18} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Tên website</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={titleInput}
-            maxLength={250}
-            placeholder="Ví dụ: Mạng xã hội"
-            onChange={(event) => setTitleInput(event.target.value)}
-          />
-        </label>
-        <Button type="submit" variant="primary">
-          Tìm
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={!filters.url && !filters.title && !urlInput && !titleInput}
-          onClick={clearFilters}
-        >
-          Xóa lọc
-        </Button>
       </form>
 
       <section className="web-policy-panel">
@@ -283,19 +285,15 @@ export function WebPolicyWorkspace() {
             >
               Làm mới
             </Button>
-            <span>
-              Trang {page + 1}/{totalPages}
-            </span>
+            <ListPagination
+              page={page}
+              totalPages={totalPages}
+              canNext={page < totalPages - 1}
+              onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+              onNext={() => setPage((current) => current + 1)}
+            />
           </div>
         </header>
-
-        <ListPagination
-          page={page}
-          totalPages={totalPages}
-          canNext={page < totalPages - 1}
-          onPrevious={() => setPage((current) => Math.max(0, current - 1))}
-          onNext={() => setPage((current) => current + 1)}
-        />
 
         {listQuery.isLoading ? (
           <StateView title="Đang tải danh sách website…" />

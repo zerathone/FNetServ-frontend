@@ -9,7 +9,7 @@ export type ThemeDefinition = {
 }
 
 export const themes: readonly ThemeDefinition[] = [
-  { id: 'classic', label: 'Classic MFC', colorScheme: 'light' },
+  { id: 'classic', label: 'Classic', colorScheme: 'light' },
   { id: 'light', label: 'Sáng', colorScheme: 'light' },
   { id: 'dark', label: 'Tối', colorScheme: 'dark' },
   { id: 'warm', label: 'Ấm', colorScheme: 'light' },

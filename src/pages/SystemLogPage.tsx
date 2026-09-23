@@ -60,7 +60,7 @@ export function SystemLogPage() {
     <section className="page-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
       <div className="page-header">
         <div>
-          <p className="eyebrow">Phase 3 · Task 3.16</p>
+          <p className="eyebrow">Vận hành</p>
           <h2 className="section-title">Nhật ký hệ thống</h2>
         </div>
       </div>

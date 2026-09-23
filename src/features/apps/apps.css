@@ -9,45 +9,28 @@
 }
 
 .app-policy-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-default);
-  box-shadow: var(--shadow-sm);
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border-default);
 }
 
 .app-policy-tabs button {
-  min-height: 3.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  min-height: var(--control-height-default);
   border: 0;
-  border-right: 1px solid var(--color-border-default);
+  border-bottom: 2px solid transparent;
   padding: 0 var(--space-4);
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   background: transparent;
-  font-weight: 700;
+  font-weight: 650;
 }
 
-.app-policy-tabs button:last-child {
-  border-right: 0;
+.app-policy-tabs button:hover {
+  color: var(--color-text-primary);
 }
 
-.app-policy-tabs button:hover,
 .app-policy-tabs button.is-active {
+  border-bottom-color: var(--color-action-primary);
   color: var(--color-action-primary);
-  background: color-mix(in srgb, var(--color-action-primary) 7%, var(--color-surface-default));
-}
-
-.app-policy-tabs button.is-active {
-  box-shadow: inset 0 -3px var(--color-action-primary);
-}
-
-.app-policy-tabs strong {
-  font-size: var(--font-size-xl);
 }
 
 .app-policy-toolbar {

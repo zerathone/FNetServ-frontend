@@ -220,27 +220,24 @@ export function AppPolicyWorkspace() {
         }
       />
 
-      <InlineAlert tone="info">
-        Chính sách do CSM cấp được máy chủ giữ chỉ đọc. Chính sách tạo tại quán có
-        thể thêm, sửa và xóa theo quyền 71–73.
-      </InlineAlert>
-
-      <nav className="app-policy-tabs" aria-label="Loại chính sách ứng dụng">
+      <nav className="app-policy-tabs" role="tablist" aria-label="Loại chính sách ứng dụng">
         <button
           type="button"
+          role="tab"
+          aria-selected={activeType === 'restrict'}
           className={activeType === 'restrict' ? 'is-active' : ''}
           onClick={() => setActiveType('restrict')}
         >
-          <span>Hạn chế</span>
-          <strong>{lists.restrict.length}</strong>
+          Hạn chế ({lists.restrict.length})
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={activeType === 'allow'}
           className={activeType === 'allow' ? 'is-active' : ''}
           onClick={() => setActiveType('allow')}
         >
-          <span>Cho phép</span>
-          <strong>{lists.allow.length}</strong>
+          Cho phép ({lists.allow.length})
         </button>
       </nav>
 
@@ -352,7 +349,7 @@ export function AppPolicyWorkspace() {
                           <StatusBadge
                             tone={restriction.mode === 'hash' ? 'warning' : 'neutral'}
                           >
-                            {restriction.mode === 'hash' ? 'Theo MD5' : 'Theo tên'}
+                            {restriction.mode === 'hash' ? 'Theo nội dung' : 'Theo tên'}
                           </StatusBadge>
                           {restriction.applyToAvailable ? (
                             <StatusBadge tone="info">Cả máy rảnh</StatusBadge>
@@ -475,7 +472,7 @@ export function AppPolicyWorkspace() {
                   onChange={() => setDraft((current) => ({ ...current, mode: 'hash' }))}
                 />
                 <span>
-                  <strong>Theo MD5</strong>
+                  <strong>Theo nội dung</strong>
                   <small>Chính xác theo nội dung tệp, cần giá trị MD5 32 ký tự.</small>
                 </span>
               </label>

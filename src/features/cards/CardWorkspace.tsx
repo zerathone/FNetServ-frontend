@@ -4,12 +4,14 @@ import { cardsApi } from '../../api/cards'
 import {
   Button,
   ConfirmAction,
+  FilterHeaderCell,
   InlineAlert,
   ListPagination,
   PageHeader,
   RefreshButton,
   StateView,
   StatusBadge,
+  type FilterMenuOption,
 } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import { useAuthStore } from '../../store/auth'
@@ -24,6 +26,13 @@ import {
 import './cards.css'
 
 const PAGE_SIZE = 50
+
+const STATUS_FILTER_OPTIONS: FilterMenuOption<number>[] = [
+  { value: 0, label: 'Chưa dùng', color: 'var(--color-success)' },
+  { value: 1, label: 'Đã dùng' },
+  { value: 2, label: 'Đã khóa', color: 'var(--color-danger)' },
+  { value: -1, label: 'Tất cả' },
+]
 
 type Confirmation = 'lock' | 'delete' | null
 
@@ -58,6 +67,19 @@ export function CardWorkspace() {
         offset: page * PAGE_SIZE,
       }),
   })
+
+  const statusCountsQuery = useQuery({
+    queryKey: ['cards', 'status-counts'],
+    queryFn: async () => {
+      const [unused, used, locked] = await Promise.all([
+        cardsApi.getList({ status: 0, limit: 1 }),
+        cardsApi.getList({ status: 1, limit: 1 }),
+        cardsApi.getList({ status: 2, limit: 1 }),
+      ])
+      return { unused: unused.total, used: used.total, locked: locked.total }
+    },
+  })
+  const statusCounts = statusCountsQuery.data ?? { unused: 0, used: 0, locked: 0 }
 
   const cards = cardsQuery.data?.items ?? []
   const total = cardsQuery.data?.total ?? 0
@@ -163,26 +185,6 @@ export function CardWorkspace() {
         và số lượng tùy ý để tránh bán vượt tồn.
       </InlineAlert>
 
-      <nav className="card-status-tabs" aria-label="Lọc trạng thái thẻ">
-        {[
-          { value: -1, label: 'Tất cả' },
-          { value: 0, label: 'Chưa dùng' },
-          { value: 1, label: 'Đã dùng' },
-          { value: 2, label: 'Đã khóa' },
-        ].map((item) => (
-          <button
-            type="button"
-            className={status === item.value ? 'is-active' : ''}
-            aria-pressed={status === item.value}
-            key={item.value}
-            onClick={() => changeStatus(item.value)}
-          >
-            {item.label}
-            {status === item.value ? <strong>{total}</strong> : null}
-          </button>
-        ))}
-      </nav>
-
       {selectedIds.size > 0 ? (
         <section className="card-selection" aria-label="Thao tác thẻ đã chọn">
           <div>
@@ -214,8 +216,37 @@ export function CardWorkspace() {
 
       <section className="card-panel" aria-label="Danh sách thẻ nạp">
         <div className="card-panel__header">
-          <div>
+          <div className="card-panel__summary">
             <strong>{new Intl.NumberFormat('vi-VN').format(total)} thẻ</strong>
+            <div className="card-stat-row">
+              <button
+                type="button"
+                className={`card-stat ${status === 0 ? 'is-active' : ''}`}
+                onClick={() => changeStatus(status === 0 ? -1 : 0)}
+              >
+                <span className="card-stat__dot card-stat__dot--unused" aria-hidden="true" />
+                <span className="card-stat__label">Chưa dùng</span>
+                <strong>{statusCounts.unused}</strong>
+              </button>
+              <button
+                type="button"
+                className={`card-stat ${status === 1 ? 'is-active' : ''}`}
+                onClick={() => changeStatus(status === 1 ? -1 : 1)}
+              >
+                <span className="card-stat__dot card-stat__dot--used" aria-hidden="true" />
+                <span className="card-stat__label">Đã dùng</span>
+                <strong>{statusCounts.used}</strong>
+              </button>
+              <button
+                type="button"
+                className={`card-stat ${status === 2 ? 'is-active' : ''}`}
+                onClick={() => changeStatus(status === 2 ? -1 : 2)}
+              >
+                <span className="card-stat__dot card-stat__dot--locked" aria-hidden="true" />
+                <span className="card-stat__label">Đã khóa</span>
+                <strong>{statusCounts.locked}</strong>
+              </button>
+            </div>
           </div>
           <div className="card-panel__toolbar">
             <RefreshButton
@@ -274,8 +305,17 @@ export function CardWorkspace() {
                   </th>
                   <th>Mã quản lý</th>
                   <th>Mệnh giá</th>
-                  <th>Ví</th>
-                  <th>Trạng thái</th>
+                  <th>Tài khoản</th>
+                  <FilterHeaderCell
+                    as="th"
+                    label="Trạng thái"
+                    options={STATUS_FILTER_OPTIONS}
+                    value={status}
+                    baseline={-1}
+                    onChange={changeStatus}
+                    menuLabel="Lọc theo trạng thái thẻ"
+                    clearLabel="Bỏ lọc trạng thái"
+                  />
                   <th>Ngày tạo / hết hạn</th>
                   <th>Người sử dụng</th>
                   <th>Ghi chú</th>
@@ -298,7 +338,7 @@ export function CardWorkspace() {
                         <strong>#{card.cardId}</strong>
                       </td>
                       <td className="card-money">{formatMoney(card.cardValue)}</td>
-                      <td>{card.type === 0 ? 'Ví chính' : 'Ví khuyến mãi'}</td>
+                      <td>{card.type === 0 ? 'Chính' : 'Khuyến mãi'}</td>
                       <td>
                         <StatusBadge tone={statusMeta.tone}>
                           {statusMeta.label}

@@ -200,28 +200,35 @@
 .combo-zone-filter button:hover { border-color: var(--color-action-primary); color: var(--color-action-primary); }
 .combo-zone-filter button.is-active { border-color: var(--color-action-primary); background: var(--color-action-primary); color: var(--color-text-inverse); box-shadow: 0 0 0 2px var(--color-surface-default), 0 0 0 3px var(--color-action-primary); font-weight: 750; }
 .combo-pos__catalog { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
-.combo-product-card { position: relative; min-height: 16rem; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3); overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-raised); color: var(--color-text-primary); text-align: left; transition: border-color .16s ease, box-shadow .16s ease; }
+.combo-product-card { position: relative; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-raised); color: var(--color-text-primary); text-align: left; transition: border-color .16s ease, box-shadow .16s ease; }
 .combo-product-card.is-selected { border-color: var(--color-action-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-action-primary) 18%, transparent); }
 .combo-product-card.is-unavailable { opacity: .62; }
-.combo-product-card__eyebrow { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
-.combo-product-card__name { font-size: var(--font-size-sm); font-weight: 850; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; min-width: 0; overflow-wrap: anywhere; }
 
-.combo-product-card__headline { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-1); }
-.combo-product-card__time { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--font-size-xl); font-weight: 900; color: var(--color-text-primary); letter-spacing: -0.02em; }
-.combo-product-card__time span { display: inline-flex; align-items: center; gap: var(--space-1); }
-.combo-product-card__time svg { color: var(--color-text-muted); }
+/* Nhãn combo: nhãn phụ nhỏ, KHÔNG cạnh tranh trọng lượng với badge trạng thái bên cạnh. */
+.combo-product-card__eyebrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.combo-product-card__name { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; min-width: 0; overflow-wrap: anywhere; }
 
-.combo-product-card__duration { display: inline-block; align-self: flex-start; padding: .25rem .6rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-default); color: var(--color-text-primary); font-size: var(--font-size-sm); font-weight: 800; white-space: nowrap; }
+/* Khung giờ: thông tin quan trọng nhất card, nhưng vẫn theo thang chữ chuẩn (lg, không xl/900). */
+.combo-product-card__headline { display: flex; flex-direction: column; gap: var(--space-2); }
+.combo-product-card__time { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: 700; color: var(--color-text-primary); }
+.combo-product-card__time span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.combo-product-card__time svg { color: var(--color-text-muted); flex: 0 0 auto; }
 
-.combo-product-card__zones>i,.combo-product-card__donates>i { display: inline-flex; align-items: center; justify-content: center; min-width: 1.35rem; color: inherit; font-size: 1.2rem; font-style: normal; line-height: 1; text-align: center; }
-.combo-product-card__zones,.combo-product-card__donates { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-sm); }
-.combo-product-card__zones>div { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.combo-product-card__zones span { padding: .15rem .55rem; border-radius: 999px; background: var(--color-surface-muted); color: var(--color-text-primary); font-size: var(--font-size-xs); font-weight: 700; }
-.combo-product-card__donates { min-height: 2.5rem; }
-.combo-product-card__price { margin-top: auto; padding-right: 7rem; font-size: var(--font-size-2xl); text-decoration: underline; text-underline-offset: .16em; }
-.combo-product-card__sell { position: absolute; right: var(--space-3); bottom: var(--space-3); min-width: 5.5rem; padding: .55rem .8rem; border: 0; border-radius: var(--radius-md); background: var(--color-action-primary); color: var(--color-text-inverse); font-size: var(--font-size-sm); font-weight: 850; text-align: center; box-shadow: var(--shadow-sm); cursor: pointer; }
+.combo-product-card__duration { display: inline-block; align-self: flex-start; padding: .2rem .55rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-default); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 700; white-space: nowrap; }
+
+.combo-product-card__zones, .combo-product-card__donates { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.combo-product-card__zones > i, .combo-product-card__donates > i { display: inline-flex; align-items: center; justify-content: center; min-width: 1.1rem; height: 1.35rem; margin-top: 1px; color: var(--color-text-muted); font-style: normal; }
+.combo-product-card__zones > div { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+.combo-product-card__zones span { padding: .15rem .5rem; border-radius: 999px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 600; }
+.combo-product-card__donates { min-height: 1.35rem; }
+
+/* Footer: giá + nút CHỌN nằm chung 1 hàng, không còn absolute-overlay đè lên giá. */
+.combo-product-card__footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
+.combo-product-card__price { min-width: 0; overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xl); font-weight: 800; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.combo-product-card__sell { flex: 0 0 auto; min-height: var(--control-height-compact); padding: 0 1.1rem; border: 0; border-radius: var(--radius-md); background: var(--color-action-primary); color: var(--color-text-inverse); font-size: var(--font-size-sm); font-weight: 700; text-align: center; cursor: pointer; }
 .combo-product-card__sell:hover:not(:disabled) { background: var(--color-action-primary-hover); }
 .combo-product-card__sell.is-selected { background: var(--color-success); opacity: 1; cursor: default; }
+.combo-product-card__sell:disabled:not(.is-selected) { opacity: .5; cursor: not-allowed; }
 .combo-context { position: sticky; top: var(--space-3); max-height: calc(100vh - 8rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-default); box-shadow: var(--shadow-md); }
 .combo-context>header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-4); border-bottom: 1px solid var(--color-border-default); }
 .combo-context>header span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }

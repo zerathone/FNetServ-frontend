@@ -5,15 +5,45 @@
 }
 
 .transaction-filters {
-  display: grid;
-  grid-template-columns: minmax(18rem, 24rem) minmax(20rem, 1fr);
-  align-items: end;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-default);
   box-shadow: var(--shadow-sm);
+}
+
+.transaction-filters__fields {
+  display: flex;
+  flex: 1;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+/* .ds-date-range tự set width:100% (đúng khi nằm trong 1 cột grid cố định) -- ở đây la flex item
+   nen phai ep flex-basis co dinh, khong thi no chiem het khong gian, day Select/o tim kiem vo. */
+.transaction-filters__fields > .ds-date-range {
+  flex: 0 0 auto;
+  width: 21rem;
+}
+
+.transaction-filters__meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.transaction-filters__count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
 }
 
 .transaction-search {
@@ -32,27 +62,23 @@
   background: color-mix(in srgb, var(--color-action-primary) 6%, var(--color-surface-default));
 }
 
-.transaction-resolver__header,
-.transaction-panel__header {
+.transaction-resolver__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.transaction-resolver__header > div,
-.transaction-panel__header > div:first-child {
+.transaction-resolver__header > div {
   display: grid;
   gap: var(--space-1);
 }
 
-.transaction-resolver__header strong,
-.transaction-panel__header strong {
+.transaction-resolver__header strong {
   color: var(--color-text-primary);
 }
 
-.transaction-resolver__header span,
-.transaction-panel__header span {
+.transaction-resolver__header span {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
@@ -101,11 +127,6 @@
   padding: var(--space-4);
   background: var(--color-surface-default);
   box-shadow: var(--shadow-sm);
-}
-
-.transaction-panel__header > div:last-child {
-  display: flex;
-  gap: var(--space-2);
 }
 
 .transaction-table-wrap {
@@ -291,12 +312,8 @@
 }
 
 @media (max-width: 1100px) {
-  .transaction-filters {
-    grid-template-columns: minmax(18rem, 1fr) minmax(20rem, 1fr);
-  }
-
-  .transaction-search {
-    grid-column: auto;
+  .transaction-filters__fields {
+    min-width: 100%;
   }
 
   .transaction-resolver__list {
@@ -306,26 +323,30 @@
 
 @media (max-width: 700px) {
   .transaction-filters {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
 
+  .transaction-filters__fields,
   .transaction-search {
-    grid-column: 1;
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .transaction-resolver__header,
-  .transaction-panel__header {
+  .transaction-filters__fields > .ds-date-range {
+    width: 100%;
+  }
+
+  .transaction-filters__meta {
+    justify-content: space-between;
+  }
+
+  .transaction-resolver__header {
     align-items: stretch;
     flex-direction: column;
   }
 
   .transaction-resolver__list {
     grid-template-columns: 1fr;
-  }
-
-  .transaction-panel__header > div:last-child {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -374,7 +374,7 @@ export function OrderWorkspace() {
   return (
     <section className="order-workspace">
       <PageHeader
-        eyebrow="Điểm bán hàng"
+        eyebrow="Thu ngân"
         title="Hàng đợi gọi món"
         description="Đơn chờ lâu được xếp trước; món chính và topping luôn xử lý cùng nhau."
         actions={

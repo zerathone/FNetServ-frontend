@@ -4,48 +4,6 @@
   gap: var(--space-4);
 }
 
-.card-status-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-default);
-  box-shadow: var(--shadow-sm);
-}
-
-.card-status-tabs button {
-  min-height: 3.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border: 0;
-  border-right: 1px solid var(--color-border-default);
-  padding: 0 var(--space-4);
-  color: var(--color-text-secondary);
-  background: transparent;
-  font-weight: 650;
-}
-
-.card-status-tabs button:last-child {
-  border-right: 0;
-}
-
-.card-status-tabs button:hover,
-.card-status-tabs button.is-active {
-  color: var(--color-action-primary);
-  background: color-mix(in srgb, var(--color-action-primary) 7%, var(--color-surface-default));
-}
-
-.card-status-tabs button.is-active {
-  box-shadow: inset 0 -3px var(--color-action-primary);
-}
-
-.card-status-tabs strong {
-  font-size: var(--font-size-xl);
-}
-
 .card-selection {
   display: flex;
   align-items: center;
@@ -101,9 +59,11 @@
   gap: var(--space-3);
 }
 
-.card-panel__header > div:first-child {
-  display: grid;
-  gap: var(--space-1);
+.card-panel__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .card-panel__header strong {
@@ -113,6 +73,56 @@
 .card-panel__header span {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.card-stat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--color-border-default);
+}
+
+.card-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  color: var(--color-text-secondary);
+  background: transparent;
+  white-space: nowrap;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.card-stat:hover {
+  background: var(--color-surface-hover);
+}
+
+.card-stat.is-active {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.card-stat__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.card-stat__dot--unused { background: var(--color-success); }
+.card-stat__dot--used { background: var(--color-text-secondary); }
+.card-stat__dot--locked { background: var(--color-danger-text); }
+
+.card-stat__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.card-stat strong {
+  font-variant-numeric: tabular-nums;
 }
 
 .card-table-wrap {
@@ -229,18 +239,6 @@
 }
 
 @media (max-width: 700px) {
-  .card-status-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .card-status-tabs button:nth-child(2) {
-    border-right: 0;
-  }
-
-  .card-status-tabs button:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--color-border-default);
-  }
-
   .card-selection > div:last-child,
   .card-panel__toolbar {
     grid-template-columns: 1fr;

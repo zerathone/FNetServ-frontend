@@ -298,14 +298,14 @@ export function ComboSalePanel() {
                   </div>
                   <div className="combo-product-card__headline">
                     <div className="combo-product-card__time">
-                      <span><CalendarBlank size={20} weight="bold" />{formatWeekdays(combo.weekday)}</span>
-                      <span><Clock size={20} weight="bold" />{formatUsageTime(combo)}</span>
+                      <span><CalendarBlank size={16} weight="bold" />{formatWeekdays(combo.weekday)}</span>
+                      <span><Clock size={16} weight="bold" />{formatUsageTime(combo)}</span>
                     </div>
                     <b className="combo-product-card__duration">{combo.type === 2 ? formatDuration(combo.duration) : 'Giờ cố định'}</b>
                   </div>
                   <div className="combo-product-card__zones">
                     <i aria-hidden="true">
-                      <MapPin size={16} weight="bold" />
+                      <MapPin size={14} weight="bold" />
                     </i>
                     <div>
                       {combo.machineGroups.map((group) => (
@@ -314,7 +314,7 @@ export function ComboSalePanel() {
                     </div>
                   </div>
                   <div className="combo-product-card__donates">
-                    <i aria-hidden="true"><BowlFood size={16} weight="bold" /></i>
+                    <i aria-hidden="true"><BowlFood size={14} weight="bold" /></i>
                     <span>
                       {combo.donates.length
                         ? combo.donates
@@ -323,15 +323,17 @@ export function ComboSalePanel() {
                         : combo.include || 'Không kèm dịch vụ'}
                     </span>
                   </div>
-                  <strong className="combo-product-card__price">{formatMoney(combo.price)}</strong>
-                  <button
-                    type="button"
-                    className={`combo-product-card__sell${selected ? ' is-selected' : ''}`}
-                    disabled={selected || !combo.salableNow}
-                    onClick={() => selectCombo(combo)}
-                  >
-                    {selected ? '✓ ĐÃ CHỌN' : 'BÁN'}
-                  </button>
+                  <div className="combo-product-card__footer">
+                    <strong className="combo-product-card__price">{formatMoney(combo.price)}</strong>
+                    <button
+                      type="button"
+                      className={`combo-product-card__sell${selected ? ' is-selected' : ''}`}
+                      disabled={selected || !combo.salableNow}
+                      onClick={() => selectCombo(combo)}
+                    >
+                      {selected ? 'Đã chọn' : 'Chọn'}
+                    </button>
+                  </div>
                 </article>
               )
             })}

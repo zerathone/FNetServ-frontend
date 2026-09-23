@@ -209,47 +209,62 @@ export function TransactionWorkspace() {
       />
 
       <section className="transaction-filters" aria-label="Bộ lọc giao dịch">
-        <DateRangePicker
-          fromDate={fromDate}
-          toDate={toDate}
-          onFromDateChange={(value) => { setFromDate(value); setPage(0) }}
-          onToDateChange={(value) => { setToDate(value); setPage(0) }}
-        />
-        <form className="transaction-search" onSubmit={submitIdentitySearch} style={{ flex: 1 }}>
-          <label className="ds-field" style={{ flex: 1 }}>
-            <span className="ds-visually-hidden">Tìm kiếm</span>
-            <div className="ds-input-group ds-input-group--search">
-              <Select
-                value={identityType}
-                onChange={(event) => {
-                  setIdentityType(event.target.value as IdentityType)
-                  clearIdentity()
-                }}
-              >
-                <option value="member">Hội viên</option>
-                <option value="staff">Nhân viên</option>
-              </Select>
-              <div className="ds-search-input">
-                <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
-                <input
-                  className="ds-input"
-                  type="search"
-                  value={searchInput}
-                  placeholder="Tìm và chọn đúng người"
+        <div className="transaction-filters__fields">
+          <DateRangePicker
+            fromDate={fromDate}
+            toDate={toDate}
+            onFromDateChange={(value) => { setFromDate(value); setPage(0) }}
+            onToDateChange={(value) => { setToDate(value); setPage(0) }}
+          />
+          <form className="transaction-search" onSubmit={submitIdentitySearch} style={{ flex: 1 }}>
+            <label className="ds-field" style={{ flex: 1 }}>
+              <span className="ds-visually-hidden">Tìm kiếm</span>
+              <div className="ds-input-group ds-input-group--search">
+                <Select
+                  value={identityType}
                   onChange={(event) => {
-                    setSearchInput(event.target.value)
-                    if (selectedIdentity) setSelectedIdentity(null)
+                    setIdentityType(event.target.value as IdentityType)
+                    clearIdentity()
                   }}
-                />
-                {searchInput || selectedIdentity ? (
-                  <button type="button" className="ds-search-input__clear" aria-label="Xóa bộ lọc" onClick={clearIdentity}>
-                    <XCircle size={18} weight="fill" aria-hidden="true" />
-                  </button>
-                ) : null}
+                >
+                  <option value="member">Hội viên</option>
+                  <option value="staff">Nhân viên</option>
+                </Select>
+                <div className="ds-search-input">
+                  <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+                  <input
+                    className="ds-input"
+                    type="search"
+                    value={searchInput}
+                    placeholder="Tìm và chọn đúng người"
+                    onChange={(event) => {
+                      setSearchInput(event.target.value)
+                      if (selectedIdentity) setSelectedIdentity(null)
+                    }}
+                  />
+                  {searchInput || selectedIdentity ? (
+                    <button type="button" className="ds-search-input__clear" aria-label="Xóa bộ lọc" onClick={clearIdentity}>
+                      <XCircle size={18} weight="fill" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </label>
-        </form>
+            </label>
+          </form>
+        </div>
+
+        <div className="transaction-filters__meta">
+          <span className="transaction-filters__count">
+            {new Intl.NumberFormat('vi-VN').format(total)} giao dịch
+          </span>
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            canNext={page < totalPages - 1}
+            onPrevious={() => setPage((value) => Math.max(0, value - 1))}
+            onNext={() => setPage((value) => value + 1)}
+          />
+        </div>
       </section>
 
       {!dateRangeValid ? (
@@ -316,20 +331,6 @@ export function TransactionWorkspace() {
       ) : null}
 
       <section className="transaction-panel" aria-label="Danh sách giao dịch">
-        <div className="transaction-panel__header">
-          <div>
-            <strong>{new Intl.NumberFormat('vi-VN').format(total)} giao dịch</strong>
-          </div>
-          <div>
-            <ListPagination
-              page={page}
-              totalPages={totalPages}
-              canNext={page < totalPages - 1}
-              onPrevious={() => setPage((value) => Math.max(0, value - 1))}
-              onNext={() => setPage((value) => value + 1)}
-            />
-          </div>
-        </div>
 
         {logsQuery.isLoading ? (
           <StateView title="Đang tải nhật ký…" />

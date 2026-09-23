@@ -5,10 +5,11 @@
 }
 
 .web-policy-filters {
-  display: grid;
-  grid-template-columns: minmax(15rem, 1fr) minmax(15rem, 1fr) auto auto;
-  align-items: end;
-  gap: var(--space-2);
+  max-width: 28rem;
+}
+
+.web-policy-filters .ds-field {
+  width: 100%;
 }
 
 .web-policy-panel {
@@ -153,15 +154,9 @@
   font-size: var(--font-size-xs);
 }
 
-@media (max-width: 900px) {
-  .web-policy-filters {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 @media (max-width: 650px) {
   .web-policy-filters {
-    grid-template-columns: 1fr;
+    max-width: none;
   }
 
   .web-policy-panel > header {

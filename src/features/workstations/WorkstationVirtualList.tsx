@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import type { MachineGroup } from '../../api/machine-groups'
 import type { WorkstationRuntime } from '../../api/workstations'
-import { StatusBadge } from '../../design-system/components'
+import { FilterHeaderCell, StatusBadge, type FilterMenuOption } from '../../design-system/components'
 import { useTheme } from '../../design-system/theme/themeContext'
 import {
   formatDuration,
@@ -10,14 +11,24 @@ import {
   getWorkstationFlags,
   getWorkstationStatus,
   interpolateSession,
+  type WorkstationFilter,
 } from './workstationModel'
+
+const STATUS_FILTER_OPTIONS: FilterMenuOption<WorkstationFilter>[] = [
+  { value: 'connected', label: 'Đang kết nối', color: 'var(--color-action-primary)' },
+  { value: 'playing', label: 'Đang chơi', color: 'var(--color-info)' },
+  { value: 'available', label: 'Sẵn sàng', color: 'var(--color-success)' },
+  { value: 'debt', label: 'Còn nợ', color: 'var(--color-warning)' },
+  { value: 'disconnected', label: 'Mất kết nối', color: 'var(--color-danger)' },
+  { value: 'all', label: 'Tất cả' },
+]
 
 const DEFAULT_ROW_HEIGHT = 68
 const CLASSIC_ROW_HEIGHT = 48
 const OVERSCAN = 6
-const COLUMN_STORAGE_KEY = 'fnet.workstations.visible-columns.v1'
+export const COLUMN_STORAGE_KEY = 'fnet.workstations.visible-columns.v1'
 
-type ColumnId =
+export type ColumnId =
   | 'machine'
   | 'ip'
   | 'status'
@@ -33,7 +44,7 @@ type ColumnId =
   | 'note'
   | 'winLicense'
 
-type ColumnDefinition = {
+export type ColumnDefinition = {
   id: ColumnId
   label: string
   width: string
@@ -41,11 +52,11 @@ type ColumnDefinition = {
   defaultVisible?: boolean
 }
 
-const COLUMNS: ColumnDefinition[] = [
+export const COLUMNS: ColumnDefinition[] = [
   { id: 'machine', label: 'Tên máy', width: 'minmax(8.5rem, 1.15fr)', required: true },
   { id: 'ip', label: 'Địa chỉ IP', width: '8.5rem' },
   { id: 'status', label: 'Tình trạng', width: 'minmax(9.5rem, 1.2fr)', required: true },
-  { id: 'user', label: 'Tên người dùng', width: 'minmax(8rem, 1fr)', required: true },
+  { id: 'user', label: 'Người dùng', width: 'minmax(8rem, 1fr)', required: true },
   { id: 'combo', label: 'COMBO', width: 'minmax(8rem, 1fr)', defaultVisible: true },
   { id: 'startedAt', label: 'Bắt đầu', width: '6.5rem', defaultVisible: true },
   { id: 'used', label: 'Đã dùng', width: '6.5rem', defaultVisible: true },
@@ -61,7 +72,7 @@ const COLUMNS: ColumnDefinition[] = [
 
 const OPTIONAL_IDS = new Set(COLUMNS.filter((column) => !column.required).map((column) => column.id))
 
-function getInitialOptionalColumns() {
+export function getInitialOptionalColumns() {
   const defaults = COLUMNS.filter((column) => !column.required && column.defaultVisible).map((column) => column.id)
   try {
     const stored = window.localStorage.getItem(COLUMN_STORAGE_KEY)
@@ -86,6 +97,12 @@ type WorkstationVirtualListProps = {
   onToggle: (hostName: string) => void
   onSelectAll: () => void
   onOpen: (machine: WorkstationRuntime) => void
+  groups: MachineGroup[]
+  groupId: number
+  onGroupChange: (groupId: number) => void
+  filter: WorkstationFilter
+  onFilterChange: (filter: WorkstationFilter) => void
+  visibleColumns: ColumnDefinition[]
 }
 
 export function WorkstationVirtualList({
@@ -95,17 +112,22 @@ export function WorkstationVirtualList({
   onToggle,
   onSelectAll,
   onOpen,
+  groups,
+  groupId,
+  onGroupChange,
+  filter,
+  onFilterChange,
+  visibleColumns,
 }: WorkstationVirtualListProps) {
   const { theme } = useTheme()
   const rowHeight = theme === 'classic' ? CLASSIC_ROW_HEIGHT : DEFAULT_ROW_HEIGHT
   const viewportRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(480)
-  const [optionalColumns, setOptionalColumns] = useState(getInitialOptionalColumns)
-
-  useEffect(() => {
-    window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify([...optionalColumns]))
-  }, [optionalColumns])
+  const groupOptions: FilterMenuOption<number>[] = [
+    { value: 0, label: 'Tất cả nhóm' },
+    ...groups.map((group) => ({ value: group.id, label: group.name })),
+  ]
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -125,10 +147,6 @@ export function WorkstationVirtualList({
     }
   }, [machines.length, rowHeight, scrollTop, viewportHeight])
 
-  const visibleColumns = useMemo(
-    () => COLUMNS.filter((column) => column.required || optionalColumns.has(column.id)),
-    [optionalColumns],
-  )
   const gridStyle = {
     '--ws-table-columns': `2.5rem ${visibleColumns.map((column) => column.width).join(' ')}`,
   } as CSSProperties
@@ -137,15 +155,6 @@ export function WorkstationVirtualList({
   const end = Math.min(machines.length, start + visibleCount)
   const visibleMachines = machines.slice(start, end)
   const allSelected = machines.length > 0 && machines.every((item) => selected.has(item.hostName))
-
-  const toggleColumn = (id: ColumnId) => {
-    setOptionalColumns((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
 
   const renderCell = (column: ColumnDefinition, machine: WorkstationRuntime) => {
     const clock = interpolateSession(machine, elapsedSeconds)
@@ -186,24 +195,39 @@ export function WorkstationVirtualList({
 
   return (
     <div className="ws-table" role="table" aria-rowcount={machines.length + 1}>
-      <div className="ws-table__controls">
-        <details className="ws-columns">
-          <summary aria-label="Chọn cột hiển thị">Cột hiển thị</summary>
-          <div className="ws-columns__menu">
-            <strong>Hiển thị cột</strong>
-            {COLUMNS.map((column) => (
-              <label key={column.id} className={column.required ? 'is-required' : undefined}>
-                <input type="checkbox" checked={column.required || optionalColumns.has(column.id)} disabled={column.required} onChange={() => toggleColumn(column.id)} />
-                <span>{column.label}</span>
-                {column.required ? <small>Bắt buộc</small> : null}
-              </label>
-            ))}
-          </div>
-        </details>
-      </div>
       <div className="ws-table__header ws-table__grid" role="row" style={gridStyle}>
         <div role="columnheader"><input type="checkbox" aria-label={allSelected ? 'Bỏ chọn tất cả máy đang hiển thị' : 'Chọn tất cả máy đang hiển thị'} checked={allSelected} onChange={onSelectAll} /></div>
-        {visibleColumns.map((column) => <div key={column.id} role="columnheader">{column.label}</div>)}
+        {visibleColumns.map((column) => {
+          if (column.id === 'group') {
+            return (
+              <FilterHeaderCell
+                key={column.id}
+                label={column.label}
+                options={groupOptions}
+                value={groupId}
+                baseline={0}
+                onChange={onGroupChange}
+                menuLabel="Lọc theo nhóm máy"
+                clearLabel="Bỏ lọc nhóm máy"
+              />
+            )
+          }
+          if (column.id === 'status') {
+            return (
+              <FilterHeaderCell
+                key={column.id}
+                label={column.label}
+                options={STATUS_FILTER_OPTIONS}
+                value={filter}
+                baseline="all"
+                onChange={onFilterChange}
+                menuLabel="Lọc theo phạm vi"
+                clearLabel="Bỏ lọc phạm vi"
+              />
+            )
+          }
+          return <div key={column.id} role="columnheader">{column.label}</div>
+        })}
       </div>
       <div ref={viewportRef} className="ws-table__viewport" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
         <div className="ws-table__canvas" style={{ height: `${machines.length * rowHeight}px` }}>

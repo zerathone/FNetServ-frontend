@@ -59,7 +59,13 @@ import {
   toDepositApiPaymentMethod,
   type DepositMethod,
 } from '../payments/depositModel'
-import { WorkstationVirtualList } from './WorkstationVirtualList'
+import {
+  WorkstationVirtualList,
+  COLUMNS,
+  COLUMN_STORAGE_KEY,
+  getInitialOptionalColumns,
+  type ColumnId,
+} from './WorkstationVirtualList'
 import { ClientSystemFunctionDialog } from './ClientSystemFunctionDialog'
 import { ScheduledShutdownDialog } from './ScheduledShutdownDialog'
 import {
@@ -71,7 +77,6 @@ import {
   getWorkstationStatus,
   hasDebt,
   interpolateSession,
-  isConnected,
   matchesWorkstationFilter,
   sessionLabel,
   type WorkstationFilter,
@@ -87,6 +92,13 @@ const RIGHTS = {
   INPUT_NEGATIVE_MONEY: 26,
   CHANGE_GROUP: 9414,
   SUSPEND_MACHINE: 94311,
+} as const
+
+// UserGroupTypeCode (api/user-groups.ts): 1=anonym 2=member 3=admin 4=staff 5=combo
+const USER_GROUP_TYPE = {
+  anonym: 1,
+  member: 2,
+  combo: 5,
 } as const
 
 type CommandKind =
@@ -251,9 +263,10 @@ export function WorkstationWorkspace() {
   const snapshot = Array.isArray(snapshotQuery.data) ? null : snapshotQuery.data
   const allMachines = useMemo(() => snapshot?.items ?? [], [snapshot])
   const [now, setNow] = useState(() => Date.now())
-  const [filter, setFilter] = useState<WorkstationFilter>('connected')
+  const [filter, setFilter] = useState<WorkstationFilter>('all')
   const [search, setSearch] = useState('')
   const [groupId, setGroupId] = useState(0)
+  const [optionalColumns, setOptionalColumns] = useState(getInitialOptionalColumns)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [inspectorHost, setInspectorHost] = useState<string | null>(null)
   const [pendingCommand, setPendingCommand] = useState<CommandKind | null>(null)
@@ -296,6 +309,24 @@ export function WorkstationWorkspace() {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000)
     return () => window.clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify([...optionalColumns]))
+  }, [optionalColumns])
+
+  const toggleColumn = (id: ColumnId) => {
+    setOptionalColumns((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const visibleColumns = useMemo(
+    () => COLUMNS.filter((column) => column.required || optionalColumns.has(column.id)),
+    [optionalColumns],
+  )
 
   const elapsedSeconds =
     snapshotQuery.dataUpdatedAt > 0 ? (now - snapshotQuery.dataUpdatedAt) / 1_000 : 0
@@ -691,18 +722,29 @@ export function WorkstationWorkspace() {
     setMoneyNote('')
   }
 
+  // may dang ONLINE nhung userId===0 = admin dang nhap bao tri (xem getWorkstationStatus)
+  const playingMachines = allMachines.filter((machine) => machine.status === WORKSTATION_STATUS.ONLINE)
+  const customerMachines = playingMachines.filter((machine) => machine.userId !== 0)
   const counts = {
-    connected: allMachines.filter(isConnected).length,
-    playing: allMachines.filter(
-      (machine) =>
-        machine.status === WORKSTATION_STATUS.ONLINE && machine.userId !== 0,
-    ).length,
+    playing: playingMachines.length,
     available: allMachines.filter((machine) => machine.status === WORKSTATION_STATUS.AVAILABLE).length,
-    debt: allMachines.filter(hasDebt).length,
     disconnected: allMachines.filter(
       (machine) => machine.status === WORKSTATION_STATUS.DISCONNECT,
     ).length,
+    member: customerMachines.filter((machine) => machine.userGroupType === USER_GROUP_TYPE.member).length,
+    anonym: customerMachines.filter((machine) => machine.userGroupType === USER_GROUP_TYPE.anonym).length,
+    combo: customerMachines.filter((machine) => machine.userGroupType === USER_GROUP_TYPE.combo).length,
+    admin: playingMachines.filter((machine) => machine.userId === 0).length,
   }
+  const groupUsage = (groupsQuery.data ?? [])
+    .map((group) => {
+      const groupMachines = allMachines.filter((machine) => machine.machineGroupId === group.id)
+      const inUse = groupMachines.filter((machine) => machine.status === WORKSTATION_STATUS.ONLINE).length
+      const total = groupMachines.length
+      return { id: group.id, name: group.name, inUse, total, percent: total > 0 ? Math.round((inUse / total) * 100) : 0 }
+    })
+    .sort((left, right) => right.inUse - left.inUse)
+  const overallUsagePercent = allMachines.length > 0 ? Math.round((counts.playing / allMachines.length) * 100) : 0
   const serverClockDrift =
     snapshot?.serverTimeMs && snapshotQuery.dataUpdatedAt
       ? snapshot.serverTimeMs - snapshotQuery.dataUpdatedAt
@@ -711,9 +753,8 @@ export function WorkstationWorkspace() {
   return (
     <section className="ws-workspace">
       <PageHeader
-        eyebrow="Điểm bán hàng"
-        title="Vận hành máy"
-        description="Theo dõi phiên đang chạy, xử lý khách hàng và gửi lệnh tới máy trạm."
+        eyebrow="Thu ngân"
+        title="Máy trạm"
         actions={
           <div className="ws-page-actions">
             <StatusBadge tone={connected ? 'success' : 'warning'}>
@@ -760,26 +801,92 @@ export function WorkstationWorkspace() {
       />
 
       <div className="ws-summary" aria-label="Tổng quan máy trạm">
-        <button type="button" className={`ws-summary__connected ${filter === 'connected' ? 'is-active' : ''}`} onClick={() => setFilter('connected')}>
-          <span>Đang kết nối</span>
-          <strong>{counts.connected}</strong>
-        </button>
-        <button type="button" className={`ws-summary__playing ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
-          <span>Đang chơi</span>
-          <strong>{counts.playing}</strong>
-        </button>
-        <button type="button" className={`ws-summary__available ${filter === 'available' ? 'is-active' : ''}`} onClick={() => setFilter('available')}>
-          <span>Sẵn sàng</span>
-          <strong>{counts.available}</strong>
-        </button>
-        <button type="button" className={`ws-summary__debt ${filter === 'debt' ? 'is-active' : ''}`} onClick={() => setFilter('debt')}>
-          <span>Máy còn nợ</span>
-          <strong>{counts.debt}</strong>
-        </button>
-        <button type="button" className={`ws-summary__disconnected ${filter === 'disconnected' ? 'is-active' : ''}`} onClick={() => setFilter('disconnected')}>
-          <span>Mất kết nối</span>
-          <strong>{counts.disconnected}</strong>
-        </button>
+        <div className="ws-summary__card">
+          <button type="button" className={`ws-summary__total ${filter === 'all' ? 'is-active' : ''}`} onClick={() => setFilter('all')}>
+            <span>Máy trạm</span>
+            <strong>{allMachines.length}</strong>
+          </button>
+          <div className="ws-summary__breakdown">
+            <button type="button" className={`ws-summary__row ws-summary__playing ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
+              <span className="ws-summary__dot ws-summary__dot--playing" aria-hidden="true" />
+              <span className="ws-summary__label">Sử dụng</span>
+              <strong>{counts.playing}</strong>
+            </button>
+            <button type="button" className={`ws-summary__row ws-summary__available ${filter === 'available' ? 'is-active' : ''}`} onClick={() => setFilter('available')}>
+              <span className="ws-summary__dot ws-summary__dot--available" aria-hidden="true" />
+              <span className="ws-summary__label">Sẵn sàng</span>
+              <strong>{counts.available}</strong>
+            </button>
+            <button type="button" className={`ws-summary__row ws-summary__disconnected ${filter === 'disconnected' ? 'is-active' : ''}`} onClick={() => setFilter('disconnected')}>
+              <span className="ws-summary__dot ws-summary__dot--disconnected" aria-hidden="true" />
+              <span className="ws-summary__label">Mất kết nối</span>
+              <strong>{counts.disconnected}</strong>
+            </button>
+          </div>
+        </div>
+
+        <div className="ws-summary__card">
+          <button type="button" className={`ws-summary__total ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
+            <span>Sử dụng</span>
+            <strong>{counts.playing}</strong>
+          </button>
+          <div className="ws-summary__breakdown">
+            <div className="ws-summary__row">
+              <span className="ws-summary__dot ws-summary__dot--member" aria-hidden="true" />
+              <span className="ws-summary__label">Hội viên</span>
+              <strong>{counts.member}</strong>
+            </div>
+            <div className="ws-summary__row">
+              <span className="ws-summary__dot ws-summary__dot--anonym" aria-hidden="true" />
+              <span className="ws-summary__label">Vãng lai</span>
+              <strong>{counts.anonym}</strong>
+            </div>
+            <div className="ws-summary__row">
+              <span className="ws-summary__dot ws-summary__dot--combo" aria-hidden="true" />
+              <span className="ws-summary__label">Combo</span>
+              <strong>{counts.combo}</strong>
+            </div>
+            {counts.admin > 0 ? (
+              <div className="ws-summary__row">
+                <span className="ws-summary__dot ws-summary__dot--admin" aria-hidden="true" />
+                <span className="ws-summary__label">Admin</span>
+                <strong>{counts.admin}</strong>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {groupUsage.length > 0 ? (
+          <div className="ws-summary__card">
+            <div className="ws-summary__total">
+              <span>Khu vực</span>
+              <strong>{overallUsagePercent}%</strong>
+            </div>
+            <div className="ws-group-usage__breakdown">
+              {groupUsage.map((group) => (
+                <div key={group.id} className="ws-group-usage__row">
+                  <span
+                    className="ws-summary__dot ws-group-usage__dot"
+                    style={{ opacity: 0.16 + (group.percent / 100) * 0.84 }}
+                    aria-hidden="true"
+                  />
+                  <span className="ws-summary__label ws-group-usage__name" title={group.name}>
+                    {group.name}
+                  </span>
+                  <strong className="ws-group-usage__count">{group.inUse}/{group.total}</strong>
+                  <div
+                    className="ws-group-usage__track"
+                    role="img"
+                    aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
+                  >
+                    <div className="ws-group-usage__fill" style={{ width: `${group.percent}%` }} />
+                  </div>
+                  <span className="ws-group-usage__percent">{group.percent}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {Math.abs(serverClockDrift) > 120_000 ? (
@@ -791,7 +898,7 @@ export function WorkstationWorkspace() {
 
       <div className="ws-toolbar">
         <label className="ds-field ws-search">
-          <span className="ds-field__label">Tìm nhanh</span>
+          <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
           <input
             className="ds-input"
             type="search"
@@ -800,37 +907,29 @@ export function WorkstationWorkspace() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <label className="ds-field ws-group-filter">
-          <span className="ds-field__label">Nhóm máy</span>
-          <Select
-            className="ds-select"
-            value={groupId}
-            onChange={(event) => setGroupId(Number(event.target.value))}
-          >
-            <option value={0}>Tất cả nhóm</option>
-            {(groupsQuery.data ?? []).map((group) => (
-              <option key={group.id} value={group.id}>{group.name}</option>
-            ))}
-          </Select>
-        </label>
-        <label className="ds-field ws-status-filter">
-          <span className="ds-field__label">Phạm vi</span>
-          <Select
-            className="ds-select"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as WorkstationFilter)}
-          >
-            <option value="connected"><span style={{ color: 'var(--color-action-primary)', fontWeight: 600 }}>Máy đang kết nối</span></option>
-            <option value="playing"><span style={{ color: 'var(--color-info)', fontWeight: 600 }}>Máy đang chơi</span></option>
-            <option value="available"><span style={{ color: 'var(--color-success)', fontWeight: 600 }}>Máy sẵn sàng</span></option>
-            <option value="debt"><span style={{ color: 'var(--color-warning)', fontWeight: 600 }}>Máy còn nợ</span></option>
-            <option value="disconnected"><span style={{ color: 'var(--color-danger-text)', fontWeight: 600 }}>Máy mất kết nối</span></option>
-            <option value="all"><span style={{ fontWeight: 600 }}>Tất cả máy</span></option>
-          </Select>
-        </label>
-        <div className="ws-toolbar__count" aria-live="polite">
-          <strong>{filteredMachines.length}</strong>
-          <span>/ {allMachines.length} máy</span>
+        <div className="ws-toolbar__end">
+          <div className="ws-toolbar__count" aria-live="polite">
+            <strong>{filteredMachines.length}</strong>
+            <span>/ {allMachines.length} máy</span>
+          </div>
+          <details className="ws-columns">
+            <summary aria-label="Chọn cột hiển thị">Cột hiển thị</summary>
+            <div className="ws-columns__menu">
+              <strong>Hiển thị cột</strong>
+              {COLUMNS.map((column) => (
+                <label key={column.id} className={column.required ? 'is-required' : undefined}>
+                  <input
+                    type="checkbox"
+                    checked={column.required || optionalColumns.has(column.id)}
+                    disabled={column.required}
+                    onChange={() => toggleColumn(column.id)}
+                  />
+                  <span>{column.label}</span>
+                  {column.required ? <small>Bắt buộc</small> : null}
+                </label>
+              ))}
+            </div>
+          </details>
         </div>
       </div>
 
@@ -927,7 +1026,7 @@ export function WorkstationWorkspace() {
           <StateView
             title="Không có máy phù hợp"
             description="Hãy đổi bộ lọc hoặc từ khóa tìm kiếm."
-            action={<Button onClick={() => { setSearch(''); setGroupId(0); setFilter('connected') }}>Xóa bộ lọc</Button>}
+            action={<Button onClick={() => { setSearch(''); setGroupId(0); setFilter('all') }}>Xóa bộ lọc</Button>}
           />
         ) : (
           <WorkstationVirtualList
@@ -937,6 +1036,12 @@ export function WorkstationWorkspace() {
             onToggle={toggleMachine}
             onSelectAll={toggleAllVisible}
             onOpen={openInspector}
+            groups={groupsQuery.data ?? []}
+            groupId={groupId}
+            onGroupChange={setGroupId}
+            filter={filter}
+            onFilterChange={setFilter}
+            visibleColumns={visibleColumns}
           />
         )}
       </div>

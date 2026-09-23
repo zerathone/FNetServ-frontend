@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import { getUsers, usersApi, type UserAccount } from '../../api/users'
 import {
   Button,
@@ -452,8 +453,8 @@ export function CustomerWorkspace() {
   return (
     <section className="customer-workspace">
       <PageHeader
-        eyebrow="Điểm bán hàng"
-        title="Khách hàng"
+        eyebrow="Thu ngân"
+        title="Tài khoản"
         description="Tìm theo đầu tên đăng nhập, số điện thoại hoặc CCCD; xác minh đúng người trước giao dịch."
         actions={
           isAdmin ? (
@@ -497,40 +498,38 @@ export function CustomerWorkspace() {
 
       <form className="customer-search" onSubmit={submitSearch}>
         <label className="ds-field">
-          <span className="ds-field__label">Tên đăng nhập, số điện thoại hoặc CCCD</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={searchInput}
-            placeholder="Nhập từ đầu thông tin cần tìm"
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
+          <span className="ds-visually-hidden">Tên đăng nhập, số điện thoại hoặc CCCD</span>
+          <div className="ds-input-group ds-input-group--search">
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={searchInput}
+                placeholder="Nhập từ đầu tên đăng nhập, số điện thoại hoặc CCCD..."
+                onChange={(event) => setSearchInput(event.target.value)}
+              />
+              {searchInput || searchQuery ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa tìm kiếm"
+                  onClick={() => {
+                    setSearchInput('')
+                    setSearchQuery('')
+                    setPage(0)
+                    setSelectedSeed(null)
+                    setSearchParams({})
+                  }}
+                >
+                  <XCircle size={18} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </label>
-        <Button type="submit" variant="primary" loading={usersQuery.isFetching}>
-          Tìm khách hàng
-        </Button>
-        {searchQuery ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setSearchInput('')
-              setSearchQuery('')
-              setPage(0)
-              setSelectedSeed(null)
-              setSearchParams({})
-            }}
-          >
-            Xóa tìm kiếm
-          </Button>
-        ) : null}
       </form>
 
-      {searchQuery ? (
-        <InlineAlert tone="info">
-          Kết quả khớp theo tiền tố. Số điện thoại và CCCD được che trên danh sách để tránh lộ dữ liệu tại quầy.
-        </InlineAlert>
-      ) : null}
 
       <div className="customer-list-card">
         {usersQuery.isLoading ? (
