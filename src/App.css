@@ -734,6 +734,7 @@
   min-height: 2.75rem;
   gap: var(--space-2);
   padding: 0.35rem var(--space-3);
+  text-align: left;
   white-space: nowrap;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
@@ -748,7 +749,37 @@
   display: grid;
   place-items: center;
   width: 1.5rem;
-  color: var(--color-text-muted);
+}
+
+.payment-online-button__icon--success { color: var(--color-success); }
+.payment-online-button__icon--neutral { color: var(--color-text-muted); }
+
+.payment-online-button__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payment-online-button__label {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-online-button__sub {
+  display: flex;
+  align-items: center;
+}
+
+.payment-online-button__sub .ds-badge {
+  min-height: 1.125rem;
+  padding: 0 var(--space-1);
+  font-size: 0.625rem;
 }
 
 .app-shell--collapsed .app-sidebar__header-row {
@@ -1433,7 +1464,7 @@
     padding: 0.35rem var(--space-2);
   }
 
-  .payment-online-button__label {
+  .payment-online-button__text {
     display: none;
   }
 

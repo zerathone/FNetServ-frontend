@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { CurrencyCircleDollar } from '@phosphor-icons/react'
 import { ApiError } from '../../api/client'
 import { getPaymentOnlineInfo, getPaymentOnlineUrl } from '../../api/system'
-import { Button } from '../../design-system/components'
+import { Button, StatusBadge } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 
@@ -73,10 +73,20 @@ export function PaymentOnlineButton() {
       loading={urlMutation.isPending}
       onClick={openPaymentPortal}
     >
-      <span className="payment-online-button__icon" aria-hidden="true">
+      <span
+        className={`payment-online-button__icon payment-online-button__icon--${available ? 'success' : 'neutral'}`}
+        aria-hidden="true"
+      >
         <CurrencyCircleDollar size={20} weight="duotone" />
       </span>
-      <span className="payment-online-button__label">Giao dịch online</span>
+      <span className="payment-online-button__text">
+        <span className="payment-online-button__label">Giao dịch online</span>
+        <span className="payment-online-button__sub">
+          <StatusBadge tone={available ? 'success' : 'neutral'}>
+            {available ? 'Đang hoạt động' : 'Chưa kích hoạt'}
+          </StatusBadge>
+        </span>
+      </span>
     </Button>
   )
 }
