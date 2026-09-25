@@ -1,7 +1,7 @@
 import {  Fragment, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { PencilSimple, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, PencilSimple, Percent, X } from '@phosphor-icons/react'
 import { getMachineGroups } from '../../api/machine-groups'
 import {
   createUserGroup,
@@ -16,6 +16,7 @@ import { Select,
   ConfirmAction,
   Dialog,
   InlineAlert,
+  ListToolbar,
   MoneyInput,
   PageHeader,
   RefreshButton,
@@ -200,6 +201,7 @@ export function UserGroupWorkspace() {
               variant="secondary"
               disabled={!canPromotion}
               title={canPromotion ? undefined : 'Cần quyền Khuyến mãi (54).'}
+              icon={<Percent size={16} weight="bold" aria-hidden="true" />}
               onClick={() => navigate('/promotions')}
             >
               Khuyến mãi
@@ -223,25 +225,21 @@ export function UserGroupWorkspace() {
         }
       />
 
-      <InlineAlert tone="info">
-        Màn này chỉ tạo/sửa nhóm <strong>Khách vãng lai</strong> và{' '}
-        <strong>Hội viên</strong> như form MFC. ADMIN, nhân viên và thẻ combo được
-        hiển thị để đối chiếu nhưng không bị chuyển loại hoặc ghi bằng form giá này.
-      </InlineAlert>
-
       <section className="user-group-filters">
-        <label className="ds-field">
-          <span className="ds-field__label">Tìm nhóm</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            placeholder="Tên hoặc loại nhóm…"
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Loại nhóm</span>
+        <div className="ds-input-group ds-input-group--search">
+          <div className="ds-search-input">
+            <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+            <input
+              className="ds-input"
+              type="search"
+              value={search}
+              placeholder="Tìm theo tên nhóm…"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="ds-input-group user-group-type-filter">
+          <span className="ds-input-group-separator">Loại nhóm</span>
           <Select
             className="ds-select"
             value={typeFilter}
@@ -250,31 +248,29 @@ export function UserGroupWorkspace() {
             <option value="all">Tất cả</option>
             <option value="anonym">Khách vãng lai</option>
             <option value="member">Hội viên</option>
-            <option value="admin">Quản trị hệ thống</option>
-            <option value="staff">Nhân viên</option>
-            <option value="combo">Thẻ combo</option>
           </Select>
-        </label>
+        </div>
       </section>
 
       <section className="user-group-panel">
-        <header>
-          <div>
-            <strong>Ma trận giá theo nhóm máy</strong>
-            <span>
-              {visibleGroups.length === source.length
-                ? `${visibleGroups.length} nhóm`
-                : `${visibleGroups.length}/${source.length} nhóm phù hợp`}
-            </span>
-          </div>
-          <RefreshButton
-            loading={groupsQuery.isFetching || machineGroupsQuery.isFetching}
-            onClick={() => {
-              void groupsQuery.refetch()
-              void machineGroupsQuery.refetch()
-            }}
-          />
-        </header>
+        <ListToolbar
+          count={
+            visibleGroups.length === source.length ? (
+              <>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(visibleGroups.length)}</strong></>
+            ) : (
+              <><strong>{new Intl.NumberFormat('vi-VN').format(visibleGroups.length)}</strong>/{new Intl.NumberFormat('vi-VN').format(source.length)} phù hợp</>
+            )
+          }
+          actions={
+            <RefreshButton
+              loading={groupsQuery.isFetching || machineGroupsQuery.isFetching}
+              onClick={() => {
+                void groupsQuery.refetch()
+                void machineGroupsQuery.refetch()
+              }}
+            />
+          }
+        />
 
         {groupsQuery.isLoading || machineGroupsQuery.isLoading ? (
           <StateView title="Đang tải ma trận giá…" />
