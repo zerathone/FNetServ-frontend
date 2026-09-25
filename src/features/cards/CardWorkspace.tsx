@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cardsApi, type CardDateField } from '../../api/cards'
 import {
@@ -60,6 +61,7 @@ function formatMoney(value: number) {
 
 export function CardWorkspace() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const [status, setStatus] = useState(-1)
   const [page, setPage] = useState(0)
@@ -187,13 +189,8 @@ export function CardWorkspace() {
         description="Quản lý vòng đời thẻ và tạo mã mới. Mã bí mật chỉ được trả một lần sau khi tạo."
         actions={
           <>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled
-              title="Chưa có API đọc tồn bán khả dụng tương đương màn Qt."
-            >
-              Bán thẻ · chưa khả dụng
+            <Button type="button" variant="secondary" onClick={() => navigate('/card-sale')}>
+              Bán thẻ nạp
             </Button>
             {isAdmin ? (
               <>
@@ -208,12 +205,6 @@ export function CardWorkspace() {
           </>
         }
       />
-
-      <InlineAlert tone="info">
-        Bán thẻ tại quầy đang được bảo vệ: endpoint ghi tiền đã có nhưng máy chủ chưa
-        cung cấp danh sách tồn bán khả dụng giống màn Qt. WebUI không cho nhập mệnh giá
-        và số lượng tùy ý để tránh bán vượt tồn.
-      </InlineAlert>
 
       <section className="card-date-filter" aria-label="Lọc theo ngày">
         <div className="ds-input-group">
