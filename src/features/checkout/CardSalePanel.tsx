@@ -186,9 +186,11 @@ export function CardSalePanel() {
                 {lines.map((line) => (
                   <article key={line.cardValue}>
                     <div className="card-sale-context__line-title">
-                      <div>
+                      <div className="card-sale-context__line-heading">
                         <strong>{formatMoney(line.cardValue)} / thẻ</strong>
-                        <span>Số lượng: {line.quantity}</span>
+                        <span className="card-sale-context__line-qty">
+                          Số lượng: <strong>{line.quantity}</strong>
+                        </span>
                       </div>
                       <button
                         type="button"
