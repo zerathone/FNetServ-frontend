@@ -32,10 +32,7 @@ export function comboUsagePresentation(
       .map((group) => group.nextTransitionAtMs)
       .filter((value): value is number => typeof value === 'number')
     return {
-      label:
-        groups.length === 1
-          ? 'Dùng được bây giờ'
-          : `${usable.length}/${groups.length} nhóm dùng được`,
+      label: 'Bây giờ',
       usableNow: true,
       nextTransitionAtMs: transitions.length ? Math.min(...transitions) : null,
     }
