@@ -409,6 +409,7 @@ button.ws-summary__row:hover {
   display: grid;
   place-content: center;
   overflow: auto;
+  background: var(--color-surface-default);
 }
 
 .ws-table__canvas {
