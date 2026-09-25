@@ -125,10 +125,10 @@ export function BatchCreateVoucherDialog({ open, onClose }: Props) {
             <input className="ds-input" type="date" min={tomorrow} value={expiry} onChange={(event) => setExpiry(event.target.value)} />
           </label>
           <label className="ds-field">
-            <span className="ds-field__label">Loại ví khi nạp</span>
+            <span className="ds-field__label">Loại tài khoản</span>
             <Select value={walletType} onChange={(event) => setWalletType(Number(event.target.value) as 0 | 1)}>
-              <option value={0}>Ví chính</option>
-              <option value={1}>Ví khuyến mãi</option>
+              <option value={0}>Chính</option>
+              <option value={1}>Khuyến mãi</option>
             </Select>
           </label>
           <label className="ds-field">
