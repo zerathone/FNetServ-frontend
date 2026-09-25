@@ -332,12 +332,6 @@ export function MachineGroupWorkspace() {
         }
       />
 
-      <InlineAlert tone="info">
-        Khi tạo, WebUI lưu nhóm rồi ghi giá cho toàn bộ bảng vãng lai/hội viên,
-        đúng danh sách form MFC sử dụng. Máy chủ kiểm tra riêng quyền thêm, sửa và
-        xóa nhóm máy (9411–9413).
-      </InlineAlert>
-
       {createResult?.failed.length ? (
         <InlineAlert tone="warning">
           Nhóm máy #{createResult.id} đã được tạo và lưu thành công{' '}
