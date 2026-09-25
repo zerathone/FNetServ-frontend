@@ -573,6 +573,134 @@
   text-align: center;
 }
 
+/* task webui-license: nut giay phep o footer sidebar (features/license/LicenseButton.tsx). */
+.license-button {
+  position: relative;
+  min-width: 0;
+}
+
+.license-button__trigger.ds-button {
+  min-height: 3rem;
+  justify-content: flex-start;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+
+.license-button__icon {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+}
+
+.license-button__icon--success { color: var(--color-success); }
+.license-button__icon--info { color: var(--color-info); }
+.license-button__icon--warning { color: var(--color-warning); }
+.license-button__icon--danger { color: var(--color-danger); }
+.license-button__icon--neutral { color: var(--color-text-muted); }
+
+.license-button__dot {
+  display: none;
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid var(--color-surface-default);
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.license-button__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.license-button__title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.license-button__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.license-button__sub .ds-badge {
+  min-height: 1.125rem;
+  padding: 0 var(--space-1);
+  font-size: 0.625rem;
+}
+
+.license-button__popover {
+  position: absolute;
+  z-index: var(--z-sticky);
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  width: max(100%, 17rem);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-overlay);
+}
+
+.license-button__popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.license-button__details {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.license-button__row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.license-button__row dt {
+  color: var(--color-text-muted);
+}
+
+.license-button__row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.license-button__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .app-shell--collapsed .app-sidebar__header-row {
   justify-content: center;
 }
@@ -607,6 +735,22 @@
 .app-shell--collapsed .workspace-switcher__menu {
   left: 100%;
   top: 0;
+  margin-left: var(--space-2);
+}
+
+.app-shell--collapsed .license-button__trigger.ds-button {
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+.app-shell--collapsed .license-button__dot {
+  display: block;
+}
+
+.app-shell--collapsed .license-button__popover {
+  bottom: 0;
+  left: 100%;
+  width: 17rem;
   margin-left: var(--space-2);
 }
 
@@ -1155,6 +1299,41 @@
     background: var(--color-surface-default);
   }
 
+  /* task webui-license: classic = sidebar thanh ngang tren cung -> xep footer theo hang, nut
+     giay phep gon (chi icon + badge) va popover mo XUONG, can phai. */
+  :root[data-theme="classic"] .app-sidebar__footer {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  :root[data-theme="classic"] .license-button__trigger.ds-button,
+  :root[data-theme="classic"] .app-shell--collapsed .license-button__trigger.ds-button {
+    justify-content: flex-start;
+    padding: 0 var(--space-2);
+  }
+
+  :root[data-theme="classic"] .license-button__title {
+    display: none;
+  }
+
+  :root[data-theme="classic"] .app-shell--collapsed .license-button__text {
+    display: flex;
+  }
+
+  :root[data-theme="classic"] .app-shell--collapsed .license-button__dot {
+    display: none;
+  }
+
+  :root[data-theme="classic"] .license-button__popover,
+  :root[data-theme="classic"] .app-shell--collapsed .license-button__popover {
+    top: calc(100% + var(--space-2));
+    bottom: auto;
+    left: auto;
+    right: 0;
+    width: 17rem;
+    margin-left: 0;
+  }
+
   :root[data-theme="classic"] .app-content {
     min-height: calc(100vh - 6.9rem);
     padding: var(--space-2);
@@ -1299,6 +1478,27 @@
 
   .app-shell--collapsed .workspace-nav__short {
     display: none;
+  }
+
+  /* task webui-license: menu truot mobile luon hien day du, bo trang thai thu gon. */
+  .app-shell--collapsed .license-button__text {
+    display: flex;
+  }
+
+  .app-shell--collapsed .license-button__trigger.ds-button {
+    justify-content: flex-start;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .app-shell--collapsed .license-button__dot {
+    display: none;
+  }
+
+  .app-shell--collapsed .license-button__popover {
+    bottom: calc(100% + var(--space-2));
+    left: 0;
+    width: 100%;
+    margin-left: 0;
   }
 
   .app-nav-scrim {

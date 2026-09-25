@@ -9,6 +9,7 @@ import type { ThemeId } from '../design-system/theme/themeRegistry'
 import { useAuthStore } from '../store/auth'
 import { useWsStatusStore } from '../store/wsStatus'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
+import { LicenseButton } from '../features/license/LicenseButton'
 import {
   Desktop, Users, ShoppingCart, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
@@ -388,6 +389,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="app-sidebar__footer">
+          <LicenseButton />
           {serverInfoQuery.data?.ver ? (
             <span className="app-sidebar__version">
               v{serverInfoQuery.data.ver}
