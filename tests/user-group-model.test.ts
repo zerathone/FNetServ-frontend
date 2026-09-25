@@ -42,7 +42,7 @@ test('user-group type mapping keeps ADMIN distinct and only legacy price types e
   }
 })
 
-test('user groups render as ordered type trees without a duplicate type column', () => {
+test('user groups render as ordered type trees, excluding non-priced system types', () => {
   const sections = groupUserGroupsByType([
     { ...memberGroup, id: 3, name: 'Hội viên VIP' },
     { ...memberGroup, id: 1, name: 'Khách vãng lai', type: 'anonym', typeCode: 1 },
@@ -55,7 +55,6 @@ test('user groups render as ordered type trees without a duplicate type column',
     [
       ['anonym', [1]],
       ['member', [3, 2]],
-      ['staff', [4]],
     ],
   )
 })

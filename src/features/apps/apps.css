@@ -68,25 +68,9 @@
   box-shadow: var(--shadow-sm);
 }
 
-.app-policy-panel > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.app-policy-panel > header > div {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.app-policy-panel > header strong {
-  color: var(--color-text-primary);
-}
-
-.app-policy-panel > header span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+.app-policy-panel > .ds-list-toolbar {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .app-policy-table-wrap {

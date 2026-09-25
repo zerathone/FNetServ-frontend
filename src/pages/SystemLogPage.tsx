@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { getSystemLogs } from '../api/logs'
-import { DateRangePicker, ListPagination, Select } from '../design-system/components';
+import { DateRangePicker, ListPagination, ListToolbar, RefreshButton, Select } from '../design-system/components';
 
 function formatMinutes(totalMinutes: number | undefined | null) {
   if (totalMinutes == null) return '00:00';
@@ -47,7 +47,7 @@ export function SystemLogPage() {
   const [filterText, setFilterText] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['logs', 'system', fromDate, toDate, page, filterType, filterText],
     queryFn: () => getSystemLogs(fromDate, toDate, limit, page * limit, filterType, filterText),
   })
@@ -67,8 +67,8 @@ export function SystemLogPage() {
 
       <p className="page-description">Theo dõi hoạt động của máy trạm và người dùng.</p>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', marginTop: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-        <div className="toolbar-grid toolbar-grid-2 log-filter-controls" style={{ margin: 0, gap: '1rem' }}>
+      <div className="log-toolbar">
+        <div className="log-filter-controls" style={{ gap: '1rem' }}>
           <DateRangePicker
             fromDate={fromDate}
             toDate={toDate}
@@ -76,7 +76,7 @@ export function SystemLogPage() {
             onToDateChange={(value) => { setToDate(value); setPage(0) }}
           />
 
-          <form style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', minWidth: 0 }} onSubmit={e => { e.preventDefault(); setPage(0); setFilterText(searchInput.trim()); }}>
+          <form style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1, minWidth: 0 }} onSubmit={e => { e.preventDefault(); setPage(0); setFilterText(searchInput.trim()); }}>
             <label className="ds-field" style={{ flex: 1 }}>
               <span className="ds-visually-hidden">Tìm kiếm</span>
               <div className="ds-input-group ds-input-group--search">
@@ -103,66 +103,70 @@ export function SystemLogPage() {
             </label>
           </form>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>
-            Tổng: {total}
-          </span>
-          <ListPagination
-            page={page}
-            totalPages={totalPages}
-            canNext={page < totalPages - 1}
-            onPrevious={() => setPage((current) => Math.max(0, current - 1))}
-            onNext={() => setPage((current) => current + 1)}
-          />
-        </div>
       </div>
 
-      <div className="table-card" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Tên máy</th>
-              <th>Người dùng</th>
-              <th>Ngày</th>
-              <th>Giờ</th>
-              <th>Trạng thái</th>
-              <th>Thời gian (hh:mm)</th>
-              <th>Ghi chú</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>Đang tải...</td></tr>
-            ) : isError ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-error)' }}>Lỗi: {(error as Error).message}</td></tr>
-            ) : logs.length > 0 ? (
-              logs.map((log) => (
-                <tr key={log.id}>
-                  <td>{log.machineName}</td>
-                  <td>{log.userName || ''}</td>
-                  <td>{log.enterDate}</td>
-                  <td>{log.enterTime}</td>
-                  <td>
-                    <span style={{ 
-                      padding: '0.25rem 0.5rem', 
-                      borderRadius: '4px', 
-                      fontSize: '0.85em', 
-                      fontWeight: 'bold', 
-                      ...getStatusStyle(log.status)
-                    }}>
-                      {log.status}
-                    </span>
-                  </td>
-                  <td>{formatMinutes(log.timeUsed)}</td>
-                  <td>{log.note}</td>
-                </tr>
-              ))
-            ) : (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Không tìm thấy dữ liệu</td></tr>
-            )}
-          </tbody>
-        </table>
+      <div className="log-table-card" style={{ flex: 1, minHeight: 0 }}>
+        <ListToolbar
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(total)}</strong></>}
+          actions={
+            <>
+              <RefreshButton loading={isFetching} onClick={() => void refetch()} />
+              <ListPagination
+                page={page}
+                totalPages={totalPages}
+                canNext={page < totalPages - 1}
+                onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+                onNext={() => setPage((current) => current + 1)}
+              />
+            </>
+          }
+        />
+        <div className="log-table-card__scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Tên máy</th>
+                <th>Người dùng</th>
+                <th>Ngày</th>
+                <th>Giờ</th>
+                <th>Trạng thái</th>
+                <th>Thời gian (hh:mm)</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>Đang tải...</td></tr>
+              ) : isError ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-error)' }}>Lỗi: {(error as Error).message}</td></tr>
+              ) : logs.length > 0 ? (
+                logs.map((log) => (
+                  <tr key={log.id}>
+                    <td>{log.machineName}</td>
+                    <td>{log.userName || ''}</td>
+                    <td>{log.enterDate}</td>
+                    <td>{log.enterTime}</td>
+                    <td>
+                      <span style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.85em',
+                        fontWeight: 'bold',
+                        ...getStatusStyle(log.status)
+                      }}>
+                        {log.status}
+                      </span>
+                    </td>
+                    <td>{formatMinutes(log.timeUsed)}</td>
+                    <td>{log.note}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Không tìm thấy dữ liệu</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   )

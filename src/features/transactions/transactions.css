@@ -33,17 +33,9 @@
   width: 21rem;
 }
 
-.transaction-filters__meta {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.transaction-filters__count {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
+.transaction-panel > .ds-list-toolbar {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .transaction-search {
@@ -158,6 +150,12 @@
 
 .transaction-table tbody tr:hover {
   background: var(--color-surface-hover);
+}
+
+.transaction-table__empty {
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 .transaction-table td > strong,
@@ -335,10 +333,6 @@
 
   .transaction-filters__fields > .ds-date-range {
     width: 100%;
-  }
-
-  .transaction-filters__meta {
-    justify-content: space-between;
   }
 
   .transaction-resolver__header {

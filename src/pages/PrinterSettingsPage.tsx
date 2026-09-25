@@ -213,7 +213,8 @@ export function PrinterSettingsPage() {
                       </Button>
                       <Button
                         type="button"
-                        variant="danger"
+                        variant="ghost"
+                        className="printer-row-actions__delete"
                         onClick={() => {
                           if (confirm('Bạn có chắc muốn xóa máy in này?')) {
                             deleteMutation.mutate(p.printerId!)

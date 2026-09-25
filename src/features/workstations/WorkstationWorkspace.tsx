@@ -1,5 +1,6 @@
 import {  useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MagnifyingGlass } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { getPaymentWaitLogs, type PaymentWaitLog } from '../../api/logs'
@@ -346,6 +347,7 @@ export function WorkstationWorkspace() {
         left.hostName.localeCompare(right.hostName, 'vi', { numeric: true }),
       )
   }, [allMachines, filter, groupId, search])
+  const hasActiveFilter = filter !== 'all' || groupId !== 0 || search.trim() !== ''
 
   const selectedMachines = useMemo(
     () => allMachines.filter((machine) => selected.has(machine.hostName)),
@@ -897,16 +899,21 @@ export function WorkstationWorkspace() {
       ) : null}
 
       <div className="ws-toolbar">
-        <label className="ds-field ws-search">
+        <div className="ds-field ws-search">
           <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            placeholder="Tên máy, IP, khách hàng hoặc ghi chú"
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
+          <div className="ds-input-group ds-input-group--search">
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={search}
+                placeholder="Tên máy, IP, khách hàng hoặc ghi chú"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          </div>
+        </div>
         <div className="ws-toolbar__end">
           <div className="ws-toolbar__count" aria-live="polite">
             <strong>{filteredMachines.length}</strong>
@@ -1022,12 +1029,6 @@ export function WorkstationWorkspace() {
             description={(snapshotQuery.error as Error).message}
             action={<Button onClick={() => snapshotQuery.refetch()}>Thử lại</Button>}
           />
-        ) : filteredMachines.length === 0 ? (
-          <StateView
-            title="Không có máy phù hợp"
-            description="Hãy đổi bộ lọc hoặc từ khóa tìm kiếm."
-            action={<Button onClick={() => { setSearch(''); setGroupId(0); setFilter('all') }}>Xóa bộ lọc</Button>}
-          />
         ) : (
           <WorkstationVirtualList
             machines={filteredMachines}
@@ -1042,6 +1043,17 @@ export function WorkstationWorkspace() {
             filter={filter}
             onFilterChange={setFilter}
             visibleColumns={visibleColumns}
+            emptyState={
+              hasActiveFilter ? (
+                <StateView
+                  title="Không có máy phù hợp"
+                  description="Hãy đổi bộ lọc hoặc từ khóa tìm kiếm."
+                  action={<Button onClick={() => { setSearch(''); setGroupId(0); setFilter('all') }}>Xóa bộ lọc</Button>}
+                />
+              ) : (
+                <StateView title="Chưa có máy trạm nào" />
+              )
+            }
           />
         )}
       </div>

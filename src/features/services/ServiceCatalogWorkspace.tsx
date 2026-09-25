@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { MagnifyingGlass } from '@phosphor-icons/react'
 import { getServices } from '../../api/services'
-import { Select,
+import {
   Button,
-  InlineAlert,
   ListPagination,
+  ListToolbar,
   PageHeader,
+  RefreshButton,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -42,13 +44,21 @@ export function ServiceCatalogWorkspace() {
   )
   const totalPages = Math.max(1, Math.ceil(services.length / PAGE_SIZE))
   const visibleServices = services.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const managedCount = source.filter(
-    (service) => service.inventoryManagement === 1,
-  ).length
-  const outCount = source.filter(
-    (service) =>
-      service.inventoryManagement === 1 && service.inventory <= 0,
-  ).length
+  const availableCount = source.filter((service) => matchesServiceStock(service, 'available')).length
+  const outCount = source.filter((service) => matchesServiceStock(service, 'out')).length
+  const notManagedCount = source.filter((service) => matchesServiceStock(service, 'not-managed')).length
+
+  const toggleStock = (value: ServiceStockFilter) => {
+    setStockFilter((current) => (current === value ? 'all' : value))
+    setPage(0)
+  }
+
+  const hasActiveFilter = stockFilter !== 'all' || search.trim() !== ''
+  const clearFilters = () => {
+    setStockFilter('all')
+    setSearch('')
+    setPage(0)
+  }
 
   return (
     <section className="service-workspace">
@@ -56,72 +66,86 @@ export function ServiceCatalogWorkspace() {
         eyebrow="Danh mục"
         title="Dịch vụ & hàng hóa"
         description="Danh mục đọc từ máy chủ, gồm giá bán, đơn vị và tồn kho hiện tại."
-        actions={
-          <Button
-            type="button"
-            variant="secondary"
-            loading={servicesQuery.isFetching}
-            onClick={() => void servicesQuery.refetch()}
-          >
-            Làm mới
-          </Button>
-        }
       />
 
-      <InlineAlert tone="info">
-        Màn này đang ở chế độ chỉ đọc. Thêm, sửa, xóa, nhập hàng, công thức/topping
-        và định tuyến máy in chờ contract F&amp;B/kho; WebUI không ghi trực tiếp vào
-        đường MFC cũ đã ngừng sử dụng.
-      </InlineAlert>
-
-      <section className="service-summary" aria-label="Tóm tắt danh mục dịch vụ">
-        <div>
-          <span>Tổng danh mục</span>
-          <strong>{source.length}</strong>
-        </div>
-        <div>
-          <span>Có quản lý tồn</span>
-          <strong>{managedCount}</strong>
-        </div>
-        <div className={outCount > 0 ? 'is-danger' : ''}>
-          <span>Đang hết tồn</span>
-          <strong>{outCount}</strong>
+      <section className="service-panel__summary" aria-label="Tóm tắt danh mục dịch vụ">
+        <button
+          type="button"
+          className={`service-stat service-stat--total ${stockFilter === 'all' ? 'is-active' : ''}`}
+          onClick={() => toggleStock('all')}
+        >
+          <strong>{new Intl.NumberFormat('vi-VN').format(source.length)}</strong>
+          <span className="service-stat__label">dịch vụ</span>
+        </button>
+        <div className="service-stat-row">
+          <button
+            type="button"
+            className={`service-stat ${stockFilter === 'available' ? 'is-active' : ''}`}
+            onClick={() => toggleStock('available')}
+          >
+            <span className="service-stat__dot service-stat__dot--available" aria-hidden="true" />
+            <span className="service-stat__label">Còn tồn</span>
+            <strong>{availableCount}</strong>
+          </button>
+          <button
+            type="button"
+            className={`service-stat ${stockFilter === 'out' ? 'is-active' : ''}`}
+            onClick={() => toggleStock('out')}
+          >
+            <span className="service-stat__dot service-stat__dot--out" aria-hidden="true" />
+            <span className="service-stat__label">Hết tồn</span>
+            <strong>{outCount}</strong>
+          </button>
+          <button
+            type="button"
+            className={`service-stat ${stockFilter === 'not-managed' ? 'is-active' : ''}`}
+            onClick={() => toggleStock('not-managed')}
+          >
+            <span className="service-stat__dot service-stat__dot--not-managed" aria-hidden="true" />
+            <span className="service-stat__label">Không quản lý tồn</span>
+            <strong>{notManagedCount}</strong>
+          </button>
         </div>
       </section>
 
       <section className="service-filters" aria-label="Lọc dịch vụ">
-        <label className="ds-field">
-          <span className="ds-field__label">Tìm tên hoặc đơn vị</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            placeholder="Ví dụ: mì, chai, phần…"
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(0)
-            }}
-          />
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Tồn kho</span>
-          <Select
-            className="ds-select"
-            value={stockFilter}
-            onChange={(event) => {
-              setStockFilter(event.target.value as ServiceStockFilter)
-              setPage(0)
-            }}
-          >
-            <option value="all">Tất cả</option>
-            <option value="available">Còn tồn</option>
-            <option value="out">Hết tồn</option>
-            <option value="not-managed">Không quản lý tồn</option>
-          </Select>
-        </label>
+        <div className="ds-field">
+          <div className="ds-input-group ds-input-group--search">
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={search}
+                aria-label="Tìm tên hoặc đơn vị"
+                placeholder="Ví dụ: mì, chai, phần…"
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setPage(0)
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="service-panel" aria-label="Danh sách dịch vụ">
+        <ListToolbar
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(services.length)}</strong></>}
+          actions={
+            <>
+              <RefreshButton loading={servicesQuery.isFetching} onClick={() => void servicesQuery.refetch()} />
+              <ListPagination
+                page={page}
+                totalPages={totalPages}
+                canNext={page < totalPages - 1}
+                onPrevious={() => setPage((value) => Math.max(0, value - 1))}
+                onNext={() => setPage((value) => Math.min(totalPages - 1, value + 1))}
+              />
+            </>
+          }
+        />
+
         {servicesQuery.isLoading ? (
           <StateView title="Đang tải danh mục…" />
         ) : servicesQuery.isError ? (
@@ -140,50 +164,48 @@ export function ServiceCatalogWorkspace() {
           />
         ) : services.length === 0 ? (
           <StateView
-            title="Không có dịch vụ phù hợp"
-            description="Thử từ khóa hoặc bộ lọc tồn kho khác."
+            title={hasActiveFilter ? 'Không có dịch vụ phù hợp' : 'Chưa có dịch vụ nào'}
+            description={hasActiveFilter ? 'Thử từ khóa hoặc bộ lọc tồn kho khác.' : undefined}
+            action={
+              hasActiveFilter ? (
+                <Button type="button" onClick={clearFilters}>
+                  Xóa bộ lọc
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
-          <>
-            <ListPagination
-              page={page}
-              totalPages={totalPages}
-              canNext={page < totalPages - 1}
-              onPrevious={() => setPage((value) => Math.max(0, value - 1))}
-              onNext={() => setPage((value) => Math.min(totalPages - 1, value + 1))}
-            />
-            <div className="service-list-region">
-              <div className="service-grid">
-            {visibleServices.map((service) => {
-              const stock = serviceStockLabel(service)
-              return (
-                <article className="service-card" key={service.id}>
-                  <div className="service-card__title">
-                    <span>#{service.id}</span>
-                    <strong>{service.name}</strong>
-                    <small>{service.unit || 'Chưa có đơn vị'}</small>
-                  </div>
-                  <div className="service-card__price">
-                    <span>Giá bán</span>
-                    <strong>{formatMoney(service.price)}</strong>
-                  </div>
-                  <div className="service-card__stock">
-                    <StatusBadge tone={stock.tone}>{stock.label}</StatusBadge>
-                    {service.inventoryManagement === 1 ? (
-                      <strong>
-                        {new Intl.NumberFormat('vi-VN').format(service.inventory)}{' '}
-                        {service.unit}
-                      </strong>
-                    ) : (
-                      <span>Không áp dụng số lượng</span>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
-              </div>
+          <div className="service-list-region">
+            <div className="service-grid">
+              {visibleServices.map((service) => {
+                const stock = serviceStockLabel(service)
+                return (
+                  <article className="service-card" key={service.id}>
+                    <div className="service-card__title">
+                      <span>#{service.id}</span>
+                      <strong>{service.name}</strong>
+                      <small>{service.unit || 'Chưa có đơn vị'}</small>
+                    </div>
+                    <div className="service-card__price">
+                      <span>Giá bán</span>
+                      <strong>{formatMoney(service.price)}</strong>
+                    </div>
+                    <div className="service-card__stock">
+                      <StatusBadge tone={stock.tone}>{stock.label}</StatusBadge>
+                      {service.inventoryManagement === 1 ? (
+                        <strong>
+                          {new Intl.NumberFormat('vi-VN').format(service.inventory)}{' '}
+                          {service.unit}
+                        </strong>
+                      ) : (
+                        <span>Không áp dụng số lượng</span>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
             </div>
-          </>
+          </div>
         )}
       </section>
     </section>

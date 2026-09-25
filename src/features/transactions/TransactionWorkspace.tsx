@@ -17,7 +17,9 @@ import { Select,
   Drawer,
   InlineAlert,
   ListPagination,
+  ListToolbar,
   PageHeader,
+  RefreshButton,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -196,16 +198,6 @@ export function TransactionWorkspace() {
         eyebrow="Vận hành"
         title="Nhật ký giao dịch"
         description="Tra cứu giao dịch theo ngày và xác minh đúng khách hàng trước khi thực hiện tác vụ rủi ro."
-        actions={
-          <Button
-            type="button"
-            variant="secondary"
-            loading={logsQuery.isFetching}
-            onClick={() => void logsQuery.refetch()}
-          >
-            Làm mới
-          </Button>
-        }
       />
 
       <section className="transaction-filters" aria-label="Bộ lọc giao dịch">
@@ -251,19 +243,6 @@ export function TransactionWorkspace() {
               </div>
             </label>
           </form>
-        </div>
-
-        <div className="transaction-filters__meta">
-          <span className="transaction-filters__count">
-            {new Intl.NumberFormat('vi-VN').format(total)} giao dịch
-          </span>
-          <ListPagination
-            page={page}
-            totalPages={totalPages}
-            canNext={page < totalPages - 1}
-            onPrevious={() => setPage((value) => Math.max(0, value - 1))}
-            onNext={() => setPage((value) => value + 1)}
-          />
         </div>
       </section>
 
@@ -331,44 +310,64 @@ export function TransactionWorkspace() {
       ) : null}
 
       <section className="transaction-panel" aria-label="Danh sách giao dịch">
+        <ListToolbar
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(total)}</strong></>}
+          actions={
+            <>
+              <RefreshButton loading={logsQuery.isFetching} onClick={() => void logsQuery.refetch()} />
+              <ListPagination
+                page={page}
+                totalPages={totalPages}
+                canNext={page < totalPages - 1}
+                onPrevious={() => setPage((value) => Math.max(0, value - 1))}
+                onNext={() => setPage((value) => value + 1)}
+              />
+            </>
+          }
+        />
 
-        {logsQuery.isLoading ? (
-          <StateView title="Đang tải nhật ký…" />
-        ) : logsQuery.isError ? (
-          <StateView
-            title="Không tải được nhật ký"
-            description={
-              logsQuery.error instanceof Error
-                ? logsQuery.error.message
-                : 'Không thể kết nối máy chủ.'
-            }
-            action={
-              <Button type="button" onClick={() => void logsQuery.refetch()}>
-                Thử lại
-              </Button>
-            }
-          />
-        ) : logs.length === 0 ? (
-          <StateView
-            title="Không có giao dịch phù hợp"
-            description="Thử đổi ngày hoặc bỏ bộ lọc người dùng."
-          />
-        ) : (
-          <div className="transaction-table-wrap">
-            <table className="transaction-table">
-              <thead>
+        <div className="transaction-table-wrap">
+          <table className="transaction-table">
+            <thead>
+              <tr>
+                <th>Giao dịch</th>
+                <th>Đối tượng</th>
+                <th>Loại</th>
+                <th>Thời gian</th>
+                <th>Nhân viên</th>
+                <th className="transaction-money">Số tiền</th>
+                <th aria-label="Mở chi tiết" />
+              </tr>
+            </thead>
+            <tbody>
+              {logsQuery.isLoading ? (
                 <tr>
-                  <th>Giao dịch</th>
-                  <th>Đối tượng</th>
-                  <th>Loại</th>
-                  <th>Thời gian</th>
-                  <th>Nhân viên</th>
-                  <th className="transaction-money">Số tiền</th>
-                  <th aria-label="Mở chi tiết" />
+                  <td colSpan={7} className="transaction-table__empty">
+                    Đang tải nhật ký…
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {logs.map((voucher) => (
+              ) : logsQuery.isError ? (
+                <tr>
+                  <td colSpan={7} className="transaction-table__empty">
+                    <p>
+                      Không tải được nhật ký —{' '}
+                      {logsQuery.error instanceof Error
+                        ? logsQuery.error.message
+                        : 'Không thể kết nối máy chủ.'}
+                    </p>
+                    <Button type="button" onClick={() => void logsQuery.refetch()}>
+                      Thử lại
+                    </Button>
+                  </td>
+                </tr>
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="transaction-table__empty">
+                    Không có giao dịch phù hợp — thử đổi ngày hoặc bỏ bộ lọc người dùng.
+                  </td>
+                </tr>
+              ) : (
+                logs.map((voucher) => (
                   <tr key={voucher.voucherId}>
                     <td>
                       <strong>#{voucher.voucherId}</strong>
@@ -406,11 +405,11 @@ export function TransactionWorkspace() {
                       </Button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <Drawer

@@ -347,7 +347,33 @@
 }
 
 .workspace-switcher {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+}
+
+.workspace-switcher:hover,
+.workspace-switcher:has(.workspace-switcher__trigger:focus-visible),
+.workspace-switcher:has(.workspace-switcher__trigger[aria-expanded="true"]) {
+  border-color: var(--color-action-primary);
+}
+
+.workspace-switcher__role-label {
+  flex: none;
+  padding: 0 var(--space-3);
+  border-right: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workspace-switcher__control {
   position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .workspace-switcher__trigger {
@@ -355,10 +381,10 @@
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: 0;
   padding: 0.45rem var(--space-3);
-  background: var(--color-surface-hover);
+  background: transparent;
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
   font-weight: 700;
@@ -368,12 +394,17 @@
 .workspace-switcher__trigger:hover,
 .workspace-switcher__trigger:focus-visible,
 .workspace-switcher__trigger[aria-expanded="true"] {
-  border-color: var(--color-action-primary);
   color: var(--color-action-primary);
 }
 
-.workspace-switcher__trigger .workspace-switcher__label {
-  flex: 1;
+/* KHONG dung flex:1 -- chu ("Thu ngan"/"Quan ly"/"Phan tich") ngan hon nhieu so
+   voi be rong nut nen flex:1 keo icon dat tan mep phai, tao khoang trong rat
+   xa giua chu va icon. Thay bang min-width CHUNG (du cho chu dai nhat) cho ca
+   label cua trigger va cua tung dong menu -- icon nam sat ngay sau, va vi cung
+   mot min-width nen icon cua trigger + 3 dong menu tu nhien thang hang nhau. */
+.workspace-switcher__trigger .workspace-switcher__label,
+.workspace-switcher__option-label {
+  min-width: 4.5rem;
   text-align: left;
 }
 
@@ -390,8 +421,9 @@
   right: 0;
   display: grid;
   gap: 2px;
-  min-width: 11rem;
-  padding: var(--space-2);
+  /* Chi padding doc -- padding ngang de o .workspace-switcher__option (space-3),
+     trung voi padding ngang cua trigger, de chu/icon 2 tang thang hang. */
+  padding: var(--space-2) 0;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
   background: var(--color-surface-default);
@@ -600,7 +632,8 @@
 }
 
 .app-shell--collapsed .workspace-switcher__label,
-.app-shell--collapsed .workspace-switcher__caret {
+.app-shell--collapsed .workspace-switcher__caret,
+.app-shell--collapsed .workspace-switcher__role-label {
   display: none;
 }
 
@@ -920,10 +953,37 @@
 }
 
 .log-filter-controls {
-  flex: 0 1 46rem;
-  width: 46rem;
-  max-width: 100%;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.log-filter-controls > .ds-date-range {
+  flex: 0 0 auto;
+  width: 21rem;
+}
+
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.log-table-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+}
+
+.log-table-card__scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .single-stat-grid {
@@ -1221,7 +1281,12 @@
 
   .log-filter-controls {
     width: 100%;
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .log-filter-controls > .ds-date-range {
+    width: 100%;
   }
 
   .app-shell,
@@ -1276,6 +1341,7 @@
 
   .app-shell--collapsed .workspace-switcher__label,
   .app-shell--collapsed .workspace-switcher__caret,
+  .app-shell--collapsed .workspace-switcher__role-label,
   .app-shell--collapsed .workspace-nav__label {
     display: block;
   }

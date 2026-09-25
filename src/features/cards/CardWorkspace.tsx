@@ -30,11 +30,15 @@ import './cards.css'
 
 const PAGE_SIZE = 50
 
+// Mã lọc của GET /cards: 1/2 = cột Status; 4/3 = Status=0 tách theo hạn dùng (server tính).
+const CARD_FILTER = { all: -1, used: 1, locked: 2, expired: 3, unused: 4 } as const
+
 const STATUS_FILTER_OPTIONS: FilterMenuOption<number>[] = [
-  { value: 0, label: 'Chưa dùng', color: 'var(--color-success)' },
-  { value: 1, label: 'Đã dùng' },
-  { value: 2, label: 'Đã khóa', color: 'var(--color-danger)' },
-  { value: -1, label: 'Tất cả' },
+  { value: CARD_FILTER.unused, label: 'Chưa dùng', color: 'var(--color-success)' },
+  { value: CARD_FILTER.used, label: 'Đã dùng' },
+  { value: CARD_FILTER.locked, label: 'Đã khóa', color: 'var(--color-danger)' },
+  { value: CARD_FILTER.expired, label: 'Hết hạn', color: 'var(--color-warning)' },
+  { value: CARD_FILTER.all, label: 'Tất cả' },
 ]
 
 type Confirmation = 'lock' | 'delete' | null
@@ -76,32 +80,54 @@ export function CardWorkspace() {
   const dateRangeActive = dateField !== 'all'
   const dateRangeValid = !dateRangeActive || !fromDate || !toDate || fromDate <= toDate
 
+  const dateFilter =
+    dateRangeActive && fromDate && toDate
+      ? { dateField: dateField as CardDateField, from: fromDate, to: toDate }
+      : {}
+  const dateFilterKey = [
+    dateRangeActive ? dateField : null,
+    dateRangeActive ? fromDate : null,
+    dateRangeActive ? toDate : null,
+  ]
+
   const cardsQuery = useQuery({
-    queryKey: ['cards', status, page, dateRangeActive ? dateField : null, dateRangeActive ? fromDate : null, dateRangeActive ? toDate : null],
+    queryKey: ['cards', status, page, ...dateFilterKey],
     queryFn: () =>
       cardsApi.getList({
         status,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
-        ...(dateRangeActive && fromDate && toDate
-          ? { dateField: dateField as CardDateField, from: fromDate, to: toDate }
-          : {}),
+        ...dateFilter,
       }),
     enabled: dateRangeValid,
   })
 
+  // Đếm trên cùng bộ lọc ngày với danh sách (parity CardManagementDlg::RefreshCurrentData).
   const statusCountsQuery = useQuery({
-    queryKey: ['cards', 'status-counts'],
+    queryKey: ['cards', 'status-counts', ...dateFilterKey],
     queryFn: async () => {
-      const [unused, used, locked] = await Promise.all([
-        cardsApi.getList({ status: 0, limit: 1 }),
-        cardsApi.getList({ status: 1, limit: 1 }),
-        cardsApi.getList({ status: 2, limit: 1 }),
+      const [unused, used, locked, expired] = await Promise.all([
+        cardsApi.getList({ status: CARD_FILTER.unused, limit: 1, ...dateFilter }),
+        cardsApi.getList({ status: CARD_FILTER.used, limit: 1, ...dateFilter }),
+        cardsApi.getList({ status: CARD_FILTER.locked, limit: 1, ...dateFilter }),
+        cardsApi.getList({ status: CARD_FILTER.expired, limit: 1, ...dateFilter }),
       ])
-      return { unused: unused.total, used: used.total, locked: locked.total }
+      return {
+        unused: unused.total,
+        used: used.total,
+        locked: locked.total,
+        expired: expired.total,
+      }
     },
+    enabled: dateRangeValid,
   })
-  const statusCounts = statusCountsQuery.data ?? { unused: 0, used: 0, locked: 0 }
+  const statusCounts = statusCountsQuery.data ?? { unused: 0, used: 0, locked: 0, expired: 0 }
+  const statTiles = [
+    { value: CARD_FILTER.unused, label: 'Chưa dùng', dot: 'unused', count: statusCounts.unused },
+    { value: CARD_FILTER.used, label: 'Đã dùng', dot: 'used', count: statusCounts.used },
+    { value: CARD_FILTER.locked, label: 'Đã khóa', dot: 'locked', count: statusCounts.locked },
+    { value: CARD_FILTER.expired, label: 'Hết hạn', dot: 'expired', count: statusCounts.expired },
+  ]
 
   const cards = cardsQuery.data?.items ?? []
   const total = cardsQuery.data?.total ?? 0
@@ -161,6 +187,12 @@ export function CardWorkspace() {
     }
     setPage(0)
     setSelectedIds(new Set())
+  }
+
+  const hasActiveFilter = status !== -1 || dateRangeActive
+  const clearFilters = () => {
+    changeStatus(-1)
+    changeDateField('all')
   }
 
   const toggleCard = (cardId: number) => {
@@ -276,35 +308,26 @@ export function CardWorkspace() {
       <section className="card-panel" aria-label="Danh sách thẻ nạp">
         <div className="card-panel__header">
           <div className="card-panel__summary">
-            <strong>{new Intl.NumberFormat('vi-VN').format(total)} thẻ</strong>
+            <button
+              type="button"
+              className={`card-stat ${status === -1 ? 'is-active' : ''}`}
+              onClick={() => changeStatus(-1)}
+            >
+              <strong>{new Intl.NumberFormat('vi-VN').format(total)} thẻ</strong>
+            </button>
             <div className="card-stat-row">
-              <button
-                type="button"
-                className={`card-stat ${status === 0 ? 'is-active' : ''}`}
-                onClick={() => changeStatus(status === 0 ? -1 : 0)}
-              >
-                <span className="card-stat__dot card-stat__dot--unused" aria-hidden="true" />
-                <span className="card-stat__label">Chưa dùng</span>
-                <strong>{statusCounts.unused}</strong>
-              </button>
-              <button
-                type="button"
-                className={`card-stat ${status === 1 ? 'is-active' : ''}`}
-                onClick={() => changeStatus(status === 1 ? -1 : 1)}
-              >
-                <span className="card-stat__dot card-stat__dot--used" aria-hidden="true" />
-                <span className="card-stat__label">Đã dùng</span>
-                <strong>{statusCounts.used}</strong>
-              </button>
-              <button
-                type="button"
-                className={`card-stat ${status === 2 ? 'is-active' : ''}`}
-                onClick={() => changeStatus(status === 2 ? -1 : 2)}
-              >
-                <span className="card-stat__dot card-stat__dot--locked" aria-hidden="true" />
-                <span className="card-stat__label">Đã khóa</span>
-                <strong>{statusCounts.locked}</strong>
-              </button>
+              {statTiles.map((tile) => (
+                <button
+                  key={tile.value}
+                  type="button"
+                  className={`card-stat ${status === tile.value ? 'is-active' : ''}`}
+                  onClick={() => changeStatus(status === tile.value ? CARD_FILTER.all : tile.value)}
+                >
+                  <span className={`card-stat__dot card-stat__dot--${tile.dot}`} aria-hidden="true" />
+                  <span className="card-stat__label">{tile.label}</span>
+                  <strong>{new Intl.NumberFormat('vi-VN').format(tile.count)}</strong>
+                </button>
+              ))}
             </div>
           </div>
           <div className="card-panel__toolbar">
@@ -344,11 +367,6 @@ export function CardWorkspace() {
               </Button>
             }
           />
-        ) : cards.length === 0 ? (
-          <StateView
-            title="Không có thẻ trong trạng thái này"
-            description="Chọn trạng thái khác hoặc tạo thẻ mới."
-          />
         ) : (
           <div className="card-table-wrap">
             <table className="card-table">
@@ -382,45 +400,71 @@ export function CardWorkspace() {
                 </tr>
               </thead>
               <tbody>
-                {cards.map((card) => {
-                  const statusMeta = cardStatusMeta(card.status)
-                  return (
-                    <tr key={card.cardId}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          aria-label={`Chọn thẻ #${card.cardId}`}
-                          checked={selectedIds.has(card.cardId)}
-                          onChange={() => toggleCard(card.cardId)}
-                        />
-                      </td>
-                      <td>
-                        <strong>#{card.cardId}</strong>
-                      </td>
-                      <td>
-                        <code>{card.cardCode || '—'}</code>
-                      </td>
-                      <td className="card-money">{formatMoney(card.cardValue)}</td>
-                      <td>{card.type === 0 ? 'Chính' : 'Khuyến mãi'}</td>
-                      <td>
-                        <StatusBadge tone={statusMeta.tone}>
-                          {statusMeta.label}
-                        </StatusBadge>
-                        {isCardExpired(card, today) ? (
-                          <StatusBadge tone="warning">Hết hạn</StatusBadge>
-                        ) : null}
-                      </td>
-                      <td>
-                        <strong>
-                          {card.createDate} {card.createTime}
-                        </strong>
-                        <span>Hết hạn {card.expiryDate || '—'}</span>
-                      </td>
-                      <td>{card.userName || '—'}</td>
-                      <td>{card.note || '—'}</td>
-                    </tr>
-                  )
-                })}
+                {cards.length === 0 ? (
+                  <tr>
+                    <td colSpan={9}>
+                      <StateView
+                        title={
+                          hasActiveFilter
+                            ? 'Không có thẻ trong trạng thái này'
+                            : 'Chưa có thẻ nào'
+                        }
+                        description={
+                          hasActiveFilter
+                            ? 'Chọn trạng thái khác hoặc tạo thẻ mới.'
+                            : undefined
+                        }
+                        action={
+                          hasActiveFilter ? (
+                            <Button type="button" onClick={clearFilters}>
+                              Xóa bộ lọc
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  cards.map((card) => {
+                    const statusMeta = cardStatusMeta(card.status)
+                    return (
+                      <tr key={card.cardId}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            aria-label={`Chọn thẻ #${card.cardId}`}
+                            checked={selectedIds.has(card.cardId)}
+                            onChange={() => toggleCard(card.cardId)}
+                          />
+                        </td>
+                        <td>
+                          <strong>#{card.cardId}</strong>
+                        </td>
+                        <td>
+                          <code>{card.cardCode || '—'}</code>
+                        </td>
+                        <td className="card-money">{formatMoney(card.cardValue)}</td>
+                        <td>{card.type === 0 ? 'Chính' : 'Khuyến mãi'}</td>
+                        <td>
+                          <StatusBadge tone={statusMeta.tone}>
+                            {statusMeta.label}
+                          </StatusBadge>
+                          {isCardExpired(card, today) ? (
+                            <StatusBadge tone="warning">Hết hạn</StatusBadge>
+                          ) : null}
+                        </td>
+                        <td>
+                          <strong>
+                            {card.createDate} {card.createTime}
+                          </strong>
+                          <span>Hết hạn {card.expiryDate || '—'}</span>
+                        </td>
+                        <td>{card.userName || '—'}</td>
+                        <td>{card.note || '—'}</td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>

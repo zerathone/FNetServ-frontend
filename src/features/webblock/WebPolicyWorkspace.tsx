@@ -216,20 +216,12 @@ export function WebPolicyWorkspace() {
         }
       />
 
-      <InlineAlert tone={pendingApply ? 'warning' : 'info'}>
-        {pendingApply ? (
-          <>
-            Thay đổi đã lưu và file chia sẻ đang được tạo lại, nhưng máy trạm chưa
-            nhận cấu hình mới. ADMIN cần bấm <strong>Áp dụng thay đổi</strong>.
-          </>
-        ) : (
-          <>
-            Lưu dữ liệu và phát hành xuống máy trạm là hai bước riêng, giữ đúng nút
-            “Chấp nhận” của MFC. Máy chủ bảo vệ whitelist vận hành trên mọi lần
-            thêm/sửa; bản ghi nguồn trung tâm được hiển thị chỉ đọc.
-          </>
-        )}
-      </InlineAlert>
+      {pendingApply ? (
+        <InlineAlert tone="warning">
+          Thay đổi đã lưu và file chia sẻ đang được tạo lại, nhưng máy trạm chưa
+          nhận cấu hình mới. ADMIN cần bấm <strong>Áp dụng thay đổi</strong>.
+        </InlineAlert>
+      ) : null}
 
       <form className="web-policy-filters" onSubmit={applyFilters}>
         <label className="ds-field">
@@ -482,11 +474,6 @@ export function WebPolicyWorkspace() {
               <small>Tắt để giữ bản ghi nhưng chưa đưa vào danh sách chặn.</small>
             </span>
           </label>
-          <InlineAlert tone="warning">
-            Máy chủ là nguồn kết luận cho whitelist vận hành và sẽ từ chối website
-            được bảo vệ. WebUI chỉ kiểm tra sớm domain máy chủ hiện tại và 168atoz
-            để tránh thao tác sai trước khi gửi.
-          </InlineAlert>
         </div>
       </Dialog>
 

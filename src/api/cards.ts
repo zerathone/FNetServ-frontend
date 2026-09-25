@@ -10,7 +10,10 @@ export interface Card {
   userName: string
   createDate: string
   createTime: string
+  /** dd-mm-YYYY (DATE_FORMAT phía server) */
   expiryDate: string
+  /** Server tự tính: ExpiryDate < hôm nay. Không có ở server cũ. */
+  expired?: boolean
   note: string
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { MachineGroup } from '../../api/machine-groups'
 import type { WorkstationRuntime } from '../../api/workstations'
 import { FilterHeaderCell, StatusBadge, type FilterMenuOption } from '../../design-system/components'
@@ -103,6 +103,7 @@ type WorkstationVirtualListProps = {
   filter: WorkstationFilter
   onFilterChange: (filter: WorkstationFilter) => void
   visibleColumns: ColumnDefinition[]
+  emptyState?: ReactNode
 }
 
 export function WorkstationVirtualList({
@@ -118,6 +119,7 @@ export function WorkstationVirtualList({
   filter,
   onFilterChange,
   visibleColumns,
+  emptyState,
 }: WorkstationVirtualListProps) {
   const { theme } = useTheme()
   const rowHeight = theme === 'classic' ? CLASSIC_ROW_HEIGHT : DEFAULT_ROW_HEIGHT
@@ -229,17 +231,21 @@ export function WorkstationVirtualList({
           return <div key={column.id} role="columnheader">{column.label}</div>
         })}
       </div>
-      <div ref={viewportRef} className="ws-table__viewport" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
-        <div className="ws-table__canvas" style={{ height: `${machines.length * rowHeight}px` }}>
-          {visibleMachines.map((machine, index) => {
-            const selectedRow = selected.has(machine.hostName)
-            return <div key={machine.hostName} className={`ws-table__row ws-table__grid${selectedRow ? ' ws-table__row--selected' : ''}`} role="row" aria-rowindex={start + index + 2} style={{ ...gridStyle, height: `${rowHeight}px`, transform: `translateY(${(start + index) * rowHeight}px)` }} onDoubleClick={() => onOpen(machine)}>
-              <div role="cell"><input type="checkbox" aria-label={`Chọn ${machine.hostName}`} checked={selectedRow} onChange={() => onToggle(machine.hostName)} /></div>
-              {visibleColumns.map((column) => <div key={column.id} className="ws-table__cell-wrap">{renderCell(column, machine)}</div>)}
-            </div>
-          })}
+      {machines.length === 0 ? (
+        <div className="ws-table__empty">{emptyState}</div>
+      ) : (
+        <div ref={viewportRef} className="ws-table__viewport" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
+          <div className="ws-table__canvas" style={{ height: `${machines.length * rowHeight}px` }}>
+            {visibleMachines.map((machine, index) => {
+              const selectedRow = selected.has(machine.hostName)
+              return <div key={machine.hostName} className={`ws-table__row ws-table__grid${selectedRow ? ' ws-table__row--selected' : ''}`} role="row" aria-rowindex={start + index + 2} style={{ ...gridStyle, height: `${rowHeight}px`, transform: `translateY(${(start + index) * rowHeight}px)` }} onDoubleClick={() => onOpen(machine)}>
+                <div role="cell"><input type="checkbox" aria-label={`Chọn ${machine.hostName}`} checked={selectedRow} onChange={() => onToggle(machine.hostName)} /></div>
+                {visibleColumns.map((column) => <div key={column.id} className="ws-table__cell-wrap">{renderCell(column, machine)}</div>)}
+              </div>
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import {
   appsApi,
   type AppEntry,
@@ -11,7 +12,9 @@ import {
   ConfirmAction,
   Dialog,
   InlineAlert,
+  ListToolbar,
   PageHeader,
+  RefreshButton,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -198,25 +201,15 @@ export function AppPolicyWorkspace() {
         title="Chính sách ứng dụng"
         description="Quản lý ứng dụng bị hạn chế hoặc được cho phép theo chính sách máy trạm."
         actions={
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              loading={allowQuery.isFetching || restrictQuery.isFetching}
-              onClick={refresh}
-            >
-              Làm mới
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={!canAdd}
-              title={canAdd ? undefined : 'Cần quyền Thêm ứng dụng (71).'}
-              onClick={openCreate}
-            >
-              Thêm ứng dụng
-            </Button>
-          </>
+          <Button
+            type="button"
+            variant="primary"
+            disabled={!canAdd}
+            title={canAdd ? undefined : 'Cần quyền Thêm ứng dụng (71).'}
+            onClick={openCreate}
+          >
+            Thêm ứng dụng
+          </Button>
         }
       />
 
@@ -243,14 +236,29 @@ export function AppPolicyWorkspace() {
 
       <section className="app-policy-toolbar">
         <label className="ds-field">
-          <span className="ds-field__label">Tìm ứng dụng</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            placeholder="Tên, mô tả hoặc MD5…"
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          <span className="ds-visually-hidden">Tìm ứng dụng</span>
+          <div className="ds-input-group ds-input-group--search">
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={search}
+                placeholder="Tên, mô tả hoặc MD5…"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {search ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa tìm kiếm"
+                  onClick={() => setSearch('')}
+                >
+                  <XCircle size={18} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </label>
         <div>
           <span>Quyền của phiên hiện tại</span>
@@ -263,19 +271,20 @@ export function AppPolicyWorkspace() {
       </section>
 
       <section className="app-policy-panel" aria-label={typeLabel(activeType)}>
-        <header>
-          <div>
-            <strong>{typeLabel(activeType)}</strong>
-            <span>
-              {entries.length === lists[activeType].length
-                ? `${entries.length} ứng dụng`
-                : `${entries.length}/${lists[activeType].length} ứng dụng phù hợp`}
-            </span>
-          </div>
-          <StatusBadge tone={activeType === 'restrict' ? 'danger' : 'success'}>
-            {activeType === 'restrict' ? 'Chặn chạy' : 'Được phép chạy'}
-          </StatusBadge>
-        </header>
+        <ListToolbar
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(entries.length)}</strong></>}
+          actions={
+            <>
+              <RefreshButton
+                loading={allowQuery.isFetching || restrictQuery.isFetching}
+                onClick={refresh}
+              />
+              <StatusBadge tone={activeType === 'restrict' ? 'danger' : 'success'}>
+                {activeType === 'restrict' ? 'Chặn chạy' : 'Được phép chạy'}
+              </StatusBadge>
+            </>
+          }
+        />
 
         {activeQuery.isLoading ? (
           <StateView title="Đang tải chính sách ứng dụng…" />

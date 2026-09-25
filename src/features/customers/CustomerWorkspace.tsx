@@ -10,10 +10,11 @@ import {
   Drawer,
   InlineAlert,
   ListPagination,
+  ListToolbar,
   MoneyInput,
   PageHeader,
+  RefreshButton,
   Select,
-  StateView,
 } from '../../design-system/components'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
@@ -580,28 +581,14 @@ export function CustomerWorkspace() {
 
 
       <div className="customer-list-card">
-        {usersQuery.isLoading ? (
-          <StateView title="Đang tải khách hàng" />
-        ) : usersQuery.isError ? (
-          <StateView
-            title="Không tải được danh sách"
-            description={(usersQuery.error as Error).message}
-            action={<Button onClick={() => usersQuery.refetch()}>Thử lại</Button>}
-          />
-        ) : users.length === 0 ? (
-          <StateView
-            title="Không tìm thấy tài khoản"
-            description={
-              searchQuery
-                ? 'Kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
-                : 'Danh sách hiện chưa có dữ liệu.'
-            }
-          />
-        ) : (
-          <>
-            <div className="customer-table-tools">
-              <span>{users.length} tài khoản trên trang này</span>
-              <div className="customer-table-tools__actions">
+        <ListToolbar
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(users.length)}</strong></>}
+          actions={
+            <>
+              <RefreshButton
+                loading={usersQuery.isFetching}
+                onClick={() => void usersQuery.refetch()}
+              />
               <ListPagination
                 page={page}
                 canNext={users.length >= PAGE_SIZE}
@@ -654,64 +641,85 @@ export function CustomerWorkspace() {
                   </div>
                 ) : null}
               </div>
-              </div>
+            </>
+          }
+        />
+        <div className="customer-table-scroll">
+          <div className="customer-table" role="table" aria-rowcount={sortedUsers.length + 1}>
+            <div
+              className="customer-table__header customer-table__grid"
+              role="row"
+              style={tableGridStyle}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                setColumnMenuOpen(true)
+              }}
+            >
+              {displayedColumns.map((column) => (
+                <button
+                  key={column.id}
+                  type="button"
+                  role="columnheader"
+                  className={column.money ? 'is-money' : ''}
+                  aria-sort={sortColumn === column.id ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  onClick={() => toggleSort(column.id)}
+                >
+                  <span>{column.label}</span>
+                  {sortColumn === column.id ? (
+                    <span className="customer-sort-mark" aria-hidden="true">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
             </div>
-            <div className="customer-table-scroll">
-              <div className="customer-table" role="table" aria-rowcount={sortedUsers.length + 1}>
-                <div
-                  className="customer-table__header customer-table__grid"
+            {usersQuery.isLoading ? (
+              <div className="customer-table__empty" role="row">
+                <div role="cell">Đang tải khách hàng…</div>
+              </div>
+            ) : usersQuery.isError ? (
+              <div className="customer-table__empty" role="row">
+                <div role="cell">
+                  <p>Không tải được danh sách — {(usersQuery.error as Error).message}</p>
+                  <Button onClick={() => usersQuery.refetch()}>Thử lại</Button>
+                </div>
+              </div>
+            ) : sortedUsers.length === 0 ? (
+              <div className="customer-table__empty" role="row">
+                <div role="cell">
+                  Không tìm thấy tài khoản —{' '}
+                  {searchQuery
+                    ? 'kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
+                    : 'danh sách hiện chưa có dữ liệu.'}
+                </div>
+              </div>
+            ) : (
+              sortedUsers.map((user) => (
+                <button
+                  key={user.userId}
+                  type="button"
+                  className={`customer-table__row customer-table__grid${selected?.userId === user.userId ? ' is-selected' : ''}`}
                   role="row"
                   style={tableGridStyle}
-                  onContextMenu={(event) => {
-                    event.preventDefault()
-                    setColumnMenuOpen(true)
-                  }}
+                  onClick={() => setSelectedSeed(user)}
                 >
                   {displayedColumns.map((column) => (
-                    <button
+                    <div
                       key={column.id}
-                      type="button"
-                      role="columnheader"
-                      className={column.money ? 'is-money' : ''}
-                      aria-sort={sortColumn === column.id ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      onClick={() => toggleSort(column.id)}
+                      role="cell"
+                      className={column.money ? 'customer-table__money' : ''}
+                      title={String(customerColumnValue(user, column.id) || '')}
                     >
-                      <span>{column.label}</span>
-                      {sortColumn === column.id ? (
-                        <span className="customer-sort-mark" aria-hidden="true">
-                          {sortDirection === 'asc' ? '↑' : '↓'}
-                        </span>
-                      ) : null}
-                    </button>
+                      {column.id === 'userName' ? (
+                        <strong>{user.userName}</strong>
+                      ) : customerColumnDisplay(user, column.id)}
+                    </div>
                   ))}
-                </div>
-                {sortedUsers.map((user) => (
-                  <button
-                    key={user.userId}
-                    type="button"
-                    className={`customer-table__row customer-table__grid${selected?.userId === user.userId ? ' is-selected' : ''}`}
-                    role="row"
-                    style={tableGridStyle}
-                    onClick={() => setSelectedSeed(user)}
-                  >
-                    {displayedColumns.map((column) => (
-                      <div
-                        key={column.id}
-                        role="cell"
-                        className={column.money ? 'customer-table__money' : ''}
-                        title={String(customerColumnValue(user, column.id) || '')}
-                      >
-                        {column.id === 'userName' ? (
-                          <strong>{user.userName}</strong>
-                        ) : customerColumnDisplay(user, column.id)}
-                      </div>
-                    ))}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       <AutoGenerateMemberDialog

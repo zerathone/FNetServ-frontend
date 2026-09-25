@@ -6,13 +6,7 @@ import type {
 
 export const EDITABLE_USER_GROUP_TYPES = new Set<UserGroupTypeCode>([1, 2])
 
-export const USER_GROUP_TYPE_ORDER: UserGroupType[] = [
-  'anonym',
-  'member',
-  'admin',
-  'staff',
-  'combo',
-]
+export const USER_GROUP_TYPE_ORDER: UserGroupType[] = ['anonym', 'member']
 
 export function userGroupTypeLabel(type: UserGroupType) {
   const labels: Record<UserGroupType, string> = {
@@ -48,10 +42,7 @@ export function canRequestUserGroupDelete(group: UserGroup) {
 export function matchesUserGroup(group: UserGroup, search: string) {
   const normalized = search.trim().toLocaleLowerCase('vi')
   if (!normalized) return true
-  return (
-    group.name.toLocaleLowerCase('vi').includes(normalized) ||
-    userGroupTypeLabel(group.type).toLocaleLowerCase('vi').includes(normalized)
-  )
+  return group.name.toLocaleLowerCase('vi').includes(normalized)
 }
 
 export function validateUserGroupDraft(draft: {

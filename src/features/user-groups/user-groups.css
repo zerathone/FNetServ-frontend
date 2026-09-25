@@ -10,6 +10,10 @@
   gap: var(--space-3);
 }
 
+.user-group-type-filter {
+  width: fit-content;
+}
+
 .user-group-panel {
   min-height: 26rem;
   display: grid;
@@ -20,27 +24,6 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface-default);
   box-shadow: var(--shadow-sm);
-}
-
-.user-group-panel > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.user-group-panel > header > div {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.user-group-panel > header strong {
-  color: var(--color-text-primary);
-}
-
-.user-group-panel > header span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
 
 .user-group-table-wrap {

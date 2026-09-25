@@ -404,6 +404,13 @@ button.ws-summary__row:hover {
   overscroll-behavior: contain;
 }
 
+.ws-table__empty {
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  overflow: auto;
+}
+
 .ws-table__canvas {
   position: relative;
   min-width: max-content;

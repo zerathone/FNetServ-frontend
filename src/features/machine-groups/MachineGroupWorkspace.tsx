@@ -394,7 +394,6 @@ export function MachineGroupWorkspace() {
               <article className="machine-group-card" key={group.id}>
                 <header>
                   <div>
-                    <span>#{group.id}</span>
                     <strong>{group.name}</strong>
                   </div>
                 </header>
@@ -422,16 +421,18 @@ export function MachineGroupWorkspace() {
                 <footer>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
+                    className="machine-group-card__action machine-group-card__action--edit"
                     disabled={!canEdit}
                     title={canEdit ? undefined : 'Cần quyền Sửa nhóm máy (9413).'}
                     onClick={() => openEdit(group)}
                   >
-                    Sửa thông tin
+                    Sửa
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
+                    className="machine-group-card__action machine-group-card__action--delete"
                     disabled={!canDelete}
                     title={
                       !canDelete
@@ -448,11 +449,6 @@ export function MachineGroupWorkspace() {
           </div>
         )}
       </section>
-
-      <InlineAlert tone="info">
-        “Chuyển máy giữa nhóm” hỗ trợ chọn hàng loạt theo nhóm nguồn và ghi từng máy
-        qua contract cập nhật danh sách máy, tương ứng form MFC.
-      </InlineAlert>
 
       <Dialog
         open={createOpen}
@@ -553,7 +549,6 @@ export function MachineGroupWorkspace() {
       <Dialog
         open={Boolean(editing)}
         title={editing ? `Sửa nhóm ${editing.name}` : 'Sửa nhóm máy'}
-        description="Tên và mô tả giữ giới hạn của form MFC đang vận hành."
         size="md"
         onClose={updateMutation.isPending ? () => undefined : () => setEditing(null)}
         footer={

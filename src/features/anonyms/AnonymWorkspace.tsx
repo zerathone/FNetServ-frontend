@@ -182,11 +182,6 @@ export function AnonymWorkspace() {
         }
       />
 
-      <InlineAlert tone="info">
-        Danh sách quản lý không suy đoán máy đang gắn. Khi gắn phiên, WebUI đọc snapshot
-        Máy trạm và chỉ cho chọn máy vãng lai đang online có phiên hoạt động.
-      </InlineAlert>
-
       <section className="anonym-toolbar" aria-label="Tìm khách vãng lai">
         <label className="ds-field">
           <span className="ds-field__label">Tên / CCCD / địa chỉ</span>
