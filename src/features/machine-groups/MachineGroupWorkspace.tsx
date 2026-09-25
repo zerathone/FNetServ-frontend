@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MagnifyingGlass } from '@phosphor-icons/react'
 import {
   createMachineGroup,
   deleteMachineGroup,
@@ -334,16 +335,17 @@ export function MachineGroupWorkspace() {
         </InlineAlert>
       ) : null}
 
-      <label className="ds-field machine-group-search">
-        <span className="ds-field__label">Tìm tên hoặc mô tả</span>
+      <div className="ds-search-input machine-group-search">
+        <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
         <input
           className="ds-input"
           type="search"
           value={search}
+          aria-label="Tìm tên hoặc mô tả"
           placeholder="Ví dụ: VIP, phòng thường…"
           onChange={(event) => setSearch(event.target.value)}
         />
-      </label>
+      </div>
 
       <section className="machine-group-panel">
         <header>
