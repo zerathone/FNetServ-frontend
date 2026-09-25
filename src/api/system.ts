@@ -45,3 +45,16 @@ export function getLicenseInfo() {
 export function getLicenseUrl() {
   return apiPost<{ url: string }, Record<string, never>>('/system/license/url', {})
 }
+
+// GET /system/payment-online (SystemHandlers.cpp: PaymentOnlineInfoRequestHandler) — bật/tắt nút
+// "Giao dịch online", mirror `m_btnPaymentOnline.EnableWindow(...)` MFC; phụ thuộc license (server
+// tự gộp cả 2 điều kiện: license có cấp tính năng + không bị khoá do lệch giờ mạng).
+export function getPaymentOnlineInfo() {
+  return apiGet<{ available: boolean }>('/system/payment-online')
+}
+
+// POST /system/payment-online/url — URL portal giao dịch online do server dựng (giống nút MFC).
+// URL có ts + chữ ký nên phải xin mới mỗi lần bấm. Phiên sysadmin bị server từ chối.
+export function getPaymentOnlineUrl() {
+  return apiPost<{ url: string }, Record<string, never>>('/system/payment-online/url', {})
+}

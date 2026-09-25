@@ -139,7 +139,6 @@ export function LicenseButton() {
       <Button
         ref={triggerRef}
         variant="ghost"
-        block
         className="license-button__trigger"
         title={tooltip}
         aria-haspopup="dialog"
@@ -149,9 +148,8 @@ export function LicenseButton() {
       >
         <span className={`license-button__icon license-button__icon--${meta.tone}`} aria-hidden="true">
           {meta.icon}
-          <span className={`license-button__dot license-button__dot--${meta.tone}`} />
         </span>
-        <span className="license-button__text workspace-nav__label">
+        <span className="license-button__text">
           <span className="license-button__title">{title}</span>
           <span className="license-button__sub">
             <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
@@ -181,7 +179,7 @@ export function LicenseButton() {
             title={isSystemAdmin ? SYSADMIN_DISABLED_TITLE : undefined}
             onClick={openDetailPage}
           >
-            Xem chi tiết giấy phép
+            Xem chi tiết
           </Button>
         </div>
       ) : null}

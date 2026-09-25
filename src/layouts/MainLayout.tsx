@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/auth'
 import { useWsStatusStore } from '../store/wsStatus'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { LicenseButton } from '../features/license/LicenseButton'
+import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import {
   Desktop, Users, ShoppingCart, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
@@ -248,23 +249,35 @@ export function MainLayout({ children }: { children: ReactNode }) {
             icon={mobileNavOpen ? <X size={24} /> : <List size={24} />}
             onClick={() => setMobileNavOpen((value) => !value)}
           />
-          <NavLink className="brand-mark" to={workspace.landing} aria-label="FNet - về trang chính">
-            <img
-              className="brand-mark__full brand-mark__full--color"
-              src="/brand/logo_fnet-web_wordmark_20260813_color.png"
-              alt="FNet"
-            />
-            <img
-              className="brand-mark__full brand-mark__full--reversed"
-              src="/brand/logo_fnet-web_wordmark_20260813_reversed.png"
-              alt="FNet"
-            />
-            <img className="brand-mark__icon" src="/brand/logo_fnet-web_mark_20260813_square.png" alt="FNet" />
-          </NavLink>
+          <div className="brand-mark-group">
+            <NavLink className="brand-mark" to={workspace.landing} aria-label="FNet - về trang chính">
+              <img
+                className="brand-mark__full brand-mark__full--color"
+                src="/brand/logo_fnet-web_wordmark_20260813_color.png"
+                alt="FNet"
+              />
+              <img
+                className="brand-mark__full brand-mark__full--reversed"
+                src="/brand/logo_fnet-web_wordmark_20260813_reversed.png"
+                alt="FNet"
+              />
+              <img className="brand-mark__icon" src="/brand/logo_fnet-web_mark_20260813_square.png" alt="FNet" />
+            </NavLink>
+            {serverInfoQuery.data?.ver ? (
+              <div className="brand-mark-group__meta">
+                <span className="brand-mark-group__version">v{serverInfoQuery.data.ver}</span>
+                {serverInfoQuery.data.rd ? (
+                  <span className="brand-mark-group__release">{serverInfoQuery.data.rd}</span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <div className="staff-summary">
             <span>{isAdmin ? 'Người dùng' : 'Nhân viên'}</span>
             <strong>{staffName || 'Phiên cục bộ'}</strong>
           </div>
+          <LicenseButton />
+          <PaymentOnlineButton />
         </div>
 
         <div className="app-topbar__end">
@@ -389,13 +402,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="app-sidebar__footer">
-          <LicenseButton />
-          {serverInfoQuery.data?.ver ? (
-            <span className="app-sidebar__version">
-              v{serverInfoQuery.data.ver}
-              {serverInfoQuery.data.rd ? ` · ${serverInfoQuery.data.rd}` : ''}
-            </span>
-          ) : null}
           <Button
             variant="ghost"
             block
