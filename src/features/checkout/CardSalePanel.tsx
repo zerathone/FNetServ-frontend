@@ -85,7 +85,6 @@ export function CardSalePanel() {
           <h2 id="card-sale-title">Bán thẻ nạp tiền</h2>
           <p>Chọn số lượng theo mệnh giá còn tồn kho · khách thanh toán tiền mặt và mang thẻ về</p>
         </div>
-        <StatusBadge tone="info">Tồn kho do máy chủ xác nhận</StatusBadge>
       </div>
 
       {catalogQuery.isLoading ? (

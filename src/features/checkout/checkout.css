@@ -210,7 +210,7 @@
 
 /* Khung giờ: thông tin quan trọng nhất card, nhưng vẫn theo thang chữ chuẩn (lg, không xl/900). */
 .combo-product-card__headline { display: flex; flex-direction: column; gap: var(--space-2); }
-.combo-product-card__time { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: 700; color: var(--color-text-primary); }
+.combo-product-card__time { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: 600; color: var(--color-text-primary); }
 .combo-product-card__time span { display: inline-flex; align-items: center; gap: 0.3rem; }
 .combo-product-card__time svg { color: var(--color-text-muted); flex: 0 0 auto; }
 
@@ -224,7 +224,7 @@
 
 /* Footer: giá + nút CHỌN nằm chung 1 hàng, không còn absolute-overlay đè lên giá. */
 .combo-product-card__footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
-.combo-product-card__price { min-width: 0; overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xl); font-weight: 800; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.combo-product-card__price { min-width: 0; overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xl); font-weight: 700; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .combo-product-card__sell { flex: 0 0 auto; min-height: var(--control-height-compact); padding: 0 1.1rem; border: 0; border-radius: var(--radius-md); background: var(--color-action-primary); color: var(--color-text-inverse); font-size: var(--font-size-sm); font-weight: 700; text-align: center; cursor: pointer; }
 .combo-product-card__sell:hover:not(:disabled) { background: var(--color-action-primary-hover); }
 .combo-product-card__sell.is-selected { background: var(--color-success); opacity: 1; cursor: default; }
@@ -282,7 +282,7 @@
 .card-sale-product-card__name svg { flex: 0 0 auto; }
 
 .card-sale-product-card__headline { display: flex; align-items: baseline; gap: var(--space-2); }
-.card-sale-product-card__price { color: var(--color-text-primary); font-size: var(--font-size-2xl); font-weight: 800; font-variant-numeric: tabular-nums; }
+.card-sale-product-card__price { color: var(--color-text-primary); font-size: var(--font-size-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
 .card-sale-product-card__unit { color: var(--color-text-muted); font-size: var(--font-size-sm); }
 
 .card-sale-product-card__footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
