@@ -231,7 +231,7 @@
 .combo-product-card__sell:disabled:not(.is-selected) { opacity: .5; cursor: not-allowed; }
 .combo-context { position: sticky; top: var(--space-3); max-height: calc(100vh - 8rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-default); box-shadow: var(--shadow-md); }
 .combo-context>header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-4); border-bottom: 1px solid var(--color-border-default); }
-.combo-context>header span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }
+.combo-context>header>div>span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }
 .combo-context>header h3 { margin: var(--space-1) 0 0; }
 .combo-context__lines { min-height: 0; display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3); overflow-y: auto; }
 .combo-context__lines article { display: grid; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-raised); }
@@ -301,7 +301,7 @@
 
 .card-sale-context { position: sticky; top: var(--space-3); max-height: calc(100vh - 8rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-default); box-shadow: var(--shadow-md); }
 .card-sale-context > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-4); border-bottom: 1px solid var(--color-border-default); }
-.card-sale-context > header span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }
+.card-sale-context > header > div > span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }
 .card-sale-context > header h3 { margin: var(--space-1) 0 0; }
 .card-sale-context__lines { min-height: 0; display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3); overflow-y: auto; }
 .card-sale-context__lines article { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-raised); }
