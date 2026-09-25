@@ -335,16 +335,18 @@ export function MachineGroupWorkspace() {
         </InlineAlert>
       ) : null}
 
-      <div className="ds-search-input machine-group-search">
-        <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
-        <input
-          className="ds-input"
-          type="search"
-          value={search}
-          aria-label="Tìm tên hoặc mô tả"
-          placeholder="Ví dụ: VIP, phòng thường…"
-          onChange={(event) => setSearch(event.target.value)}
-        />
+      <div className="ds-input-group ds-input-group--search machine-group-search">
+        <div className="ds-search-input">
+          <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+          <input
+            className="ds-input"
+            type="search"
+            value={search}
+            aria-label="Tìm tên hoặc mô tả"
+            placeholder="Ví dụ: VIP, phòng thường…"
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
       </div>
 
       <section className="machine-group-panel">
