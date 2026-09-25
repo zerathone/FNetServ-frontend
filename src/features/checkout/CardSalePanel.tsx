@@ -106,7 +106,13 @@ export function CardSalePanel() {
                 const remaining = row.quantity - quantity
                 const outOfStock = row.quantity === 0
                 const stockTone: StatusTone =
-                  row.quantity === 0 ? 'danger' : row.quantity < 5 ? 'warning' : 'success'
+                  row.quantity === 0
+                    ? 'danger'
+                    : row.quantity < 5
+                      ? 'warning'
+                      : row.quantity < 10
+                        ? 'info'
+                        : 'success'
                 const stockLabel = row.quantity === 0 ? 'Hết' : `Còn ${row.quantity} thẻ`
                 return (
                   <article
