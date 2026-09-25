@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { cardsApi } from '../../api/cards'
+import { cardsApi, type CardDateField } from '../../api/cards'
 import {
   Button,
   ConfirmAction,
+  DateRangePicker,
   FilterHeaderCell,
   InlineAlert,
   ListPagination,
   PageHeader,
   RefreshButton,
+  Select,
   StateView,
   StatusBadge,
   type FilterMenuOption,
@@ -36,6 +38,15 @@ const STATUS_FILTER_OPTIONS: FilterMenuOption<number>[] = [
 
 type Confirmation = 'lock' | 'delete' | null
 
+type DateFilterField = 'all' | CardDateField
+
+const DATE_FIELD_OPTIONS: Array<{ value: DateFilterField; label: string }> = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'createDate', label: 'Tạo thẻ' },
+  { value: 'modifyDate', label: 'Nạp thẻ' },
+  { value: 'expiryDate', label: 'Hết hạn' },
+]
+
 function localDateAfter(days: number) {
   const date = new Date()
   date.setDate(date.getDate() + days)
@@ -57,15 +68,24 @@ export function CardWorkspace() {
   const [generateOpen, setGenerateOpen] = useState(false)
   const [filePrintOpen, setFilePrintOpen] = useState(false)
   const today = localDateAfter(0)
+  const [dateField, setDateField] = useState<DateFilterField>('all')
+  const [fromDate, setFromDate] = useState(today)
+  const [toDate, setToDate] = useState(today)
+  const dateRangeActive = dateField !== 'all'
+  const dateRangeValid = !dateRangeActive || !fromDate || !toDate || fromDate <= toDate
 
   const cardsQuery = useQuery({
-    queryKey: ['cards', status, page],
+    queryKey: ['cards', status, page, dateRangeActive ? dateField : null, dateRangeActive ? fromDate : null, dateRangeActive ? toDate : null],
     queryFn: () =>
       cardsApi.getList({
         status,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
+        ...(dateRangeActive && fromDate && toDate
+          ? { dateField: dateField as CardDateField, from: fromDate, to: toDate }
+          : {}),
       }),
+    enabled: dateRangeValid,
   })
 
   const statusCountsQuery = useQuery({
@@ -131,6 +151,16 @@ export function CardWorkspace() {
     setSelectedIds(new Set())
   }
 
+  const changeDateField = (nextField: DateFilterField) => {
+    setDateField(nextField)
+    if (nextField !== 'all') {
+      setFromDate(today)
+      setToDate(today)
+    }
+    setPage(0)
+    setSelectedIds(new Set())
+  }
+
   const toggleCard = (cardId: number) => {
     setSelectedIds((current) => {
       const next = new Set(current)
@@ -184,6 +214,44 @@ export function CardWorkspace() {
         cung cấp danh sách tồn bán khả dụng giống màn Qt. WebUI không cho nhập mệnh giá
         và số lượng tùy ý để tránh bán vượt tồn.
       </InlineAlert>
+
+      <section className="card-date-filter" aria-label="Lọc theo ngày">
+        <div className="ds-input-group">
+          <span className="ds-input-group-separator">Ngày</span>
+          <Select
+            className="ds-select"
+            value={dateField}
+            onChange={(event) => changeDateField(event.target.value as DateFilterField)}
+          >
+            {DATE_FIELD_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div
+          className={`card-date-filter__range${dateRangeActive ? '' : ' is-disabled'}`}
+          aria-disabled={!dateRangeActive}
+        >
+          <DateRangePicker
+            fromDate={fromDate}
+            toDate={toDate}
+            onFromDateChange={(value) => {
+              setFromDate(value)
+              setPage(0)
+            }}
+            onToDateChange={(value) => {
+              setToDate(value)
+              setPage(0)
+            }}
+          />
+        </div>
+      </section>
+
+      {dateRangeActive && !dateRangeValid ? (
+        <InlineAlert tone="danger">Ngày bắt đầu không được sau ngày kết thúc.</InlineAlert>
+      ) : null}
 
       {selectedIds.size > 0 ? (
         <section className="card-selection" aria-label="Thao tác thẻ đã chọn">
@@ -304,6 +372,7 @@ export function CardWorkspace() {
                     />
                   </th>
                   <th>Mã quản lý</th>
+                  <th>Mã thẻ</th>
                   <th>Mệnh giá</th>
                   <th>Tài khoản</th>
                   <FilterHeaderCell
@@ -336,6 +405,9 @@ export function CardWorkspace() {
                       </td>
                       <td>
                         <strong>#{card.cardId}</strong>
+                      </td>
+                      <td>
+                        <code>{card.cardCode || '—'}</code>
                       </td>
                       <td className="card-money">{formatMoney(card.cardValue)}</td>
                       <td>{card.type === 0 ? 'Chính' : 'Khuyến mãi'}</td>
