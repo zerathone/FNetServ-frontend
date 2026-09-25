@@ -136,9 +136,6 @@ export function BatchCreateVoucherDialog({ open, onClose }: Props) {
             <input className="ds-input" maxLength={40} value={note} onChange={(event) => setNote(event.target.value)} />
             <span className="ds-field__hint">{note.length}/40 ký tự</span>
           </label>
-          <InlineAlert tone="warning">
-            Lệnh tạo thẻ không idempotent. WebUI không tự gửi lại khi lỗi hoặc mất kết nối.
-          </InlineAlert>
         </div>
       </Dialog>
 
