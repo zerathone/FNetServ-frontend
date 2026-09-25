@@ -238,7 +238,6 @@ export function ComboSalePanel() {
           <h2 id="combo-sale-title">Bán COMBO trực tiếp</h2>
           <p>Chọn COMBO để thêm vào phiếu bán · giá được máy chủ xác nhận khi chốt</p>
         </div>
-        <StatusBadge tone="info">Giá do máy chủ quyết định</StatusBadge>
       </div>
 
       {comboQuery.isLoading ? (
