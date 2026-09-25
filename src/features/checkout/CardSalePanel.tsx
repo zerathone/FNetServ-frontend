@@ -172,7 +172,7 @@ export function CardSalePanel() {
                   <span>Phiếu bán</span>
                   <h3>Thẻ nạp đã chọn</h3>
                 </div>
-                <StatusBadge tone="info">{totalQuantity} thẻ</StatusBadge>
+                <StatusBadge tone="success">{totalQuantity} thẻ</StatusBadge>
               </header>
 
               <div className="card-sale-context__lines">

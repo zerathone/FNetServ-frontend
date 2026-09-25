@@ -307,7 +307,7 @@
 .card-sale-context__lines article { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-raised); }
 .card-sale-context__line-title,.card-sale-context__line-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .card-sale-context__line-title > div { min-width: 0; display: grid; gap: var(--space-1); }
-.card-sale-context__line-title span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.card-sale-context__line-title span { color: var(--color-text-primary); font-size: var(--font-size-xs); }
 .card-sale-context__line-title > button { border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-xl); cursor: pointer; }
 .card-sale-context__line-bottom span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .card-sale-context__checkout { display: grid; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--color-border-default); background: var(--color-surface-raised); }
