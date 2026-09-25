@@ -199,7 +199,7 @@
 .combo-zone-filter button { flex: 0 0 auto; padding: .5rem .9rem; border: 1px solid var(--color-border-default); border-radius: 999px; background: var(--color-surface-default); color: var(--color-text-secondary); font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
 .combo-zone-filter button:hover { border-color: var(--color-action-primary); color: var(--color-action-primary); }
 .combo-zone-filter button.is-active { border-color: var(--color-action-primary); background: var(--color-action-primary); color: var(--color-text-inverse); box-shadow: 0 0 0 2px var(--color-surface-default), 0 0 0 3px var(--color-action-primary); font-weight: 750; }
-.combo-pos__catalog { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.combo-pos__catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 18rem)); gap: var(--space-3); }
 .combo-product-card { position: relative; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-raised); color: var(--color-text-primary); text-align: left; transition: border-color .16s ease, box-shadow .16s ease; }
 .combo-product-card.is-selected { border-color: var(--color-action-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-action-primary) 18%, transparent); }
 .combo-product-card.is-unavailable { opacity: .62; }
@@ -336,7 +336,6 @@
   .checkout-order > .ds-button {
     grid-column: 2 / -1;
   }
-  .combo-pos__catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .combo-pos__layout.has-context { grid-template-columns: minmax(0, 1fr) 20rem; }
   .card-sale-pos__layout.has-context { grid-template-columns: minmax(0, 1fr) 20rem; }
 }
@@ -373,7 +372,7 @@
     width: 100%;
   }
   .combo-pos__layout.has-context { display: grid; grid-template-columns: 1fr; }
-  .combo-pos__catalog,.combo-credentials { grid-template-columns: 1fr; }
+  .combo-credentials { grid-template-columns: 1fr; }
   .combo-context { position: static; max-height: none; }
   .card-sale-pos__layout.has-context { display: grid; grid-template-columns: 1fr; }
   .card-sale-context { position: static; max-height: none; }
