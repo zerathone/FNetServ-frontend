@@ -222,6 +222,38 @@
   justify-content: flex-end;
 }
 
+/* task webui-license: version server dat ben phai logo (truoc o footer sidebar). */
+.brand-mark-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.brand-mark-group__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--color-border-default);
+  line-height: 1.15;
+}
+
+.brand-mark-group__version {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.brand-mark-group__release {
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .brand-mark {
   display: flex;
   align-items: center;
@@ -603,6 +635,183 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   text-align: center;
+}
+
+/* task webui-license: nut giay phep o topbar, canh staff-summary (features/license/LicenseButton.tsx). */
+.license-button {
+  position: relative;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.license-button__trigger.ds-button {
+  min-height: 2.75rem;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: 0.35rem var(--space-3);
+  text-align: left;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.license-button__trigger.ds-button:hover:not(:disabled),
+.license-button__trigger.ds-button[aria-expanded="true"] {
+  border-color: var(--color-action-primary);
+}
+
+.license-button__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+}
+
+.license-button__icon--success { color: var(--color-success); }
+.license-button__icon--info { color: var(--color-info); }
+.license-button__icon--warning { color: var(--color-warning); }
+.license-button__icon--danger { color: var(--color-danger); }
+.license-button__icon--neutral { color: var(--color-text-muted); }
+
+.license-button__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.license-button__title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.license-button__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.license-button__sub .ds-badge {
+  min-height: 1.125rem;
+  padding: 0 var(--space-1);
+  font-size: 0.625rem;
+}
+
+.license-button__popover {
+  position: absolute;
+  z-index: var(--z-sticky);
+  top: calc(100% + var(--space-2));
+  left: 0;
+  width: 17rem;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-overlay);
+}
+
+.license-button__popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.license-button__details {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.license-button__row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.license-button__row dt {
+  color: var(--color-text-muted);
+}
+
+.license-button__row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.license-button__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Ad-hoc payment-online: nut "Giao dich online" canh nut Thong tin o topbar, cung kieu outline. */
+.payment-online-button.ds-button {
+  min-height: 2.75rem;
+  gap: var(--space-2);
+  padding: 0.35rem var(--space-3);
+  text-align: left;
+  white-space: nowrap;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.payment-online-button.ds-button:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+}
+
+.payment-online-button__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+}
+
+.payment-online-button__icon--success { color: var(--color-success); }
+.payment-online-button__icon--neutral { color: var(--color-text-muted); }
+
+.payment-online-button__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payment-online-button__label {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-online-button__sub {
+  display: flex;
+  align-items: center;
+}
+
+.payment-online-button__sub .ds-badge {
+  min-height: 1.125rem;
+  padding: 0 var(--space-1);
+  font-size: 0.625rem;
 }
 
 .app-shell--collapsed .app-sidebar__header-row {
@@ -1305,10 +1514,33 @@
     display: inline-flex;
   }
 
-  .brand-mark,
+  .brand-mark-group,
   .staff-summary,
   .app-topbar__end .ds-badge {
     display: none;
+  }
+
+  /* task webui-license: mobile chat hep -> bo dong badge+HSD, chi giu icon + "Thong tin". */
+  .license-button__sub {
+    display: none;
+  }
+
+  .license-button__trigger.ds-button {
+    padding: 0.35rem var(--space-2);
+  }
+
+  .payment-online-button__text {
+    display: none;
+  }
+
+  .payment-online-button.ds-button {
+    padding: 0 var(--space-2);
+  }
+
+  .license-button__popover {
+    left: auto;
+    right: 0;
+    width: min(17rem, calc(100vw - 2 * var(--space-4)));
   }
 
   .app-sidebar {
