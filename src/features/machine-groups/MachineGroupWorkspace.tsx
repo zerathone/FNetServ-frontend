@@ -90,13 +90,6 @@ export function MachineGroupWorkspace() {
   const canEdit = hasRight(RIGHT_MACHINE_EDIT)
   const canDelete = hasRight(RIGHT_MACHINE_DELETE)
   const canUpdateList = hasRight(RIGHT_MACHINE_UPDATE_LIST)
-  const activeCount = source.filter((group) => group.active > 0).length
-  const missingPriceCount = source.filter(
-    (group) => group.anonymPrice === null,
-  ).length
-  const ambiguousCount = source.filter(
-    (group) => group.anonymPriceAmbiguous,
-  ).length
 
   const createMutation = useMutation({
     mutationFn: async ({
@@ -340,29 +333,6 @@ export function MachineGroupWorkspace() {
           bảng giá này; dữ liệu đã thành công không bị ghi đè.
         </InlineAlert>
       ) : null}
-
-      <section className="machine-group-summary" aria-label="Tóm tắt nhóm máy">
-        <div>
-          <span>Tổng nhóm</span>
-          <strong>{source.length}</strong>
-          <small>MFC giới hạn tối đa 20 nhóm</small>
-        </div>
-        <div>
-          <span>Đang hoạt động</span>
-          <strong>{activeCount}</strong>
-          <small>Trạng thái chỉ đọc từ máy chủ</small>
-        </div>
-        <div className={missingPriceCount ? 'is-warning' : ''}>
-          <span>Chưa có giá vãng lai</span>
-          <strong>{missingPriceCount}</strong>
-          <small>Giá 0 vẫn là giá hợp lệ</small>
-        </div>
-        <div className={ambiguousCount ? 'is-danger' : ''}>
-          <span>Giá đang mơ hồ</span>
-          <strong>{ambiguousCount}</strong>
-          <small>Nhiều bảng giá vãng lai</small>
-        </div>
-      </section>
 
       <label className="ds-field machine-group-search">
         <span className="ds-field__label">Tìm tên hoặc mô tả</span>
