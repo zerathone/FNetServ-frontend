@@ -49,7 +49,7 @@ export function PromotionPage() {
     <section className="page-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
       <div className="page-header" style={{ padding: '2rem 2rem 0' }}>
         <div>
-          <p className="eyebrow">Phase 3 · Task 2.20</p>
+          <p className="eyebrow">Thiết lập khuyến mãi</p>
           <h2 className="section-title">Khuyến mãi hệ thống</h2>
         </div>
       </div>
