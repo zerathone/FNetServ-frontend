@@ -82,11 +82,11 @@ export function CredentialFilePrintDialog({ open, kind, onClose }: Props) {
         </label>
         {reading ? <InlineAlert tone="info">Đang kiểm tra file…</InlineAlert> : null}
         {error ? <InlineAlert tone="danger">{fileName ? `${fileName}: ` : ''}{error}</InlineAlert> : null}
-        <InlineAlert tone="info">
-          {kind === 'member'
-            ? 'Mỗi dòng: tên đăng nhập, mật khẩu, số tiền, hạn dùng; các cột cách nhau bằng Tab.'
-            : 'Hỗ trợ file 7 cột của FNet cũ và file 4 cột mã thẻ, mệnh giá, hạn dùng, loại ví.'}
-        </InlineAlert>
+        {kind === 'member' ? (
+          <InlineAlert tone="info">
+            Mỗi dòng: tên đăng nhập, mật khẩu, số tiền, hạn dùng; các cột cách nhau bằng Tab.
+          </InlineAlert>
+        ) : null}
       </div>
     </Dialog>
   )
