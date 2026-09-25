@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CreditCard } from '@phosphor-icons/react'
 import { cardsApi, type RechargeCardAvailable } from '../../api/cards'
-import { Button, StateView, StatusBadge } from '../../design-system/components'
+import { Button, StateView, StatusBadge, type StatusTone } from '../../design-system/components'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
@@ -105,6 +105,9 @@ export function CardSalePanel() {
                 const quantity = quantities[row.cardValue] ?? 0
                 const remaining = row.quantity - quantity
                 const outOfStock = row.quantity === 0
+                const stockTone: StatusTone =
+                  row.quantity === 0 ? 'danger' : row.quantity < 5 ? 'warning' : 'success'
+                const stockLabel = row.quantity === 0 ? 'Hết' : `Còn ${row.quantity} thẻ`
                 return (
                   <article
                     className={`card-sale-product-card${quantity > 0 ? ' is-selected' : ''}${outOfStock ? ' is-unavailable' : ''}`}
@@ -115,9 +118,7 @@ export function CardSalePanel() {
                         <CreditCard size={16} weight="duotone" />
                         Thẻ nạp tiền
                       </span>
-                      <StatusBadge tone={outOfStock ? 'warning' : quantity > 0 ? 'success' : 'info'}>
-                        {outOfStock ? 'Hết hàng' : `Còn ${row.quantity} thẻ`}
-                      </StatusBadge>
+                      <StatusBadge tone={stockTone}>{stockLabel}</StatusBadge>
                     </div>
 
                     <div className="card-sale-product-card__headline">
