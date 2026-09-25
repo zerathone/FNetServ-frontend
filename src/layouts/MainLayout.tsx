@@ -10,12 +10,13 @@ import { useAuthStore } from '../store/auth'
 import { useWsStatusStore } from '../store/wsStatus'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import {
-  Desktop, Users, ShoppingCart, CurrencyDollar, ArrowsLeftRight, TerminalWindow,
-  IdentificationCard, Detective, SquaresFour, UsersThree,
+  Desktop, Users, ShoppingCart, ArrowsLeftRight, TerminalWindow,
+  Detective, UsersThree,
   DesktopTower, Percent, AppWindow, ShieldWarning, ChartBar,
   ChartLineUp, FileText, Globe, Gear, Printer, ShieldCheck,
   Palette, SignOut, List, X, CaretRight, CaretLeft,
-  Sun, MoonStars, Monitor, Flame, CaretDown
+  Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
+  CreditCard, ShoppingCartSimple
 } from '@phosphor-icons/react'
 
 const THEME_ICONS: Record<ThemeId, ReactNode> = {
@@ -51,7 +52,7 @@ const workspaces: readonly Workspace[] = [
     id: 'pos',
     label: 'Thu ngân',
     shortLabel: 'Thu ngân',
-    icon: <ShoppingCart size={20} weight="duotone" />,
+    icon: <CashRegister size={20} weight="duotone" />,
     landing: '/workstations',
     items: [
       { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" /> },
@@ -62,7 +63,8 @@ const workspaces: readonly Workspace[] = [
         icon: <Users size={24} weight="duotone" />,
       },
       { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <ShoppingCart size={24} weight="duotone" /> },
-      { to: '/payments', label: 'Bán COMBO', shortLabel: 'Bán', icon: <CurrencyDollar size={24} weight="duotone" /> },
+      { to: '/payments', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
+      { to: '/card-sale', label: 'Bán thẻ nạp', shortLabel: 'Thẻ nạp', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/logs/voucher', label: 'Giao dịch', shortLabel: 'GD', icon: <ArrowsLeftRight size={24} weight="duotone" /> },
       { to: '/logs/system', label: 'Nhật ký hệ thống', shortLabel: 'Log', icon: <TerminalWindow size={24} weight="duotone" /> },
     ],
@@ -76,10 +78,10 @@ const workspaces: readonly Workspace[] = [
     adminOnly: true,
     items: [
       { to: '/users', label: 'Tài khoản', shortLabel: 'HV', icon: <Users size={24} weight="duotone" /> },
-      { to: '/cards', label: 'Thẻ nạp', shortLabel: 'Thẻ', icon: <IdentificationCard size={24} weight="duotone" /> },
+      { to: '/cards', label: 'Thẻ nạp', shortLabel: 'Thẻ', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/anonyms', label: 'Khách vãng lai', shortLabel: 'Khách', icon: <Detective size={24} weight="duotone" /> },
-      { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <SquaresFour size={24} weight="duotone" /> },
-      { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <SquaresFour size={24} weight="duotone" /> },
+      { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <ShoppingCartSimple size={24} weight="duotone" /> },
+      { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" /> },
       { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" /> },
       { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <Percent size={24} weight="duotone" /> },
@@ -323,43 +325,46 @@ export function MainLayout({ children }: { children: ReactNode }) {
             />
           </div>
           <div className="workspace-switcher" ref={workspaceMenuRef}>
-            <button
-              type="button"
-              className="workspace-switcher__trigger"
-              title={sidebarCollapsed ? workspace.label : undefined}
-              aria-haspopup="listbox"
-              aria-expanded={workspaceMenuOpen}
-              onClick={() => setWorkspaceMenuOpen((value) => !value)}
-            >
-              <span className="workspace-switcher__icon" aria-hidden="true">
-                {workspace.icon}
-              </span>
-              <span className="workspace-switcher__label">{workspace.label}</span>
-              <CaretDown className="workspace-switcher__caret" size={14} weight="bold" aria-hidden="true" />
-            </button>
-            {workspaceMenuOpen ? (
-              <div className="workspace-switcher__menu" role="listbox" aria-label="Không gian làm việc">
-                {availableWorkspaces.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="option"
-                    aria-selected={item.id === workspaceId}
-                    className={
-                      item.id === workspaceId
-                        ? 'workspace-switcher__option workspace-switcher__option--active'
-                        : 'workspace-switcher__option'
-                    }
-                    onClick={() => changeWorkspace(item.id)}
-                  >
-                    <span className="workspace-switcher__icon" aria-hidden="true">
-                      {item.icon}
-                    </span>
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <span className="workspace-switcher__role-label">Vai trò</span>
+            <div className="workspace-switcher__control">
+              <button
+                type="button"
+                className="workspace-switcher__trigger"
+                title={sidebarCollapsed ? workspace.label : undefined}
+                aria-haspopup="listbox"
+                aria-expanded={workspaceMenuOpen}
+                onClick={() => setWorkspaceMenuOpen((value) => !value)}
+              >
+                <span className="workspace-switcher__label">{workspace.label}</span>
+                <span className="workspace-switcher__icon" aria-hidden="true">
+                  {workspace.icon}
+                </span>
+                <CaretDown className="workspace-switcher__caret" size={14} weight="bold" aria-hidden="true" />
+              </button>
+              {workspaceMenuOpen ? (
+                <div className="workspace-switcher__menu" role="listbox" aria-label="Không gian làm việc">
+                  {availableWorkspaces.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      aria-selected={item.id === workspaceId}
+                      className={
+                        item.id === workspaceId
+                          ? 'workspace-switcher__option workspace-switcher__option--active'
+                          : 'workspace-switcher__option'
+                      }
+                      onClick={() => changeWorkspace(item.id)}
+                    >
+                      <span className="workspace-switcher__option-label">{item.label}</span>
+                      <span className="workspace-switcher__icon" aria-hidden="true">
+                        {item.icon}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 

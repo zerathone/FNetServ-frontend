@@ -2,6 +2,7 @@ import { apiDelete, apiGet, apiPost } from './client'
 
 export interface Card {
   cardId: number
+  cardCode: string
   cardValue: number
   type: number
   status: number
@@ -41,17 +42,30 @@ export type SellRechargeCardsPayload = {
   items: Array<{ cardValue: number; quantity: number; amount: number }>
 }
 
+export type RechargeCardAvailable = {
+  cardValue: number
+  quantity: number
+}
+
+export type CardDateField = 'createDate' | 'modifyDate' | 'expiryDate'
+
 export const cardsApi = {
   getList: ({
     status = -1,
     limit = 50,
     offset = 0,
     userId,
+    dateField,
+    from,
+    to,
   }: {
     status?: number
     limit?: number
     offset?: number
     userId?: number
+    dateField?: CardDateField
+    from?: string
+    to?: string
   } = {}) => {
     const params = new URLSearchParams({
       status: String(status),
@@ -59,6 +73,11 @@ export const cardsApi = {
       offset: String(offset),
     })
     if (userId) params.set('userId', String(userId))
+    if (from && to) {
+      params.set('dateField', dateField ?? 'createDate')
+      params.set('from', from)
+      params.set('to', to)
+    }
     return apiGet<CardsResponse>(`/cards?${params.toString()}`)
   },
 
@@ -73,6 +92,9 @@ export const cardsApi = {
       { count?: number; deletedCount?: number; failed?: number[]; deleted: boolean },
       { cardIds: number[]; confirm: boolean }
     >('/cards/batch', { cardIds, confirm }),
+
+  getRechargeAvailable: () =>
+    apiGet<{ items: RechargeCardAvailable[] }>('/card/recharge/available'),
 
   sellRechargeCards: (payload: SellRechargeCardsPayload) =>
     apiPost<{ voucherId: number }, SellRechargeCardsPayload>(

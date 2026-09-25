@@ -29,6 +29,11 @@ const PaymentPage = lazy(() =>
     default: module.CheckoutWorkspace,
   })),
 )
+const CardSalePage = lazy(() =>
+  import('../features/checkout/CardSaleWorkspace').then((module) => ({
+    default: module.CardSaleWorkspace,
+  })),
+)
 const UsersPage = lazy(() =>
   import('../features/customers/CustomerWorkspace').then((module) => ({
     default: module.CustomerWorkspace,
@@ -133,6 +138,7 @@ function ProtectedRoutes() {
           <Route path="/workstations" element={<WorkstationsPage />} />
           <Route path="/orders" element={<OrderQueuePage />} />
           <Route path="/payments" element={<PaymentPage />} />
+          <Route path="/card-sale" element={<CardSalePage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/logs/voucher" element={<VoucherLogPage />} />
           <Route path="/logs/system" element={<SystemLogPage />} />

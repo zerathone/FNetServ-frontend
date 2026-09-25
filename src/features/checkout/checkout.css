@@ -267,6 +267,23 @@
 .combo-credentials dl div { display: flex; justify-content: space-between; gap: var(--space-2); }
 .combo-credentials dd { margin: 0; font-family: ui-monospace, monospace; font-size: var(--font-size-lg); font-weight: 800; }
 
+.card-sale-table-wrap { min-width: 0; overflow-x: auto; }
+.card-sale-table { width: 100%; min-width: 40rem; border-collapse: collapse; }
+.card-sale-table th { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-strong); color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 750; text-align: left; }
+.card-sale-table td { padding: var(--space-3); border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); vertical-align: middle; }
+.card-sale-table tbody tr:hover { background: var(--color-surface-hover); }
+.card-sale-table__amount { text-align: right; color: var(--color-text-primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+.card-sale-table__qty { width: 5rem; height: var(--control-height-compact); padding: 0 var(--space-2); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-default); color: var(--color-text-primary); text-align: right; appearance: textfield; }
+.card-sale-table__qty::-webkit-inner-spin-button { appearance: none; }
+.card-sale-table__stock { margin-left: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.card-sale__note { margin: 0; color: var(--text-error); font-size: var(--font-size-sm); font-style: italic; }
+.card-sale__footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-border-default); }
+.card-sale__clear { margin-right: auto; border: 0; background: transparent; color: var(--color-text-muted); text-decoration: underline; cursor: pointer; }
+.card-sale__clear:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
+.card-sale__total { display: flex; align-items: baseline; gap: var(--space-2); }
+.card-sale__total span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.card-sale__total strong { font-size: var(--font-size-xl); color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+
 @media (max-width: 1120px) {
   .checkout-overview {
     grid-template-columns: 1fr;
