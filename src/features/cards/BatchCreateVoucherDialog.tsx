@@ -7,7 +7,6 @@ import {
   Dialog,
   InlineAlert,
   MoneyInput,
-  Select,
 } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import { CredentialOutputDialog } from '../printers/CredentialOutputDialog'
@@ -39,7 +38,7 @@ export function BatchCreateVoucherDialog({ open, onClose }: Props) {
   const [value, setValue] = useState<number | null>(50_000)
   const [expiry, setExpiry] = useState(() => localDateAfter(365))
   const [note, setNote] = useState('')
-  const [walletType, setWalletType] = useState<0 | 1>(0)
+  const [walletType, setWalletType] = useState<0 | 1>(1)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [generated, setGenerated] = useState<VoucherCredential[]>([])
   const tomorrow = localDateAfter(1)
@@ -124,13 +123,31 @@ export function BatchCreateVoucherDialog({ open, onClose }: Props) {
             <span className="ds-field__label">Ngày hết hạn</span>
             <input className="ds-input" type="date" min={tomorrow} value={expiry} onChange={(event) => setExpiry(event.target.value)} />
           </label>
-          <label className="ds-field">
-            <span className="ds-field__label">Loại tài khoản</span>
-            <Select value={walletType} onChange={(event) => setWalletType(Number(event.target.value) as 0 | 1)}>
-              <option value={0}>Chính</option>
-              <option value={1}>Khuyến mãi</option>
-            </Select>
-          </label>
+          <fieldset className="card-generate-form__wallet">
+            <legend>Loại tài khoản</legend>
+            <div className="card-generate-form__wallet-options" role="radiogroup">
+              {(
+                [
+                  [0, 'Chính'],
+                  [1, 'Khuyến mãi'],
+                ] as const
+              ).map(([id, label]) => (
+                <label
+                  key={id}
+                  className={`card-generate-form__wallet-option${walletType === id ? ' is-selected' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="wallet-type"
+                    checked={walletType === id}
+                    onChange={() => setWalletType(id)}
+                  />
+                  <span>{label}</span>
+                  <span className="card-generate-form__wallet-radio" aria-hidden="true" />
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label className="ds-field">
             <span className="ds-field__label">Ghi chú</span>
             <input className="ds-input" maxLength={40} value={note} onChange={(event) => setNote(event.target.value)} />

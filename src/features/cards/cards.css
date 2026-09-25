@@ -4,6 +4,35 @@
   gap: var(--space-4);
 }
 
+.card-date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* .ds-date-range mac dinh width:100% (dung khi no dung mot minh trong field
+   rieng) -- o day no dung chung hang voi combobox "Ngay" nen phai ep chieu
+   dai co dinh, giong .transaction-filters__fields > .ds-date-range cua
+   Nhat ky giao dich, khong thi no chiem het dong va day combobox xuong duoi. */
+.card-date-filter .ds-date-range {
+  flex: 0 0 auto;
+  width: 21rem;
+}
+
+/* "Tat ca" (khong loc ngay) -- giu control hien thi (khop MFC, chi vo hieu
+   hoa) thay vi an han, tranh layout nhay khi doi combobox "Ngay". */
+.card-date-filter__range.is-disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+@media (max-width: 700px) {
+  .card-date-filter .ds-date-range {
+    width: 100%;
+  }
+}
+
 .card-selection {
   display: flex;
   align-items: center;
@@ -186,6 +215,96 @@
 .card-generate-form {
   display: grid;
   gap: var(--space-3);
+}
+
+.card-generate-form__wallet {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.card-generate-form__wallet > legend {
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.card-generate-form__wallet-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.card-generate-form__wallet-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.card-generate-form__wallet-option:hover {
+  border-color: var(--color-border-strong);
+}
+
+.card-generate-form__wallet-option.is-selected {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary-subtle, var(--color-surface-subtle));
+  color: var(--color-action-primary);
+}
+
+.card-generate-form__wallet-option:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.card-generate-form__wallet-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.card-generate-form__wallet-radio {
+  box-sizing: border-box;
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--color-text-muted);
+  border-radius: 50%;
+  transition: border-color 150ms ease;
+}
+
+.card-generate-form__wallet-radio::after {
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: var(--color-action-primary);
+  content: '';
+  transform: scale(0);
+  transition: transform 150ms ease;
+}
+
+.card-generate-form__wallet-option.is-selected .card-generate-form__wallet-radio {
+  border-color: var(--color-action-primary);
+}
+
+.card-generate-form__wallet-option.is-selected .card-generate-form__wallet-radio::after {
+  transform: scale(1);
 }
 
 .card-generated-list {
