@@ -185,20 +185,19 @@ export function CardSalePanel() {
               <div className="card-sale-context__lines">
                 {lines.map((line) => (
                   <article key={line.cardValue}>
-                    <div className="card-sale-context__line-title">
-                      <div className="card-sale-context__line-heading">
-                        <strong>{formatMoney(line.cardValue)} / thẻ</strong>
-                        <span className="card-sale-context__line-qty">
-                          Số lượng: <strong>{line.quantity}</strong>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`Bỏ mệnh giá ${formatMoney(line.cardValue)}`}
-                        onClick={() => setQuantity(line.cardValue, 0)}
-                      >
-                        ×
-                      </button>
+                    <button
+                      type="button"
+                      className="card-sale-context__line-remove"
+                      aria-label={`Bỏ mệnh giá ${formatMoney(line.cardValue)}`}
+                      onClick={() => setQuantity(line.cardValue, 0)}
+                    >
+                      ×
+                    </button>
+                    <div className="card-sale-context__line-heading">
+                      <strong>{formatMoney(line.cardValue)} / thẻ</strong>
+                      <span className="card-sale-context__line-qty">
+                        Số lượng: <strong>{line.quantity}</strong>
+                      </span>
                     </div>
                     <div className="card-sale-context__line-bottom">
                       <span>Thành tiền</span>

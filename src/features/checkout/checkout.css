@@ -304,12 +304,13 @@
 .card-sale-context > header > div > span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }
 .card-sale-context > header h3 { margin: var(--space-1) 0 0; }
 .card-sale-context__lines { min-height: 0; display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3); overflow-y: auto; }
-.card-sale-context__lines article { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-raised); }
-.card-sale-context__line-title,.card-sale-context__line-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.card-sale-context__line-heading { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.375rem; }
+.card-sale-context__lines article { position: relative; display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-raised); }
+.card-sale-context__line-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.card-sale-context__line-heading { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.375rem; padding-right: 1.5rem; }
 .card-sale-context__line-qty { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .card-sale-context__line-qty strong { color: var(--color-text-primary); font-weight: 700; }
-.card-sale-context__line-title > button { border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-xl); cursor: pointer; }
+.card-sale-context__line-remove { position: absolute; top: var(--space-2); right: var(--space-2); border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-xl); line-height: 1; cursor: pointer; }
+.card-sale-context__line-remove:hover { color: var(--color-text-primary); }
 .card-sale-context__line-bottom span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .card-sale-context__checkout { display: grid; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--color-border-default); background: var(--color-surface-raised); }
 .card-sale-context__checkout dl { display: grid; gap: var(--space-2); margin: 0; }
