@@ -13,10 +13,6 @@ export function canEditAnonymPrice(group: MachineGroup) {
   return !group.anonymPriceAmbiguous
 }
 
-export function canRequestMachineGroupDelete(group: MachineGroup) {
-  return group.active > 0
-}
-
 export function validateMachineGroupDraft(draft: {
   name: string
   description: string

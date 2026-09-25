@@ -28,7 +28,6 @@ import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import {
   canEditAnonymPrice,
-  canRequestMachineGroupDelete,
   matchesMachineGroup,
   validateMachineGroupCreateDraft,
   validateMachineGroupDraft,
@@ -398,11 +397,8 @@ export function MachineGroupWorkspace() {
                     <span>#{group.id}</span>
                     <strong>{group.name}</strong>
                   </div>
-                  <StatusBadge tone={group.active > 0 ? 'success' : 'neutral'}>
-                    {group.active > 0 ? 'Hoạt động' : 'Không hoạt động'}
-                  </StatusBadge>
                 </header>
-                <p>{group.description || 'Chưa có mô tả.'}</p>
+                <p>{group.description || '—'}</p>
                 <section>
                   <span>Giá khách vãng lai</span>
                   {group.anonymPriceAmbiguous ? (
@@ -436,13 +432,11 @@ export function MachineGroupWorkspace() {
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={!canDelete || !canRequestMachineGroupDelete(group)}
+                    disabled={!canDelete}
                     title={
                       !canDelete
                         ? 'Cần quyền Xóa nhóm máy (9412).'
-                        : group.active <= 0
-                          ? 'MFC không cho xóa nhóm không hoạt động.'
-                          : 'Máy chủ sẽ từ chối nếu nhóm còn tài khoản đang hoạt động.'
+                        : 'Máy chủ sẽ từ chối nếu nhóm còn tài khoản đang hoạt động.'
                     }
                     onClick={() => setDeleting(group)}
                   >

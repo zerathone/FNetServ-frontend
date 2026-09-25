@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   canEditAnonymPrice,
-  canRequestMachineGroupDelete,
   matchesMachineGroup,
   validateMachineGroupCreateDraft,
   validateMachineGroupDraft,
@@ -30,8 +29,6 @@ test('machine-group price editing is locked when multiple ANONYM prices exist', 
     canEditAnonymPrice({ ...group, anonymPriceAmbiguous: true }),
     false,
   )
-  assert.equal(canRequestMachineGroupDelete(group), true)
-  assert.equal(canRequestMachineGroupDelete({ ...group, active: 0 }), false)
 })
 
 test('machine-group draft keeps runtime MFC limits and backend price range', () => {
