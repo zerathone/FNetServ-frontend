@@ -12,7 +12,7 @@ import { NotificationCenter } from '../features/notifications/NotificationCenter
 import {
   Desktop, Users, ShoppingCart, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
-  DesktopTower, Percent, AppWindow, ShieldWarning, ChartBar,
+  DesktopTower, SealPercent, AppWindow, ShieldWarning, ChartBar,
   ChartLineUp, FileText, Globe, Gear, Printer, ShieldCheck,
   Palette, SignOut, List, X, CaretRight, CaretLeft,
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
@@ -84,7 +84,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" /> },
       { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" /> },
-      { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <Percent size={24} weight="duotone" /> },
+      { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" /> },
       { to: '/apps', label: 'Ứng dụng', shortLabel: 'App', icon: <AppWindow size={24} weight="duotone" /> },
       { to: '/webblock', label: 'Khống chế Web/App', shortLabel: 'Web', icon: <ShieldWarning size={24} weight="duotone" /> },
       { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" /> },
