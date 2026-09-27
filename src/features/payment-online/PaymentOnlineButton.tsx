@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CurrencyCircleDollar } from '@phosphor-icons/react'
+import { ArrowSquareOut, CurrencyCircleDollar } from '@phosphor-icons/react'
 import { ApiError } from '../../api/client'
 import { getPaymentOnlineInfo, getPaymentOnlineUrl } from '../../api/system'
 import { Button, StatusBadge } from '../../design-system/components'
@@ -86,6 +86,9 @@ export function PaymentOnlineButton() {
             {available ? 'Đang hoạt động' : 'Chưa kích hoạt'}
           </StatusBadge>
         </span>
+      </span>
+      <span className="ds-button__external-icon" aria-hidden="true">
+        <ArrowSquareOut size={16} weight="bold" />
       </span>
     </Button>
   )

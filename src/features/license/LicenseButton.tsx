@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
-  ClockCountdown, Crown, Hourglass, LockSimple, SealCheck, WarningCircle,
+  ArrowSquareOut, Seal, SealCheck, SealPercent, SealQuestion, SealWarning,
 } from '@phosphor-icons/react'
 import { ApiError } from '../../api/client'
 import { getLicenseInfo, getLicenseUrl, type LicenseInfo, type LicenseState } from '../../api/system'
@@ -9,15 +9,16 @@ import { Button, StatusBadge, type StatusTone } from '../../design-system/compon
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 
-// Map trạng thái (handoff webui-license §4.5). ERROR và LOCK tách 2 icon + 2 nhãn (D2) — MFC gộp
-// chung IDI_LIC_ERROR, lệch có chủ ý.
+// Map trạng thái (handoff webui-license §4.5) — cả 6 trạng thái dùng chung họ icon Seal (con dấu
+// giấy phép). ERROR và LOCK gộp chung icon Seal trơn (phosphor không có biến thể "SealX"), phân
+// biệt bằng nhãn — khác MFC gộp chung cả icon IDI_LIC_ERROR lẫn nhãn.
 const STATE_META: Record<LicenseState, { tone: StatusTone; label: string; icon: ReactNode }> = {
-  vip: { tone: 'success', label: 'VIP', icon: <Crown size={20} weight="duotone" /> },
+  vip: { tone: 'success', label: 'VIP', icon: <SealPercent size={20} weight="duotone" /> },
   active: { tone: 'info', label: 'Đang hoạt động', icon: <SealCheck size={20} weight="duotone" /> },
-  expiring: { tone: 'warning', label: 'Sắp hết hạn', icon: <ClockCountdown size={20} weight="duotone" /> },
-  error: { tone: 'danger', label: 'Lỗi giấy phép', icon: <WarningCircle size={20} weight="duotone" /> },
-  locked: { tone: 'danger', label: 'Bị khoá', icon: <LockSimple size={20} weight="duotone" /> },
-  none: { tone: 'neutral', label: 'Chưa xác thực', icon: <Hourglass size={20} weight="duotone" /> },
+  expiring: { tone: 'warning', label: 'Sắp hết hạn', icon: <SealWarning size={20} weight="duotone" /> },
+  error: { tone: 'danger', label: 'Lỗi giấy phép', icon: <Seal size={20} weight="duotone" /> },
+  locked: { tone: 'danger', label: 'Bị khoá', icon: <Seal size={20} weight="duotone" /> },
+  none: { tone: 'neutral', label: 'Chưa xác thực', icon: <SealQuestion size={20} weight="duotone" /> },
 }
 
 const SYSADMIN_DISABLED_TITLE = 'Không khả dụng với tài khoản quản trị hệ thống'
@@ -180,6 +181,9 @@ export function LicenseButton() {
             onClick={openDetailPage}
           >
             Xem chi tiết
+            <span className="ds-button__external-icon" aria-hidden="true">
+              <ArrowSquareOut size={16} weight="bold" />
+            </span>
           </Button>
         </div>
       ) : null}

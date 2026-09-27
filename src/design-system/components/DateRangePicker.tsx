@@ -48,6 +48,11 @@ function formatValue(value: string, placeholder: string) {
   return date ? date.toLocaleDateString('vi-VN') : placeholder
 }
 
+function getTodayValue() {
+  const today = new Date()
+  return dateValue(today)
+}
+
 /** A single popup calendar that selects a start and end date as one range. */
 export function DateRangePicker({
   fromDate,
@@ -194,12 +199,14 @@ export function DateRangePicker({
                     const isEnd = value === visibleToDate
                     const isInRange = Boolean(visibleFromDate && visibleToDate && value > visibleFromDate && value < visibleToDate)
                     const isOutsideMonth = date.getMonth() !== month.getMonth()
+                    const isToday = value === getTodayValue()
                     const classes = [
                       'ds-date-range__day',
                       isOutsideMonth ? 'is-outside' : '',
                       isInRange ? 'is-in-range' : '',
                       isStart ? 'is-range-start' : '',
                       isEnd ? 'is-range-end' : '',
+                      isToday ? 'is-today' : '',
                     ].filter(Boolean).join(' ')
 
                     return (

@@ -222,6 +222,29 @@
   justify-content: flex-end;
 }
 
+.app-topbar__ws-status {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.app-topbar__ws-status-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.app-topbar__ws-status-error {
+  color: var(--color-danger-text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 /* task webui-license: version server dat ben phai logo (truoc o footer sidebar). */
 .brand-mark-group {
   display: flex;
@@ -903,12 +926,25 @@
 }
 
 .login-version {
+  display: inline-flex;
   flex: 0 0 auto;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.login-version__num {
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.login-version__date {
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  font-weight: 300;
 }
 
 .login-brand {
@@ -1516,7 +1552,7 @@
 
   .brand-mark-group,
   .staff-summary,
-  .app-topbar__end .ds-badge {
+  .app-topbar__ws-status {
     display: none;
   }
 

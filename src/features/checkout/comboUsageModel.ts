@@ -44,7 +44,7 @@ export function comboUsagePresentation(
   if (nextStarts.length) {
     const next = Math.min(...nextStarts)
     return {
-      label: `Dùng được ${countdownLabel(next, serverNowMs)}`,
+      label: countdownLabel(next, serverNowMs),
       usableNow: false,
       nextTransitionAtMs: next,
     }

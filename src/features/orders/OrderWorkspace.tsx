@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { describeApiErrorCode } from '../../lib/apiErrorText'
 import {
   acceptComboOrder,
   acceptServiceOrder,
@@ -17,6 +18,7 @@ import {
   InlineAlert,
   ListPagination,
   PageHeader,
+  PollingStatus,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -378,22 +380,22 @@ export function OrderWorkspace() {
         title="Hàng đợi gọi món"
         description="Đơn chờ lâu được xếp trước; món chính và topping luôn xử lý cùng nhau."
         actions={
-          <>
-            <StatusBadge tone={connected ? 'success' : 'warning'}>
-              {connected ? 'Realtime đã kết nối' : 'Đang dùng polling'}
-            </StatusBadge>
-            <Button
-              type="button"
-              variant="secondary"
-              loading={servicesQuery.isFetching || comboQuery.isFetching}
-              onClick={() => {
-                void servicesQuery.refetch()
-                void comboQuery.refetch()
-              }}
-            >
-              Làm mới
-            </Button>
-          </>
+          <PollingStatus
+            connected={connected}
+            isError={servicesQuery.isError || comboQuery.isError}
+            isFetching={servicesQuery.isFetching || comboQuery.isFetching}
+            dataUpdatedAt={servicesQuery.dataUpdatedAt}
+            intervalMs={connected ? 30_000 : 5_000}
+            errorDetail={
+              servicesQuery.error || comboQuery.error
+                ? describeApiErrorCode(servicesQuery.error ?? comboQuery.error)
+                : undefined
+            }
+            onRefresh={() => {
+              void servicesQuery.refetch()
+              void comboQuery.refetch()
+            }}
+          />
         }
       />
 

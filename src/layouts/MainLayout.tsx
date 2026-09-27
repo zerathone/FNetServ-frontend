@@ -8,6 +8,7 @@ import { useTheme } from '../design-system/theme/themeContext'
 import type { ThemeId } from '../design-system/theme/themeRegistry'
 import { useAuthStore } from '../store/auth'
 import { useWsStatusStore } from '../store/wsStatus'
+import { describeWsCloseCode } from '../lib/wsErrorText'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { LicenseButton } from '../features/license/LicenseButton'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
@@ -131,6 +132,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const staffName = useAuthStore((state) => state.staffName)
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const wsConnected = useWsStatusStore((state) => state.connected)
+  const wsCloseInfo = useWsStatusStore((state) => state.closeInfo)
+  const wsCloseText = wsConnected ? null : describeWsCloseCode(wsCloseInfo)
   const { theme, setTheme, themes } = useTheme()
   const [workspaceId, setWorkspaceId] = useState<WorkspaceId>('pos')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -281,9 +284,13 @@ export function MainLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="app-topbar__end">
-          <StatusBadge tone={wsConnected ? 'success' : 'warning'}>
-            {wsConnected ? 'Trực tuyến' : 'Mất realtime'}
-          </StatusBadge>
+          <span className="app-topbar__ws-status">
+            <span className="app-topbar__ws-status-label">Kết nối</span>
+            <StatusBadge tone={wsConnected ? 'success' : 'warning'}>
+              {wsConnected ? 'Trực tuyến' : 'Mất realtime'}
+            </StatusBadge>
+            {wsCloseText ? <span className="app-topbar__ws-status-error">{wsCloseText}</span> : null}
+          </span>
           <NotificationCenter />
           <div className="theme-switcher" ref={themeMenuRef}>
             <button

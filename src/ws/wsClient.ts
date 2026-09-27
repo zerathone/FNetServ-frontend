@@ -149,9 +149,11 @@ class WsClient {
       socket.onopen = () => {
         this.retryCount = 0
       }
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (this.socket === socket) this.socket = null
-        useWsStatusStore.getState().setDisconnected()
+        useWsStatusStore
+          .getState()
+          .setDisconnected(this.intentionalDisconnect ? null : { code: event.code, reason: event.reason })
         this.rejectPending('Kết nối realtime bị gián đoạn.')
         if (!this.intentionalDisconnect) this.scheduleReconnect()
       }

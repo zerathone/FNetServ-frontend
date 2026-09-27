@@ -384,8 +384,8 @@ export function TransactionWorkspace() {
                       <span>{voucher.note || 'Không có ghi chú'}</span>
                     </td>
                     <td>
-                      <strong>{voucher.voucherDate}</strong>
-                      <span>{voucher.voucherTime}</span>
+                      <strong>{voucher.voucherTime}</strong>
+                      <span>{voucher.voucherDate}</span>
                     </td>
                     <td>{voucher.staffName || '—'}</td>
                     <td

@@ -1,4 +1,5 @@
 .ds-button {
+  position: relative;
   height: var(--control-height-compact);
   display: inline-flex;
   align-items: center;
@@ -91,8 +92,72 @@
   line-height: 0;
 }
 
+/* Đánh dấu nút mở tab/cửa sổ khác (external). Nút auto-width (vd Giao dịch online): đẩy bằng
+   margin-left: auto trong dòng flex — nút tự giãn theo nội dung nên không đè lên gì. */
+.ds-button__external-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  line-height: 0;
+  opacity: 0.6;
+}
+
+/* Nút block/full-width (vd Xem chi tiết): icon/label chính vẫn canh giữa nguyên trạng — ghim
+   tuyệt đối sát mép phải để không phá layout canh giữa đó. */
+.ds-button--block .ds-button__external-icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  margin-left: 0;
+  padding-left: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .ds-refresh-button {
   flex: 0 0 auto;
+}
+
+/* Cụm "Làm mới" (Máy trạm / Đơn dịch vụ): luôn bấm được, chữ "Làm mới" mờ ở trên, badge trạng
+   thái (có chấm tròn từ .ds-badge::before) ở dưới báo cách dữ liệu đang cập nhật. */
+.ds-polling-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.3rem var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease;
+}
+
+.ds-polling-status:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ds-polling-status:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ds-polling-status__label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.ds-polling-status__error {
+  color: var(--color-danger-text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .ds-icon-button {
@@ -298,6 +363,12 @@
 .ds-date-range__day.is-range-end {
   color: var(--color-text-inverse);
   font-weight: 700;
+}
+
+.ds-date-range__day.is-today {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 640px) {

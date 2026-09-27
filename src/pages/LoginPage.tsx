@@ -98,8 +98,10 @@ export function LoginPage() {
 
           {serverInfoQuery.data?.ver ? (
             <span className="login-version">
-              v{serverInfoQuery.data.ver}
-              {serverInfoQuery.data.rd ? ` · ${serverInfoQuery.data.rd}` : ''}
+              <span className="login-version__num">v{serverInfoQuery.data.ver}</span>
+              {serverInfoQuery.data.rd ? (
+                <span className="login-version__date">{serverInfoQuery.data.rd}</span>
+              ) : null}
             </span>
           ) : null}
         </div>

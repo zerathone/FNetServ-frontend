@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
+import { describeApiErrorCode } from '../../lib/apiErrorText'
 import { getPaymentWaitLogs, type PaymentWaitLog } from '../../api/logs'
 import { getUsers, usersApi, type UserAccount } from '../../api/users'
 import {
@@ -42,6 +43,7 @@ import { Select,
   InlineAlert,
   MoneyInput,
   PageHeader,
+  PollingStatus,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -759,9 +761,6 @@ export function WorkstationWorkspace() {
         title="Máy trạm"
         actions={
           <div className="ws-page-actions">
-            <StatusBadge tone={connected ? 'success' : 'warning'}>
-              {connected ? 'Realtime đã kết nối' : 'Đang dùng polling'}
-            </StatusBadge>
             <Button
               type="button"
               variant={(paymentWaitQuery.data?.length ?? 0) > 0 ? 'primary' : 'secondary'}
@@ -790,14 +789,16 @@ export function WorkstationWorkspace() {
             >
               Lịch tắt máy
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              loading={snapshotQuery.isFetching}
-              onClick={() => snapshotQuery.refetch()}
-            >
-              Làm mới
-            </Button>
+            <PollingStatus
+              className="ws-page-actions__push-right"
+              connected={connected}
+              isError={snapshotQuery.isError}
+              isFetching={snapshotQuery.isFetching}
+              dataUpdatedAt={snapshotQuery.dataUpdatedAt}
+              intervalMs={connected ? 30_000 : 5_000}
+              errorDetail={snapshotQuery.error ? describeApiErrorCode(snapshotQuery.error) : undefined}
+              onRefresh={() => snapshotQuery.refetch()}
+            />
           </div>
         }
       />
