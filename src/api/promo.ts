@@ -10,6 +10,8 @@ export type PromoBannerItem = {
 
 export type PromoBannersResponse = {
   items: PromoBannerItem[]
+  /** true khi server chưa nạp xong cache cho f0 hiện tại (vừa khởi động / đang tải / đang chờ thử lại). */
+  loading?: boolean
 }
 
 // GET /promo/banners (FNetHttp/PromoHandlers.cpp) — cụm banner quảng cáo động trên topbar, cùng

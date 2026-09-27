@@ -4,6 +4,9 @@ import { pushToast } from '../../store/toast'
 
 const VALID_IMAGE_PREFIXES = ['data:image/png;base64,', 'data:image/jpeg;base64,']
 const OPEN_FAILED_MESSAGE = 'Không mở được trang quảng cáo'
+const REFETCH_NORMAL_MS = 60 * 60_000
+// Server báo loading (vd web login trước khi Scheduler kịp nạp sẵn ~70s sau khởi động) → hỏi lại sớm.
+const REFETCH_LOADING_MS = 10_000
 
 function isValidImage(image: string) {
   return VALID_IMAGE_PREFIXES.some((prefix) => image.startsWith(prefix))
@@ -26,7 +29,8 @@ export function PromoBannerCluster() {
   const bannersQuery = useQuery({
     queryKey: ['promo-banners'],
     queryFn: getPromoBanners,
-    refetchInterval: 60 * 60_000,
+    refetchInterval: (query) =>
+      query.state.data?.loading || query.state.status === 'error' ? REFETCH_LOADING_MS : REFETCH_NORMAL_MS,
     staleTime: 5 * 60_000,
   })
 
