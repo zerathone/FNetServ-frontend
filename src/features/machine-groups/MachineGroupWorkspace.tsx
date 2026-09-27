@@ -358,13 +358,6 @@ export function MachineGroupWorkspace() {
                 : `${groups.length}/${source.length} nhóm phù hợp`}
             </span>
           </div>
-          <div>
-            <StatusBadge tone={canEdit ? 'success' : 'neutral'}>Sửa</StatusBadge>
-            <StatusBadge tone={canDelete ? 'success' : 'neutral'}>Xóa</StatusBadge>
-            <StatusBadge tone={canUpdateList ? 'success' : 'neutral'}>
-              Chuyển máy
-            </StatusBadge>
-          </div>
         </header>
 
         {groupsQuery.isLoading ? (

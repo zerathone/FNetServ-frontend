@@ -69,8 +69,6 @@ import {
   getInitialOptionalColumns,
   type ColumnId,
 } from './WorkstationVirtualList'
-import { ClientSystemFunctionDialog } from './ClientSystemFunctionDialog'
-import { ScheduledShutdownDialog } from './ScheduledShutdownDialog'
 import {
   WORKSTATION_STATUS,
   formatDuration,
@@ -294,8 +292,6 @@ export function WorkstationWorkspace() {
   const [changePcTarget, setChangePcTarget] = useState('')
   const [prepaidOpen, setPrepaidOpen] = useState(false)
   const [prepaidAmount, setPrepaidAmount] = useState<number | null>(20_000)
-  const [systemFunctionsOpen, setSystemFunctionsOpen] = useState(false)
-  const [shutdownScheduleOpen, setShutdownScheduleOpen] = useState(false)
   const [messageDialogOpen, setMessageDialogOpen] = useState(false)
   const [messageTargets, setMessageTargets] = useState<string[]>([])
   const [messageText, setMessageText] = useState('')
@@ -770,24 +766,6 @@ export function WorkstationWorkspace() {
               }}
             >
               Chờ tính tiền ({paymentWaitQuery.data?.length ?? 0})
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!isAdmin}
-              title={!isAdmin ? 'Chỉ quản trị viên được cấu hình chức năng hệ thống.' : undefined}
-              onClick={() => setSystemFunctionsOpen(true)}
-            >
-              Chức năng hệ thống
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!hasRight(RIGHTS.SHUTDOWN_ALL)}
-              title={!hasRight(RIGHTS.SHUTDOWN_ALL) ? `Thiếu quyền ${RIGHTS.SHUTDOWN_ALL}` : undefined}
-              onClick={() => setShutdownScheduleOpen(true)}
-            >
-              Lịch tắt máy
             </Button>
             <PollingStatus
               className="ws-page-actions__push-right"
@@ -1927,17 +1905,6 @@ export function WorkstationWorkspace() {
         </div>
       </Dialog>
 
-      <ClientSystemFunctionDialog
-        open={systemFunctionsOpen}
-        canManage={isAdmin}
-        onClose={() => setSystemFunctionsOpen(false)}
-      />
-
-      <ScheduledShutdownDialog
-        open={shutdownScheduleOpen}
-        canManage={hasRight(RIGHTS.SHUTDOWN_ALL)}
-        onClose={() => setShutdownScheduleOpen(false)}
-      />
     </section>
   )
 }

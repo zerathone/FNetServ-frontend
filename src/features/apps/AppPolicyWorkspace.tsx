@@ -260,14 +260,6 @@ export function AppPolicyWorkspace() {
             </div>
           </div>
         </label>
-        <div>
-          <span>Quyền của phiên hiện tại</span>
-          <div>
-            <StatusBadge tone={canAdd ? 'success' : 'neutral'}>Thêm</StatusBadge>
-            <StatusBadge tone={canEdit ? 'success' : 'neutral'}>Sửa</StatusBadge>
-            <StatusBadge tone={canDelete ? 'success' : 'neutral'}>Xóa</StatusBadge>
-          </div>
-        </div>
       </section>
 
       <section className="app-policy-panel" aria-label={typeLabel(activeType)}>

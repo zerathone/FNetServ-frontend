@@ -1,13 +1,14 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowSquareOut, Seal, SealCheck, SealPercent, SealQuestion, SealWarning,
 } from '@phosphor-icons/react'
 import { ApiError } from '../../api/client'
-import { getLicenseInfo, getLicenseUrl, type LicenseInfo, type LicenseState } from '../../api/system'
+import { getLicenseUrl, type LicenseInfo, type LicenseState } from '../../api/system'
 import { Button, StatusBadge, type StatusTone } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { useLicenseInfo } from './useLicenseInfo'
 
 // Map trạng thái (handoff webui-license §4.5) — cả 6 trạng thái dùng chung họ icon Seal (con dấu
 // giấy phép). ERROR và LOCK gộp chung icon Seal trơn (phosphor không có biến thể "SealX"), phân
@@ -79,12 +80,7 @@ export function LicenseButton() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverId = useId()
 
-  const licenseQuery = useQuery({
-    queryKey: ['license-info'],
-    queryFn: getLicenseInfo,
-    refetchInterval: 5 * 60_000,
-    staleTime: 60_000,
-  })
+  const licenseQuery = useLicenseInfo()
 
   const urlMutation = useMutation<{ url: string }, unknown, Window | null>({
     mutationFn: () => getLicenseUrl(),

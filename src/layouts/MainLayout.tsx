@@ -11,6 +11,7 @@ import { useWsStatusStore } from '../store/wsStatus'
 import { describeWsCloseCode } from '../lib/wsErrorText'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { LicenseButton } from '../features/license/LicenseButton'
+import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import {
@@ -219,6 +220,10 @@ export function MainLayout({ children }: { children: ReactNode }) {
     retry: false,
   })
 
+  // Hook chung với LicenseButton (useLicenseInfo) -> cùng queryKey, cùng cache, không tốn thêm request.
+  const licenseInfoQuery = useLicenseInfo()
+  const shopName = licenseInfoQuery.data?.shopName || ''
+
   const logoutMutation = useMutation({
     mutationFn: logoutRequest,
     onSettled: () => {
@@ -340,6 +345,11 @@ export function MainLayout({ children }: { children: ReactNode }) {
               <span className="app-sidebar__clock-date">{sidebarClock.date}</span>
               <span className="app-sidebar__clock-time">{sidebarClock.time}</span>
             </div>
+            {shopName ? (
+              <span className="app-sidebar__shop-name" title={shopName}>
+                {shopName}
+              </span>
+            ) : null}
             <IconButton
               className="app-sidebar__collapse"
               label={sidebarCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}

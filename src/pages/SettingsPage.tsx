@@ -37,7 +37,11 @@ import {
   RETENTION_FIELDS,
   validateSystemSettings,
 } from '../features/settings/settingsModel'
+import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
+import { ScheduledShutdownDialog } from '../features/workstations/ScheduledShutdownDialog'
 import './settings.css'
+
+const RIGHT_SHUTDOWN_ALL = 131
 
 type SettingsSection =
   | 'appearance'
@@ -84,7 +88,11 @@ export function SettingsPage() {
   const { theme, setTheme, themes } = useTheme()
   const staffName = useAuthStore((state) => state.staffName)
   const updateStaffName = useAuthStore((state) => state.updateStaffName)
+  const isAdmin = useAuthStore((state) => state.isAdmin)
+  const hasRight = useAuthStore((state) => state.hasRight)
   const [section, setSection] = useState<SettingsSection>('appearance')
+  const [systemFunctionsOpen, setSystemFunctionsOpen] = useState(false)
+  const [shutdownScheduleOpen, setShutdownScheduleOpen] = useState(false)
 
   const [cafeName, setCafeName] = useState('')
   const [cafeAddress, setCafeAddress] = useState('')
@@ -563,6 +571,26 @@ export function SettingsPage() {
                 <h2>Máy trạm</h2>
                 <p>Phạm vi hệ thống · hành vi client khi đăng nhập, chờ và mất kết nối.</p>
               </header>
+              <div className="settings-form-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!isAdmin}
+                  title={!isAdmin ? 'Chỉ quản trị viên được cấu hình chức năng hệ thống.' : undefined}
+                  onClick={() => setSystemFunctionsOpen(true)}
+                >
+                  Chức năng hệ thống
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!hasRight(RIGHT_SHUTDOWN_ALL)}
+                  title={!hasRight(RIGHT_SHUTDOWN_ALL) ? `Thiếu quyền ${RIGHT_SHUTDOWN_ALL}` : undefined}
+                  onClick={() => setShutdownScheduleOpen(true)}
+                >
+                  Lịch tắt máy
+                </Button>
+              </div>
               <div className="settings-toggle-list">
                 <label>
                   <span><strong>Tự đăng nhập lại</strong><small>Khôi phục phiên sau khi client rớt mạng.</small></span>
@@ -721,6 +749,18 @@ export function SettingsPage() {
           Thông tin mới được broadcast tới toàn bộ client đang hoạt động theo giao thức legacy.
         </InlineAlert>
       </ConfirmAction>
+
+      <ClientSystemFunctionDialog
+        open={systemFunctionsOpen}
+        canManage={isAdmin}
+        onClose={() => setSystemFunctionsOpen(false)}
+      />
+
+      <ScheduledShutdownDialog
+        open={shutdownScheduleOpen}
+        canManage={hasRight(RIGHT_SHUTDOWN_ALL)}
+        onClose={() => setShutdownScheduleOpen(false)}
+      />
     </section>
   )
 }

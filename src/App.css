@@ -598,6 +598,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Tên phòng máy lấy từ giấy phép (system/license) — cạnh cụm ngày/giờ, đẩy sát phải, canh phải chữ. */
+.app-sidebar__shop-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workspace-nav {
   min-height: 0;
   display: flex;
@@ -776,6 +789,7 @@
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
   font-weight: 600;
+  text-align: right;
 }
 
 .license-button__empty {
@@ -871,6 +885,7 @@
 }
 
 .app-shell--collapsed .app-sidebar__clock,
+.app-shell--collapsed .app-sidebar__shop-name,
 .app-shell--collapsed .app-sidebar__version,
 .app-shell--collapsed .workspace-nav__label {
   display: none;
@@ -1630,6 +1645,10 @@
 
   .app-shell--collapsed .app-sidebar__clock {
     display: flex;
+  }
+
+  .app-shell--collapsed .app-sidebar__shop-name {
+    display: block;
   }
 
   .app-shell--collapsed .app-sidebar__version {

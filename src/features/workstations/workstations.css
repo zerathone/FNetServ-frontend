@@ -389,18 +389,16 @@ button.ws-summary__row:hover {
   padding: 0 var(--space-3);
 }
 
+/* Đồng bộ với .data-table th (trang Nhật ký hệ thống, App.css) — kế thừa font-size gốc, bỏ uppercase. */
 .ws-table__header {
-  border-bottom: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-surface-hover);
   color: var(--color-text-muted);
   background: var(--color-surface-subtle);
-  font-size: var(--font-size-xs);
-  font-weight: 750;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 /* Cột "Nhóm máy"/"Tình trạng" dùng chung .ds-filter-header (design-system/components/controls.css);
-   .ws-table__header cung cấp uppercase/letter-spacing kế thừa qua `inherit` trên .ds-filter-header__trigger. */
+   .ds-filter-header__trigger dùng `font/text-transform/letter-spacing: inherit` nên tự theo màu/weight của .ws-table__header. */
 
 .ws-table__viewport {
   min-height: 0;
