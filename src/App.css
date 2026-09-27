@@ -837,6 +837,35 @@
   font-size: 0.625rem;
 }
 
+/* Ad-hoc web-promo-banner: cum banner quang cao dong canh nut Giao dich online tren topbar. */
+.promo-banner-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+
+.promo-banner-cluster__item {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.promo-banner-cluster__item:hover {
+  opacity: 0.85;
+}
+
+.promo-banner-cluster__item img {
+  display: block;
+  max-height: 2.75rem;
+  object-fit: contain;
+}
+
 .app-shell--collapsed .app-sidebar__header-row {
   justify-content: center;
 }

@@ -12,6 +12,7 @@ import { describeWsCloseCode } from '../lib/wsErrorText'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { LicenseButton } from '../features/license/LicenseButton'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
+import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import {
   Desktop, Users, ShoppingCart, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
@@ -281,6 +282,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
           </div>
           <LicenseButton />
           <PaymentOnlineButton />
+          <PromoBannerCluster />
         </div>
 
         <div className="app-topbar__end">
