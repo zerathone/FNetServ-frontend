@@ -183,6 +183,23 @@ class WsClient {
       } else if (message.type === 'subscribed') {
         const data = message.data as { domains?: string[] } | undefined
         useWsStatusStore.getState().setSubscribedDomains(data?.domains ?? [])
+      } else if (message.type === 'system.listener_status') {
+        // task system-listener-status: server gui truc tiep (khong loc domain) ngay sau "hello",
+        // roi qua broadcastFiltered(DOMAIN_SYSTEM) moi lan doi that su -- validate kieu vi day la
+        // du lieu tu server, sai kieu thi bo qua thay vi luu rac vao store.
+        const data = message.data as { firebase?: unknown; sse?: unknown } | undefined
+        const sseValues = ['connected', 'disconnected', 'disabled']
+        if (
+          data &&
+          typeof data.firebase === 'boolean' &&
+          typeof data.sse === 'string' &&
+          sseValues.includes(data.sse)
+        ) {
+          useWsStatusStore.getState().setListenerStatus({
+            firebase: data.firebase,
+            sse: data.sse as 'connected' | 'disconnected' | 'disabled',
+          })
+        }
       }
 
       if (message.requestId) {

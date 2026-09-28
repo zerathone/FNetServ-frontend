@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
-  ArrowSquareOut, Seal, SealCheck, SealPercent, SealQuestion, SealWarning,
+  ArrowSquareOut, Seal, SealCheck, SealQuestion, SealWarning,
 } from '@phosphor-icons/react'
 import { ApiError } from '../../api/client'
 import { getLicenseUrl, type LicenseInfo, type LicenseState } from '../../api/system'
@@ -14,7 +14,7 @@ import { useLicenseInfo } from './useLicenseInfo'
 // giấy phép). ERROR và LOCK gộp chung icon Seal trơn (phosphor không có biến thể "SealX"), phân
 // biệt bằng nhãn — khác MFC gộp chung cả icon IDI_LIC_ERROR lẫn nhãn.
 const STATE_META: Record<LicenseState, { tone: StatusTone; label: string; icon: ReactNode }> = {
-  vip: { tone: 'success', label: 'VIP', icon: <SealPercent size={20} weight="duotone" /> },
+  vip: { tone: 'success', label: 'VIP', icon: <SealCheck size={20} weight="duotone" /> },
   active: { tone: 'info', label: 'Đang hoạt động', icon: <SealCheck size={20} weight="duotone" /> },
   expiring: { tone: 'warning', label: 'Sắp hết hạn', icon: <SealWarning size={20} weight="duotone" /> },
   error: { tone: 'danger', label: 'Lỗi giấy phép', icon: <Seal size={20} weight="duotone" /> },

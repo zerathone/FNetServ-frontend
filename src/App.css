@@ -851,6 +851,35 @@
   font-size: 0.625rem;
 }
 
+/* task system-listener-status: 2 nhan "FB"/"SSE" + cham mau canh StatusBadge cua nut Giao dich online. */
+.listener-status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--space-1);
+}
+
+.listener-status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+.listener-status-dot__marker {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.listener-status-dot--success .listener-status-dot__marker { background: var(--color-success); }
+.listener-status-dot--danger .listener-status-dot__marker { background: var(--color-danger); }
+.listener-status-dot--neutral .listener-status-dot__marker { background: var(--color-text-muted); }
+
 /* Ad-hoc web-promo-banner: cum banner quang cao dong canh nut Giao dich online tren topbar. */
 .promo-banner-cluster {
   display: flex;

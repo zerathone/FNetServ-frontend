@@ -5,6 +5,7 @@ import { getPaymentOnlineInfo, getPaymentOnlineUrl } from '../../api/system'
 import { Button, StatusBadge } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { ListenerStatusDots } from './ListenerStatusDots'
 
 const SYSADMIN_DISABLED_TITLE = 'Không khả dụng với tài khoản quản trị hệ thống'
 const UNAVAILABLE_TITLE = 'Giao dịch online chưa được kích hoạt cho phòng máy này'
@@ -83,8 +84,9 @@ export function PaymentOnlineButton() {
         <span className="payment-online-button__label">Giao dịch online</span>
         <span className="payment-online-button__sub">
           <StatusBadge tone={available ? 'success' : 'neutral'}>
-            {available ? 'Đang hoạt động' : 'Chưa kích hoạt'}
+            {available ? 'Hoạt động' : 'Chưa kích hoạt'}
           </StatusBadge>
+          <ListenerStatusDots />
         </span>
       </span>
       <span className="ds-button__external-icon" aria-hidden="true">
