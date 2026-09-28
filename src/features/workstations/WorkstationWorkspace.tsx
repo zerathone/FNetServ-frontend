@@ -1,6 +1,6 @@
 import {  useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass } from '@phosphor-icons/react'
+import { HourglassMedium, MagnifyingGlass, Power, TrashSimple } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
@@ -13,6 +13,8 @@ import {
   continuePaymentWait,
   changeSessionToPrepaid,
   changeWorkstationPc,
+  deactivateWorkstations,
+  getRegisteredWorkstations,
   hibernateWorkstations,
   logoutWorkstations,
   payoutPrepaidWorkstation,
@@ -25,6 +27,7 @@ import {
   suspendWorkstation,
   updateWorkstationNote,
   updateWorkstationsVersion,
+  wakeupWorkstations,
   getWorkstationsRuntime,
   type WorkstationRuntime,
   type WsControlResult,
@@ -110,6 +113,7 @@ type CommandKind =
   | 'closeApp'
   | 'adminLogin'
   | 'update'
+  | 'wakeup'
 
 type CommandRequest = {
   kind: CommandKind
@@ -124,6 +128,7 @@ type CommandDefinition = {
   adminOnly?: boolean
   danger?: boolean
   availableOnly?: boolean
+  offlineOnly?: boolean
 }
 
 const COMMANDS: Record<CommandKind, CommandDefinition> = {
@@ -173,6 +178,13 @@ const COMMANDS: Record<CommandKind, CommandDefinition> = {
     description: 'Yêu cầu client trên các máy đã chọn cập nhật phiên bản.',
     adminOnly: true,
   },
+  wakeup: {
+    label: 'Bật máy từ xa',
+    confirmLabel: 'Bật máy',
+    description: 'Gửi gói Wake-on-LAN đánh thức các máy đang tắt/mất kết nối. Chỉ dành cho quản trị viên.',
+    adminOnly: true,
+    offlineOnly: true,
+  },
 }
 
 type MoneyAction =
@@ -201,6 +213,8 @@ function executeCommand({ kind, hostNames }: CommandRequest) {
       return adminLoginWorkstations({ hostNames })
     case 'update':
       return updateWorkstationsVersion({ hostNames })
+    case 'wakeup':
+      return wakeupWorkstations({ hostNames })
   }
 }
 
@@ -218,6 +232,16 @@ function commandDisabledReason(
     machines.some((machine) => machine.status !== WORKSTATION_STATUS.AVAILABLE)
   ) {
     return 'Chỉ áp dụng cho máy Sẵn sàng'
+  }
+  if (
+    definition.offlineOnly &&
+    machines.some(
+      (machine) =>
+        machine.status !== WORKSTATION_STATUS.DISCONNECT &&
+        machine.status !== WORKSTATION_STATUS.WARNING,
+    )
+  ) {
+    return 'Chỉ áp dụng cho máy đang tắt/mất kết nối'
   }
   return ''
 }
@@ -250,6 +274,11 @@ export function WorkstationWorkspace() {
     queryKey: ['workstations'],
     queryFn: getWorkstationsRuntime,
     refetchInterval: connected ? 30_000 : 5_000,
+  })
+  const registeredQuery = useQuery({
+    queryKey: ['workstations-registered'],
+    queryFn: getRegisteredWorkstations,
+    staleTime: 60_000, // danh sach DB doi cham, khong can poll nhu runtime
   })
   const groupsQuery = useQuery({
     queryKey: ['machine-groups'],
@@ -284,6 +313,11 @@ export function WorkstationWorkspace() {
   const [depositQrActive, setDepositQrActive] = useState(false)
   const [moneyNote, setMoneyNote] = useState('')
   const [paymentWaitOpen, setPaymentWaitOpen] = useState(false)
+  const [wakeupOpen, setWakeupOpen] = useState(false)
+  const [wakeupSearch, setWakeupSearch] = useState('')
+  const [wakeupChecked, setWakeupChecked] = useState<Set<string>>(new Set())
+  const [wakeupResults, setWakeupResults] = useState<WsControlResult[]>([])
+  const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false)
   const [payoutWaitLog, setPayoutWaitLog] = useState<PaymentWaitLog | null>(null)
   const [continueWaitLog, setContinueWaitLog] = useState<PaymentWaitLog | null>(null)
   const [continueTarget, setContinueTarget] = useState('')
@@ -392,6 +426,36 @@ export function WorkstationWorkspace() {
       pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
       setPendingCommand(null)
       void queryClient.invalidateQueries({ queryKey: ['workstations'] })
+    },
+    onError: (error) => pushToast(error.message, 'error'),
+  })
+
+  // Mutation RIENG cho drawer "Bat may tu xa" -- KHONG tai dung commandMutation/
+  // executeCommand(kind:'wakeup'): duong do di qua commandDisabledReason nhan
+  // WorkstationRuntime (co status tu RAM), con may trong drawer nay co the chua
+  // tung connect (khong co object RAM), kieu RegisteredWorkstation khong khop.
+  const wakeupDrawerMutation = useMutation({
+    mutationFn: (hostNames: string[]) => wakeupWorkstations({ hostNames }),
+    onSuccess: ({ results }) => {
+      setWakeupResults(results)
+      pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
+      void queryClient.invalidateQueries({ queryKey: ['workstations'] })
+    },
+    onError: (error) => pushToast(error.message, 'error'),
+  })
+
+  const deactivateMutation = useMutation({
+    mutationFn: (hostNames: string[]) => deactivateWorkstations({ hostNames }),
+    onSuccess: ({ affectedRows, skipped }) => {
+      setDeactivateConfirmOpen(false)
+      setWakeupChecked(new Set())
+      pushToast(
+        skipped.length > 0
+          ? `Đã vô hiệu hoá ${affectedRows} máy. Bỏ qua ${skipped.length} máy đang online: ${skipped.map((s) => s.hostName).join(', ')}.`
+          : `Đã vô hiệu hoá ${affectedRows} máy.`,
+        skipped.length > 0 ? 'info' : 'success',
+      )
+      void queryClient.invalidateQueries({ queryKey: ['workstations-registered'] })
     },
     onError: (error) => pushToast(error.message, 'error'),
   })
@@ -708,6 +772,15 @@ export function WorkstationWorkspace() {
     })
   }
 
+  const toggleWakeupChecked = (hostName: string) => {
+    setWakeupChecked((current) => {
+      const next = new Set(current)
+      if (next.has(hostName)) next.delete(hostName)
+      else next.add(hostName)
+      return next
+    })
+  }
+
   const closeMoneyDialog = () => {
     if (moneyMutation.isPending) return
     if (depositQrActive) {
@@ -736,15 +809,61 @@ export function WorkstationWorkspace() {
     combo: customerMachines.filter((machine) => machine.userGroupType === USER_GROUP_TYPE.combo).length,
     admin: playingMachines.filter((machine) => machine.userId === 0).length,
   }
+  // registered = danh sach tu DB (Active=1 AND MAC<>''), doc lap RAM g_Listener --
+  // dung lam mau so dung cho % lap day khu vuc (allMachines chi thay may da tung
+  // connect tu luc Server khoi dong, xem HANDOFF_ws-wakeup-registered.md muc 1).
+  const registeredMachines = useMemo(() => registeredQuery.data?.items ?? [], [registeredQuery.data])
+  const registeredReady = registeredQuery.isSuccess
+  const registeredHosts = useMemo(
+    () => new Set(registeredMachines.map((m) => m.hostName)),
+    [registeredMachines],
+  )
+  // Tu so CHI dem may ONLINE CO TRONG tap registered -> tu so <= mau so, % khong vuot 100
+  // (may moi connect lan dau nhung registered chua refetch, hoac may khong co MAC
+  // trong DB ma van ONLINE thi khong tinh vao tu so).
+  const isCountedOnline = (machine: (typeof allMachines)[number]) =>
+    machine.status === WORKSTATION_STATUS.ONLINE && (!registeredReady || registeredHosts.has(machine.hostName))
+
   const groupUsage = (groupsQuery.data ?? [])
     .map((group) => {
-      const groupMachines = allMachines.filter((machine) => machine.machineGroupId === group.id)
-      const inUse = groupMachines.filter((machine) => machine.status === WORKSTATION_STATUS.ONLINE).length
-      const total = groupMachines.length
+      const total = registeredReady
+        ? registeredMachines.filter((m) => m.machineGroupId === group.id).length // tu DB
+        : allMachines.filter((m) => m.machineGroupId === group.id).length // fallback RAM khi chua co du lieu
+      const inUse = allMachines.filter(
+        (machine) => machine.machineGroupId === group.id && isCountedOnline(machine),
+      ).length
       return { id: group.id, name: group.name, inUse, total, percent: total > 0 ? Math.round((inUse / total) * 100) : 0 }
     })
     .sort((left, right) => right.inUse - left.inUse)
-  const overallUsagePercent = allMachines.length > 0 ? Math.round((counts.playing / allMachines.length) * 100) : 0
+  const overallTotal = registeredReady ? registeredMachines.length : allMachines.length
+  const overallInUse = allMachines.filter(isCountedOnline).length
+  const overallUsagePercent = overallTotal > 0 ? Math.round((overallInUse / overallTotal) * 100) : 0
+
+  // Danh sach may "chua bat" -- parity CWSWakeupDlg::RefreshPCList: khong co trong
+  // RAM, hoac co nhung Status la DISCONNECT/WARNING.
+  const ramByHost = useMemo(() => new Map(allMachines.map((m) => [m.hostName, m])), [allMachines])
+  const offCandidates = useMemo(
+    () =>
+      registeredMachines.filter((m) => {
+        const ram = ramByHost.get(m.hostName)
+        return !ram || ram.status === WORKSTATION_STATUS.DISCONNECT || ram.status === WORKSTATION_STATUS.WARNING
+      }),
+    [registeredMachines, ramByHost],
+  )
+  const wakeupSearchNormalized = wakeupSearch.trim().toLocaleLowerCase('vi-VN')
+  const visibleWakeupCandidates = useMemo(
+    () =>
+      wakeupSearchNormalized
+        ? offCandidates.filter((m) => {
+            const groupName = groupsQuery.data?.find((g) => g.id === m.machineGroupId)?.name ?? ''
+            return (
+              m.hostName.toLocaleLowerCase('vi-VN').includes(wakeupSearchNormalized) ||
+              groupName.toLocaleLowerCase('vi-VN').includes(wakeupSearchNormalized)
+            )
+          })
+        : offCandidates,
+    [offCandidates, wakeupSearchNormalized, groupsQuery.data],
+  )
   const serverClockDrift =
     snapshot?.serverTimeMs && snapshotQuery.dataUpdatedAt
       ? snapshot.serverTimeMs - snapshotQuery.dataUpdatedAt
@@ -760,12 +879,26 @@ export function WorkstationWorkspace() {
             <Button
               type="button"
               variant={(paymentWaitQuery.data?.length ?? 0) > 0 ? 'primary' : 'secondary'}
+              icon={<HourglassMedium size={18} weight="bold" aria-hidden="true" />}
               onClick={() => {
                 setInspectorHost(null)
                 setPaymentWaitOpen(true)
               }}
             >
               Chờ tính tiền ({paymentWaitQuery.data?.length ?? 0})
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<Power size={18} weight="bold" aria-hidden="true" />}
+              onClick={() => {
+                setWakeupChecked(new Set())
+                setWakeupResults([])
+                setWakeupSearch('')
+                setWakeupOpen(true)
+              }}
+            >
+              Bật máy từ xa ({offCandidates.length})
             </Button>
             <PollingStatus
               className="ws-page-actions__push-right"
@@ -949,6 +1082,15 @@ export function WorkstationWorkspace() {
               Nhắn tin
             </Button>
             <span className="ws-selection-bar__divider" />
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={Boolean(commandDisabledReason(COMMANDS.wakeup, selectedMachines, hasRight, isAdmin))}
+              title={commandDisabledReason(COMMANDS.wakeup, selectedMachines, hasRight, isAdmin) || undefined}
+              onClick={() => openCommand('wakeup')}
+            >
+              Bật máy từ xa
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -1190,7 +1332,7 @@ export function WorkstationWorkspace() {
             <section className="ws-inspector__section">
               <h3>Điều khiển hệ thống</h3>
               <div className="ws-action-grid">
-                {(['restart', 'closeApp', 'shutdown', 'hibernate', 'update'] as CommandKind[]).map((kind) => {
+                {(['wakeup', 'restart', 'closeApp', 'shutdown', 'hibernate', 'update'] as CommandKind[]).map((kind) => {
                   const definition = COMMANDS[kind]
                   const reason = commandDisabledReason(definition, [inspectedMachine], hasRight, isAdmin)
                   return (
@@ -1308,6 +1450,141 @@ export function WorkstationWorkspace() {
           )}
         </div>
       </Drawer>
+
+      <Drawer
+        open={wakeupOpen}
+        title="Bật máy từ xa"
+        description="Chức năng này chỉ hoạt động khi máy trạm có mainboard hổ trợ và hệ điều hành đã bật chức năng này."
+        onClose={() => setWakeupOpen(false)}
+        footer={
+          offCandidates.length > 0 ? (
+            <div className="ws-wakeup-footer">
+              <label className="ws-wait-card__select ws-wakeup-selectall">
+                <input
+                  type="checkbox"
+                  checked={visibleWakeupCandidates.length > 0 && visibleWakeupCandidates.every((m) => wakeupChecked.has(m.hostName))}
+                  onChange={() => {
+                    const allVisibleChecked =
+                      visibleWakeupCandidates.length > 0 && visibleWakeupCandidates.every((m) => wakeupChecked.has(m.hostName))
+                    setWakeupChecked((current) => {
+                      const next = new Set(current)
+                      visibleWakeupCandidates.forEach((m) => {
+                        if (allVisibleChecked) next.delete(m.hostName)
+                        else next.add(m.hostName)
+                      })
+                      return next
+                    })
+                  }}
+                />
+                <span>Chọn tất cả ({visibleWakeupCandidates.length})</span>
+              </label>
+              <div className="ws-wakeup-footer__row">
+                <Button
+                  type="button"
+                  variant="primary"
+                  icon={<Power size={18} weight="bold" aria-hidden="true" />}
+                  disabled={!isAdmin || wakeupChecked.size === 0 || wakeupDrawerMutation.isPending}
+                  title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
+                  onClick={() => wakeupDrawerMutation.mutate([...wakeupChecked])}
+                >
+                  Bật máy đã chọn ({wakeupChecked.size})
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger-outline"
+                  icon={<TrashSimple size={18} weight="bold" aria-hidden="true" />}
+                  disabled={!isAdmin || wakeupChecked.size === 0}
+                  title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
+                  onClick={() => setDeactivateConfirmOpen(true)}
+                >
+                  Xoá máy đã chọn ({wakeupChecked.size})
+                </Button>
+              </div>
+            </div>
+          ) : undefined
+        }
+      >
+        <div className="ws-wait-panel">
+          {registeredQuery.isLoading ? (
+            <StateView title="Đang tải danh sách máy" />
+          ) : registeredQuery.isError ? (
+            <StateView
+              title="Không tải được danh sách máy"
+              description={(registeredQuery.error as Error).message}
+              action={<Button onClick={() => registeredQuery.refetch()}>Thử lại</Button>}
+            />
+          ) : offCandidates.length === 0 ? (
+            <StateView
+              title="Không có máy đang tắt"
+              description="Mọi máy đã đăng ký đều đang kết nối."
+            />
+          ) : (
+            <>
+              <div className="ds-field ws-search">
+                <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
+                <div className="ds-input-group ds-input-group--search">
+                  <div className="ds-search-input">
+                    <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+                    <input
+                      className="ds-input"
+                      type="search"
+                      value={wakeupSearch}
+                      placeholder="Tìm tên máy hoặc nhóm máy"
+                      onChange={(event) => setWakeupSearch(event.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+              {visibleWakeupCandidates.length === 0 ? (
+                <StateView
+                  title="Không tìm thấy máy phù hợp"
+                  description="Thử từ khoá khác."
+                />
+              ) : (
+                <div className="ws-wait-list ws-wakeup-scroll">
+                  {visibleWakeupCandidates.map((machine) => {
+                    const groupName = groupsQuery.data?.find((g) => g.id === machine.machineGroupId)?.name
+                    const lastResult = wakeupResults.find((r) => r.hostName === machine.hostName)
+                    return (
+                      <article key={machine.hostName} className="ws-wait-card">
+                        <header>
+                          <label className="ws-wait-card__select">
+                            <input
+                              type="checkbox"
+                              checked={wakeupChecked.has(machine.hostName)}
+                              onChange={() => toggleWakeupChecked(machine.hostName)}
+                            />
+                            <div>
+                              <strong>{machine.hostName}</strong>
+                              <span>{groupName ?? 'Chưa gán nhóm'}</span>
+                            </div>
+                          </label>
+                        </header>
+                        {lastResult ? (
+                          <InlineAlert tone={lastResult.ok ? 'success' : 'warning'}>
+                            {lastResult.ok ? 'Đã gửi lệnh bật máy.' : `Lỗi: ${lastResult.reason}`}
+                          </InlineAlert>
+                        ) : null}
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Drawer>
+
+      <ConfirmAction
+        open={deactivateConfirmOpen}
+        title="Vô hiệu hoá máy trạm"
+        description={`Vô hiệu hoá ${wakeupChecked.size} máy đã chọn? Máy sẽ không còn hiện trong danh sách bật từ xa cho tới khi máy kết nối lại.`}
+        confirmLabel="Vô hiệu hoá"
+        danger
+        pending={deactivateMutation.isPending}
+        onCancel={() => setDeactivateConfirmOpen(false)}
+        onConfirm={() => deactivateMutation.mutate([...wakeupChecked])}
+      />
 
       <ConfirmAction
         open={Boolean(payoutWaitLog)}

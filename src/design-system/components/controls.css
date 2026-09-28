@@ -81,6 +81,16 @@
   filter: brightness(0.92);
 }
 
+.ds-button--danger-outline {
+  color: var(--color-danger);
+  background: transparent;
+  border-color: var(--color-danger);
+}
+
+.ds-button--danger-outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
 .ds-button--block {
   width: 100%;
 }

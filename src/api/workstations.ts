@@ -163,6 +163,19 @@ export function wakeupWorkstations(data: { hostNames: string[] }) {
   return apiPost<{results: WsControlResult[]}, typeof data>('/workstations/wakeup', data)
 }
 
+// ---- may tram dang ky trong DB (khong phu thuoc RAM g_Listener) ----
+
+export type RegisteredWorkstation = { hostName: string, machineGroupId: number }
+
+export function getRegisteredWorkstations() {
+  return apiGet<{items: RegisteredWorkstation[]}>('/workstations/registered')
+}
+
+export function deactivateWorkstations(data: { hostNames: string[] }) {
+  return apiPost<{affectedRows: number, skipped: {hostName: string, reason: string}[]}, typeof data>(
+    '/workstations/deactivate', data)
+}
+
 export function getSystemFunctions() {
   return apiGet<{items: {resourceId: number, status: 0|1, name: string}[]}>('/workstations/system-functions')
 }

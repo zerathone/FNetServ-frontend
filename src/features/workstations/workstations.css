@@ -677,6 +677,46 @@ button.ws-summary__row:hover {
   display: grid;
 }
 
+.ws-wait-card__select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.ws-wait-card__select > div {
+  display: grid;
+}
+
+.ws-wakeup-footer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: var(--space-2);
+}
+
+.ws-wakeup-footer__row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ws-wakeup-selectall {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-default);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ws-wakeup-scroll {
+  max-height: calc(100dvh - 25rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .ws-wait-card > header strong {
   color: var(--color-text-primary);
   font-size: var(--font-size-lg);
