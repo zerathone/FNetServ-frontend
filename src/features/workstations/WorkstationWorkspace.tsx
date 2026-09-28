@@ -1,6 +1,6 @@
 import {  useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { HourglassMedium, MagnifyingGlass, Power, TrashSimple } from '@phosphor-icons/react'
+import { MagnifyingGlass, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
@@ -879,7 +879,7 @@ export function WorkstationWorkspace() {
             <Button
               type="button"
               variant={(paymentWaitQuery.data?.length ?? 0) > 0 ? 'primary' : 'secondary'}
-              icon={<HourglassMedium size={18} weight="bold" aria-hidden="true" />}
+              icon={<Receipt size={18} weight="bold" aria-hidden="true" />}
               onClick={() => {
                 setInspectorHost(null)
                 setPaymentWaitOpen(true)

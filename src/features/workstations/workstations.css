@@ -503,6 +503,13 @@ button.ws-summary__row:hover {
   color: var(--color-text-primary);
   font-weight: 700;
   text-align: right;
+  /* Cot duy nhat canh phai trong bang -> khong co gap tu nhien voi cot ke tiep nhu cac cot trai. */
+  padding-right: var(--space-3);
+}
+
+.ws-table__col-money {
+  text-align: right;
+  padding-right: var(--space-3);
 }
 
 .ws-inspector {

@@ -169,9 +169,9 @@ export function WorkstationVirtualList({
     }
     if (column.id === 'user') return <div className="ws-table__user" role="cell"><strong>{machine.userName || '—'}</strong></div>
     if (column.id === 'combo') return <div className="ws-table__truncate" role="cell">{machine.session?.comboName || '—'}</div>
-    if (column.id === 'startedAt') return <div className="ws-table__number" role="cell">{formatStartedAt(machine.session?.startedAt)}</div>
-    if (column.id === 'used') return <div className="ws-table__number" role="cell">{formatDuration(clock.used)}</div>
-    if (column.id === 'remaining') return <div className="ws-table__number" role="cell">{formatDuration(clock.remaining)}</div>
+    if (column.id === 'startedAt') return <div className="ws-table__number" role="cell">{formatStartedAt(machine.session?.startedAt, 'minutes')}</div>
+    if (column.id === 'used') return <div className="ws-table__number" role="cell">{formatDuration(clock.used, 'minutes')}</div>
+    if (column.id === 'remaining') return <div className="ws-table__number" role="cell">{formatDuration(clock.remaining, 'minutes')}</div>
     if (column.id === 'amount') return <div className="ws-table__money" role="cell">{formatMoney(machine.session?.totalAmount)}</div>
     if (column.id === 'date') return <div className="ws-table__number" role="cell">{datePart(machine.session?.startedAt)}</div>
     if (column.id === 'version') return <div className="ws-table__truncate" role="cell">{machine.version || '—'}</div>
@@ -182,13 +182,14 @@ export function WorkstationVirtualList({
       // dang chay client cu, tat co `hwm`, hoac Server.exe vua restart. Hien bat ky
       // nhan nao o day cung de bi doc thanh "may chua kich hoat Windows".
       if (!lic) return <div className="ws-table__truncate" role="cell" />
+      // Co key => mau (tone) da the hien trang thai, badge hien key thay vi lap lai nhan "Da kich hoat".
+      const badgeText = lic.pkey || lic.label
       const title = [lic.label, lic.channel, lic.pkey ? `Key ...${lic.pkey}` : '', lic.graceText]
         .filter(Boolean)
         .join(' · ')
       return (
         <div className="ws-table__status" role="cell" title={title}>
-          <StatusBadge tone={lic.tone}>{lic.label}</StatusBadge>
-          {lic.pkey ? <span className="ws-table__more-flags">{lic.pkey}</span> : null}
+          <StatusBadge tone={lic.tone}>{badgeText}</StatusBadge>
         </div>
       )
     }
@@ -228,7 +229,15 @@ export function WorkstationVirtualList({
               />
             )
           }
-          return <div key={column.id} role="columnheader">{column.label}</div>
+          return (
+            <div
+              key={column.id}
+              role="columnheader"
+              className={column.id === 'amount' ? 'ws-table__col-money' : undefined}
+            >
+              {column.label}
+            </div>
+          )
         })}
       </div>
       {machines.length === 0 ? (

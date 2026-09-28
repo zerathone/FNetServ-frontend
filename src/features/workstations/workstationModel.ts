@@ -183,11 +183,14 @@ export function interpolateSession(
   }
 }
 
-export function formatDuration(seconds: number | null | undefined) {
+export function formatDuration(seconds: number | null | undefined, precision: 'seconds' | 'minutes' = 'seconds') {
   if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return '—'
   const total = Math.max(0, Math.floor(seconds))
   const hours = Math.floor(total / 3600)
   const minutes = Math.floor((total % 3600) / 60)
+  if (precision === 'minutes') {
+    return [hours, minutes].map((value) => String(value).padStart(2, '0')).join(':')
+  }
   const remainder = total % 60
   return [hours, minutes, remainder].map((value) => String(value).padStart(2, '0')).join(':')
 }
@@ -197,10 +200,11 @@ export function formatMoney(value: number | null | undefined) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
 }
 
-export function formatStartedAt(value: string | null | undefined) {
+export function formatStartedAt(value: string | null | undefined, precision: 'seconds' | 'minutes' = 'seconds') {
   if (!value) return '—'
   const [, time] = value.split(' ')
-  return time || value
+  if (!time) return value
+  return precision === 'minutes' ? time.slice(0, 5) : time
 }
 
 export function sessionLabel(session: WorkstationRuntimeSession | null) {

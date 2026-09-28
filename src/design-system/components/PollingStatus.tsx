@@ -59,11 +59,16 @@ export function PollingStatus({
   }, [connected, isError])
 
   const tone: StatusTone = isError ? 'danger' : connected ? 'success' : 'warning'
+  // Dem lui het 0 -> query da vao trang thai fetching (dang goi poll that su), khong con "Sau 0
+  // giay" nua (khong dung, gay hieu lam da ngung dem) ma doi sang icon loading.
+  const showSpinner = !connected && !isError && isFetching
   const label = isError
     ? `${formatElapsed(now - (errorSinceRef.current ?? now))} trước`
     : connected
       ? 'Tự động'
-      : `Sau ${Math.max(0, Math.ceil((intervalMs - (now - dataUpdatedAt)) / 1_000))} giây`
+      : showSpinner
+        ? 'Đang tải'
+        : `Sau ${Math.max(0, Math.ceil((intervalMs - (now - dataUpdatedAt)) / 1_000))} giây`
 
   return (
     <button
@@ -78,7 +83,9 @@ export function PollingStatus({
       aria-label={`Làm mới. Trạng thái: ${label}`}
     >
       <span className="ds-polling-status__label">Làm mới</span>
-      <StatusBadge tone={tone}>{label}</StatusBadge>
+      <StatusBadge tone={tone}>
+        {showSpinner ? <span className="ds-spinner" aria-hidden="true" /> : label}
+      </StatusBadge>
       {isError && revealError && errorDetail ? (
         <span className="ds-polling-status__error">{errorDetail}</span>
       ) : null}

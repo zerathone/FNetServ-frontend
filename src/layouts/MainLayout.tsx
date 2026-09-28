@@ -15,13 +15,13 @@ import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import {
-  Desktop, Users, ShoppingCart, ArrowsLeftRight, TerminalWindow,
+  Desktop, Users, CallBell, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
   DesktopTower, SealPercent, AppWindow, ShieldWarning, ChartBar,
   ChartLineUp, FileText, Globe, Gear, Printer, ShieldCheck,
   Palette, SignOut, List, X, CaretRight, CaretLeft,
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
-  CreditCard, ShoppingCartSimple
+  CreditCard, Storefront
 } from '@phosphor-icons/react'
 
 const THEME_ICONS: Record<ThemeId, ReactNode> = {
@@ -67,7 +67,7 @@ const workspaces: readonly Workspace[] = [
         shortLabel: 'Khách',
         icon: <Users size={24} weight="duotone" />,
       },
-      { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <ShoppingCart size={24} weight="duotone" /> },
+      { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <CallBell size={24} weight="duotone" /> },
       { to: '/payments', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/card-sale', label: 'Bán thẻ nạp', shortLabel: 'Thẻ nạp', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/logs/voucher', label: 'Giao dịch', shortLabel: 'GD', icon: <ArrowsLeftRight size={24} weight="duotone" /> },
@@ -85,7 +85,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/users', label: 'Tài khoản', shortLabel: 'HV', icon: <Users size={24} weight="duotone" /> },
       { to: '/cards', label: 'Thẻ nạp', shortLabel: 'Thẻ', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/anonyms', label: 'Khách vãng lai', shortLabel: 'Khách', icon: <Detective size={24} weight="duotone" /> },
-      { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <ShoppingCartSimple size={24} weight="duotone" /> },
+      { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <Storefront size={24} weight="duotone" /> },
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" /> },
       { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" /> },
