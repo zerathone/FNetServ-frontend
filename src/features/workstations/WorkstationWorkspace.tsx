@@ -885,7 +885,10 @@ export function WorkstationWorkspace() {
                 setPaymentWaitOpen(true)
               }}
             >
-              Chờ tính tiền ({paymentWaitQuery.data?.length ?? 0})
+              Chờ tính tiền
+              {(paymentWaitQuery.data?.length ?? 0) > 0 ? (
+                <StatusBadge tone="warning">{paymentWaitQuery.data?.length}</StatusBadge>
+              ) : null}
             </Button>
             <Button
               type="button"
@@ -898,7 +901,8 @@ export function WorkstationWorkspace() {
                 setWakeupOpen(true)
               }}
             >
-              Bật máy từ xa ({offCandidates.length})
+              Bật máy từ xa
+              <span className="ds-badge ds-badge--neutral ws-wakeup-badge">{offCandidates.length}</span>
             </Button>
             <PollingStatus
               className="ws-page-actions__push-right"
@@ -1456,6 +1460,7 @@ export function WorkstationWorkspace() {
         title="Bật máy từ xa"
         description="Chức năng này chỉ hoạt động khi máy trạm có mainboard hổ trợ và hệ điều hành đã bật chức năng này."
         onClose={() => setWakeupOpen(false)}
+        className="ws-wakeup-drawer"
         footer={
           offCandidates.length > 0 ? (
             <div className="ws-wakeup-footer">

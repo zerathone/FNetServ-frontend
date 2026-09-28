@@ -688,6 +688,19 @@ button.ws-summary__row:hover {
   display: grid;
 }
 
+/* .ds-drawer__body (dung chung moi Drawer) luon reserve scrollbar-gutter:stable du
+   co can cuon hay khong -- rieng drawer nay, danh sach may da tu cuon o trong
+   (.ws-wakeup-scroll) nen than body it khi can cuon; tat gutter cua body de canh
+   phai cua noi dung (list) khop voi canh phai cua footer (khong scroll, khong
+   reserve gutter) thay vi bi thut vao trong. */
+.ws-wakeup-drawer .ds-drawer__body {
+  scrollbar-gutter: auto;
+}
+
+.ws-wakeup-badge::before {
+  display: none;
+}
+
 .ws-wakeup-footer {
   display: flex;
   flex-direction: column;
@@ -714,7 +727,9 @@ button.ws-summary__row:hover {
   max-height: calc(100dvh - 25rem);
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  /* KHONG dung scrollbar-gutter:stable o day: no reserve khoang trong ben phai du
+     co scroll hay khong, lam canh phai cua the/card lech vao trong so voi footer
+     (khong scroll, khong reserve) -- gay lech hang voi 2 nut ben duoi. */
 }
 
 .ws-wait-card > header strong {
