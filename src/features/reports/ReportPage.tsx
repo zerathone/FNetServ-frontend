@@ -5,6 +5,10 @@ import { getStaffList } from '../../api/staff'
 import { useAuthStore } from '../../store/auth'
 import { Button, DateRangePicker, InlineAlert, Select } from '../../design-system/components'
 import { ReportResultView } from './ReportResultView'
+import { IncomeSummaryStats } from './IncomeSummaryStats'
+import { IncomeByStaffStats, ShiftReportStats } from './IncomeByStaffStats'
+import { IncomePivotChart } from './IncomePivotChart'
+import '../workstations/workstations.css'
 import {
   MEMBER_PAYMENT_TYPE_OPTIONS,
   PAYMENT_METHOD_OPTIONS,
@@ -203,12 +207,27 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
     if (!submitted) return <p className="status-text">Chọn tham số rồi bấm “Xem báo cáo”.</p>
     if (query.isFetching) return <p className="status-text">Đang tải báo cáo...</p>
     if (query.isError) return <p className="status-text error-text">Lỗi: {(query.error as Error).message}</p>
+    const isIncomeSummaryDaily =
+      def.id === 'income-summary' && (submitted.spec.extra.time_display ?? 0) === 0
+    const isIncomeByStaff = def.id === 'income-by-staff'
+    const isShiftReport = def.id === 'shift-report'
+    const td = submitted.spec.extra.time_display ?? 0
+    const isIncomePivot = def.id === 'income-summary' && (td === 1 || td === 2)
+    const shiftStaffName = isShiftReport
+      ? (staffOptions.find((o) => o.value === effectiveStaff)?.label ?? '')
+      : ''
     return (
-      <ReportResultView
-        type={submitted.spec.type}
-        timeDisplay={submitted.spec.extra.time_display}
-        data={query.data}
-      />
+      <>
+        {isIncomeSummaryDaily ? <IncomeSummaryStats data={query.data} /> : null}
+        {isIncomePivot ? <IncomePivotChart data={query.data} timeDisplay={td} /> : null}
+        {isIncomeByStaff ? <IncomeByStaffStats data={query.data} /> : null}
+        {isShiftReport ? <ShiftReportStats data={query.data} staffName={shiftStaffName} /> : null}
+        <ReportResultView
+          type={submitted.spec.type}
+          timeDisplay={submitted.spec.extra.time_display}
+          data={query.data}
+        />
+      </>
     )
   }
 
@@ -217,7 +236,7 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
       {header}
       <p className="page-description">{def.description}</p>
 
-      <div className="toolbar-grid toolbar-grid-3">
+      <div className="report-filter-bar">
         <DateRangePicker
           fromDate={fromDate}
           toDate={toDate}
@@ -226,8 +245,8 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
         />
 
         {hasStaffControl ? (
-          <label className="field compact-field">
-            <span>Nhân viên quản lý</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Nhân viên</span>
             <Select
               value={effectiveStaff ?? ''}
               disabled={!canAll || lockedAll}
@@ -239,12 +258,12 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
         ) : null}
 
         {def.controls.includes('display') ? (
-          <label className="field compact-field">
-            <span>Hiển thị</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Hiển thị</span>
             <Select value={effectiveDisplay} onChange={(event) => setDisplay(String(event.target.value))}>
               {displayOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -252,12 +271,12 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
         ) : null}
 
         {def.controls.includes('revenueSource') ? (
-          <label className="field compact-field">
-            <span>Nguồn thu</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Nguồn thu</span>
             <Select
               value={lockedAll ? '0' : revenueSource}
               disabled={lockedAll}
@@ -269,12 +288,12 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
         ) : null}
 
         {def.controls.includes('paymentMethod') ? (
-          <label className="field compact-field">
-            <span>Phương thức</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Phương thức</span>
             <Select
               value={lockedAll ? '0' : paymentMethod}
               disabled={lockedAll}
@@ -286,12 +305,12 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
         ) : null}
 
         {def.controls.includes('paymentType') ? (
-          <label className="field compact-field">
-            <span>Hình thức nạp</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Hình thức nạp</span>
             <Select value={paymentType} onChange={(event) => setPaymentType(String(event.target.value))}>
               {MEMBER_PAYMENT_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -299,38 +318,38 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
         ) : null}
 
         {def.controls.includes('timeUsed') ? (
-          <label className="field compact-field">
-            <span>Thời gian sử dụng tối thiểu (phút)</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Thời gian tối thiểu (phút)</span>
             <input
+              className="ds-input"
               inputMode="numeric"
               maxLength={9}
               value={timeUsed}
               onChange={(event) => setTimeUsed(event.target.value.replace(/\D/g, ''))}
             />
-          </label>
+          </div>
         ) : null}
 
         {def.controls.includes('moneyUsed') ? (
-          <label className="field compact-field">
-            <span>Số tiền sử dụng tối thiểu</span>
+          <div className="ds-input-group">
+            <span className="ds-input-group-separator">Tiền tối thiểu</span>
             <input
+              className="ds-input"
               inputMode="numeric"
               maxLength={9}
               value={moneyUsed}
               onChange={(event) => setMoneyUsed(event.target.value.replace(/\D/g, ''))}
             />
-          </label>
+          </div>
         ) : null}
 
-        <div className="field compact-field" style={{ alignSelf: 'end' }}>
-          <Button variant="primary" loading={query.isFetching} onClick={submit}>
-            Xem báo cáo
-          </Button>
-        </div>
+        <Button variant="primary" loading={query.isFetching} onClick={submit}>
+          Xem báo cáo
+        </Button>
       </div>
 
       {hasStaffControl && !canAll ? (

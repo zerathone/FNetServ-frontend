@@ -278,9 +278,9 @@ export const REPORT_PAGES: readonly ReportPageDef[] = [
     description: 'Doanh thu V2 tổng hợp theo từng nhân viên.',
     viewRight: 931042,
     allRight: 9310421,
-    controls: [],
-    // Có quyền xem tất cả: mọi nhân viên (staffid 0). Thiếu: chỉ dòng của chính mình.
-    resolve: (i) => ({ type: 42, staffid: i.canAll ? 0 : i.selfId, extra: {} }),
+    controls: ['staff'],
+    // staffId đã chuẩn hoá bởi effectiveStaff: 0 = tất cả (canAll), selfId nếu thiếu quyền.
+    resolve: (i) => ({ type: 42, staffid: i.staffId, extra: {} }),
   },
   {
     id: 'shift-report',

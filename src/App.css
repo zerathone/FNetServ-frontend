@@ -1270,6 +1270,26 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* Thanh lọc báo cáo /analysis/ — flex row giống transaction-filters,
+   align-items: flex-end để label+combo canh đáy hàng với DateRangePicker. */
+.report-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.report-filter-bar > .ds-date-range {
+  flex: 0 0 auto;
+  width: 21rem;
+}
+
+.report-filter-bar > .ds-field {
+  flex: 0 0 auto;
+  min-width: 10rem;
+}
+
 .log-filter-controls {
   display: flex;
   flex: 1 1 auto;

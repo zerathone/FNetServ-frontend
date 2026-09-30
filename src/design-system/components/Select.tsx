@@ -10,15 +10,19 @@ export function Select({ children, value, onChange, className = '', disabled }: 
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Chỉ lắng nghe click-outside khi dropdown đang mở để tránh race condition.
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    // Dùng capture=true để bắt trước khi bất kỳ handler nào khác.
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+  }, [isOpen]);
 
   // Parse children to get options
   const options: { value: string | number, label: React.ReactNode }[] = [];
@@ -41,10 +45,10 @@ export function Select({ children, value, onChange, className = '', disabled }: 
   const selectedOption = options.find(opt => String(opt.value) === String(value)) || options[0];
 
   const handleSelect = (val: string | number) => {
+    setIsOpen(false);
     if (onChange) {
       onChange({ target: { value: val } } as any);
     }
-    setIsOpen(false);
   };
 
   const containerClass = className.replace(/\b(ds-input|ds-select)\b/g, '').trim();
@@ -70,7 +74,12 @@ export function Select({ children, value, onChange, className = '', disabled }: 
               className={`ds-custom-select-option ${String(opt.value) === String(value) ? 'ds-custom-select-option--selected' : ''}`}
               role="option"
               aria-selected={String(opt.value) === String(value)}
-              onClick={() => handleSelect(opt.value)}
+              // onMouseDown đóng dropdown TRƯỚC khi document mousedown-outside handler kịp fire,
+              // tránh race condition khiến dropdown không đóng sau khi chọn.
+              onMouseDown={(e) => {
+                e.preventDefault(); // ngăn button trigger mất focus
+                handleSelect(opt.value);
+              }}
             >
               {opt.label}
             </li>
