@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { logoutRequest } from '../api/auth'
 import { getServerInfo } from '../api/system'
@@ -44,6 +44,8 @@ type NavigationItem = {
   devOnly?: boolean
   /** Hiện khi admin HOẶC có BẤT KỲ mã quyền nào trong danh sách (mã xem + mã xem tất cả). */
   rightAny?: number[]
+  /** Nhóm hiển thị trong sidebar (chỉ dùng cho workspace Phân tích). */
+  group?: string
 }
 
 type Workspace = {
@@ -84,7 +86,20 @@ const analysisItems: NavigationItem[] = REPORT_PAGES.map((def) => ({
   icon: REPORT_ICONS[def.id] ?? (def.dashboard ? DASHBOARD_ICON : DEFAULT_REPORT_ICON),
   adminOnly: def.dashboard ? true : undefined,
   rightAny: def.dashboard ? undefined : reportViewCodes(def),
+  group: def.group,
 }))
+
+const GROUP_LABELS: Record<string, string> = {
+  new: 'Báo cáo V2',
+  legacy: 'Thống kê',
+  dashboard: 'Dashboard',
+}
+
+const GROUP_BADGES: Record<string, string> = {
+  new: 'V2',
+  legacy: 'Cũ',
+  dashboard: 'DB',
+}
 
 function isItemVisible(
   item: NavigationItem,
@@ -199,6 +214,16 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const [clockNow, setClockNow] = useState(() => new Date())
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
+
+  const toggleGroup = (group: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(group)) next.delete(group)
+      else next.add(group)
+      return next
+    })
+  }
 
   // rights: subscribe để menu tự cập nhật khi quyền session đổi (hasRight đọc store, không tự re-render).
   const hasRight = useAuthStore((state) => state.hasRight)
@@ -464,22 +489,49 @@ export function MainLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="workspace-nav">
-          {navigationItems.map((item) => (
-            <NavLink
-              key={`${workspace.id}-${item.to}`}
-              to={item.to}
-              title={sidebarCollapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                isActive ? 'workspace-nav__link workspace-nav__link--active' : 'workspace-nav__link'
-              }
-            >
-              <span className="workspace-nav__icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className="workspace-nav__label">{item.label}</span>
-              <span className="workspace-nav__short">{item.shortLabel}</span>
-            </NavLink>
-          ))}
+          {navigationItems.map((item, index) => {
+            const prevItem = index > 0 ? navigationItems[index - 1] : null
+            const showGroupHeader = item.group != null && item.group !== prevItem?.group
+            const isGroupCollapsed = item.group != null && collapsedGroups.has(item.group)
+            return (
+              <Fragment key={`${workspace.id}-${item.to}`}>
+                {showGroupHeader && (
+                  <button
+                    type="button"
+                    className={
+                      isGroupCollapsed
+                        ? 'workspace-nav__group-header workspace-nav__group-header--collapsed'
+                        : 'workspace-nav__group-header'
+                    }
+                    onClick={() => item.group && toggleGroup(item.group)}
+                    title={sidebarCollapsed ? (GROUP_LABELS[item.group!] ?? item.group) : undefined}
+                    aria-expanded={!isGroupCollapsed}
+                  >
+                    <span className="workspace-nav__group-label">{GROUP_LABELS[item.group!] ?? item.group}</span>
+                    <span className="workspace-nav__group-badge">{GROUP_BADGES[item.group!] ?? ''}</span>
+                    <span className="workspace-nav__group-caret" aria-hidden="true">
+                      <CaretRight size={10} weight="bold" />
+                    </span>
+                  </button>
+                )}
+                {!isGroupCollapsed && (
+                  <NavLink
+                    to={item.to}
+                    title={sidebarCollapsed ? item.label : undefined}
+                    className={({ isActive }) =>
+                      isActive ? 'workspace-nav__link workspace-nav__link--active' : 'workspace-nav__link'
+                    }
+                  >
+                    <span className="workspace-nav__icon" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                    <span className="workspace-nav__label">{item.label}</span>
+                    <span className="workspace-nav__short">{item.shortLabel}</span>
+                  </NavLink>
+                )}
+              </Fragment>
+            )
+          })}
         </nav>
 
         <div className="app-sidebar__footer">

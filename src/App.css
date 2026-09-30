@@ -657,6 +657,72 @@
   display: none;
 }
 
+/* --- Nav group headers (chỉ workspace Phân tích) --- */
+.workspace-nav__group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: none;
+  border-radius: var(--nav-item-radius);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.workspace-nav__group-header:first-child {
+  margin-top: var(--space-1);
+}
+
+.workspace-nav__group-header:hover {
+  background: var(--color-surface-hover);
+}
+
+.workspace-nav__group-label {
+  flex: 1;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-nav__group-badge {
+  display: none;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-action-primary) 25%, transparent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.workspace-nav__group-caret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
+}
+
+.workspace-nav__group-header--collapsed .workspace-nav__group-caret {
+  transform: rotate(0deg);
+}
+
 .app-sidebar__footer {
   display: flex;
   flex-direction: column;
@@ -929,6 +995,24 @@
 .app-shell--collapsed .workspace-nav__short {
   display: block;
   font-size: 0.5625rem;
+}
+
+.app-shell--collapsed .workspace-nav__group-header {
+  justify-content: center;
+  padding: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.app-shell--collapsed .workspace-nav__group-label {
+  display: none;
+}
+
+.app-shell--collapsed .workspace-nav__group-badge {
+  display: block;
+}
+
+.app-shell--collapsed .workspace-nav__group-caret {
+  display: none;
 }
 
 .app-shell--collapsed .workspace-switcher__trigger {

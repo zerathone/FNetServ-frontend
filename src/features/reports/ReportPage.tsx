@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDynamicReport } from '../../api/dynamic-reports'
 import { getStaffList } from '../../api/staff'
@@ -17,9 +17,18 @@ import {
   type ReportPageDef,
   type ReportRequestSpec,
 } from './reportCatalog'
+import { PaperPlaneRight } from '@phosphor-icons/react'
 
 const REPORT_STALE_MS = 5 * 60 * 1000
 const DIGITS_ONLY = /^\d{1,9}$/
+/**
+ * Burst detector — bảo vệ g_MySQLConn dùng chung.
+ * Nếu gửi ≥ BURST_MAX_HITS request khác tham số trong BURST_WINDOW_MS ms liên tiếp
+ * thì khoá BURST_PENALTY_MS ms. Dùng bình thường (click → đợi → đổi ngày → click) không bao giờ bị chặn.
+ */
+const BURST_WINDOW_MS = 8_000   // cửa sổ trượt 8 giây
+const BURST_MAX_HITS = 3         // ≥ 3 request khác tham số trong cửa sổ = burst
+const BURST_PENALTY_MS = 30_000  // khoá 30 giây khi phát hiện burst
 
 // Ngày LOCAL (toISOString lệch múi giờ: trước 7h sáng giờ VN sẽ ra ngày hôm trước).
 function todayValue() {
@@ -66,9 +75,32 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
   const [moneyUsed, setMoneyUsed] = useState('0')
   const [formError, setFormError] = useState('')
   const [submitted, setSubmitted] = useState<Submitted | null>(null)
+  /** Timestamps (unix-ms) của các request thực — dùng để sliding-window burst detect. */
+  const [hitTimes, setHitTimes] = useState<number[]>([])
+  /** Unix-ms thời điểm hết penalty (0 = không bị khoá). */
+  const [penaltyEnd, setPenaltyEnd] = useState(0)
+  /** Tăng mỗi 500ms để trigger re-render countdown. */
+  const [, forceRender] = useState(0)
 
-  // Chế độ hiển thị: bỏ các mục cần quyền "xem tất cả" khi thiếu quyền (Select không hỗ trợ option disabled).
+  // Chế độ hiển thị: bỏ các mục cần quyền "xem tất cả" khi thiếu quyền.
   const allDisplays = def.displays ?? []
+
+  // Countdown ticker — chỉ chạy khi đang bị penalty, tự dọn khi hết.
+  useEffect(() => {
+    if (penaltyEnd === 0) return
+    const id = setInterval(() => {
+      if (Date.now() >= penaltyEnd) {
+        clearInterval(id)
+        setPenaltyEnd(0)
+      } else {
+        forceRender((n) => n + 1)
+      }
+    }, 500)
+    return () => clearInterval(id)
+  }, [penaltyEnd])
+
+  const penaltySec = penaltyEnd === 0 ? 0 : Math.max(0, Math.ceil((penaltyEnd - Date.now()) / 1000))
+  const isPenalized = penaltySec > 0
   const displayOptions = allDisplays.filter((option) => !option.needsAll || canAll)
   const hiddenDisplays = allDisplays.length - displayOptions.length
   const effectiveDisplay = displayOptions.some((option) => option.value === display)
@@ -176,10 +208,19 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
     })
     const next: Submitted = { spec, fromDate, toDate }
     if (submitted && JSON.stringify(submitted) === JSON.stringify(next)) {
-      void query.refetch() // cùng tham số: bấm lại = người dùng muốn số liệu mới
-    } else {
-      setSubmitted(next)
+      // Cùng tham số → kết quả đang cache trong React Query, không gọi thêm backend, không tính vào burst.
+      return
     }
+
+    // Burst detection: đếm số request thực trong cửa sổ trượt.
+    const now = Date.now()
+    const recentHits = hitTimes.filter((t) => now - t < BURST_WINDOW_MS)
+    if (recentHits.length >= BURST_MAX_HITS) {
+      setPenaltyEnd(now + BURST_PENALTY_MS)
+      return
+    }
+    setHitTimes([...recentHits, now])
+    setSubmitted(next)
   }
 
   const header = (
@@ -204,7 +245,7 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
   }
 
   const renderResult = () => {
-    if (!submitted) return <p className="status-text">Chọn tham số rồi bấm “Xem báo cáo”.</p>
+    if (!submitted) return null
     if (query.isFetching) return <p className="status-text">Đang tải báo cáo...</p>
     if (query.isError) return <p className="status-text error-text">Lỗi: {(query.error as Error).message}</p>
     const isIncomeSummaryDaily =
@@ -347,9 +388,20 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
           </div>
         ) : null}
 
-        <Button variant="primary" loading={query.isFetching} onClick={submit}>
-          Xem báo cáo
+        <Button
+          variant="primary"
+          loading={query.isFetching}
+          disabled={isPenalized}
+          icon={<PaperPlaneRight size={18} weight="bold" aria-hidden="true" />}
+          onClick={submit}
+        >
+          {isPenalized ? `Xem báo cáo (${penaltySec}s)` : 'Xem báo cáo'}
         </Button>
+        {isPenalized ? (
+          <InlineAlert tone="warning">
+            Phát hiện nhiều yêu cầu liên tiếp. Chờ {penaltySec}s để bảo vệ hệ thống.
+          </InlineAlert>
+        ) : null}
       </div>
 
       {hasStaffControl && !canAll ? (
