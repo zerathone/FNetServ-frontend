@@ -1,6 +1,22 @@
 import { API_BASE_URL } from './client'
 import { useAuthStore } from '../store/auth'
 
+/** Tham số phụ của /rptv2 — server chỉ nhận số nguyên (tối đa 9 chữ số). Chỉ gửi khi có giá trị. */
+export type DynamicReportExtra = {
+  /** type 41: 0 hằng ngày, 1 hằng tuần, 2 hằng tháng. */
+  time_display?: number
+  /** type 41: 0 tất cả, 1 nạp hội viên, 2 khách vãng lai, 3 combo, 4 thẻ nạp tiền, 5 dịch vụ FNet, 7 công nợ. */
+  revenue_source?: number
+  /** type 41: 0 tất cả, 1 tiền mặt, 2 chuyển khoản, 3 QR. */
+  payment_method?: number
+  /** type 32/33: 0 tất cả, 1 tiền mặt, 2 thẻ, 3 online, 4 QR. */
+  payment_type?: number
+  /** type 31: phút sử dụng tối thiểu (server bắt buộc có cả time_used lẫn money_used). */
+  time_used?: number
+  /** type 31: số tiền sử dụng tối thiểu. */
+  money_used?: number
+}
+
 export type DynamicReportRequest = {
   type: number
   from_date: string
@@ -8,7 +24,16 @@ export type DynamicReportRequest = {
   from_time?: string
   to_time?: string
   staffid?: number
-}
+} & DynamicReportExtra
+
+const EXTRA_KEYS: (keyof DynamicReportExtra)[] = [
+  'time_display',
+  'revenue_source',
+  'payment_method',
+  'payment_type',
+  'time_used',
+  'money_used',
+]
 
 export async function fetchDynamicReport(payload: DynamicReportRequest) {
   const params = new URLSearchParams()
@@ -18,6 +43,10 @@ export async function fetchDynamicReport(payload: DynamicReportRequest) {
   if (payload.from_time) params.append('from_time', payload.from_time)
   if (payload.to_time) params.append('to_time', payload.to_time)
   params.append('staffid', payload.staffid?.toString() || '0')
+  for (const key of EXTRA_KEYS) {
+    const value = payload[key]
+    if (value !== undefined) params.append(key, String(value))
+  }
   params.append('ts', Math.floor(Date.now() / 1000).toString())
 
   const token = useAuthStore.getState().token

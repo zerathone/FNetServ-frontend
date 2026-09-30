@@ -21,8 +21,10 @@ import {
   ChartLineUp, FileText, Globe, Gear, Printer, ShieldCheck,
   Palette, SignOut, List, X, CaretRight, CaretLeft,
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
-  CreditCard, Storefront
+  CreditCard, Storefront,
+  Receipt, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook
 } from '@phosphor-icons/react'
+import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
 const THEME_ICONS: Record<ThemeId, ReactNode> = {
   classic: <Monitor size={20} weight="duotone" />,
@@ -40,6 +42,8 @@ type NavigationItem = {
   icon: ReactNode
   adminOnly?: boolean
   devOnly?: boolean
+  /** Hiện khi admin HOẶC có BẤT KỲ mã quyền nào trong danh sách (mã xem + mã xem tất cả). */
+  rightAny?: number[]
 }
 
 type Workspace = {
@@ -49,7 +53,48 @@ type Workspace = {
   icon: ReactNode
   landing: string
   adminOnly?: boolean
+  /** Landing = mục đầu tiên user thấy được (nhóm có mục ẩn theo quyền, vd Phân tích). */
+  dynamicLanding?: boolean
   items: NavigationItem[]
+}
+
+// Icon cho từng trang báo cáo (catalog là dữ liệu thuần, không chứa ReactNode).
+const REPORT_ICONS: Record<string, ReactNode> = {
+  'revenue-stats': <ChartBar size={24} weight="duotone" />,
+  'service-revenue': <Storefront size={24} weight="duotone" />,
+  'card-revenue': <CreditCard size={24} weight="duotone" />,
+  'member-recharge': <Wallet size={24} weight="duotone" />,
+  'machine-revenue': <Desktop size={24} weight="duotone" />,
+  'free-time': <Clock size={24} weight="duotone" />,
+  'free-money': <Coins size={24} weight="duotone" />,
+  'member-debt': <HandCoins size={24} weight="duotone" />,
+  'member-usage': <Timer size={24} weight="duotone" />,
+  'income-summary': <Receipt size={24} weight="duotone" />,
+  'income-by-staff': <Users size={24} weight="duotone" />,
+  'shift-report': <Notebook size={24} weight="duotone" />,
+}
+const DASHBOARD_ICON = <Gauge size={24} weight="duotone" />
+const DEFAULT_REPORT_ICON = <ChartPie size={24} weight="duotone" />
+
+// Toàn bộ trang báo cáo sau gộp (task web-report-params): thứ tự = thứ tự REPORT_PAGES.
+const analysisItems: NavigationItem[] = REPORT_PAGES.map((def) => ({
+  to: reportPath(def),
+  label: def.title,
+  shortLabel: def.shortLabel,
+  icon: REPORT_ICONS[def.id] ?? (def.dashboard ? DASHBOARD_ICON : DEFAULT_REPORT_ICON),
+  adminOnly: def.dashboard ? true : undefined,
+  rightAny: def.dashboard ? undefined : reportViewCodes(def),
+}))
+
+function isItemVisible(
+  item: NavigationItem,
+  isAdmin: boolean,
+  hasRight: (code: number) => boolean,
+) {
+  if (item.adminOnly && !isAdmin) return false
+  if (item.devOnly && !import.meta.env.DEV) return false
+  if (item.rightAny && !isAdmin && !item.rightAny.some(hasRight)) return false
+  return true
 }
 
 const workspaces: readonly Workspace[] = [
@@ -114,14 +159,23 @@ const workspaces: readonly Workspace[] = [
     label: 'Phân tích',
     shortLabel: 'PT',
     icon: <ChartLineUp size={20} weight="duotone" />,
-    landing: '/reports',
-    adminOnly: true,
-    items: [
-      { to: '/reports', label: 'Doanh thu', shortLabel: 'DT', icon: <ChartBar size={24} weight="duotone" /> },
-      { to: '/dynamic-reports', label: 'Trung tâm báo cáo', shortLabel: 'BC', icon: <ChartLineUp size={24} weight="duotone" /> },
-    ],
+    landing: reportPath(REPORT_PAGES[0]),
+    // Không còn adminOnly: nhân viên có quyền báo cáo phải thấy nhóm này. Ẩn theo quyền từng mục
+    // (rightAny) + ẩn cả nhóm khi không có mục nào hiển thị được. 2 mục cũ `Doanh thu` (/reports) và
+    // `Trung tâm báo cáo` (/dynamic-reports) đã bỏ khỏi menu (route + file vẫn giữ).
+    dynamicLanding: true,
+    items: analysisItems,
   },
 ]
+
+function getLanding(
+  workspace: Workspace,
+  isAdmin: boolean,
+  hasRight: (code: number) => boolean,
+) {
+  if (!workspace.dynamicLanding) return workspace.landing
+  return workspace.items.find((item) => isItemVisible(item, isAdmin, hasRight))?.to ?? workspace.landing
+}
 
 function getWorkspace(id: WorkspaceId) {
   return workspaces.find((workspace) => workspace.id === id) ?? workspaces[0]
@@ -146,19 +200,27 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const [clockNow, setClockNow] = useState(() => new Date())
 
+  // rights: subscribe để menu tự cập nhật khi quyền session đổi (hasRight đọc store, không tự re-render).
+  const hasRight = useAuthStore((state) => state.hasRight)
+  const rights = useAuthStore((state) => state.rights)
+
   const availableWorkspaces = useMemo(
-    () => workspaces.filter((workspace) => !workspace.adminOnly || isAdmin),
-    [isAdmin],
+    () =>
+      workspaces.filter(
+        (item) =>
+          (!item.adminOnly || isAdmin) &&
+          item.items.some((navItem) => isItemVisible(navItem, isAdmin, hasRight)),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
+    [isAdmin, hasRight, rights],
   )
   const workspace = getWorkspace(workspaceId)
-  const navigationItems = workspace.items.filter(
-    (item) =>
-      (!item.adminOnly || isAdmin) && (!item.devOnly || import.meta.env.DEV),
-  )
+  const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight))
 
   useEffect(() => {
-    if (!isAdmin && workspace.adminOnly) setWorkspaceId('pos')
-  }, [isAdmin, workspace.adminOnly])
+    // Workspace hiện tại không còn khả dụng (đăng xuất/đổi quyền): về Thu ngân.
+    if (!availableWorkspaces.some((item) => item.id === workspaceId)) setWorkspaceId('pos')
+  }, [availableWorkspaces, workspaceId])
 
   useEffect(() => {
     setMobileNavOpen(false)
@@ -234,10 +296,10 @@ export function MainLayout({ children }: { children: ReactNode }) {
 
   const changeWorkspace = (nextId: WorkspaceId) => {
     const nextWorkspace = getWorkspace(nextId)
-    if (nextWorkspace.adminOnly && !isAdmin) return
+    if (!availableWorkspaces.some((item) => item.id === nextId)) return
     setWorkspaceId(nextId)
     setWorkspaceMenuOpen(false)
-    navigate(nextWorkspace.landing)
+    navigate(getLanding(nextWorkspace, isAdmin, hasRight))
   }
 
   return (

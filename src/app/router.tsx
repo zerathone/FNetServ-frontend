@@ -79,6 +79,9 @@ const ReportsPage = lazy(() =>
 const DynamicReportPage = lazy(() =>
   import('../pages/DynamicReportPage').then((module) => ({ default: module.DynamicReportPage })),
 )
+const ReportRoutePage = lazy(() =>
+  import('../features/reports/ReportRoutePage').then((module) => ({ default: module.ReportRoutePage })),
+)
 const PrinterSettingsPage = lazy(() =>
   import('../pages/PrinterSettingsPage').then((module) => ({
     default: module.PrinterSettingsPage,
@@ -142,8 +145,12 @@ function ProtectedRoutes() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/logs/voucher" element={<VoucherLogPage />} />
           <Route path="/logs/system" element={<SystemLogPage />} />
+          {/* Báo cáo gộp (task web-report-params): NGOÀI AdminRoute — nhân viên có quyền vẫn vào được;
+              trang tự kiểm quyền (ReportPage), server là lớp chặn dự phòng. */}
+          <Route path="/analysis/:slug" element={<ReportRoutePage />} />
 
           <Route element={<AdminRoute />}>
+            <Route path="/analysis/dashboard/:slug" element={<ReportRoutePage dashboard />} />
             <Route path="/apps" element={<AppsPage />} />
             <Route path="/cards" element={<CardsPage />} />
             <Route path="/anonyms" element={<AnonymsPage />} />
