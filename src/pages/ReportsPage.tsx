@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRevenueSummary } from '../api/reports'
 import { useAuthStore } from '../store/auth'
+import { DateRangePicker } from '../design-system/components/DateRangePicker'
 
 // Quyền báo cáo doanh thu (RightTb) — khớp gate backend /reports/revenue (2.16b).
 const RIGHT_REVENUE_REPORT = 9311
@@ -66,24 +67,12 @@ export function ReportsPage() {
       ) : null}
 
       <div className="toolbar-grid toolbar-grid-3">
-        <label className="field compact-field">
-          <span>Từ ngày</span>
-          <input
-            type="date"
-            value={from}
-            disabled={!canViewReport}
-            onChange={(event) => setFrom(event.target.value)}
-          />
-        </label>
-        <label className="field compact-field">
-          <span>Đến ngày</span>
-          <input
-            type="date"
-            value={to}
-            disabled={!canViewReport}
-            onChange={(event) => setTo(event.target.value)}
-          />
-        </label>
+        <DateRangePicker
+          fromDate={from}
+          toDate={to}
+          onFromDateChange={setFrom}
+          onToDateChange={setTo}
+        />
         <label className="field compact-field">
           <span>Mã nhân viên (Staff ID)</span>
           <input

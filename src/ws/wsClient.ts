@@ -138,7 +138,7 @@ class WsClient {
     if (this.intentionalDisconnect || !this.token) return
     useWsStatusStore.getState().setConnecting(this.retryCount > 0)
     const base = import.meta.env.DEV
-      ? 'ws://127.0.0.1:18099'
+      ? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api`
       : API_BASE_URL.replace(/^http/, 'ws')
     const url = `${base}/ws?token=${encodeURIComponent(this.token)}`
 
