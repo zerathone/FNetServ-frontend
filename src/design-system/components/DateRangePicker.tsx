@@ -8,6 +8,8 @@ type DateRangePickerProps = {
   onToDateChange: (value: string) => void
   label?: string
   className?: string
+  /** Preset shortcuts giống Ant Design RangePicker. Mặc định: Hôm nay, Hôm qua, 7 ngày, 30 ngày, Tháng này, Tháng trước */
+  presets?: Array<{ label: string; value: () => [string, string] }>
 }
 
 type RangeBoundary = 'start' | 'end'
@@ -25,6 +27,12 @@ function dateValue(date: Date) {
 
 function addMonths(date: Date, amount: number) {
   return new Date(date.getFullYear(), date.getMonth() + amount, 1)
+}
+
+function addDays(date: Date, amount: number) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + amount)
+  return d
 }
 
 function buildMonthDays(month: Date) {
@@ -53,7 +61,53 @@ function getTodayValue() {
   return dateValue(today)
 }
 
-/** A single popup calendar that selects a start and end date as one range. */
+/** Preset mặc định — giống pattern Ant Design RangePicker presets */
+const DEFAULT_PRESETS: DateRangePickerProps['presets'] = [
+  {
+    label: 'Hôm nay',
+    value: () => {
+      const today = getTodayValue()
+      return [today, today]
+    },
+  },
+  {
+    label: 'Hôm qua',
+    value: () => {
+      const v = dateValue(addDays(new Date(), -1))
+      return [v, v]
+    },
+  },
+  {
+    label: '7 ngày qua',
+    value: () => [dateValue(addDays(new Date(), -6)), getTodayValue()],
+  },
+  {
+    label: '30 ngày qua',
+    value: () => [dateValue(addDays(new Date(), -29)), getTodayValue()],
+  },
+  {
+    label: 'Tháng này',
+    value: () => {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      return [dateValue(start), dateValue(end)]
+    },
+  },
+  {
+    label: 'Tháng trước',
+    value: () => {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      return [dateValue(start), dateValue(end)]
+    },
+  },
+]
+
+/** A single popup calendar that selects a start and end date as one range.
+ *  Hỗ trợ Ant Design-style preset shortcuts và hover preview của range trước khi confirm.
+ */
 export function DateRangePicker({
   fromDate,
   toDate,
@@ -61,12 +115,15 @@ export function DateRangePicker({
   onToDateChange,
   label = 'Khoảng thời gian',
   className = '',
+  presets = DEFAULT_PRESETS,
 }: DateRangePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [boundary, setBoundary] = useState<RangeBoundary>('start')
   const [draftFromDate, setDraftFromDate] = useState<string | undefined>()
   const [draftToDate, setDraftToDate] = useState<string | undefined>()
+  /** Ngày đang hover — dùng để preview range trước khi confirm (Ant Design pattern) */
+  const [hoverDate, setHoverDate] = useState<string | undefined>()
   const [viewMonth, setViewMonth] = useState(() => {
     const start = parseDate(fromDate) ?? new Date()
     return new Date(start.getFullYear(), start.getMonth(), 1)
@@ -124,6 +181,18 @@ export function DateRangePicker({
     }
     setDraftFromDate(undefined)
     setDraftToDate(undefined)
+    setHoverDate(undefined)
+    setOpen(false)
+  }
+
+  /** Chọn nhanh qua preset — giống Ant Design RangePicker presets */
+  const selectPreset = (preset: NonNullable<DateRangePickerProps['presets']>[number]) => {
+    const [start, end] = preset.value()
+    onFromDateChange(start)
+    onToDateChange(end)
+    setDraftFromDate(undefined)
+    setDraftToDate(undefined)
+    setHoverDate(undefined)
     setOpen(false)
   }
 
@@ -132,6 +201,7 @@ export function DateRangePicker({
     onToDateChange('')
     setDraftFromDate(undefined)
     setDraftToDate(undefined)
+    setHoverDate(undefined)
     setBoundary('start')
   }
 
@@ -139,6 +209,21 @@ export function DateRangePicker({
   const visibleToDate = open && draftToDate !== undefined ? draftToDate : toDate
   const endMonth = addMonths(viewMonth, 1)
   const months = [viewMonth, endMonth]
+
+  // Hover preview — giống Ant Design RangePicker:
+  // - Đang chọn start: hoverDate hiện tại = previewFrom, toDate không đổi
+  // - Đang chọn end:   previewFrom/previewTo tính từ anchor ↔ hover (tự đảo chiều nếu hover trước anchor)
+  const anchorDate = draftFromDate ?? fromDate
+  const previewFrom =
+    boundary === 'start' && hoverDate
+      ? hoverDate
+      : boundary === 'end' && hoverDate
+        ? hoverDate >= anchorDate ? anchorDate : hoverDate
+        : visibleFromDate
+  const previewTo =
+    boundary === 'end' && hoverDate
+      ? hoverDate >= anchorDate ? hoverDate : anchorDate
+      : visibleToDate
 
   return (
     <div ref={rootRef} className={`ds-date-range ${className}`.trim()}>
@@ -152,7 +237,7 @@ export function DateRangePicker({
           aria-expanded={open}
           onClick={() => openPicker('start')}
         >
-          {formatValue(visibleFromDate, 'Từ ngày')}
+          {formatValue(previewFrom, 'Từ ngày')}
         </button>
         <ArrowRight className="ds-date-range__separator" size={16} weight="bold" aria-hidden="true" />
         <button
@@ -163,7 +248,7 @@ export function DateRangePicker({
           aria-expanded={open}
           onClick={() => openPicker('end')}
         >
-          {formatValue(visibleToDate, 'Đến ngày')}
+          {formatValue(previewTo, 'Đến ngày')}
         </button>
         {visibleFromDate || visibleToDate ? (
           <button type="button" className="ds-date-range__clear" aria-label="Xóa khoảng ngày" title="Xóa khoảng ngày" onClick={clear}>
@@ -195,9 +280,9 @@ export function DateRangePicker({
                 <div className="ds-date-range__days">
                   {buildMonthDays(month).map((date) => {
                     const value = dateValue(date)
-                    const isStart = value === visibleFromDate
-                    const isEnd = value === visibleToDate
-                    const isInRange = Boolean(visibleFromDate && visibleToDate && value > visibleFromDate && value < visibleToDate)
+                    const isStart = value === previewFrom
+                    const isEnd = value === previewTo
+                    const isInRange = Boolean(previewFrom && previewTo && value > previewFrom && value < previewTo)
                     const isOutsideMonth = date.getMonth() !== month.getMonth()
                     const isToday = value === getTodayValue()
                     const classes = [
@@ -217,6 +302,8 @@ export function DateRangePicker({
                         aria-label={date.toLocaleDateString('vi-VN')}
                         aria-pressed={isStart || isEnd}
                         onClick={() => selectDate(date)}
+                        onMouseEnter={() => setHoverDate(value)}
+                        onMouseLeave={() => setHoverDate(undefined)}
                       >
                         {date.getDate()}
                       </button>
@@ -226,6 +313,21 @@ export function DateRangePicker({
               </section>
             ))}
           </div>
+
+          {presets && presets.length > 0 && (
+            <div className="ds-date-range__presets">
+              {presets.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className="ds-date-range__preset"
+                  onClick={() => selectPreset(preset)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
     </div>

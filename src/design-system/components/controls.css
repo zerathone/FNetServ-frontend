@@ -381,6 +381,35 @@
   border-radius: var(--radius-sm);
 }
 
+/* Preset shortcuts — Ant Design RangePicker presets pattern */
+.ds-date-range__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.ds-date-range__preset {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+  white-space: nowrap;
+}
+
+.ds-date-range__preset:hover {
+  background: color-mix(in srgb, var(--color-action-primary) 10%, transparent);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
 @media (max-width: 640px) {
   .ds-date-range__control {
     gap: var(--space-1);
@@ -587,6 +616,11 @@ label:has(input[type="radio"]) {
 .ds-input-group .ds-custom-select-container {
   width: auto;
   border-right: 1px solid var(--color-border-default);
+}
+
+/* Xóa border-right khi combo là phần tử cuối trong group — tránh dấu | thừa ở rìa phải */
+.ds-input-group .ds-custom-select-container:last-child {
+  border-right: none;
 }
 
 .ds-input-group .ds-custom-select-trigger {

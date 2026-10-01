@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDynamicReport } from '../../api/dynamic-reports'
 import { getStaffList } from '../../api/staff'
@@ -8,6 +8,15 @@ import { ReportResultView } from './ReportResultView'
 import { IncomeSummaryStats } from './IncomeSummaryStats'
 import { IncomeByStaffStats, ShiftReportStats } from './IncomeByStaffStats'
 import { IncomePivotChart } from './IncomePivotChart'
+import {
+  DashboardIncomeView,
+  DashboardMobileView,
+  DashboardCustomersView,
+  DashboardCustomersDetailView,
+  DashboardMachineUsageView,
+  DashboardMachineDetailView,
+  DashboardAccountStatsView,
+} from './DashboardViews'
 import '../workstations/workstations.css'
 import {
   MEMBER_PAYMENT_TYPE_OPTIONS,
@@ -248,6 +257,20 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
     if (!submitted) return null
     if (query.isFetching) return <p className="status-text">Đang tải báo cáo...</p>
     if (query.isError) return <p className="status-text error-text">Lỗi: {(query.error as Error).message}</p>
+    // Dashboard 34-40: mỗi type có component riêng — không qua ReportResultView generic
+    // vì data là JSON object phức tạp, không phải flat array.
+    if (def.dashboard) {
+      switch (def.slug) {
+        case 'income':            return <DashboardIncomeView data={query.data} />
+        case 'income-mobile':     return <DashboardMobileView data={query.data} />
+        case 'customers':         return <DashboardCustomersView data={query.data} />
+        case 'customers-detail':  return <DashboardCustomersDetailView data={query.data} />
+        case 'machine-usage':     return <DashboardMachineUsageView data={query.data} />
+        case 'machine-usage-detail': return <DashboardMachineDetailView data={query.data} />
+        case 'account-stats':     return <DashboardAccountStatsView data={query.data} />
+        default: break
+      }
+    }
     const isIncomeSummaryDaily =
       def.id === 'income-summary' && (submitted.spec.extra.time_display ?? 0) === 0
     const isIncomeByStaff = def.id === 'income-by-staff'
