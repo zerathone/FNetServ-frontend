@@ -92,12 +92,32 @@ export function StaffRightsPage() {
     }
   });
 
+  // Trạng thái tick của một node, tính theo TOÀN BỘ node con cháu (không chỉ con trực tiếp):
+  //  - lá: theo chính nó
+  //  - có con: không con cháu nào được chọn -> theo chính nó; chọn hết -> 'all'; chọn một phần -> 'mixed'
+  const getCheckState = (node: any, checked: Set<string>): 'all' | 'none' | 'mixed' => {
+    if (!node.children || node.children.length === 0) {
+      return checked.has(node.code) ? 'all' : 'none';
+    }
+    let all = 0;
+    let none = 0;
+    node.children.forEach((c: any) => {
+      const s = getCheckState(c, checked);
+      if (s === 'all') all++;
+      else if (s === 'none') none++;
+    });
+    if (all === node.children.length) return 'all';
+    if (none === node.children.length) return checked.has(node.code) ? 'all' : 'none';
+    return 'mixed';
+  };
+
   const handleToggleRight = (code: string) => {
     const node = nodeMap.get(code);
     if (!node) return;
 
     const newSet = new Set(localCheckedCodes);
-    const isCurrentlyChecked = newSet.has(code);
+    // Mixed -> chọn hết (quy ước checkbox ba trạng thái), chỉ 'all' mới bỏ chọn.
+    const isCurrentlyChecked = getCheckState(node, newSet) === 'all';
 
     // 1. Toggle node và toàn bộ node con
     const setNodeAndChildren = (n: any, check: boolean) => {
@@ -105,13 +125,13 @@ export function StaffRightsPage() {
       else newSet.delete(n.code);
       n.children?.forEach((c: any) => setNodeAndChildren(c, check));
     };
-    
+
     setNodeAndChildren(node, !isCurrentlyChecked);
 
     // 2. Cập nhật trạng thái node cha từ dưới lên
     let parent = nodeMap.get(node.parentFunction);
     while (parent) {
-      const allChildrenChecked = parent.children.length > 0 && parent.children.every((c: any) => newSet.has(c.code));
+      const allChildrenChecked = parent.children.length > 0 && parent.children.every((c: any) => getCheckState(c, newSet) === 'all');
       if (allChildrenChecked) {
         newSet.add(parent.code);
       } else {
@@ -131,14 +151,6 @@ export function StaffRightsPage() {
     setExpandedCodes(newSet);
   };
 
-  const isIndeterminate = (node: any) => {
-    if (!node.children || node.children.length === 0) return false;
-    let checkedCount = 0;
-    node.children.forEach((c: any) => {
-      if (localCheckedCodes.has(c.code)) checkedCount++;
-    });
-    return checkedCount > 0 && checkedCount < node.children.length;
-  };
 
   const handleSave = () => {
     if (!selectedStaffId) return;
@@ -153,8 +165,9 @@ export function StaffRightsPage() {
     
     const traverse = (nodes: any[], depth: number) => {
       nodes.forEach(node => {
-        const isChecked = localCheckedCodes.has(node.code);
-        const indet = isIndeterminate(node);
+        const checkState = getCheckState(node, localCheckedCodes);
+        const isChecked = checkState === 'all';
+        const indet = checkState === 'mixed';
         const hasChildren = node.children && node.children.length > 0;
         const isExpanded = expandedCodes.has(node.code);
 

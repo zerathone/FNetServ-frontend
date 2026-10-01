@@ -67,20 +67,22 @@
   color: inherit;
 }
 
+/* Typography: nhãn 500-600, số liệu 600 (không dùng 800/900 -- nét quá dày, mất tương phản thứ bậc). */
 .ws-summary__total > span {
-  font-size: var(--font-size-sm);
-  font-weight: 700;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.8;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
 }
 
 .ws-summary__total strong {
   color: var(--color-text-primary);
-  font-size: var(--font-size-3xl);
-  font-weight: 900;
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
 }
 
 .ws-summary__breakdown {
@@ -125,7 +127,7 @@ button.ws-summary__row:hover {
 
 .ws-summary__label {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .ws-summary__breakdown strong {
@@ -133,7 +135,7 @@ button.ws-summary__row:hover {
   padding-left: var(--space-3);
   color: var(--color-text-primary);
   font-size: var(--font-size-md);
-  font-weight: 800;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 

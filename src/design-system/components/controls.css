@@ -556,6 +556,23 @@ input[type="checkbox"]:checked::before {
   transform: scale(1);
 }
 
+/* Mixed: appearance:none làm mất dấu hiệu gốc của trình duyệt nên tự vẽ — viền màu chính,
+   nền giữ như ô trống, ô vuông đặc nhỏ ở giữa (khác ô đã chọn: nền đặc + dấu tick).
+   Đặt SAU :checked để thắng khi một ô vừa checked vừa indeterminate. */
+input[type="checkbox"]:indeterminate {
+  background: var(--color-surface-default);
+  border-color: var(--color-action-primary);
+}
+
+input[type="checkbox"]:indeterminate::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  transform: scale(1);
+  clip-path: none;
+  border-radius: 2px;
+  background-color: var(--color-action-primary);
+}
+
 input[type="radio"]::before {
   content: "";
   width: 0.5rem;
@@ -1364,4 +1381,43 @@ input[type="radio"]:disabled {
     border-left: 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
+}
+
+/* --- Segmented: chọn một chế độ xem trong vài lựa chọn --- */
+
+.ds-segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.ds-segmented__item {
+  min-height: 2rem;
+  padding: 0.25rem 0.875rem;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.ds-segmented__item:hover:not(.is-active) {
+  color: var(--color-text-primary);
+}
+
+.ds-segmented__item.is-active {
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text, #fff);
+}
+
+.ds-segmented__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }

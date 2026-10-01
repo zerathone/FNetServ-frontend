@@ -61,3 +61,29 @@ export const V41_PIVOT_COLUMNS: Record<number, string[]> = {
   1: ['Nguồn thu', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'],
   2: ['Nguồn thu', 'Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5'],
 }
+
+// Cot SO (vi tri trong data, tinh ca cot an) can ngan cach hang nghin khi hien thi. Chi liet ke cot thuc su
+// la so tien/so luong/phut -- KHONG gom ngay, gio, ten dang nhap, dien thoai, ma giao dich (se bi chen dau cham).
+// Bang pivot (3-6, 41 tuan/thang) khong can khai bao o day: moi cot du lieu deu la so (xem ReportResultView).
+export const NUMERIC_COLUMN_INDEXES: Record<number, number[]> = {
+  1: [3, 4, 5, 6],
+  2: [3, 4, 5, 6],
+  7: [3, 4],
+  8: [3, 4],
+  9: [3, 4],
+  10: [3, 4],
+  11: [3, 4],
+  12: [3],
+  13: [3],
+  15: [4, 5, 6],
+  25: [3, 4],
+  26: [3, 4],
+  27: [3, 4],
+  28: [3, 4],
+  31: [4, 5],
+  32: [3],
+  33: [3],
+  41: [4],
+  42: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  43: [1, 2, 3, 4, 5],
+}

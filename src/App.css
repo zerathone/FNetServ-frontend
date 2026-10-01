@@ -1831,3 +1831,10 @@
   }
 }
 
+
+/* Cot so trong bang bao cao: canh phai, chu so cung do rong de cac hang thang cot. */
+.data-table th.cell-number,
+.data-table td.cell-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

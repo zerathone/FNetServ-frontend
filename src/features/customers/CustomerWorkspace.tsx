@@ -37,6 +37,7 @@ import './customers.css'
 const PAGE_SIZE = 50
 const RIGHTS = {
   GIVE_MONEY: 11,
+  ADD_USER: 21,
   MONEY_TRANSFER: 25,
   INPUT_NEGATIVE_MONEY: 26,
 } as const
@@ -198,6 +199,10 @@ export function CustomerWorkspace() {
   const staffName = useAuthStore((state) => state.staffName)
   const hasRight = useAuthStore((state) => state.hasRight)
   const [userType, setUserType] = useState<UserType>('member')
+  // Parity MFC: thêm hội viên cần R_ADD_USER (UserdetailDlg.cpp:2280); thêm nhân viên chỉ ADMIN
+  // (EmployeeList.cpp:243). hasRight đã bao gồm admin.
+  const canCreateAccount =
+    userType === 'member' ? hasRight(RIGHTS.ADD_USER) : userType === 'staff' ? isAdmin : false
   const [searchInput, setSearchInput] = useState(routeSearch)
   const [searchQuery, setSearchQuery] = useState(routeSearch)
   // FIXBUG 2026-09-23: tim theo DUNG 1 truong. Gop 3 truong = 3 luot quet bang hoi vien o BE.
@@ -509,16 +514,18 @@ export function CustomerWorkspace() {
             : 'Tìm theo đầu tên đăng nhập; xác minh đúng người trước giao dịch.'
         }
         actions={
-          isAdmin ? (
+          canCreateAccount || isAdmin ? (
             <>
-              {userType !== 'combo' ? (
+              {canCreateAccount ? (
                 <Button type="button" variant="secondary" onClick={() => setCreateOpen(true)}>
                   Thêm {userType === 'staff' ? 'nhân viên' : 'hội viên'}
                 </Button>
               ) : null}
-              <Button type="button" variant="primary" onClick={() => navigate('/users/legacy')}>
-                Quản lý tài khoản
-              </Button>
+              {isAdmin ? (
+                <Button type="button" variant="primary" onClick={() => navigate('/users/legacy')}>
+                  Quản lý tài khoản
+                </Button>
+              ) : null}
             </>
           ) : undefined
         }

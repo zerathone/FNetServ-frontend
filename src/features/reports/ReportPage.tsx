@@ -6,7 +6,8 @@ import { useAuthStore } from '../../store/auth'
 import { Button, DateRangePicker, InlineAlert, Select } from '../../design-system/components'
 import { ReportResultView } from './ReportResultView'
 import { IncomeSummaryStats } from './IncomeSummaryStats'
-import { IncomeByStaffStats, ShiftReportStats } from './IncomeByStaffStats'
+import { ShiftReportStats } from './IncomeByStaffStats'
+import { IncomeByStaffPanel } from './IncomeByStaffPanel'
 import { IncomePivotChart } from './IncomePivotChart'
 import {
   DashboardIncomeView,
@@ -178,6 +179,31 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
     retry: false,
   })
 
+  // income-by-staff đang xem MỘT nhân viên: lấy thêm số liệu TẤT CẢ nhân viên làm mẫu số cho % của biểu đồ.
+  // Thiếu quyền "tất cả" thì server luôn trả về chính họ nên không gọi thêm.
+  const needAllStaffData =
+    def.id === 'income-by-staff' && canAll && submitted !== null && submitted.spec.staffid !== 0
+  const allStaffQuery = useQuery({
+    queryKey: ['analysis-report', def.id, 'all-staff', submitted],
+    queryFn: () => {
+      if (!submitted) throw new Error('Chưa chọn báo cáo')
+      return fetchDynamicReport({
+        type: submitted.spec.type,
+        from_date: submitted.fromDate,
+        to_date: submitted.toDate,
+        from_time: '00:00:00',
+        to_time: '23:59:59',
+        staffid: 0,
+        ...submitted.spec.extra,
+      })
+    },
+    enabled: canView && needAllStaffData,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: REPORT_STALE_MS,
+    retry: false,
+  })
+
   const submit = () => {
     setFormError('')
     if (!fromDate || !toDate) {
@@ -255,7 +281,7 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
 
   const renderResult = () => {
     if (!submitted) return null
-    if (query.isFetching) return <p className="status-text">Đang tải báo cáo...</p>
+    if (query.isFetching || (needAllStaffData && allStaffQuery.isFetching)) return <p className="status-text">Đang tải báo cáo...</p>
     if (query.isError) return <p className="status-text error-text">Lỗi: {(query.error as Error).message}</p>
     // Dashboard 34-40: mỗi type có component riêng — không qua ReportResultView generic
     // vì data là JSON object phức tạp, không phải flat array.
@@ -284,7 +310,7 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
       <>
         {isIncomeSummaryDaily ? <IncomeSummaryStats data={query.data} /> : null}
         {isIncomePivot ? <IncomePivotChart data={query.data} timeDisplay={td} /> : null}
-        {isIncomeByStaff ? <IncomeByStaffStats data={query.data} /> : null}
+        {isIncomeByStaff ? <IncomeByStaffPanel data={query.data} allData={allStaffQuery.data} allStaff={submitted.spec.staffid === 0} /> : null}
         {isShiftReport ? <ShiftReportStats data={query.data} staffName={shiftStaffName} /> : null}
         <ReportResultView
           type={submitted.spec.type}

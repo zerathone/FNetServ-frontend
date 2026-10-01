@@ -50,6 +50,18 @@ export const updateDepositMoneyUnitSettings = (
     data,
   )
 
+// INT_COUNTER_PAYMENT: 0 = tắt nút Chuyển khoản ở quầy, mặc định (chưa có dòng/server cũ) = bật.
+// Chỉ coi là tắt khi server trả đúng "0" — thiếu alias (server cũ) thì giữ hành vi cũ.
+export const getCounterPaymentEnabled = async () => {
+  const result = await getSettingsOptions(['counter_payment'])
+  const option = result.items.counter_payment
+  return !option || option.value.trim() !== '0'
+}
+
+// Chỉ ADMIN (server kiểm tra isAdmin của session).
+export const updateCounterPaymentEnabled = (enabled: boolean) =>
+  apiPut<void, { enabled: boolean }>('/settings/counter-payment', { enabled })
+
 export type DepositQrState =
   | 'pending'
   | 'processing'

@@ -22,7 +22,7 @@ import {
   Palette, SignOut, List, X, CaretRight, CaretLeft,
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
   CreditCard, Storefront,
-  Receipt, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook
+  CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook
 } from '@phosphor-icons/react'
 import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
@@ -62,7 +62,7 @@ type Workspace = {
 
 // Icon cho từng trang báo cáo (catalog là dữ liệu thuần, không chứa ReactNode).
 const REPORT_ICONS: Record<string, ReactNode> = {
-  'revenue-stats': <ChartBar size={24} weight="duotone" />,
+  'revenue-stats': <CurrencyCircleDollar size={24} weight="duotone" />,
   'service-revenue': <Storefront size={24} weight="duotone" />,
   'card-revenue': <CreditCard size={24} weight="duotone" />,
   'member-recharge': <Wallet size={24} weight="duotone" />,
@@ -71,7 +71,7 @@ const REPORT_ICONS: Record<string, ReactNode> = {
   'free-money': <Coins size={24} weight="duotone" />,
   'member-debt': <HandCoins size={24} weight="duotone" />,
   'member-usage': <Timer size={24} weight="duotone" />,
-  'income-summary': <Receipt size={24} weight="duotone" />,
+  'income-summary': <ChartBar size={24} weight="duotone" />,
   'income-by-staff': <Users size={24} weight="duotone" />,
   'shift-report': <Notebook size={24} weight="duotone" />,
 }

@@ -1,4 +1,4 @@
-// Grouped bar chart SVG thuần cho income-summary tuần/tháng (type 41, time_display 1 hoặc 2).
+﻿// Grouped bar chart SVG thuần cho income-summary tuần/tháng (type 41, time_display 1 hoặc 2).
 //
 // Thay thế stacked bar: mỗi nhóm X (thứ/tuần) gồm N bar nhỏ đặt cạnh nhau,
 // tất cả đều bắt đầu từ baseline 0 → so sánh được TỪNG nguồn thu theo thời gian
@@ -184,7 +184,7 @@ function GroupedBarChart({ chartData }: { chartData: ChartData }) {
                 x={backdropX + backdropW / 2} y={totalY - 4}
                 textAnchor="middle"
                 fontSize={10}
-                fontWeight={800}
+                fontWeight={600}
                 fill="var(--color-text-secondary, #64748b)"
                 fontFamily="inherit"
               >
@@ -216,7 +216,7 @@ function GroupedBarChart({ chartData }: { chartData: ChartData }) {
                     x={bx + barW / 2} y={by - 3}
                     textAnchor="middle"
                     fontSize={9}
-                    fontWeight={700}
+                    fontWeight={600}
                     fill={src.color}
                     opacity={0.9}
                     fontFamily="inherit"
@@ -259,6 +259,63 @@ function GroupedBarChart({ chartData }: { chartData: ChartData }) {
         strokeWidth={1.5}
       />
     </svg>
+  )
+}
+
+// ─── Tổng theo nguồn thu: bar ngang xếp cao → thấp (cùng giá trị với cột "Tổng" ở bảng) ──────
+const VND = new Intl.NumberFormat('vi-VN')
+
+function TotalsBarChart({ sources }: { sources: Source[] }) {
+  const rows = sources
+    .map((s) => ({
+      name:  s.name,
+      color: s.color,
+      total: Math.round(s.values.reduce((a, b) => a + b, 0) * 100) / 100,
+    }))
+    .sort((a, b) => b.total - a.total)
+  const grand = rows.reduce((a, r) => a + r.total, 0)
+  const maxTotal = Math.max(...rows.map((r) => r.total), 0)
+
+  return (
+    <div style={{ flex: '0 1 380px', minWidth: 280, display: 'grid', gap: 12, alignContent: 'start' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Tổng
+        </span>
+        <span style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-primary, #0f172a)' }}>
+          {VND.format(grand)}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gap: 10 }} role="list" aria-label="Tổng doanh thu theo nguồn thu">
+        {rows.map((r) => {
+          // Độ dài bar theo nguồn lớn nhất (bar đầu luôn đầy) để các chênh lệch nhỏ vẫn nhìn rõ.
+          const width = maxTotal > 0 ? (r.total / maxTotal) * 100 : 0
+          const pct = grand > 0 ? (r.total / grand) * 100 : 0
+          return (
+            <div
+              key={r.name}
+              role="listitem"
+              title={`${r.name}: ${VND.format(r.total)} đ (${pct.toFixed(1)}%)`}
+              style={{ display: 'grid', gap: 4 }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                <span style={{ color: 'var(--color-text-secondary, #64748b)', fontWeight: 600 }}>{r.name}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-text-primary, #0f172a)' }}>
+                  {VND.format(r.total)}
+                  <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--color-text-muted, #94a3b8)' }}>
+                    {pct.toFixed(1)}%
+                  </span>
+                </span>
+              </div>
+              <div style={{ height: 10, borderRadius: 5, background: 'var(--color-border-subtle, #f1f5f9)', overflow: 'hidden' }}>
+                <div style={{ width: `${width}%`, height: '100%', borderRadius: 5, background: r.color, opacity: 0.85 }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -326,15 +383,20 @@ export function IncomePivotChart({ data, timeDisplay }: Props) {
       <p style={{
         margin:          '0 0 12px',
         fontSize:        'var(--font-size-sm)',
-        fontWeight:      700,
+        fontWeight:      600,
         textTransform:   'uppercase',
         letterSpacing:   '0.05em',
         color:           'var(--color-text-muted)',
       }}>
         {title}
       </p>
-      <GroupedBarChart chartData={chartData} />
-      <Legend sources={chartData.sources} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4, 24px)', alignItems: 'flex-start' }}>
+        <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+          <GroupedBarChart chartData={chartData} />
+          <Legend sources={chartData.sources} />
+        </div>
+        <TotalsBarChart sources={chartData.sources} />
+      </div>
     </div>
   )
 }
