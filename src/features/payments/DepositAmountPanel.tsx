@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Backspace, CaretDown, CaretUp, Minus, PencilSimple } from '@phosphor-icons/react'
 import {
@@ -18,6 +18,9 @@ import {
 import './deposit-method.css'
 
 type DepositAmountPanelProps = {
+  /** Có icon: ô số tiền hiện dạng input group (icon + placeholder) thay vì nhãn chữ phía trên. */
+  icon?: ReactNode
+  placeholder?: string
   value: number | null
   disabled?: boolean
   allowNegative: boolean
@@ -28,6 +31,8 @@ type DepositAmountPanelProps = {
 const moneyFormatter = new Intl.NumberFormat('vi-VN')
 
 export function DepositAmountPanel({
+  icon,
+  placeholder,
   value,
   disabled = false,
   allowNegative,
@@ -120,6 +125,8 @@ export function DepositAmountPanel({
     <section className="deposit-amount">
       <MoneyInput
         label="Số tiền"
+        icon={icon}
+        placeholder={placeholder}
         value={value}
         allowNegative={allowNegative}
         disabled={disabled}

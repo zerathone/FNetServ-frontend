@@ -71,6 +71,17 @@
   border-color: transparent;
 }
 
+/* Nút hành động phụ nhưng quan trọng (vd quét CCCD điền hồ sơ): viền + chữ màu chủ đạo, nền trong. */
+.ds-button--outline {
+  color: var(--color-action-primary);
+  background: transparent;
+  border-color: var(--color-action-primary);
+}
+
+.ds-button--outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-action-primary) 10%, transparent);
+}
+
 .ds-button--danger {
   color: var(--color-text-inverse);
   background: var(--color-danger);
@@ -1281,6 +1292,40 @@ input[type="radio"]:disabled {
 .ds-money-input > span {
   color: var(--color-text-muted);
   font-weight: 650;
+}
+
+/* Dạng input group: icon là ô tiền tố có nền + đường kẻ (cùng kiểu .ds-input-group-separator). */
+.ds-money-input--prefixed {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ds-money-input > .ds-money-input__prefix {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  padding: 0 var(--space-3);
+  border-right: 1px solid var(--color-border-default);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+}
+
+.ds-money-input--prefixed > input.ds-money-input__control {
+  align-self: stretch;
+  padding: 0 var(--space-3);
+}
+
+/* Còn trống: placeholder canh trái; có số: số canh phải sát ký hiệu tiền tệ. */
+.ds-money-input--prefixed > input.ds-money-input__control:placeholder-shown {
+  text-align: left;
+}
+
+.ds-money-input--prefixed > span:last-child {
+  padding-right: var(--space-3);
 }
 
 .ds-field__hint,

@@ -1,12 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CaretDown } from '@phosphor-icons/react';
 
-interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
+interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange' | 'onBlur'> {
   onChange?: (event: any) => void;
+  // Phần tử nhận focus là <button> chứ không phải <select> nên onBlur gắn vào button.
+  onBlur?: React.FocusEventHandler<HTMLButtonElement>;
   className?: string;
 }
 
-export function Select({ children, value, onChange, className = '', disabled }: SelectProps) {
+export function Select({
+  children,
+  value,
+  onChange,
+  onBlur,
+  className = '',
+  disabled,
+  id,
+  name,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
+}: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -55,19 +70,32 @@ export function Select({ children, value, onChange, className = '', disabled }: 
 
   return (
     <div className={`ds-custom-select-container ${containerClass}`} ref={containerRef}>
+      {/* id/name/aria-* gắn vào button: <label htmlFor> chỉ gắn được với phần tử labelable này. */}
       <button
         type="button"
+        id={id}
+        name={name}
         className={`ds-custom-select-trigger ${disabled ? 'ds-custom-select-trigger--disabled' : ''}`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
+        onBlur={onBlur}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
       >
         <span className="ds-custom-select-value">{selectedOption?.label || ''}</span>
         <CaretDown weight="bold" className="ds-custom-select-icon" />
       </button>
 
       {isOpen && !disabled && (
-        <ul className="ds-custom-select-dropdown" role="listbox">
+        <ul
+          className="ds-custom-select-dropdown"
+          role="listbox"
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+        >
           {options.map((opt, idx) => (
             <li
               key={idx}

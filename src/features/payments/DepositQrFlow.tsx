@@ -271,12 +271,7 @@ export function DepositQrFlow({
           <InlineAlert tone="danger">
             {startMutation.error.message}
           </InlineAlert>
-        ) : (
-          <InlineAlert tone="info">
-            Máy chủ sẽ tự chọn nơi hiển thị: gửi tới máy trạm của hội viên đang
-            online, hoặc hiện QR tại quầy khi hội viên offline.
-          </InlineAlert>
-        )}
+        ) : null}
         <Button
           type="button"
           variant="primary"

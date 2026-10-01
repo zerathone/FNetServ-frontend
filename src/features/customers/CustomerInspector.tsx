@@ -190,7 +190,7 @@ function toUpdateBody(
   }
 }
 
-function blobToDataUrl(blob: Blob) {
+export function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('Không đọc được dữ liệu ảnh.'))

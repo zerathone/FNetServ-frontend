@@ -1,10 +1,21 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type InputHTMLAttributes } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react'
 
 type MoneyInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'type' | 'inputMode' | 'value' | 'onChange'
 > & {
+  /** Tên trường. Khi có `icon`, nhãn chỉ còn cho trình đọc màn hình; chữ hiển thị là `placeholder`. */
   label: string
+  /** Có icon: render dạng input group (icon ở ô tiền tố bên trái) thay vì nhãn chữ phía trên. */
+  icon?: ReactNode
   value: number | null
   onChange: (value: number | null) => void
   hint?: string
@@ -21,6 +32,7 @@ function toDisplay(value: number | null) {
 
 export function MoneyInput({
   label,
+  icon,
   value,
   onChange,
   hint,
@@ -47,8 +59,19 @@ export function MoneyInput({
 
   return (
     <label className={`ds-field ${className}`}>
-      <span className="ds-field__label">{label}</span>
-      <span className={`ds-money-input${error ? ' ds-money-input--error' : ''}`}>
+      {icon ? (
+        <span className="ds-visually-hidden">{label}</span>
+      ) : (
+        <span className="ds-field__label">{label}</span>
+      )}
+      <span
+        className={`ds-money-input${icon ? ' ds-money-input--prefixed' : ''}${error ? ' ds-money-input--error' : ''}`}
+      >
+        {icon ? (
+          <span className="ds-money-input__prefix" aria-hidden="true" title={label}>
+            {icon}
+          </span>
+        ) : null}
         <input
           {...props}
           ref={inputRef}

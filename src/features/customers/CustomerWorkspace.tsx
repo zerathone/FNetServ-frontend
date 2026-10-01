@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
+import { Coins, MagnifyingGlass, NotePencil, XCircle } from '@phosphor-icons/react'
 import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
 import {
   Button,
@@ -24,14 +24,13 @@ import { pushToast } from '../../store/toast'
 import { DepositMethodSelector } from '../payments/DepositMethodSelector'
 import { DepositAmountPanel } from '../payments/DepositAmountPanel'
 import { DepositQrFlow } from '../payments/DepositQrFlow'
-import { CredentialFilePrintDialog } from '../printers/CredentialFilePrintDialog'
 import {
   canSubmitDeposit,
   getDepositMethodOption,
   toDepositApiPaymentMethod,
   type DepositMethod,
 } from '../payments/depositModel'
-import { AutoGenerateMemberDialog } from './AutoGenerateMemberDialog'
+import { CreateUserDialog } from './CreateUserDialog'
 import { CustomerInspector } from './CustomerInspector'
 import './customers.css'
 
@@ -191,6 +190,7 @@ function actionTitle(action: CustomerAction | null) {
 
 export function CustomerWorkspace() {
   const navigate = useNavigate()
+  const [createOpen, setCreateOpen] = useState(false)
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const routeSearch = searchParams.get('search')?.trim() ?? ''
@@ -217,8 +217,6 @@ export function CustomerWorkspace() {
   const [columnMenuOpen, setColumnMenuOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<CustomerColumn>('userName')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [generateMembersOpen, setGenerateMembersOpen] = useState(false)
-  const [filePrintOpen, setFilePrintOpen] = useState(false)
   const transactionIntent = useIdempotentIntent('customer-workspace')
 
   useEffect(() => {
@@ -445,6 +443,30 @@ export function CustomerWorkspace() {
     setAction(nextAction)
   }
 
+  // Tạo hội viên xong -> mở luôn form nạp tiền cho đúng tài khoản đó (form nạp tiền dùng chung ở dưới).
+  const openDepositForNewAccount = async (account: { username: string; kind: 'member' | 'staff' }) => {
+    if (account.kind !== 'member') return
+    try {
+      const result = await getUsers('member', 5, 0, account.username, 'username')
+      const created =
+        result.items.find((user) => user.userName.toLowerCase() === account.username.toLowerCase()) ??
+        result.items[0]
+      if (!created) throw new Error('Không tìm thấy tài khoản vừa tạo')
+      transactionIntent.clearKey()
+      setAmount(null)
+      setDepositMethod('cash')
+      setQrActive(false)
+      setNote('')
+      setRecipient(null)
+      setRecipientInput('')
+      setRecipientQuery('')
+      setSelectedSeed(created)
+      setAction('deposit')
+    } catch (error) {
+      pushToast(`Đã tạo tài khoản nhưng chưa mở được form nạp tiền: ${(error as Error).message}`, 'error')
+    }
+  }
+
   const closeAction = () => {
     if (transactionMutation.isPending) return
     if (qrActive) {
@@ -489,14 +511,13 @@ export function CustomerWorkspace() {
         actions={
           isAdmin ? (
             <>
-              <Button type="button" variant="secondary" onClick={() => setFilePrintOpen(true)}>
-                In tài khoản từ file
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => navigate('/users/legacy')}>
-                Quản trị tài khoản nâng cao
-              </Button>
-              <Button type="button" variant="primary" onClick={() => setGenerateMembersOpen(true)}>
-                Tạo hội viên hàng loạt
+              {userType !== 'combo' ? (
+                <Button type="button" variant="secondary" onClick={() => setCreateOpen(true)}>
+                  Thêm {userType === 'staff' ? 'nhân viên' : 'hội viên'}
+                </Button>
+              ) : null}
+              <Button type="button" variant="primary" onClick={() => navigate('/users/legacy')}>
+                Quản lý tài khoản
               </Button>
             </>
           ) : undefined
@@ -722,15 +743,14 @@ export function CustomerWorkspace() {
         </div>
       </div>
 
-      <AutoGenerateMemberDialog
-        open={generateMembersOpen}
-        onClose={() => setGenerateMembersOpen(false)}
-      />
-      <CredentialFilePrintDialog
-        open={filePrintOpen}
-        kind="member"
-        onClose={() => setFilePrintOpen(false)}
-      />
+      {userType !== 'combo' ? (
+        <CreateUserDialog
+          open={createOpen}
+          kind={userType}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(account) => void openDepositForNewAccount(account)}
+        />
+      ) : null}
 
       <Drawer
         open={Boolean(selected)}
@@ -770,7 +790,6 @@ export function CustomerWorkspace() {
       <Dialog
         open={Boolean(action)}
         title={actionTitle(action)}
-        description={selected?.userName}
         size="sm"
         onClose={closeAction}
         footer={
@@ -818,13 +837,14 @@ export function CustomerWorkspace() {
         {selected ? (
           <div className="customer-transaction">
             <div className="customer-identity-check">
-              <span>Đúng người nhận/gửi?</span>
               <strong>{selected.userName}</strong>
               <small>{displayName(selected)} · {maskSensitive(selected.phone)}</small>
             </div>
             {action !== 'deposit' ? (
               <MoneyInput
                 label={action === 'payDebt' ? 'Số tiền trả nợ' : 'Số tiền'}
+                icon={<Coins size={18} weight="bold" aria-hidden="true" />}
+                placeholder={action === 'payDebt' ? 'Số tiền trả nợ' : 'Số tiền'}
                 value={amount}
                 min={1_000}
                 onChange={(value) => {
@@ -834,6 +854,8 @@ export function CustomerWorkspace() {
               />
             ) : (
               <DepositAmountPanel
+                icon={<Coins size={18} weight="bold" aria-hidden="true" />}
+                placeholder="Số tiền"
                 value={amount}
                 disabled={transactionMutation.isPending || qrActive}
                 allowNegative={hasRight(RIGHTS.INPUT_NEGATIVE_MONEY)}
@@ -900,10 +922,19 @@ export function CustomerWorkspace() {
                   }}
                 />
                 {depositMethod !== 'qr' ? (
-                  <label className="ds-field">
-                    <span className="ds-field__label">Ghi chú (không bắt buộc)</span>
+                  <div className="ds-input-group customer-create-form__group">
+                    <label
+                      className="ds-input-group-separator customer-create-form__label"
+                      htmlFor="customer-deposit-note"
+                      title="Ghi chú"
+                    >
+                      <NotePencil size={18} weight="bold" aria-hidden="true" />
+                      <span className="ds-visually-hidden">Ghi chú (không bắt buộc)</span>
+                    </label>
                     <input
+                      id="customer-deposit-note"
                       className="ds-input"
+                      placeholder="Ghi chú (không bắt buộc)"
                       value={note}
                       maxLength={100}
                       onChange={(event) => {
@@ -911,14 +942,14 @@ export function CustomerWorkspace() {
                         setNote(event.target.value)
                       }}
                     />
-                  </label>
+                  </div>
                 ) : null}
                 {depositMethod === 'cash' ? (
-                  <InlineAlert tone="info">
-                    {amount && amount < 0
-                      ? 'Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.'
-                      : 'Tiền mặt dùng contract hiện tại và được ghi nhận ngay sau khi xác nhận.'}
-                  </InlineAlert>
+                  amount && amount < 0 ? (
+                    <InlineAlert tone="info">
+                      Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.
+                    </InlineAlert>
+                  ) : null
                 ) : depositMethod === 'qr' ? (
                   <DepositQrFlow
                     userId={selected.userId}
@@ -926,13 +957,11 @@ export function CustomerWorkspace() {
                     disabled={transactionMutation.isPending}
                     onActiveChange={setQrActive}
                   />
-                ) : (
+                ) : amount && amount < 0 ? (
                   <InlineAlert tone="info">
-                    {amount && amount < 0
-                      ? 'Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.'
-                      : 'Chỉ xác nhận sau khi đã đối soát khoản chuyển. Giao dịch được ghi đúng loại Chuyển khoản trên máy chủ.'}
+                    Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.
                   </InlineAlert>
-                )}
+                ) : null}
               </>
             ) : null}
             <dl className="customer-transaction-summary">

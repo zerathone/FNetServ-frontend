@@ -4,6 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import { getUsers, usersApi } from '../api/users'
 import { InlineAlert, ListPagination } from '../design-system/components'
 import { AutoGenerateMemberDialog } from '../features/customers/AutoGenerateMemberDialog'
+import { CreateUserDialog } from '../features/customers/CreateUserDialog'
+import { CredentialFilePrintDialog } from '../features/printers/CredentialFilePrintDialog'
 import { fingerprintIntent, useIdempotentIntent } from '../lib/idempotency'
 import { pushToast as showToast } from '../store/toast';
 
@@ -40,6 +42,8 @@ export function UsersPage() {
 
   // Modals state
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false)
+  const [isFilePrintOpen, setIsFilePrintOpen] = useState(false)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false)
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any>(null)
@@ -236,17 +240,22 @@ export function UsersPage() {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {activeTab === 'member' && (
               <>
+                <button type="button" className="secondary-button" onClick={() => setIsFilePrintOpen(true)}>
+                  In tài khoản từ file
+                </button>
                 <button type="button" className="secondary-button" onClick={() => setIsGenerateModalOpen(true)}>
-                  Tạo tự động
+                  Tạo hội viên hàng loạt
                 </button>
                 <button type="button" className="secondary-button" onClick={() => setIsCleanModalOpen(true)} style={{ color: 'var(--text-error)' }}>
                   Dọn dẹp
                 </button>
               </>
             )}
-            <button type="button" className="primary-button">
-              Thêm mới {activeTab === 'member' ? 'hội viên' : activeTab === 'staff' ? 'nhân viên' : 'thẻ combo'}
-            </button>
+            {activeTab !== 'combo' && (
+              <button type="button" className="primary-button" onClick={() => setIsCreateOpen(true)}>
+                Thêm mới {activeTab === 'member' ? 'hội viên' : 'nhân viên'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -454,6 +463,14 @@ export function UsersPage() {
       <AutoGenerateMemberDialog
         open={isGenerateModalOpen}
         onClose={() => setIsGenerateModalOpen(false)}
+      />
+      {activeTab !== 'combo' && (
+        <CreateUserDialog open={isCreateOpen} kind={activeTab} onClose={() => setIsCreateOpen(false)} />
+      )}
+      <CredentialFilePrintDialog
+        open={isFilePrintOpen}
+        kind="member"
+        onClose={() => setIsFilePrintOpen(false)}
       />
 
       {/* Modal Dọn Dẹp */}

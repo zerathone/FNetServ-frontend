@@ -208,6 +208,31 @@ export const cancelMobilePair = (pairId: string) =>
 export const unpairMobile = (userId: number) =>
   apiPostForm<{ mobile: { paired: boolean } }>('/qrverf', { m: 22, uid: userId })
 
+// Đăng ký hội viên qua mobile (parity nút "Kết nối" ở chế độ thêm mới của CUserdetailDlg):
+// mobile quét QR rồi đăng ký, server tự tạo tài khoản; FE chỉ lấy QR và poll kết quả.
+export type MemberRegisterStart = {
+  regId: string
+  qr: string
+  qrDownload: string
+  expiresIn: number
+  state: 'pending'
+}
+
+export type MemberRegisterState =
+  | { state: 'pending' }
+  | { state: 'done'; userId: number; username: string }
+  | { state: 'failed'; reason?: string }
+  | { state: 'expired' | 'cancelled' }
+
+export const startMemberRegister = () =>
+  apiPostForm<MemberRegisterStart>('/qrlogin', { m: 20 })
+
+export const getMemberRegisterStatus = (regId: string) =>
+  apiPostForm<MemberRegisterState>('/qrlogin', { m: 21, rid: regId })
+
+export const cancelMemberRegister = (regId: string) =>
+  apiPostForm<{ state: 'cancelled' | 'expired' }>('/qrlogin', { m: 22, rid: regId })
+
 export type UserPortraitMutationResult = {
   portrait: { exists: boolean; version: string }
 }
@@ -226,6 +251,28 @@ export const deleteUserPortrait = (userId: number) =>
 
 export const generateUsers = (payload: GenerateUsersPayload) =>
   apiPost<GenerateUsersResult, GenerateUsersPayload>('/users/generate', payload)
+
+export type CreateUserPayload = Pick<
+  UpdateUserDetailBody,
+  | 'username'
+  | 'userGroupId'
+  | 'fullName'
+  | 'idNumber'
+  | 'phone'
+  | 'email'
+  | 'address'
+  | 'city'
+  | 'district'
+  | 'note'
+  | 'birthday'
+  | 'gender'
+  | 'active'
+  | 'expiryDate'
+  | 'isVat'
+> & { password: string }
+
+export const createUser = (payload: CreateUserPayload) =>
+  apiPost<{ id: number }, CreateUserPayload>('/user', payload)
 
 export type UserHistoryDateRange = { from?: string; to?: string }
 
