@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getUserGroups } from '../../api/user-groups'
 import { usersApi } from '../../api/users'
-import { Button, ConfirmAction, Drawer, InlineAlert, Select } from '../../design-system/components'
+import { Button, ConfirmAction, Drawer, InlineAlert, Segmented, Select } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import {
   MEMBER_GROUP_TYPE_CODE,
@@ -155,35 +155,36 @@ export function UserAdvancedSearchDrawer({
           ? 'Cần ít nhất một điều kiện lọc (sắp xếp không tính).'
           : null
 
-  const moneyField = (useKey: UseKey, key: MoneyKey, label: string) => (
-    <div className="user-admin__row user-admin__row--adv">
-      <label className="user-admin__check">
+  // Mỗi tiêu chí = 1 khối: checkbox bật/tắt + ô nhập có nhãn hiển thị. Tắt thì mờ và khoá ô nhập.
+  const moneyField = (useKey: UseKey, key: MoneyKey, title: string) => (
+    <section className={`user-admin__criterion${form[useKey] ? '' : ' is-off'}`}>
+      <label className="user-admin__criterion-head">
         <input
           type="checkbox"
           checked={form[useKey]}
           onChange={(event) => update(useKey, event.target.checked)}
         />
-        <span>{label}</span>
+        <span>{title}</span>
       </label>
-      <div className="ds-field">
+      <label className="ds-field">
+        <span className="ds-field__label">Số tiền (đ)</span>
         <input
-          className="ds-input"
+          className="ds-input user-admin__number"
           inputMode="numeric"
           maxLength={11}
-          aria-label={label}
           value={form[key]}
           disabled={!form[useKey]}
           aria-invalid={errors[key] ? true : undefined}
           onChange={(event) => update(key, event.target.value.trim())}
         />
         {errors[key] ? <span className="ds-field__error" role="alert">{errors[key]}</span> : null}
-      </div>
-    </div>
+      </label>
+    </section>
   )
 
-  const sortField = (key: 'sortPaid' | 'sortRemain', label: string) => (
-    <label className="ds-field user-admin__sort">
-      <span className="ds-field__label">{label}</span>
+  const sortField = (key: 'sortPaid' | 'sortRemain') => (
+    <label className="ds-field">
+      <span className="ds-field__label">Sắp xếp kết quả</span>
       <Select
         value={form[key]}
         onChange={(event) => update(key, event.target.value as SortChoice)}
@@ -196,19 +197,16 @@ export function UserAdvancedSearchDrawer({
   )
 
   const triField = (key: 'idNumber' | 'phone', label: string) => (
-    <label className="ds-field">
+    <div className="user-admin__group">
       <span className="ds-field__label">{label}</span>
-      <Select
+      <Segmented
+        ariaLabel={label}
         value={form[key]}
-        onChange={(event) => update(key, event.target.value as TriState)}
-      >
-        {TRI_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </Select>
-    </label>
+        options={TRI_OPTIONS}
+        onChange={(value) => update(key, value)}
+      />
+    </div>
   )
-
   return (
     <>
       <Drawer
@@ -231,7 +229,7 @@ export function UserAdvancedSearchDrawer({
         <div className="user-admin">
           <form
             id={FORM_ID}
-            className="user-admin__form user-admin__form--stack"
+            className="user-admin__stack"
             noValidate
             onSubmit={(event) => {
               event.preventDefault()
@@ -240,69 +238,70 @@ export function UserAdvancedSearchDrawer({
           >
             <section className="user-admin__section">
               <h3>Đã nạp</h3>
-              {moneyField('useMaxPaid', 'maxPaid', 'Tối đa (đ)')}
-              {moneyField('useMinPaid', 'minPaid', 'Tối thiểu (đ)')}
-              {sortField('sortPaid', 'Sắp xếp theo đã nạp')}
+              <div className="user-admin__pair">
+                {moneyField('useMinPaid', 'minPaid', 'Tối thiểu')}
+                {moneyField('useMaxPaid', 'maxPaid', 'Tối đa')}
+              </div>
+              {sortField('sortPaid')}
             </section>
 
             <section className="user-admin__section">
               <h3>Khoảng thời gian nạp</h3>
-              <label className="user-admin__check">
-                <input
-                  type="checkbox"
-                  checked={form.useLapse}
-                  onChange={(event) => update('useLapse', event.target.checked)}
-                />
-                <span>Chỉ tính tiền nạp trong khoảng</span>
-              </label>
-              <div className="user-admin__dates">
-                <label className="ds-field">
-                  <span className="ds-field__label">Từ ngày</span>
+              <section className={`user-admin__criterion${form.useLapse ? '' : ' is-off'}`}>
+                <label className="user-admin__criterion-head">
                   <input
-                    className="ds-input"
-                    type="date"
-                    value={form.lapseFrom}
-                    disabled={!form.useLapse}
-                    aria-invalid={errors.lapseFrom ? true : undefined}
-                    onChange={(event) => update('lapseFrom', event.target.value)}
+                    type="checkbox"
+                    checked={form.useLapse}
+                    onChange={(event) => update('useLapse', event.target.checked)}
                   />
-                  {errors.lapseFrom ? <span className="ds-field__error" role="alert">{errors.lapseFrom}</span> : null}
+                  <span>Chỉ tính tiền nạp trong khoảng</span>
                 </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Đến ngày</span>
-                  <input
-                    className="ds-input"
-                    type="date"
-                    value={form.lapseTo}
-                    disabled={!form.useLapse}
-                    aria-invalid={errors.lapseTo ? true : undefined}
-                    onChange={(event) => update('lapseTo', event.target.value)}
-                  />
-                  {errors.lapseTo ? <span className="ds-field__error" role="alert">{errors.lapseTo}</span> : null}
-                </label>
-              </div>
-              {form.useLapse ? (
+                <div className="user-admin__pair">
+                  <label className="ds-field">
+                    <span className="ds-field__label">Từ ngày</span>
+                    <input
+                      className="ds-input"
+                      type="date"
+                      value={form.lapseFrom}
+                      disabled={!form.useLapse}
+                      aria-invalid={errors.lapseFrom ? true : undefined}
+                      onChange={(event) => update('lapseFrom', event.target.value)}
+                    />
+                    {errors.lapseFrom ? <span className="ds-field__error" role="alert">{errors.lapseFrom}</span> : null}
+                  </label>
+                  <label className="ds-field">
+                    <span className="ds-field__label">Đến ngày</span>
+                    <input
+                      className="ds-input"
+                      type="date"
+                      value={form.lapseTo}
+                      disabled={!form.useLapse}
+                      aria-invalid={errors.lapseTo ? true : undefined}
+                      onChange={(event) => update('lapseTo', event.target.value)}
+                    />
+                    {errors.lapseTo ? <span className="ds-field__error" role="alert">{errors.lapseTo}</span> : null}
+                  </label>
+                </div>
                 <p className="user-admin__hint">
                   Khi bật, cột “Đã nạp” là tổng nạp trong khoảng; cột “Đã dùng” vẫn là tổng cả đời.
                 </p>
-              ) : null}
+              </section>
             </section>
 
             <section className="user-admin__section">
               <h3>Còn lại</h3>
-              {moneyField('useMaxRemain', 'maxRemain', 'Tối đa (đ)')}
-              {moneyField('useMinRemain', 'minRemain', 'Tối thiểu (đ)')}
-              {sortField('sortRemain', 'Sắp xếp theo còn lại')}
+              <div className="user-admin__pair">
+                {moneyField('useMinRemain', 'minRemain', 'Tối thiểu')}
+                {moneyField('useMaxRemain', 'maxRemain', 'Tối đa')}
+              </div>
+              {sortField('sortRemain')}
             </section>
 
             <section className="user-admin__section">
               <h3>Thông tin liên hệ</h3>
-              <div className="user-admin__dates">
-                {triField('idNumber', 'Số CCCD')}
-                {triField('phone', 'Điện thoại')}
-              </div>
-            </section>
-          </form>
+              {triField('idNumber', 'Số CCCD')}
+              {triField('phone', 'Điện thoại')}
+            </section>          </form>
 
           <section className="user-admin__section user-admin__section--group">
             <h3>Đổi nhóm hàng loạt</h3>
@@ -311,7 +310,7 @@ export function UserAdvancedSearchDrawer({
               khớp lần tìm gần nhất (không chỉ trang đang xem). Máy đang online giữ giá cũ tới khi hội
               viên đăng nhập lại.
             </p>
-            <div className="user-admin__row user-admin__row--group">
+            <div className="user-admin__group-row">
               <label className="ds-field">
                 <span className="ds-field__label">Nhóm hội viên mới</span>
                 <Select

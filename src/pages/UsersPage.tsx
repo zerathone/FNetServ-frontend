@@ -533,7 +533,7 @@ export function UsersPage() {
                     icon={<Broom size={18} weight="bold" aria-hidden="true" />}
                     onClick={() => setIsCleanModalOpen(true)}
                   >
-                    Dọn dẹp
+                    Dọn dẹp tài khoản
                   </Button>
                 ) : null}
               </>

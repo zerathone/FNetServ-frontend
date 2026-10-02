@@ -1828,85 +1828,127 @@
   }
 }
 
-/* ── Dọn dẹp hội viên + Tìm kiếm nâng cao (UserCleanupDialog / UserAdvancedSearchDrawer) ── */
+/* ── Dọn dẹp tài khoản + Tìm kiếm nâng cao (UserCleanupDialog / UserAdvancedSearchDrawer) ──
+   Thang chữ: tiêu đề khối md/600, nhãn trường sm/600, nội dung md, gợi ý sm/muted (token --font-size-*).
+   Khoảng cách theo nhịp 4/8px (--space-*). Ô nhập cao ≥ 44px để bấm được trên tablet. */
 .user-admin {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
 }
 
-.user-admin__form {
+.user-admin .ds-input,
+.user-admin .ds-custom-select-trigger {
+  min-height: 2.75rem;
+}
+
+.user-admin .ds-field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.user-admin__number {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bảng điều kiện: nền phụ + các khối tiêu chí. */
+.user-admin__panel {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-card-alt);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--card-radius);
 }
 
-.user-admin__form--stack {
-  gap: 1.25rem;
-}
-
-.user-admin__row {
+.user-admin__criteria {
   display: grid;
-  grid-template-columns: minmax(11rem, 14rem) minmax(8rem, 1fr) minmax(9rem, 12rem);
-  gap: 0.75rem;
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
-.user-admin__row--adv {
-  grid-template-columns: minmax(8rem, 10rem) minmax(0, 1fr);
+.user-admin__criterion {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  transition: opacity 150ms ease-out;
 }
 
-.user-admin__row--group {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+.user-admin__criterion.is-off > :not(.user-admin__criterion-head) {
+  opacity: 0.55;
 }
 
-.user-admin__radios {
+.user-admin__criterion-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2rem;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.user-admin__criterion-head input {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+}
+
+.user-admin__criterion-body,
+.user-admin__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.user-admin__panel-foot {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1.25rem;
-  border: 0;
-  margin: 0;
-  padding: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
-.user-admin__radios legend {
-  float: left;
-  margin-right: 0.75rem;
-  padding: 0;
-  font-weight: 600;
+.user-admin__group {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
 }
 
-.user-admin__submit {
-  margin-left: auto;
-}
-
-.user-admin__check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.5rem;
-  cursor: pointer;
+/* Drawer: các khối xếp dọc, cách nhau rõ bằng tiêu đề + khoảng trắng. */
+.user-admin__stack {
+  display: grid;
+  gap: var(--space-6);
 }
 
 .user-admin__section {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .user-admin__section h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .user-admin__section--group {
-  padding-top: 1rem;
+  padding-top: var(--space-5);
   border-top: 1px solid var(--color-border-default);
 }
 
-.user-admin__dates {
+.user-admin__group-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
 }
 
 .user-admin__summary {
@@ -1914,25 +1956,30 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-2);
+}
+
+.user-admin__summary strong {
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
 }
 
 .user-admin__table-scroll {
   max-height: 22rem;
   overflow: auto;
   border: 1px solid var(--color-border-default);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }
 
 .user-admin__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: var(--font-size-md);
 }
 
 .user-admin__table th,
 .user-admin__table td {
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-2) var(--space-3);
   text-align: left;
   white-space: nowrap;
 }
@@ -1940,12 +1987,20 @@
 .user-admin__table thead th {
   position: sticky;
   top: 0;
-  background: var(--color-surface-default);
+  z-index: 1;
+  background: var(--bg-card-alt);
   border-bottom: 1px solid var(--color-border-default);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .user-admin__table tbody tr + tr td {
   border-top: 1px solid var(--color-border-default);
+}
+
+.user-admin__table tbody tr:hover td {
+  background: var(--bg-hover);
 }
 
 .user-admin__table .is-money {
@@ -1954,30 +2009,37 @@
 }
 
 .user-admin__table .user-admin__tick {
-  width: 2.5rem;
+  width: 2.75rem;
   text-align: center;
 }
 
+.user-admin__table input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 .user-admin__empty {
-  padding: 1rem;
+  padding: var(--space-4);
   text-align: center;
-  opacity: 0.75;
+  color: var(--text-muted);
 }
 
 .user-admin__hint {
   margin: 0;
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 
 .user-admin__chip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-md);
+  background: var(--bg-card-alt);
   border: 1px solid var(--color-border-default);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }
 
 .user-admin__chip > span {
@@ -1985,13 +2047,20 @@
 }
 
 @media (max-width: 640px) {
-  .user-admin__row,
-  .user-admin__row--adv,
-  .user-admin__row--group {
+  .user-admin__criteria,
+  .user-admin__criterion-body,
+  .user-admin__pair,
+  .user-admin__group-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .user-admin__dates {
-    grid-template-columns: minmax(0, 1fr);
+  .user-admin__panel-foot > button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-admin__criterion {
+    transition: none;
   }
 }

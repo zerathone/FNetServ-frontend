@@ -8,6 +8,7 @@ import {
   Dialog,
   InlineAlert,
   ListPagination,
+  Segmented,
   Select,
 } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
@@ -50,7 +51,7 @@ function displayDate(iso: string) {
 type PendingDelete = { ids: number[]; count: number; remain: number }
 
 /**
- * "Dọn dẹp hội viên" (CUserPage -> CCleanMemberDlg + CCleanMemberList). Xóa MỀM theo ô tick của
+ * "Dọn dẹp tài khoản" (CUserPage -> CCleanMemberDlg + CCleanMemberList). Xóa MỀM theo ô tick của
  * trang đang xem; không có "xóa tất cả theo bộ lọc" (user chốt 2026-10-02). Quyền 23 do nơi gọi
  * kiểm trước khi mount. Mount mới mỗi lần mở -> trạng thái sạch; cache dọn khi đóng.
  */
@@ -153,8 +154,8 @@ export function UserCleanupDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       open
       size="lg"
-      title="Dọn dẹp hội viên"
-      description="Lọc hội viên lâu không hoạt động rồi tick để xóa. Tài khoản bị vô hiệu hóa, lịch sử giao dịch vẫn được giữ."
+      title="Dọn dẹp tài khoản"
+      description="Lọc tài khoản hội viên lâu không hoạt động, tick rồi xóa. Tài khoản chỉ bị vô hiệu hóa, lịch sử giao dịch vẫn được giữ."
       // Esc ở hộp xác nhận cũng bắn tới Dialog này (cùng listener document) — không đóng khi đang xác nhận/xóa.
       onClose={pending !== null || deleteMutation.isPending ? () => undefined : onClose}
       footer={
@@ -177,96 +178,102 @@ export function UserCleanupDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="user-admin">
         <form
-          className="user-admin__form"
+          className="user-admin__panel"
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
             submitSearch()
           }}
         >
-          <div className="user-admin__row">
-            <label className="user-admin__check">
-              <input
-                type="checkbox"
-                checked={form.useLastLogin}
-                onChange={(event) => update('useLastLogin', event.target.checked)}
-              />
-              <span>Đăng nhập cuối trước ngày</span>
-            </label>
-            <div className="ds-field">
-              <input
-                className="ds-input"
-                type="date"
-                aria-label="Ngày đăng nhập cuối"
-                value={form.lastLogin}
-                disabled={!form.useLastLogin}
-                aria-invalid={errors.lastLogin ? true : undefined}
-                onChange={(event) => update('lastLogin', event.target.value)}
-              />
-              {errors.lastLogin ? <span className="ds-field__error" role="alert">{errors.lastLogin}</span> : null}
-            </div>
-            <Select
-              aria-label="Sắp xếp theo đăng nhập cuối"
-              value={form.sortLastLogin}
-              onChange={(event) => update('sortLastLogin', event.target.value as SortChoice)}
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="user-admin__row">
-            <label className="user-admin__check">
-              <input
-                type="checkbox"
-                checked={form.useMaxRemain}
-                onChange={(event) => update('useMaxRemain', event.target.checked)}
-              />
-              <span>Số dư tối đa (đ)</span>
-            </label>
-            <div className="ds-field">
-              <input
-                className="ds-input"
-                inputMode="numeric"
-                aria-label="Số dư tối đa"
-                value={form.maxRemain}
-                disabled={!form.useMaxRemain}
-                aria-invalid={errors.maxRemain ? true : undefined}
-                onChange={(event) => update('maxRemain', event.target.value.trim())}
-              />
-              {errors.maxRemain ? <span className="ds-field__error" role="alert">{errors.maxRemain}</span> : null}
-            </div>
-            <Select
-              aria-label="Sắp xếp theo số dư"
-              value={form.sortRemain}
-              onChange={(event) => update('sortRemain', event.target.value as SortChoice)}
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </Select>
-          </div>
-
-          <fieldset className="user-admin__row user-admin__radios">
-            <legend>Công nợ</legend>
-            {DEBIT_OPTIONS.map((option) => (
-              <label key={option.value} className="user-admin__check">
+          <div className="user-admin__criteria">
+            <section className={`user-admin__criterion${form.useLastLogin ? '' : ' is-off'}`}>
+              <label className="user-admin__criterion-head">
                 <input
-                  type="radio"
-                  name="clean-debit"
-                  checked={form.debit === option.value}
-                  onChange={() => update('debit', option.value)}
+                  type="checkbox"
+                  checked={form.useLastLogin}
+                  onChange={(event) => update('useLastLogin', event.target.checked)}
                 />
-                <span>{option.label}</span>
+                <span>Đăng nhập cuối trước ngày</span>
               </label>
-            ))}
-            <Button type="submit" variant="secondary" loading={query.isFetching} className="user-admin__submit">
+              <div className="user-admin__criterion-body">
+                <label className="ds-field">
+                  <span className="ds-field__label">Ngày</span>
+                  <input
+                    className="ds-input"
+                    type="date"
+                    value={form.lastLogin}
+                    disabled={!form.useLastLogin}
+                    aria-invalid={errors.lastLogin ? true : undefined}
+                    onChange={(event) => update('lastLogin', event.target.value)}
+                  />
+                  {errors.lastLogin ? <span className="ds-field__error" role="alert">{errors.lastLogin}</span> : null}
+                </label>
+                <label className="ds-field">
+                  <span className="ds-field__label">Sắp xếp</span>
+                  <Select
+                    value={form.sortLastLogin}
+                    onChange={(event) => update('sortLastLogin', event.target.value as SortChoice)}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                </label>
+              </div>
+            </section>
+
+            <section className={`user-admin__criterion${form.useMaxRemain ? '' : ' is-off'}`}>
+              <label className="user-admin__criterion-head">
+                <input
+                  type="checkbox"
+                  checked={form.useMaxRemain}
+                  onChange={(event) => update('useMaxRemain', event.target.checked)}
+                />
+                <span>Số dư tối đa</span>
+              </label>
+              <div className="user-admin__criterion-body">
+                <label className="ds-field">
+                  <span className="ds-field__label">Số tiền (đ)</span>
+                  <input
+                    className="ds-input user-admin__number"
+                    inputMode="numeric"
+                    value={form.maxRemain}
+                    disabled={!form.useMaxRemain}
+                    aria-invalid={errors.maxRemain ? true : undefined}
+                    onChange={(event) => update('maxRemain', event.target.value.trim())}
+                  />
+                  {errors.maxRemain ? <span className="ds-field__error" role="alert">{errors.maxRemain}</span> : null}
+                </label>
+                <label className="ds-field">
+                  <span className="ds-field__label">Sắp xếp</span>
+                  <Select
+                    value={form.sortRemain}
+                    onChange={(event) => update('sortRemain', event.target.value as SortChoice)}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <div className="user-admin__panel-foot">
+            <div className="user-admin__group">
+              <span className="ds-field__label">Công nợ</span>
+              <Segmented
+                ariaLabel="Công nợ"
+                value={form.debit}
+                options={DEBIT_OPTIONS}
+                onChange={(value) => update('debit', value)}
+              />
+            </div>
+            <Button type="submit" variant="primary" loading={query.isFetching}>
               Tìm
             </Button>
-          </fieldset>
+          </div>
         </form>
-
         {debitMode === 'have' ? (
           <InlineAlert tone="warning">
             Hội viên còn nợ không thể xóa (máy chủ chặn cả lô). Chế độ này chỉ để xem danh sách.
@@ -368,7 +375,7 @@ export function UserCleanupDialog({ onClose }: { onClose: () => void }) {
 
       <ConfirmAction
         open={pending !== null}
-        title="Xóa hội viên đã chọn?"
+        title="Xóa tài khoản đã chọn?"
         description={pending ? `${pending.count} tài khoản` : undefined}
         confirmLabel="Xóa tài khoản"
         danger
