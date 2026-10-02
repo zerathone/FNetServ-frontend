@@ -3,6 +3,19 @@
 // Chỉ dùng cho time_display === 0 (hằng ngày) vì tuần/tháng là pivot, không có cột Phương thức.
 
 import { useMemo } from 'react'
+import type { Icon } from '@phosphor-icons/react'
+import {
+  Bank,
+  ChartBar,
+  CreditCard,
+  HandCoins,
+  Money,
+  Monitor,
+  Ticket,
+  QrCode,
+  ShoppingBag,
+  UserCircle,
+} from '@phosphor-icons/react'
 
 // Thứ tự cột trong REPORT_COLUMNS[41]:
 // idx 0 = Tên đăng nhập, 1 = Ngày, 2 = Thời điểm, 3 = Nguồn thu (desc),
@@ -16,12 +29,23 @@ const COL_REVENUE_NUM = 7
 // Tất cả nguồn thu chuẩn — luôn hiện đủ dù không có dòng nào (theo REVENUE_SOURCE_OPTIONS, bỏ value=0).
 const ALL_REVENUE_SOURCES: { num: number; label: string }[] = [
   { num: 1, label: 'Tiền nạp hội viên' },
-  { num: 2, label: 'Tiền giờ khách vãng lai' },
+  { num: 2, label: 'Khách vãng lai' },
   { num: 3, label: 'Combo' },
   { num: 4, label: 'Thẻ nạp tiền' },
   { num: 5, label: 'Dịch vụ [FNet]' },
   { num: 7, label: 'Công nợ (trả nợ)' },
 ]
+
+// Icon cho từng nguồn thu (revenueNum=0 = card "Tất cả").
+const REVENUE_ICON_MAP: Record<number, Icon> = {
+  0: ChartBar,    // Tất cả
+  1: UserCircle,  // Tiền nạp hội viên
+  2: Monitor,     // Tiền giờ khách vãng lai
+  3: Ticket,     // Combo
+  4: CreditCard,  // Thẻ nạp tiền
+  5: ShoppingBag, // Dịch vụ [FNet]
+  7: HandCoins,   // Công nợ (trả nợ)
+}
 
 type RowArr = unknown[]
 
@@ -121,40 +145,98 @@ function buildTotal(stats: RevenueStat[]): Breakdown {
 }
 
 interface SummaryCardProps {
+  revenueNum: number
   label: string
   breakdown: Breakdown
 }
 
-function SummaryCard({ label, breakdown }: SummaryCardProps) {
+function SummaryCard({ revenueNum, label, breakdown }: SummaryCardProps) {
+  const SourceIcon = REVENUE_ICON_MAP[revenueNum] ?? ChartBar
   return (
     <div className="ws-summary__card">
-      <div className="ws-summary__total" style={{ cursor: 'default' }}>
-        <span>{label}</span>
-        <strong>{formatMoney(breakdown.total)}</strong>
+      {/* Header: icon lớn trái — label + số tiền phải */}
+      <div
+        style={{
+          cursor: 'default',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '12px',
+          padding: 'var(--space-1) var(--space-2)',
+        }}
+      >
+        {/* Icon nguồn thu — lớn, bên trái */}
+        <span
+          aria-hidden="true"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '56px',
+            height: '56px',
+            borderRadius: '12px',
+            background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)',
+            flexShrink: 0,
+          }}
+        >
+          <SourceIcon size={34} weight="duotone" style={{ color: 'var(--color-primary)' }} />
+        </span>
+        {/* Label + số tiền — bên phải, xếp dọc */}
+        <span style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              opacity: 0.65,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {label}
+          </span>
+          <strong
+            style={{
+              color: 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-2xl)',
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.15,
+            }}
+          >
+            {formatMoney(breakdown.total)}
+          </strong>
+        </span>
       </div>
       <div className="ws-summary__breakdown">
         <div className="ws-summary__row">
-          <span
-            className="ws-summary__dot"
-            style={{ background: 'var(--color-success)' }}
+          <Money
+            size={14}
+            weight="duotone"
+            style={{ color: 'var(--color-success)', flexShrink: 0 }}
             aria-hidden="true"
           />
           <span className="ws-summary__label">Tiền mặt</span>
           <strong>{formatMoney(breakdown.cash)}</strong>
         </div>
         <div className="ws-summary__row">
-          <span
-            className="ws-summary__dot"
-            style={{ background: 'var(--color-info)' }}
+          <Bank
+            size={14}
+            weight="duotone"
+            style={{ color: 'var(--color-info)', flexShrink: 0 }}
             aria-hidden="true"
           />
           <span className="ws-summary__label">Chuyển khoản</span>
           <strong>{formatMoney(breakdown.transfer)}</strong>
         </div>
         <div className="ws-summary__row">
-          <span
-            className="ws-summary__dot"
-            style={{ background: 'var(--color-warning)' }}
+          <QrCode
+            size={14}
+            weight="duotone"
+            style={{ color: 'var(--color-warning)', flexShrink: 0 }}
             aria-hidden="true"
           />
           <span className="ws-summary__label">QR</span>
@@ -186,11 +268,11 @@ export function IncomeSummaryStats({ data }: Props) {
       style={{ marginBottom: '24px' }}
     >
       {/* Card tổng tất cả nguồn thu */}
-      <SummaryCard label="Tất cả" breakdown={total} />
+      <SummaryCard revenueNum={0} label="Tất cả" breakdown={total} />
 
       {/* Card từng nguồn thu */}
       {stats.map((s) => (
-        <SummaryCard key={s.revenueNum} label={s.label} breakdown={s.breakdown} />
+        <SummaryCard key={s.revenueNum} revenueNum={s.revenueNum} label={s.label} breakdown={s.breakdown} />
       ))}
     </div>
   )

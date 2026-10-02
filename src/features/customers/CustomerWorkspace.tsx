@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Coins, MagnifyingGlass, NotePencil, XCircle } from '@phosphor-icons/react'
+import { Coins, MagnifyingGlass, NotePencil, UsersThree, XCircle } from '@phosphor-icons/react'
 import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
 import {
   Button,
@@ -516,14 +516,14 @@ export function CustomerWorkspace() {
         actions={
           canCreateAccount || isAdmin ? (
             <>
-              {canCreateAccount ? (
-                <Button type="button" variant="secondary" onClick={() => setCreateOpen(true)}>
-                  Thêm {userType === 'staff' ? 'nhân viên' : 'hội viên'}
+              {isAdmin ? (
+                <Button type="button" variant="secondary" icon={<UsersThree size={18} weight="bold" aria-hidden="true" />} onClick={() => navigate('/users/legacy')}>
+                  Quản lý tài khoản
                 </Button>
               ) : null}
-              {isAdmin ? (
-                <Button type="button" variant="primary" onClick={() => navigate('/users/legacy')}>
-                  Quản lý tài khoản
+              {canCreateAccount ? (
+                <Button type="button" variant="primary" onClick={() => setCreateOpen(true)}>
+                  Thêm {userType === 'staff' ? 'nhân viên' : 'hội viên'}
                 </Button>
               ) : null}
             </>

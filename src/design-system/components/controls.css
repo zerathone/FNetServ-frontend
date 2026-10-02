@@ -1,4 +1,4 @@
-.ds-button {
+﻿.ds-button {
   position: relative;
   height: var(--control-height-compact);
   display: inline-flex;
@@ -65,13 +65,26 @@
   border-color: var(--color-border-strong);
 }
 
+/* Nut hanh dong phu, it noi bat hon secondary: text muted, nen trong, vien mo. */
+.ds-button--neutral {
+  color: var(--color-text-secondary);
+  background: transparent;
+  border-color: var(--color-border-default);
+}
+
+.ds-button--neutral:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
 .ds-button--ghost {
   color: var(--color-text-secondary);
   background: transparent;
   border-color: transparent;
 }
 
-/* Nút hành động phụ nhưng quan trọng (vd quét CCCD điền hồ sơ): viền + chữ màu chủ đạo, nền trong. */
+/* NÃºt hÃ nh Ä‘á»™ng phá»¥ nhÆ°ng quan trá»ng (vd quÃ©t CCCD Ä‘iá»n há»“ sÆ¡): viá»n + chá»¯ mÃ u chá»§ Ä‘áº¡o, ná»n trong. */
 .ds-button--outline {
   color: var(--color-action-primary);
   background: transparent;
@@ -113,8 +126,8 @@
   line-height: 0;
 }
 
-/* Đánh dấu nút mở tab/cửa sổ khác (external). Nút auto-width (vd Giao dịch online): đẩy bằng
-   margin-left: auto trong dòng flex — nút tự giãn theo nội dung nên không đè lên gì. */
+/* ÄÃ¡nh dáº¥u nÃºt má»Ÿ tab/cá»­a sá»• khÃ¡c (external). NÃºt auto-width (vd Giao dá»‹ch online): Ä‘áº©y báº±ng
+   margin-left: auto trong dÃ²ng flex â€” nÃºt tá»± giÃ£n theo ná»™i dung nÃªn khÃ´ng Ä‘Ã¨ lÃªn gÃ¬. */
 .ds-button__external-icon {
   display: inline-grid;
   flex: 0 0 auto;
@@ -125,8 +138,8 @@
   opacity: 0.6;
 }
 
-/* Nút block/full-width (vd Xem chi tiết): icon/label chính vẫn canh giữa nguyên trạng — ghim
-   tuyệt đối sát mép phải để không phá layout canh giữa đó. */
+/* NÃºt block/full-width (vd Xem chi tiáº¿t): icon/label chÃ­nh váº«n canh giá»¯a nguyÃªn tráº¡ng â€” ghim
+   tuyá»‡t Ä‘á»‘i sÃ¡t mÃ©p pháº£i Ä‘á»ƒ khÃ´ng phÃ¡ layout canh giá»¯a Ä‘Ã³. */
 .ds-button--block .ds-button__external-icon {
   position: absolute;
   top: 50%;
@@ -141,8 +154,8 @@
   flex: 0 0 auto;
 }
 
-/* Cụm "Làm mới" (Máy trạm / Đơn dịch vụ): luôn bấm được, chữ "Làm mới" mờ ở trên, badge trạng
-   thái (có chấm tròn từ .ds-badge::before) ở dưới báo cách dữ liệu đang cập nhật. */
+/* Cá»¥m "LÃ m má»›i" (MÃ¡y tráº¡m / ÄÆ¡n dá»‹ch vá»¥): luÃ´n báº¥m Ä‘Æ°á»£c, chá»¯ "LÃ m má»›i" má» á»Ÿ trÃªn, badge tráº¡ng
+   thÃ¡i (cÃ³ cháº¥m trÃ²n tá»« .ds-badge::before) á»Ÿ dÆ°á»›i bÃ¡o cÃ¡ch dá»¯ liá»‡u Ä‘ang cáº­p nháº­t. */
 .ds-polling-status {
   display: inline-flex;
   flex: 0 0 auto;
@@ -392,7 +405,7 @@
   border-radius: var(--radius-sm);
 }
 
-/* Preset shortcuts — Ant Design RangePicker presets pattern */
+/* Preset shortcuts â€” Ant Design RangePicker presets pattern */
 .ds-date-range__presets {
   display: flex;
   flex-wrap: wrap;
@@ -556,9 +569,9 @@ input[type="checkbox"]:checked::before {
   transform: scale(1);
 }
 
-/* Mixed: appearance:none làm mất dấu hiệu gốc của trình duyệt nên tự vẽ — viền màu chính,
-   nền giữ như ô trống, ô vuông đặc nhỏ ở giữa (khác ô đã chọn: nền đặc + dấu tick).
-   Đặt SAU :checked để thắng khi một ô vừa checked vừa indeterminate. */
+/* Mixed: appearance:none lÃ m máº¥t dáº¥u hiá»‡u gá»‘c cá»§a trÃ¬nh duyá»‡t nÃªn tá»± váº½ â€” viá»n mÃ u chÃ­nh,
+   ná»n giá»¯ nhÆ° Ã´ trá»‘ng, Ã´ vuÃ´ng Ä‘áº·c nhá» á»Ÿ giá»¯a (khÃ¡c Ã´ Ä‘Ã£ chá»n: ná»n Ä‘áº·c + dáº¥u tick).
+   Äáº·t SAU :checked Ä‘á»ƒ tháº¯ng khi má»™t Ã´ vá»«a checked vá»«a indeterminate. */
 input[type="checkbox"]:indeterminate {
   background: var(--color-surface-default);
   border-color: var(--color-action-primary);
@@ -646,7 +659,7 @@ label:has(input[type="radio"]) {
   border-right: 1px solid var(--color-border-default);
 }
 
-/* Xóa border-right khi combo là phần tử cuối trong group — tránh dấu | thừa ở rìa phải */
+/* XÃ³a border-right khi combo lÃ  pháº§n tá»­ cuá»‘i trong group â€” trÃ¡nh dáº¥u | thá»«a á»Ÿ rÃ¬a pháº£i */
 .ds-input-group .ds-custom-select-container:last-child {
   border-right: none;
 }
@@ -700,7 +713,7 @@ label:has(input[type="radio"]) {
   color: var(--color-text-primary);
 }
 
-/* FILTER HEADER CELL — cột header bảng mở dropdown lọc tại chỗ (vd Máy trạm, Thẻ nạp) */
+/* FILTER HEADER CELL â€” cá»™t header báº£ng má»Ÿ dropdown lá»c táº¡i chá»— (vd MÃ¡y tráº¡m, Tháº» náº¡p) */
 .ds-filter-header {
   position: relative;
   display: flex;
@@ -1311,7 +1324,7 @@ input[type="radio"]:disabled {
   font-weight: 650;
 }
 
-/* Dạng input group: icon là ô tiền tố có nền + đường kẻ (cùng kiểu .ds-input-group-separator). */
+/* Dáº¡ng input group: icon lÃ  Ã´ tiá»n tá»‘ cÃ³ ná»n + Ä‘Æ°á»ng káº» (cÃ¹ng kiá»ƒu .ds-input-group-separator). */
 .ds-money-input--prefixed {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0;
@@ -1336,7 +1349,7 @@ input[type="radio"]:disabled {
   padding: 0 var(--space-3);
 }
 
-/* Còn trống: placeholder canh trái; có số: số canh phải sát ký hiệu tiền tệ. */
+/* CÃ²n trá»‘ng: placeholder canh trÃ¡i; cÃ³ sá»‘: sá»‘ canh pháº£i sÃ¡t kÃ½ hiá»‡u tiá»n tá»‡. */
 .ds-money-input--prefixed > input.ds-money-input__control:placeholder-shown {
   text-align: left;
 }
@@ -1383,7 +1396,7 @@ input[type="radio"]:disabled {
   }
 }
 
-/* --- Segmented: chọn một chế độ xem trong vài lựa chọn --- */
+/* --- Segmented: chá»n má»™t cháº¿ Ä‘á»™ xem trong vÃ i lá»±a chá»n --- */
 
 .ds-segmented {
   display: inline-flex;

@@ -1,24 +1,163 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { getUsers, usersApi } from '../api/users'
-import { InlineAlert, ListPagination } from '../design-system/components'
+import {
+  ArrowsClockwise,
+  Broom,
+  Coins,
+  MagnifyingGlass,
+  NotePencil,
+  Printer,
+  UserPlus,
+  X,
+} from '@phosphor-icons/react'
+import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../api/users'
+import {
+  Button,
+  ConfirmAction,
+  Dialog,
+  Drawer,
+  InlineAlert,
+  ListPagination,
+  ListToolbar,
+  MoneyInput,
+  PageHeader,
+  RefreshButton,
+  Select,
+} from '../design-system/components'
 import { AutoGenerateMemberDialog } from '../features/customers/AutoGenerateMemberDialog'
 import { CreateUserDialog } from '../features/customers/CreateUserDialog'
+import { CustomerInspector } from '../features/customers/CustomerInspector'
 import { CredentialFilePrintDialog } from '../features/printers/CredentialFilePrintDialog'
+import { DepositAmountPanel } from '../features/payments/DepositAmountPanel'
+import { DepositMethodSelector } from '../features/payments/DepositMethodSelector'
+import { DepositQrFlow } from '../features/payments/DepositQrFlow'
+import {
+  canSubmitDeposit,
+  getDepositMethodOption,
+  toDepositApiPaymentMethod,
+  type DepositMethod,
+} from '../features/payments/depositModel'
 import { fingerprintIntent, useIdempotentIntent } from '../lib/idempotency'
-import { pushToast as showToast } from '../store/toast';
+import { invalidateMoneyQueries } from '../lib/fintechQueries'
+import { useAuthStore } from '../store/auth'
+import { pushToast } from '../store/toast'
+import '../features/customers/customers.css'
 
+type CustomerAction = 'deposit' | 'give' | 'credit' | 'payDebt' | 'transfer'
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('vi-VN').format(value) + ' đ'
+const RIGHTS = {
+  GIVE_MONEY: 11,
+  MONEY_TRANSFER: 25,
+  INPUT_NEGATIVE_MONEY: 26,
+} as const
+
+// FIXBUG 2026-09-23: tìm theo ĐÚNG 1 trường. Gộp 3 trường = 3 lượt quét bảng hội viên ở BE.
+// Tab staff/combo BE lọc in-memory theo tên đã giải mã, không nhận tham số `qby`.
+const SEARCH_FIELD_LABELS: Record<UserSearchField, string> = {
+  username: 'Tên đăng nhập',
+  phone: 'Số điện thoại',
+  idnumber: 'CCCD',
+}
+const SEARCH_FIELD_PLACEHOLDERS: Record<UserSearchField, string> = {
+  username: 'Nhập từ đầu tên đăng nhập...',
+  phone: 'Nhập từ đầu số điện thoại...',
+  idnumber: 'Nhập từ đầu số CCCD...',
 }
 
-function maskSensitiveInfo(str: string | undefined): string {
-  if (!str) return '';
-  const s = str.trim();
-  if (s.length <= 7) return s;
-  return s.slice(0, 3) + '*'.repeat(s.length - 7) + s.slice(-4);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatMoney(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
+}
+
+function maskSensitive(value: string | undefined) {
+  if (!value) return '—'
+  const normalized = value.trim()
+  if (normalized.length <= 7) return normalized
+  return `${normalized.slice(0, 3)}${'•'.repeat(Math.min(5, normalized.length - 7))}${normalized.slice(-4)}`
+}
+
+function displayName(user: UserAccount) {
+  return `${user.lastName || ''} ${user.firstName || ''}`.trim() || 'Chưa cập nhật'
+}
+
+function debtAmount(user: UserAccount) {
+  return Math.max(user.debit || 0, Math.abs(Math.min(0, user.moneyRemain || 0)))
+}
+
+function actionTitle(action: CustomerAction | null) {
+  switch (action) {
+    case 'deposit':  return 'Nạp tiền hội viên'
+    case 'give':     return 'Tặng tiền hội viên'
+    case 'credit':   return 'Cho mượn tiền'
+    case 'payDebt':  return 'Thanh toán nợ'
+    case 'transfer': return 'Chuyển tiền hội viên'
+    default:         return 'Giao dịch hội viên'
+  }
+}
+
+// ─── Column definitions ───────────────────────────────────────────────────────
+type CustomerColumn =
+  | 'userName' | 'name' | 'idNumber' | 'phone'
+  | 'moneyPaid' | 'moneyUsed' | 'moneyRemain' | 'moneyMain' | 'moneySub'
+  | 'groupName' | 'email' | 'note'
+
+const CUSTOMER_COLUMNS: Array<{
+  id: CustomerColumn; label: string; required?: boolean; width: string; money?: boolean
+}> = [
+  { id: 'userName',    label: 'Tên đăng nhập',   required: true, width: 'minmax(10rem, 1.15fr)' },
+  { id: 'name',        label: 'Tên',              required: true, width: 'minmax(10rem, 1.2fr)' },
+  { id: 'idNumber',    label: 'Số CCCD',                         width: '8.5rem' },
+  { id: 'phone',       label: 'Điện thoại',                      width: '8.5rem' },
+  { id: 'moneyPaid',   label: 'Số tiền nạp',                     width: '8rem',  money: true },
+  { id: 'moneyUsed',   label: 'Số tiền đã dùng',                 width: '8rem',  money: true },
+  { id: 'moneyRemain', label: 'Số tiền còn lại',                 width: '8.5rem',money: true },
+  { id: 'moneyMain',   label: 'Tài khoản chính',                 width: '8.5rem',money: true },
+  { id: 'moneySub',    label: 'Khuyến mãi',                      width: '8rem',  money: true },
+  { id: 'groupName',   label: 'Nhóm người dùng',                 width: 'minmax(8rem, 1fr)' },
+  { id: 'email',       label: 'Email',                           width: 'minmax(12rem, 1.35fr)' },
+  { id: 'note',        label: 'Ghi chú',                         width: 'minmax(11rem, 1.25fr)' },
+]
+
+const DEFAULT_COLUMNS: CustomerColumn[] = [
+  'userName', 'name', 'idNumber', 'phone',
+  'moneyRemain', 'moneyMain', 'moneySub',
+  'groupName', 'email', 'note',
+]
+
+function columnValue(user: UserAccount, col: CustomerColumn): string | number {
+  switch (col) {
+    case 'userName':    return user.userName
+    case 'name':        return displayName(user)
+    case 'idNumber':    return user.idNumber || ''
+    case 'phone':       return user.phone || ''
+    case 'moneyPaid':   return user.moneyPaid
+    case 'moneyUsed':   return user.moneyUsed
+    case 'moneyRemain': return user.moneyRemain
+    case 'moneyMain':   return user.moneyMain
+    case 'moneySub':    return user.moneySub
+    case 'groupName':   return user.groupName || ''
+    case 'email':       return user.email || ''
+    case 'note':        return user.note || ''
+  }
+}
+
+function columnDisplay(user: UserAccount, col: CustomerColumn) {
+  switch (col) {
+    case 'userName':    return user.userName
+    case 'name':        return displayName(user)
+    case 'idNumber':    return maskSensitive(user.idNumber)
+    case 'phone':       return maskSensitive(user.phone)
+    case 'moneyPaid':   return formatMoney(user.moneyPaid)
+    case 'moneyUsed':   return formatMoney(user.moneyUsed)
+    case 'moneyRemain': return formatMoney(user.moneyRemain)
+    case 'moneyMain':   return formatMoney(user.moneyMain)
+    case 'moneySub':    return formatMoney(user.moneySub)
+    case 'groupName':   return user.groupName || '—'
+    case 'email':       return maskSensitive(user.email)
+    case 'note':        return user.note || '—'
+  }
 }
 
 type UserType = 'member' | 'staff' | 'combo'
@@ -27,9 +166,19 @@ export function UsersPage() {
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const routeSearch = searchParams.get('search')?.trim() ?? ''
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  const isAdmin = useAuthStore((state) => state.isAdmin)
+  const hasRight = useAuthStore((state) => state.hasRight)
+  const staffName = useAuthStore((state) => state.staffName)
+
+  // ── List state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<UserType>('member')
   const [searchTerm, setSearchTerm] = useState(routeSearch)
   const [searchQuery, setSearchQuery] = useState(routeSearch)
+  // `searchField` PHẢI nằm trong queryKey: thiếu nó thì đổi trường tìm sẽ ăn cache của
+  // trường trước → hiển thị kết quả sai mà không có lỗi nào báo.
+  const [searchField, setSearchField] = useState<UserSearchField>('username')
   const [page, setPage] = useState(0)
   const limit = 50
 
@@ -40,432 +189,787 @@ export function UsersPage() {
     setPage(0)
   }, [routeSearch])
 
-  // Modals state
+  // ── Sort + Column state ─────────────────────────────────────────────────────
+  const [sortColumn, setSortColumn] = useState<CustomerColumn>('userName')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [visibleColumns] = useState<CustomerColumn[]>(DEFAULT_COLUMNS)
+
+  // ── Legacy-only feature modals ──────────────────────────────────────────────
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false)
   const [isFilePrintOpen, setIsFilePrintOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false)
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<any>(null)
-
-  // Generate states
-
-  // Clean states
   const [cleanMonths, setCleanMonths] = useState(6)
   const [cleanIgnoreBalance, setCleanIgnoreBalance] = useState(false)
   const [cleanCandidates, setCleanCandidates] = useState<any[]>([])
 
-  // Context Panel state
-  const [selectedUserForPanel, setSelectedUserForPanel] = useState<any>(null)
+  // ── Customer selection (seed pattern: sync với query sau refetch) ────────────
+  const [selectedSeed, setSelectedSeed] = useState<UserAccount | null>(null)
 
-  // Pay Debt state
-  const [isPayDebtModalOpen, setIsPayDebtModalOpen] = useState(false)
-  const [debtAmount, setDebtAmount] = useState<number>(0)
+  // ── Transaction state (aligned với CustomerWorkspace) ───────────────────────
+  const [action, setAction] = useState<CustomerAction | null>(null)
+  const [amount, setAmount] = useState<number | null>(null)
+  const [depositMethod, setDepositMethod] = useState<DepositMethod>('cash')
+  const [qrActive, setQrActive] = useState(false)
+  const [note, setNote] = useState('')
+  const [recipientInput, setRecipientInput] = useState('')
+  const [recipientQuery, setRecipientQuery] = useState('')
+  const [recipient, setRecipient] = useState<UserAccount | null>(null)
+  const [deleteRequested, setDeleteRequested] = useState(false)
 
-  // Deposit state
-  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
-  const [depositAmount, setDepositAmount] = useState<number>(10000)
-  const [depositNote, setDepositNote] = useState<string>('')
+  const transactionIntent = useIdempotentIntent('users-page-legacy')
 
-  // Credit state
-  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false)
-  const [creditAmount, setCreditAmount] = useState<number>(0)
-
-  // Give Free state
-  const [isGiveFreeModalOpen, setIsGiveFreeModalOpen] = useState(false)
-  const [giveFreeAmount, setGiveFreeAmount] = useState<number>(0)
-
-  // Transfer state
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
-  const [transferAmount, setTransferAmount] = useState<number>(0)
-  const [transferToUserId, setTransferToUserId] = useState<number>(0)
-  const payDebtIntent = useIdempotentIntent('pay-debt')
-  const depositIntent = useIdempotentIntent('deposit')
-  const creditIntent = useIdempotentIntent('credit')
-  const giveFreeIntent = useIdempotentIntent('give-free')
-  const transferIntent = useIdempotentIntent('transfer')
-  
+  // ── Queries ─────────────────────────────────────────────────────────────────
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['users', activeTab, page, searchQuery],
-    queryFn: () => getUsers(activeTab, limit, page * limit, searchQuery),
+    queryKey: ['users', activeTab, page, searchQuery, searchField],
+    queryFn: () =>
+      getUsers(
+        activeTab,
+        limit,
+        page * limit,
+        searchQuery || undefined,
+        activeTab === 'member' ? searchField : undefined,
+      ),
   })
 
-  // History query
-  const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['userHistory', selectedUser?.userId],
-    queryFn: () => usersApi.getRechargeHistory(selectedUser!.userId),
-    enabled: !!selectedUser && isHistoryModalOpen
+  const users = data?.items ?? []
+
+  // Sync selected user: nếu list refetch thì selected nhận object mới (số dư cập nhật)
+  const selected = users.find((u) => u.userId === selectedSeed?.userId) ?? selectedSeed
+
+  const recipientResults = useQuery({
+    queryKey: ['users', 'member', 'transfer-recipient', recipientQuery],
+    queryFn: () => getUsers('member', 12, 0, recipientQuery),
+    enabled: action === 'transfer' && recipientQuery.length > 0,
   })
 
-  // Mutations
+  const displayedColumns = useMemo(
+    () => CUSTOMER_COLUMNS.filter((col) => visibleColumns.includes(col.id)),
+    [visibleColumns],
+  )
+
+  const sortedUsers = useMemo(() => {
+    const direction = sortDirection === 'asc' ? 1 : -1
+    return [...users].sort((a, b) => {
+      const av = columnValue(a, sortColumn)
+      const bv = columnValue(b, sortColumn)
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * direction
+      return String(av).localeCompare(String(bv), 'vi', { numeric: true, sensitivity: 'base' }) * direction
+    })
+  }, [users, sortColumn, sortDirection])
+
+  const tableGridStyle = useMemo(
+    () => ({ '--customer-table-columns': displayedColumns.map((c) => c.width).join(' ') }) as CSSProperties,
+    [displayedColumns],
+  )
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
+
+  /** Giao dịch thống nhất: deposit / give / credit / payDebt / transfer */
+  const transactionMutation = useMutation({
+    mutationFn: async () => {
+      if (!selected || !action || !amount) {
+        throw new Error('Giao dịch hoặc số tiền không hợp lệ')
+      }
+      if (action !== 'deposit' && amount <= 0) {
+        throw new Error('Số tiền giao dịch phải lớn hơn 0')
+      }
+      const intent = {
+        action,
+        userId: selected.userId,
+        amount,
+        depositMethod: action === 'deposit' ? depositMethod : undefined,
+        note: note.trim(),
+        recipientId: recipient?.userId ?? 0,
+      }
+      const idem = transactionIntent.getKey(fingerprintIntent(intent))
+      switch (action) {
+        case 'deposit':
+          if (!canSubmitDeposit(depositMethod, amount, hasRight(RIGHTS.INPUT_NEGATIVE_MONEY))) {
+            throw new Error('Số tiền hoặc phương thức nạp không hợp lệ')
+          }
+          return usersApi.deposit({
+            userId: selected.userId,
+            chargeMoney: amount,
+            paymentMethod: toDepositApiPaymentMethod(depositMethod),
+            note: note.trim() || undefined,
+            idem,
+          })
+        case 'give':
+          return usersApi.giveFree({ userId: selected.userId, giveMoney: amount, idem })
+        case 'credit':
+          return usersApi.credit({ userId: selected.userId, borrowMoney: amount, idem })
+        case 'payDebt':
+          return usersApi.payDebt({ userId: selected.userId, amount, idem })
+        case 'transfer':
+          if (!recipient || recipient.userId === selected.userId) {
+            throw new Error('Hãy chọn một hội viên nhận khác người gửi')
+          }
+          return usersApi.transfer({
+            fromUserId: selected.userId,
+            toUserId: recipient.userId,
+            transferMoney: amount,
+            idem,
+          })
+      }
+    },
+    onSuccess: () => {
+      transactionIntent.clearKey()
+      setAction(null)
+      setAmount(null)
+      setDepositMethod('cash')
+      setQrActive(false)
+      setNote('')
+      setRecipient(null)
+      setRecipientInput('')
+      setRecipientQuery('')
+      pushToast('Giao dịch đã hoàn tất và dữ liệu đang được làm mới.', 'success')
+      void invalidateMoneyQueries(queryClient)
+    },
+    onError: (err) => pushToast(err.message, 'error'),
+  })
+
+  /** Xóa đơn lẻ — cho admin qua nút Xóa tài khoản trong CustomerInspector */
+  const deleteUserMutation = useMutation({
+    mutationFn: () => {
+      if (!selected) throw new Error('Chưa chọn tài khoản cần xóa')
+      return usersApi.deleteBatch([selected.userId])
+    },
+    onSuccess: () => {
+      setDeleteRequested(false)
+      setSelectedSeed(null)
+      pushToast('Đã xóa tài khoản hội viên và giữ lại lịch sử giao dịch.', 'success')
+      void queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err) => pushToast(err.message, 'error'),
+  })
+
+  /** Dọn dẹp hàng loạt (legacy feature) */
   const loadCleanCandidatesMutation = useMutation({
     mutationFn: () => usersApi.getCleanCandidates(cleanMonths, cleanIgnoreBalance),
     onSuccess: (data: any) => {
       setCleanCandidates(Array.isArray(data) ? data : (data.data || []))
     },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
+    onError: (err: any) => pushToast(`Lỗi: ${err.message}`, 'error'),
   })
 
   const deleteBatchMutation = useMutation({
-    mutationFn: () => usersApi.deleteBatch(cleanCandidates.map(c => c.Id || c.userId)),
+    mutationFn: () => usersApi.deleteBatch(cleanCandidates.map((c) => c.Id || c.userId)),
     onSuccess: () => {
-      showToast(`Đã xóa ${cleanCandidates.length} hội viên`, 'success')
+      pushToast(`Đã xóa ${cleanCandidates.length} hội viên`, 'success')
       setIsCleanModalOpen(false)
       setCleanCandidates([])
-      queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
+      void queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
     },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
+    onError: (err: any) => pushToast(`Lỗi: ${err.message}`, 'error'),
   })
 
-  const payDebtMutation = useMutation({
-    mutationFn: () => usersApi.payDebt({
-      userId: selectedUserForPanel.userId,
-      amount: debtAmount,
-      idem: payDebtIntent.getKey(
-        fingerprintIntent({ userId: selectedUserForPanel.userId, amount: debtAmount }),
-      ),
-    }),
-    onSuccess: () => {
-      payDebtIntent.clearKey()
-      showToast('Trả nợ thành công', 'success')
-      setIsPayDebtModalOpen(false)
-      setDebtAmount(0)
-      queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
-    },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
-  })
-
-  const depositMutation = useMutation({
-    mutationFn: () => usersApi.deposit({
-      userId: selectedUserForPanel.userId,
-      chargeMoney: depositAmount,
-      paymentMethod: 'cash',
-      note: depositNote,
-      idem: depositIntent.getKey(
-        fingerprintIntent({
-          userId: selectedUserForPanel.userId,
-          chargeMoney: depositAmount,
-          note: depositNote,
-        }),
-      ),
-    }),
-    onSuccess: () => {
-      depositIntent.clearKey()
-      showToast('Nạp tiền thành công', 'success')
-      setIsDepositModalOpen(false)
-      setDepositAmount(0)
-      setDepositNote('')
-      queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
-    },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
-  })
-
-  const creditMutation = useMutation({
-    mutationFn: () => usersApi.credit({
-      userId: selectedUserForPanel.userId,
-      borrowMoney: creditAmount,
-      idem: creditIntent.getKey(
-        fingerprintIntent({ userId: selectedUserForPanel.userId, borrowMoney: creditAmount }),
-      ),
-    }),
-    onSuccess: () => {
-      creditIntent.clearKey()
-      showToast('Cho mượn tiền thành công', 'success')
-      setIsCreditModalOpen(false)
-      setCreditAmount(0)
-      queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
-    },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
-  })
-
-  const giveFreeMutation = useMutation({
-    mutationFn: () => usersApi.giveFree({
-      userId: selectedUserForPanel.userId,
-      giveMoney: giveFreeAmount,
-      idem: giveFreeIntent.getKey(
-        fingerprintIntent({ userId: selectedUserForPanel.userId, giveMoney: giveFreeAmount }),
-      ),
-    }),
-    onSuccess: () => {
-      giveFreeIntent.clearKey()
-      showToast('Tặng tiền/giờ thành công', 'success')
-      setIsGiveFreeModalOpen(false)
-      setGiveFreeAmount(0)
-      queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
-    },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
-  })
-
-  const transferMutation = useMutation({
-    mutationFn: () => usersApi.transfer({
-      fromUserId: selectedUserForPanel.userId,
-      toUserId: transferToUserId,
-      transferMoney: transferAmount,
-      idem: transferIntent.getKey(
-        fingerprintIntent({
-          fromUserId: selectedUserForPanel.userId,
-          toUserId: transferToUserId,
-          transferMoney: transferAmount,
-        }),
-      ),
-    }),
-    onSuccess: () => {
-      transferIntent.clearKey()
-      showToast('Chuyển tiền thành công', 'success')
-      setIsTransferModalOpen(false)
-      setTransferAmount(0)
-      queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
-    },
-    onError: (err: any) => showToast(`Lỗi: ${err.message}`, 'error')
-  })
-
-  const users = data?.items ?? []
-  const filteredUsers = users
-
-  const openHistory = (user: any) => {
-    setSelectedUser(user)
-    setIsHistoryModalOpen(true)
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const toggleSort = (col: CustomerColumn) => {
+    if (sortColumn === col) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortColumn(col)
+      setSortDirection('asc')
+    }
   }
 
+  const openAction = (nextAction: CustomerAction) => {
+    if (!selected) return
+    if (nextAction === 'give' && !hasRight(RIGHTS.GIVE_MONEY)) {
+      pushToast(`Thiếu quyền ${RIGHTS.GIVE_MONEY} để tặng tiền.`, 'info')
+      return
+    }
+    if (nextAction === 'transfer' && !hasRight(RIGHTS.MONEY_TRANSFER)) {
+      pushToast(`Thiếu quyền ${RIGHTS.MONEY_TRANSFER} để chuyển tiền.`, 'info')
+      return
+    }
+    transactionIntent.clearKey()
+    setAmount(
+      nextAction === 'payDebt'
+        ? debtAmount(selected) || null
+        : nextAction === 'deposit'
+          ? null
+          : 10_000,
+    )
+    setDepositMethod('cash')
+    setQrActive(false)
+    setNote('')
+    setRecipient(null)
+    setRecipientInput('')
+    setRecipientQuery('')
+    setAction(nextAction)
+  }
+
+  const closeAction = () => {
+    if (transactionMutation.isPending) return
+    if (qrActive) {
+      pushToast('Hãy hủy giao dịch QR đang chờ trước khi đóng cửa sổ.', 'info')
+      return
+    }
+    transactionIntent.clearKey()
+    setAction(null)
+    setAmount(null)
+    setDepositMethod('cash')
+    setQrActive(false)
+    setNote('')
+    setRecipient(null)
+    setRecipientInput('')
+    setRecipientQuery('')
+  }
+
+  /** Tạo hội viên xong → mở luôn form nạp tiền cho đúng tài khoản đó */
+  const openDepositForNewAccount = async (account: { username: string; kind: 'member' | 'staff' }) => {
+    if (account.kind !== 'member') return
+    try {
+      const result = await getUsers('member', 5, 0, account.username)
+      const created =
+        result.items.find((u) => u.userName.toLowerCase() === account.username.toLowerCase()) ??
+        result.items[0]
+      if (!created) throw new Error('Không tìm thấy tài khoản vừa tạo')
+      transactionIntent.clearKey()
+      setAmount(null)
+      setDepositMethod('cash')
+      setQrActive(false)
+      setNote('')
+      setRecipient(null)
+      setRecipientInput('')
+      setRecipientQuery('')
+      setSelectedSeed(created)
+      setAction('deposit')
+    } catch (err) {
+      pushToast(
+        `Đã tạo tài khoản nhưng chưa mở được form nạp tiền: ${(err as Error).message}`,
+        'error',
+      )
+    }
+  }
+
+  // ── Balance preview ──────────────────────────────────────────────────────────
+  const balanceBefore = selected
+    ? action === 'give'
+      ? selected.moneySub
+      : action === 'payDebt'
+        ? debtAmount(selected)
+        : selected.moneyMain
+    : 0
+  const balanceAfter =
+    action === 'payDebt'
+      ? Math.max(0, balanceBefore - (amount ?? 0))
+      : action === 'transfer'
+        ? balanceBefore - (amount ?? 0)
+        : balanceBefore + (amount ?? 0)
+
   return (
-    <section className="page-card" style={{ position: 'relative', display: 'flex', padding: 0, overflow: 'hidden', height: 'calc(100vh - 48px)' }}>
-      
-      {/* Main Content Area */}
-      <div style={{ flex: 1, padding: '2rem', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div className="page-header">
-          <div>
-            <p className="eyebrow">Phase 3 · Task 3.10</p>
-            <h2 className="section-title">Quản lý Tài khoản</h2>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+    <section className="customer-workspace">
+
+      {/* ── Page Header ───────────────────────────────────────────────────────── */}
+      <PageHeader
+        eyebrow="Thu ngân"
+        title="Quản lý Tài khoản"
+        description="Danh sách hội viên, nhân viên và thẻ combo — nạp tiền, khóa/mở thẻ, cấp lại mật khẩu."
+        actions={
+          <>
             {activeTab === 'member' && (
               <>
-                <button type="button" className="secondary-button" onClick={() => setIsFilePrintOpen(true)}>
-                  In tài khoản từ file
-                </button>
-                <button type="button" className="secondary-button" onClick={() => setIsGenerateModalOpen(true)}>
-                  Tạo hội viên hàng loạt
-                </button>
-                <button type="button" className="secondary-button" onClick={() => setIsCleanModalOpen(true)} style={{ color: 'var(--text-error)' }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  icon={<Printer size={18} weight="bold" aria-hidden="true" />}
+                  onClick={() => setIsFilePrintOpen(true)}
+                >
+                  In từ file
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  icon={<ArrowsClockwise size={18} weight="bold" aria-hidden="true" />}
+                  onClick={() => setIsGenerateModalOpen(true)}
+                >
+                  Tạo hàng loạt
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger-outline"
+                  icon={<Broom size={18} weight="bold" aria-hidden="true" />}
+                  onClick={() => setIsCleanModalOpen(true)}
+                >
                   Dọn dẹp
-                </button>
+                </Button>
               </>
             )}
             {activeTab !== 'combo' && (
-              <button type="button" className="primary-button" onClick={() => setIsCreateOpen(true)}>
-                Thêm mới {activeTab === 'member' ? 'hội viên' : 'nhân viên'}
-              </button>
+              <Button
+                type="button"
+                variant="primary"
+                icon={<UserPlus size={18} weight="bold" aria-hidden="true" />}
+                onClick={() => setIsCreateOpen(true)}
+              >
+                Thêm {activeTab === 'member' ? 'hội viên' : 'nhân viên'}
+              </Button>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <p className="page-description" style={{ marginBottom: 0 }}>Quản lý danh sách hội viên, nhân viên và thẻ combo, nạp tiền, khóa/mở thẻ và cấp lại mật khẩu.</p>
+      <div className="customer-tabs" role="tablist" aria-label="Loại tài khoản">
+        {([
+          ['member', 'Hội viên'],
+          ['combo', 'Thẻ Combo'],
+          ['staff', 'Nhân viên'],
+        ] as Array<[UserType, string]>).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            className={activeTab === id ? 'is-active' : ''}
+            onClick={() => {
+              setActiveTab(id)
+              setPage(0)
+              setSelectedSeed(null)
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', marginTop: '1rem' }}>
-          <button 
-            className={`tab-button ${activeTab === 'member' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('member'); setPage(0); setSelectedUserForPanel(null); }}
-            style={{ padding: '0.5rem 1rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'member' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'member' ? 'var(--primary)' : 'var(--text-secondary)' }}
-          >
-            Hội viên
-          </button>
-          <button 
-            className={`tab-button ${activeTab === 'combo' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('combo'); setPage(0); setSelectedUserForPanel(null); }}
-            style={{ padding: '0.5rem 1rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'combo' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'combo' ? 'var(--primary)' : 'var(--text-secondary)' }}
-          >
-            Thẻ Combo
-          </button>
-          <button 
-            className={`tab-button ${activeTab === 'staff' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('staff'); setPage(0); setSelectedUserForPanel(null); }}
-            style={{ padding: '0.5rem 1rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'staff' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'staff' ? 'var(--primary)' : 'var(--text-secondary)' }}
-          >
-            Nhân viên
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', gap: '1rem' }}>
-          <form style={{ flex: 1, maxWidth: '500px' }} onSubmit={e => { e.preventDefault(); setPage(0); setSearchQuery(searchTerm.trim()); }}>
-            <label className="field compact-field">
-              <span>Tìm kiếm (Tên đăng nhập, SĐT, CCCD)</span>
+      <form
+        className="customer-search"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setPage(0)
+          setSearchQuery(searchTerm.trim())
+        }}
+      >
+        <label className="ds-field">
+          <span className="ds-visually-hidden">
+            {activeTab === 'member' ? SEARCH_FIELD_LABELS[searchField] : 'Tìm kiếm'}
+          </span>
+          <div className="ds-input-group ds-input-group--search">
+            {activeTab === 'member' ? (
+              <Select
+                value={searchField}
+                aria-label="Tìm theo trường"
+                onChange={(event) => {
+                  setSearchField(event.target.value as UserSearchField)
+                  setPage(0)
+                  setSelectedSeed(null)
+                }}
+              >
+                <option value="username">Tên đăng nhập</option>
+                <option value="phone">Số điện thoại</option>
+                <option value="idnumber">CCCD</option>
+              </Select>
+            ) : null}
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
               <input
-                type="text"
-                placeholder="Nhập tên đăng nhập, SĐT, CCCD rồi Enter..."
+                className="ds-input"
+                type="search"
+                placeholder={
+                  activeTab === 'member'
+                    ? SEARCH_FIELD_PLACEHOLDERS[searchField]
+                    : 'Nhập từ đầu tên đăng nhập...'
+                }
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
-            </label>
-          </form>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <ListPagination
-              page={page}
-              canNext={users.length >= limit}
-              onPrevious={() => setPage((current) => Math.max(0, current - 1))}
-              onNext={() => setPage((current) => current + 1)}
-            />
-          </div>
-        </div>
-
-        <div className="table-card" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Tên Đăng Nhập</th>
-                <th>Tên</th>
-                {(activeTab === 'member' || activeTab === 'staff') && <th>SĐT</th>}
-                {(activeTab === 'member' || activeTab === 'staff') && <th>CCCD</th>}
-                {activeTab === 'member' && <th style={{ textAlign: 'right' }}>TK Chính</th>}
-                {activeTab === 'member' && <th style={{ textAlign: 'right' }}>TK Phụ</th>}
-                {activeTab === 'member' && <th>Nhóm</th>}
-                {activeTab === 'staff' && <th>Nhóm</th>}
-                {activeTab === 'member' && <th style={{ textAlign: 'center' }}>Trạng thái</th>}
-                <th>Ghi chú</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>Đang tải...</td></tr>
-              ) : isError ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-error)' }}>Lỗi: {(error as Error).message}</td></tr>
-              ) : filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                  <tr 
-                    key={user.userId} 
-                    onClick={() => setSelectedUserForPanel(user)}
-                    style={{ 
-                      cursor: 'pointer', 
-                      backgroundColor: selectedUserForPanel?.userId === user.userId ? 'rgba(59, 130, 246, 0.05)' : undefined 
-                    }}
-                  >
-                    <td style={{ fontWeight: 500, color: selectedUserForPanel?.userId === user.userId ? 'var(--primary)' : 'inherit' }}>
-                      {user.userName}
-                    </td>
-                    <td>{`${user.lastName || ''} ${user.firstName || ''}`.trim()}</td>
-                    {(activeTab === 'member' || activeTab === 'staff') && <td>{maskSensitiveInfo(user.phone)}</td>}
-                    {(activeTab === 'member' || activeTab === 'staff') && <td>{maskSensitiveInfo(user.idNumber)}</td>}
-                    {activeTab === 'member' && (
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '1.1em', color: 'var(--primary)' }}>
-                        {formatMoney(user.moneyMain)}
-                      </td>
-                    )}
-                    {activeTab === 'member' && (
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '1.1em', color: 'var(--text-secondary)' }}>
-                        {formatMoney(user.moneySub)}
-                      </td>
-                    )}
-                    {activeTab === 'member' && <td>{user.groupName || 'Member'}</td>}
-                    {activeTab === 'staff' && <td>{user.groupName || 'Staff'}</td>}
-                    {activeTab === 'member' && (
-                      <td style={{ textAlign: 'center' }}>
-                        <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.85em', fontWeight: 'bold', backgroundColor: user.moneyRemain >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: user.moneyRemain >= 0 ? 'var(--primary)' : 'var(--text-error)' }}>
-                          {user.moneyRemain >= 0 ? 'Active' : 'Locked'}
-                        </span>
-                      </td>
-                    )}
-                    <td>{user.note}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Không tìm thấy dữ liệu</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Context Action Panel (Sidebar) */}
-      {selectedUserForPanel && (
-        <div style={{ 
-          width: '320px', 
-          borderLeft: '1px solid var(--border)', 
-          backgroundColor: 'var(--background)', 
-          padding: '2rem 1.5rem',
-          display: 'flex', 
-          flexDirection: 'column',
-          overflowY: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-            <div>
-              <div style={{ fontSize: '0.85em', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
-                {activeTab === 'member' ? 'Hội viên' : activeTab === 'staff' ? 'Nhân viên' : 'Thẻ Combo'}
-              </div>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--primary)' }}>
-                {selectedUserForPanel.userName}
-              </h3>
+              {(searchTerm || searchQuery) ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa tìm kiếm"
+                  onClick={() => {
+                    setSearchTerm('')
+                    setSearchQuery('')
+                    setPage(0)
+                    setSelectedSeed(null)
+                  }}
+                >
+                  <X size={18} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
-            <button 
-              type="button" 
-              onClick={() => setSelectedUserForPanel(null)} 
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-muted)' }}
-              title="Đóng panel"
+          </div>
+        </label>
+      </form>
+
+      <div className="customer-list-card">
+        <ListToolbar
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(users.length)}</strong></>}
+          actions={
+            <>
+              <RefreshButton
+                loading={isLoading}
+                onClick={() =>
+                  void queryClient.invalidateQueries({ queryKey: ['users', activeTab, page, searchQuery] })
+                }
+              />
+              <ListPagination
+                page={page}
+                canNext={users.length >= limit}
+                onPrevious={() => {
+                  setPage((current) => Math.max(0, current - 1))
+                  setSelectedSeed(null)
+                }}
+                onNext={() => {
+                  setPage((current) => current + 1)
+                  setSelectedSeed(null)
+                }}
+              />
+            </>
+          }
+        />
+        <div className="customer-table-scroll">
+          <div className="customer-table" role="table" aria-rowcount={sortedUsers.length + 1}>
+            <div
+              className="customer-table__header customer-table__grid"
+              role="row"
+              style={tableGridStyle}
             >
-              ×
-            </button>
-          </div>
-
-          {activeTab === 'member' && (
-            <div style={{ backgroundColor: 'var(--surface)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>Tổng số dư</div>
-              <div style={{ fontSize: '1.5rem', fontFamily: 'monospace', fontWeight: 'bold', color: selectedUserForPanel.moneyRemain >= 0 ? 'var(--text-primary)' : 'var(--text-error)', marginTop: '0.25rem' }}>
-                {formatMoney(selectedUserForPanel.moneyRemain)}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border)' }}>
-                <div>
-                  <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>TK Chính</div>
-                  <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--primary)' }}>{formatMoney(selectedUserForPanel.moneyMain)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>TK Phụ</div>
-                  <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{formatMoney(selectedUserForPanel.moneySub)}</div>
-                </div>
-              </div>
+              {displayedColumns.map((col) => (
+                <button
+                  key={col.id}
+                  type="button"
+                  role="columnheader"
+                  className={col.money ? 'is-money' : ''}
+                  aria-sort={
+                    sortColumn === col.id
+                      ? sortDirection === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                  onClick={() => toggleSort(col.id)}
+                >
+                  <span>{col.label}</span>
+                  {sortColumn === col.id ? (
+                    <span className="customer-sort-mark" aria-hidden="true">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
             </div>
-          )}
 
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <h4 style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginBottom: '0.5rem', marginTop: '0.5rem' }}>THAO TÁC CƠ BẢN</h4>
-            <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }}>✏️ Sửa thông tin</button>
-            <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }}>🔑 Cấp lại mật khẩu</button>
-            {activeTab === 'member' && (
-              <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start', color: selectedUserForPanel.moneyRemain >= 0 ? 'var(--text-error)' : 'var(--primary)' }}>
-                {selectedUserForPanel.moneyRemain >= 0 ? '🔒 Khóa tài khoản' : '🔓 Mở khóa tài khoản'}
-              </button>
+            {isLoading ? (
+              <div className="customer-table__empty" role="row">
+                <div role="cell">Đang tải khách hàng…</div>
+              </div>
+            ) : isError ? (
+              <div className="customer-table__empty" role="row">
+                <div role="cell">
+                  <p>Không tải được danh sách — {(error as Error).message}</p>
+                  <Button
+                    onClick={() =>
+                      queryClient.invalidateQueries({ queryKey: ['users', activeTab, page, searchQuery] })
+                    }
+                  >
+                    Thử lại
+                  </Button>
+                </div>
+              </div>
+            ) : sortedUsers.length === 0 ? (
+              <div className="customer-table__empty" role="row">
+                <div role="cell">
+                  Không tìm thấy tài khoản —{' '}
+                  {searchQuery
+                    ? 'kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
+                    : 'danh sách hiện chưa có dữ liệu.'}
+                </div>
+              </div>
+            ) : (
+              sortedUsers.map((user) => (
+                <button
+                  key={user.userId}
+                  type="button"
+                  className={`customer-table__row customer-table__grid${
+                    selected?.userId === user.userId ? ' is-selected' : ''
+                  }`}
+                  role="row"
+                  style={tableGridStyle}
+                  onClick={() => setSelectedSeed(user)}
+                >
+                  {displayedColumns.map((col) => (
+                    <div
+                      key={col.id}
+                      role="cell"
+                      className={col.money ? 'customer-table__money' : ''}
+                      title={String(columnValue(user, col.id) || '')}
+                    >
+                      {col.id === 'userName'
+                        ? <strong>{user.userName}</strong>
+                        : columnDisplay(user, col.id)}
+                    </div>
+                  ))}
+                </button>
+              ))
             )}
-            
-            {activeTab === 'member' && (
+          </div>{/* /customer-table */}
+        </div>{/* /customer-table-scroll */}
+      </div>{/* /customer-list-card */}
+
+      {/* ── Account Detail Drawer ──────────────────────────────────────────────── */}
+      <Drawer
+        open={Boolean(selected)}
+        size="wide"
+        compactHeader
+        className="customer-inspector-drawer"
+        title={selected?.userName ?? 'Tài khoản'}
+        description={
+          selected
+            ? `${displayName(selected)} · ${
+                selected.groupName ||
+                (activeTab === 'member' ? 'Hội viên' : activeTab === 'staff' ? 'Nhân viên' : 'Thẻ Combo')
+              }`
+            : undefined
+        }
+        onClose={() => setSelectedSeed(null)}
+      >
+        {selected ? (
+          <CustomerInspector
+            user={selected}
+            userType={activeTab}
+            canDelete={isAdmin}
+            onOpenAction={openAction}
+            onRequestDelete={() => setDeleteRequested(true)}
+          />
+        ) : null}
+      </Drawer>
+
+      {/* ── Delete confirm ─────────────────────────────────────────────────────── */}
+      <ConfirmAction
+        open={deleteRequested && Boolean(selected)}
+        title="Xóa tài khoản hội viên?"
+        description={selected?.userName}
+        confirmLabel="Xóa tài khoản"
+        danger
+        pending={deleteUserMutation.isPending}
+        onCancel={() => setDeleteRequested(false)}
+        onConfirm={() => deleteUserMutation.mutate()}
+      >
+        <InlineAlert tone="warning">
+          Tài khoản sẽ bị vô hiệu hóa. Máy chủ vẫn giữ lịch sử giao dịch và sẽ từ chối nếu tài
+          khoản không đủ điều kiện xóa.
+        </InlineAlert>
+      </ConfirmAction>
+
+      {/* ── Transaction Dialog (thống nhất, giống CustomerWorkspace) ──────────── */}
+      <Dialog
+        open={Boolean(action)}
+        title={actionTitle(action)}
+        size="sm"
+        onClose={closeAction}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={transactionMutation.isPending || qrActive}
+              onClick={closeAction}
+            >
+              Hủy
+            </Button>
+            {action !== 'deposit' || depositMethod !== 'qr' ? (
+              <Button
+                type="button"
+                variant="primary"
+                loading={transactionMutation.isPending}
+                disabled={
+                  !amount ||
+                  (action !== 'deposit' && amount <= 0) ||
+                  (action === 'deposit' &&
+                    !canSubmitDeposit(depositMethod, amount, hasRight(RIGHTS.INPUT_NEGATIVE_MONEY))) ||
+                  (action === 'transfer' && (!recipient || recipient.userId === selected?.userId))
+                }
+                onClick={() => transactionMutation.mutate()}
+              >
+                {action === 'deposit'
+                  ? amount && amount < 0
+                    ? depositMethod === 'transfer'
+                      ? 'Xác nhận rút chuyển khoản'
+                      : 'Xác nhận rút tiền mặt'
+                    : depositMethod === 'transfer'
+                      ? 'Xác nhận nạp chuyển khoản'
+                      : 'Xác nhận nạp tiền mặt'
+                  : 'Xác nhận giao dịch'}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {selected ? (
+          <div className="customer-transaction">
+            <div className="customer-identity-check">
+              <strong>{selected.userName}</strong>
+              <small>{displayName(selected)} · {maskSensitive(selected.phone)}</small>
+            </div>
+
+            {action !== 'deposit' ? (
+              <MoneyInput
+                label={action === 'payDebt' ? 'Số tiền trả nợ' : 'Số tiền'}
+                icon={<Coins size={18} weight="bold" aria-hidden="true" />}
+                placeholder={action === 'payDebt' ? 'Số tiền trả nợ' : 'Số tiền'}
+                value={amount}
+                min={1_000}
+                onChange={(value) => {
+                  transactionIntent.clearKey()
+                  setAmount(value)
+                }}
+              />
+            ) : (
+              <DepositAmountPanel
+                icon={<Coins size={18} weight="bold" aria-hidden="true" />}
+                placeholder="Số tiền"
+                value={amount}
+                disabled={transactionMutation.isPending || qrActive}
+                allowNegative={hasRight(RIGHTS.INPUT_NEGATIVE_MONEY)}
+                onIntentChange={transactionIntent.clearKey}
+                onChange={setAmount}
+              />
+            )}
+
+            {action === 'transfer' ? (
+              <div className="customer-recipient-search">
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    setRecipient(null)
+                    setRecipientQuery(recipientInput.trim())
+                  }}
+                >
+                  <label className="ds-field">
+                    <span className="ds-field__label">Tìm hội viên nhận</span>
+                    <input
+                      className="ds-input"
+                      value={recipientInput}
+                      placeholder="Tên đăng nhập, SĐT hoặc CCCD"
+                      onChange={(event) => setRecipientInput(event.target.value)}
+                    />
+                  </label>
+                  <Button type="submit" variant="secondary">Tìm</Button>
+                </form>
+                {recipientQuery ? (
+                  <div className="customer-recipient-results">
+                    {(recipientResults.data?.items ?? [])
+                      .filter((u) => u.userId !== selected.userId)
+                      .map((u) => (
+                        <button
+                          key={u.userId}
+                          type="button"
+                          className={recipient?.userId === u.userId ? 'is-selected' : ''}
+                          onClick={() => {
+                            transactionIntent.clearKey()
+                            setRecipient(u)
+                          }}
+                        >
+                          <strong>{u.userName}</strong>
+                          <span>{displayName(u)} · {maskSensitive(u.phone)}</span>
+                        </button>
+                      ))}
+                    {!recipientResults.isLoading &&
+                    (recipientResults.data?.items ?? []).filter(
+                      (u) => u.userId !== selected.userId,
+                    ).length === 0 ? (
+                      <InlineAlert tone="warning">Không tìm thấy hội viên nhận phù hợp.</InlineAlert>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {action === 'deposit' ? (
               <>
-                <h4 style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginBottom: '0.5rem', marginTop: '1rem' }}>GIAO DỊCH</h4>
-                <button type="button" className="primary-button" style={{ justifyContent: 'flex-start' }} onClick={() => setIsDepositModalOpen(true)}>💰 Nạp tiền</button>
-                <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }} onClick={() => setIsGiveFreeModalOpen(true)}>🎁 Tặng giờ / Tặng tiền</button>
-                <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }} onClick={() => setIsCreditModalOpen(true)}>💸 Mượn giờ / Mượn tiền</button>
-                <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }} onClick={() => setIsTransferModalOpen(true)}>🤝 Chuyển tiền</button>
-                <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }} onClick={() => setIsPayDebtModalOpen(true)}>💳 Trả nợ</button>
-                
-                <h4 style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginBottom: '0.5rem', marginTop: '1rem' }}>LỊCH SỬ</h4>
-                <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }} onClick={() => openHistory(selectedUserForPanel)}>
-                  📜 Lịch sử nạp tiền
-                </button>
-                <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start' }}>
-                  🕒 Nhật ký sử dụng (Logs)
-                </button>
+                <DepositMethodSelector
+                  value={depositMethod}
+                  disabled={transactionMutation.isPending || qrActive}
+                  onChange={(method) => {
+                    transactionIntent.clearKey()
+                    setDepositMethod(method)
+                  }}
+                />
+                {depositMethod !== 'qr' ? (
+                  <div className="ds-input-group customer-create-form__group">
+                    <label
+                      className="ds-input-group-separator customer-create-form__label"
+                      htmlFor="legacy-deposit-note"
+                      title="Ghi chú"
+                    >
+                      <NotePencil size={18} weight="bold" aria-hidden="true" />
+                      <span className="ds-visually-hidden">Ghi chú (không bắt buộc)</span>
+                    </label>
+                    <input
+                      id="legacy-deposit-note"
+                      className="ds-input"
+                      placeholder="Ghi chú (không bắt buộc)"
+                      value={note}
+                      maxLength={100}
+                      onChange={(event) => {
+                        transactionIntent.clearKey()
+                        setNote(event.target.value)
+                      }}
+                    />
+                  </div>
+                ) : null}
+                {depositMethod === 'cash' ? (
+                  amount && amount < 0 ? (
+                    <InlineAlert tone="info">
+                      Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.
+                    </InlineAlert>
+                  ) : null
+                ) : depositMethod === 'qr' ? (
+                  <DepositQrFlow
+                    userId={selected.userId}
+                    amount={amount}
+                    disabled={transactionMutation.isPending}
+                    onActiveChange={setQrActive}
+                  />
+                ) : amount && amount < 0 ? (
+                  <InlineAlert tone="info">
+                    Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.
+                  </InlineAlert>
+                ) : null}
               </>
-            )}
+            ) : null}
 
-            <button type="button" className="secondary-button" style={{ justifyContent: 'flex-start', color: 'var(--text-error)', marginTop: 'auto' }}>
-              🗑️ Xóa {activeTab === 'member' ? 'hội viên' : activeTab === 'staff' ? 'nhân viên' : 'thẻ'}
-            </button>
+            <dl className="customer-transaction-summary">
+              {action === 'deposit' ? (
+                <div>
+                  <dt>Phương thức</dt>
+                  <dd>{getDepositMethodOption(depositMethod).label}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>{action === 'payDebt' ? 'Dư nợ trước' : 'Số dư nguồn trước'}</dt>
+                <dd>{formatMoney(balanceBefore)}</dd>
+              </div>
+              <div>
+                <dt>{action === 'payDebt' ? 'Dư nợ dự kiến sau' : 'Số dư nguồn dự kiến sau'}</dt>
+                <dd>{formatMoney(balanceAfter)}</dd>
+              </div>
+              {action === 'transfer' ? (
+                <div><dt>Hội viên nhận</dt><dd>{recipient?.userName || 'Chưa chọn'}</dd></div>
+              ) : null}
+              <div><dt>Người thao tác</dt><dd>{staffName || '—'}</dd></div>
+            </dl>
           </div>
-        </div>
-      )}
+        ) : null}
+      </Dialog>
 
+      {/* ── Legacy-specific dialogs ────────────────────────────────────────────── */}
       <AutoGenerateMemberDialog
         open={isGenerateModalOpen}
         onClose={() => setIsGenerateModalOpen(false)}
       />
       {activeTab !== 'combo' && (
-        <CreateUserDialog open={isCreateOpen} kind={activeTab} onClose={() => setIsCreateOpen(false)} />
+        <CreateUserDialog
+          open={isCreateOpen}
+          kind={activeTab}
+          onClose={() => setIsCreateOpen(false)}
+          onCreated={(account) => void openDepositForNewAccount(account)}
+        />
       )}
       <CredentialFilePrintDialog
         open={isFilePrintOpen}
@@ -475,36 +979,75 @@ export function UsersPage() {
 
       {/* Modal Dọn Dẹp */}
       {isCleanModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="page-card" style={{ width: '600px', backgroundColor: 'var(--surface)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Dọn dẹp hội viên cũ</h3>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+        >
+          <div
+            className="page-card"
+            style={{ width: '600px', backgroundColor: 'var(--surface)', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>
+              Dọn dẹp hội viên cũ
+            </h3>
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
               <label className="field" style={{ flex: 1 }}>
                 <span>Không hoạt động trong (tháng)</span>
-                <input type="number" value={cleanMonths} onChange={e => setCleanMonths(Number(e.target.value))} min={1} />
+                <input
+                  type="number"
+                  value={cleanMonths}
+                  onChange={(e) => setCleanMonths(Number(e.target.value))}
+                  min={1}
+                />
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingBottom: '0.5rem', flex: 1 }}>
-                <input type="checkbox" checked={cleanIgnoreBalance} onChange={e => setCleanIgnoreBalance(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={cleanIgnoreBalance}
+                  onChange={(e) => setCleanIgnoreBalance(e.target.checked)}
+                />
                 <span style={{ fontSize: '0.85em' }}>Bỏ qua tài khoản còn số dư</span>
               </label>
-              <button type="button" className="secondary-button" onClick={() => loadCleanCandidatesMutation.mutate()} disabled={loadCleanCandidatesMutation.isPending}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => loadCleanCandidatesMutation.mutate()}
+                disabled={loadCleanCandidatesMutation.isPending}
+              >
                 Lọc danh sách
               </button>
             </div>
-            
+
             {cleanCandidates.length > 0 && (
               <div style={{ marginBottom: '1.5rem' }}>
                 <div style={{ color: 'var(--text-error)', marginBottom: '0.5rem', fontWeight: 500 }}>
                   Tìm thấy {cleanCandidates.length} hội viên có thể xóa.
                 </div>
-                <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '4px' }}>
+                <div
+                  style={{
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                  }}
+                >
                   <table className="data-table" style={{ margin: 0 }}>
                     <thead>
                       <tr><th>Username</th><th>Lần cuối HĐ</th></tr>
                     </thead>
                     <tbody>
                       {cleanCandidates.map((c, idx) => (
-                        <tr key={idx}><td>{c.Name || c.userName}</td><td>{c.LastActive || 'N/A'}</td></tr>
+                        <tr key={idx}>
+                          <td>{c.Name || c.userName}</td>
+                          <td>{c.LastActive || 'N/A'}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -513,8 +1056,23 @@ export function UsersPage() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button type="button" className="secondary-button" onClick={() => { setIsCleanModalOpen(false); setCleanCandidates([]); }}>Hủy</button>
-              <button type="button" className="primary-button" style={{ backgroundColor: 'var(--text-error)' }} onClick={() => deleteBatchMutation.mutate()} disabled={cleanCandidates.length === 0 || deleteBatchMutation.isPending}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setIsCleanModalOpen(false)
+                  setCleanCandidates([])
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                style={{ backgroundColor: 'var(--text-error)' }}
+                onClick={() => deleteBatchMutation.mutate()}
+                disabled={cleanCandidates.length === 0 || deleteBatchMutation.isPending}
+              >
                 {deleteBatchMutation.isPending ? 'Đang xóa...' : 'Xóa hàng loạt'}
               </button>
             </div>
@@ -522,192 +1080,6 @@ export function UsersPage() {
         </div>
       )}
 
-      {/* Modal Lịch Sử Giao Dịch */}
-      {isHistoryModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsHistoryModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '600px', maxWidth: '90vw' }}>
-            <div className="modal-header">
-              <h3>Lịch sử Nạp Tiền: <span style={{ color: 'var(--primary)' }}>{selectedUser?.userName}</span></h3>
-              <button type="button" className="close-button" onClick={() => setIsHistoryModalOpen(false)}>×</button>
-            </div>
-            
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Thời gian</th>
-                    <th style={{ textAlign: 'right' }}>Số tiền nạp</th>
-                    <th>Người thu</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyLoading ? (
-                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem' }}>Đang tải...</td></tr>
-                  ) : (historyData?.items.length ?? 0) > 0 ? (
-                    historyData!.items.map((log, idx) => (
-                      <tr key={idx}>
-                        <td>{[log.voucherDate, log.voucherTime].filter(Boolean).join(' ') || 'N/A'}</td>
-                        <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--primary)' }}>+{formatMoney(log.amount || 0)}</td>
-                        <td>{log.staffName || 'Admin'}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Chưa có lịch sử giao dịch</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Trả Nợ */}
-      {isPayDebtModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="page-card" style={{ width: '400px', backgroundColor: 'var(--surface)' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Trả nợ cho: <span style={{ color: 'var(--primary)' }}>{selectedUserForPanel?.userName}</span></h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>Dư nợ hiện tại</div>
-                <div style={{ fontSize: '1.25rem', fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--text-error)', marginTop: '0.25rem' }}>
-                  {formatMoney(Math.abs(Math.min(0, selectedUserForPanel?.moneyRemain || 0)))}
-                </div>
-              </div>
-              <label className="field">
-                <span>Số tiền thanh toán nợ (VNĐ)</span>
-                <input type="number" value={debtAmount} onChange={e => setDebtAmount(Number(e.target.value))} min={0} step={1000} autoFocus />
-              </label>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button type="button" className="secondary-button" onClick={() => { payDebtIntent.clearKey(); setIsPayDebtModalOpen(false); setDebtAmount(0); }}>Hủy</button>
-              <button type="button" className="primary-button" onClick={() => payDebtMutation.mutate()} disabled={payDebtMutation.isPending || debtAmount <= 0}>
-                {payDebtMutation.isPending ? 'Đang xử lý...' : 'Xác nhận trả nợ'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Modal Nạp Tiền (Deposit) */}
-      {isDepositModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="page-card" style={{ width: '450px', backgroundColor: 'var(--surface)' }}>
-            <h3 style={{ marginBottom: '0.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Nạp tiền cho: <span style={{ color: 'var(--primary)' }}>{selectedUserForPanel?.userName}</span></h3>
-            <div style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Số dư hiện tại: <strong style={{ color: 'var(--text)' }}>{formatMoney(selectedUserForPanel?.moneyMain || 0)}</strong>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              
-              {/* 1. Số tiền nạp */}
-              <label className="field">
-                <span>Số tiền nạp (VNĐ)</span>
-                <input type="number" value={depositAmount} onChange={e => setDepositAmount(Number(e.target.value))} min={0} step={1000} autoFocus style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }} />
-              </label>
-
-              {/* Quick Amount Buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.5rem' }}>
-                {[10000, 20000, 30000, 50000, 100000].map(amt => (
-                  <button key={amt} type="button" className="secondary-button" style={{ padding: '0.35rem', fontSize: '0.85rem', fontWeight: 600 }} onClick={() => setDepositAmount(amt)}>
-                    {amt / 1000}K
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--background)', padding: '0.75rem', borderRadius: '4px' }}>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Số dư sau nạp:</span>
-                <strong style={{ fontSize: '1.25rem', color: 'var(--success)' }}>
-                  {formatMoney((selectedUserForPanel?.moneyMain || 0) + depositAmount)}
-                </strong>
-              </div>
-
-              <InlineAlert tone="info">
-                Nạp tiền hiện chỉ ghi nhận tiền mặt. Chuyển khoản và QR sẽ được mở
-                khi có mã thanh toán xác thực từ máy chủ.
-              </InlineAlert>
-
-              <label className="field">
-                <span>Ghi chú / Số đơn hàng</span>
-                <input type="text" value={depositNote} onChange={e => setDepositNote(e.target.value)} placeholder="Nhập ghi chú nạp tiền (tùy chọn)" />
-              </label>
-
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-              <button type="button" className="secondary-button" onClick={() => { depositIntent.clearKey(); setIsDepositModalOpen(false); setDepositAmount(0); setDepositNote(''); }}>Hủy</button>
-              <button type="button" className="primary-button" onClick={() => depositMutation.mutate()} disabled={depositMutation.isPending || depositAmount <= 0}>
-                {depositMutation.isPending ? 'Đang xử lý...' : 'Xác nhận nạp'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Cho Mượn (Credit) */}
-      {isCreditModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="page-card" style={{ width: '400px', backgroundColor: 'var(--surface)' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Cho mượn tiền: <span style={{ color: 'var(--primary)' }}>{selectedUserForPanel?.userName}</span></h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <label className="field">
-                <span>Số tiền cho mượn (VNĐ)</span>
-                <input type="number" value={creditAmount} onChange={e => setCreditAmount(Number(e.target.value))} min={0} step={1000} autoFocus />
-              </label>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button type="button" className="secondary-button" onClick={() => { creditIntent.clearKey(); setIsCreditModalOpen(false); setCreditAmount(0); }}>Hủy</button>
-              <button type="button" className="primary-button" onClick={() => creditMutation.mutate()} disabled={creditMutation.isPending || creditAmount <= 0}>
-                {creditMutation.isPending ? 'Đang xử lý...' : 'Xác nhận'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Tặng Tiền (Give Free) */}
-      {isGiveFreeModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="page-card" style={{ width: '400px', backgroundColor: 'var(--surface)' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Tặng tiền cho: <span style={{ color: 'var(--primary)' }}>{selectedUserForPanel?.userName}</span></h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <label className="field">
-                <span>Số tiền tặng (VNĐ)</span>
-                <input type="number" value={giveFreeAmount} onChange={e => setGiveFreeAmount(Number(e.target.value))} min={0} step={1000} autoFocus />
-              </label>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button type="button" className="secondary-button" onClick={() => { giveFreeIntent.clearKey(); setIsGiveFreeModalOpen(false); setGiveFreeAmount(0); }}>Hủy</button>
-              <button type="button" className="primary-button" onClick={() => giveFreeMutation.mutate()} disabled={giveFreeMutation.isPending || giveFreeAmount <= 0}>
-                {giveFreeMutation.isPending ? 'Đang xử lý...' : 'Xác nhận tặng'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Chuyển Tiền (Transfer) */}
-      {isTransferModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div className="page-card" style={{ width: '400px', backgroundColor: 'var(--surface)' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Chuyển tiền từ: <span style={{ color: 'var(--primary)' }}>{selectedUserForPanel?.userName}</span></h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <label className="field">
-                <span>Số tiền chuyển (VNĐ)</span>
-                <input type="number" value={transferAmount} onChange={e => setTransferAmount(Number(e.target.value))} min={0} step={1000} autoFocus />
-              </label>
-              <label className="field">
-                <span>ID Người nhận (User ID)</span>
-                <input type="number" value={transferToUserId} onChange={e => setTransferToUserId(Number(e.target.value))} min={1} />
-              </label>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button type="button" className="secondary-button" onClick={() => { transferIntent.clearKey(); setIsTransferModalOpen(false); setTransferAmount(0); setTransferToUserId(0); }}>Hủy</button>
-              <button type="button" className="primary-button" onClick={() => transferMutation.mutate()} disabled={transferMutation.isPending || transferAmount <= 0 || transferToUserId <= 0}>
-                {transferMutation.isPending ? 'Đang xử lý...' : 'Xác nhận chuyển'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   )
 }
