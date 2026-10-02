@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import {
   ArrowsClockwise,
@@ -8,6 +8,7 @@ import {
   MagnifyingGlass,
   NotePencil,
   Printer,
+  SlidersHorizontal,
   UserPlus,
   X,
 } from '@phosphor-icons/react'
@@ -28,6 +29,17 @@ import {
 import { AutoGenerateMemberDialog } from '../features/customers/AutoGenerateMemberDialog'
 import { CreateUserDialog } from '../features/customers/CreateUserDialog'
 import { CustomerInspector } from '../features/customers/CustomerInspector'
+import { UserAdvancedSearchDrawer } from '../features/customers/UserAdvancedSearchDrawer'
+import { UserCleanupDialog } from '../features/customers/UserCleanupDialog'
+import {
+  USER_ADMIN_RIGHTS,
+  advColumnLabel,
+  describeAdvFilter,
+  describeDeleteError,
+  describeFilterError,
+  isRbacDenied,
+  type AdvFilter,
+} from '../features/customers/userAdminModel'
 import { CredentialFilePrintDialog } from '../features/printers/CredentialFilePrintDialog'
 import { DepositAmountPanel } from '../features/payments/DepositAmountPanel'
 import { DepositMethodSelector } from '../features/payments/DepositMethodSelector'
@@ -187,6 +199,8 @@ export function UsersPage() {
     setSearchTerm(routeSearch)
     setSearchQuery(routeSearch)
     setPage(0)
+    setAdvFilter(null)
+    setAdvPage(0)
   }, [routeSearch])
 
   // ── Sort + Column state ─────────────────────────────────────────────────────
@@ -199,9 +213,13 @@ export function UsersPage() {
   const [isFilePrintOpen, setIsFilePrintOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false)
-  const [cleanMonths, setCleanMonths] = useState(6)
-  const [cleanIgnoreBalance, setCleanIgnoreBalance] = useState(false)
-  const [cleanCandidates, setCleanCandidates] = useState<any[]>([])
+
+  // ── Tìm kiếm nâng cao: snapshot bộ lọc đã bấm "Tìm" (null = đang dùng tìm nhanh) ──
+  const [isAdvOpen, setIsAdvOpen] = useState(false)
+  const [advFilter, setAdvFilter] = useState<AdvFilter | null>(null)
+  const [advPage, setAdvPage] = useState(0)
+  const canDeleteUsers = hasRight(USER_ADMIN_RIGHTS.DELETE_USER)
+  const canChangeGroup = hasRight(USER_ADMIN_RIGHTS.USERGROUP_MODIFY_USER)
 
   // ── Customer selection (seed pattern: sync với query sau refetch) ────────────
   const [selectedSeed, setSelectedSeed] = useState<UserAccount | null>(null)
@@ -220,7 +238,8 @@ export function UsersPage() {
   const transactionIntent = useIdempotentIntent('users-page-legacy')
 
   // ── Queries ─────────────────────────────────────────────────────────────────
-  const { data, isLoading, isError, error } = useQuery({
+  const isAdvMode = advFilter !== null
+  const quickQuery = useQuery({
     queryKey: ['users', activeTab, page, searchQuery, searchField],
     queryFn: () =>
       getUsers(
@@ -230,7 +249,26 @@ export function UsersPage() {
         searchQuery || undefined,
         activeTab === 'member' ? searchField : undefined,
       ),
+    enabled: !isAdvMode,
   })
+
+  // Query nâng cao có thể quét toàn bảng PaymentTb (LAPSE) và giữ khoá MyISAM chặn luồng ghi tiền:
+  // chỉ chạy khi bấm "Tìm"/đổi trang; không refetch khi focus/mount, không retry, cache 60s.
+  const advQuery = useQuery({
+    queryKey: ['users-adv', advFilter, advPage],
+    queryFn: () => usersApi.searchAdv(advFilter as AdvFilter, limit, advPage * limit),
+    enabled: isAdvMode && activeTab === 'member',
+    retry: false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    placeholderData: keepPreviousData,
+  })
+
+  const activeQuery = isAdvMode ? advQuery : quickQuery
+  const { data, isLoading, isError, error } = activeQuery
+  const advTotal = advQuery.data?.total ?? 0
+  const currentPage = isAdvMode ? advPage : page
 
   const users = data?.items ?? []
 
@@ -243,12 +281,20 @@ export function UsersPage() {
     enabled: action === 'transfer' && recipientQuery.length > 0,
   })
 
+  // Chế độ nâng cao: hiện đủ cột như MFC (kể cả đã nạp/đã dùng) và đổi nhãn khi bật LAPSE.
   const displayedColumns = useMemo(
-    () => CUSTOMER_COLUMNS.filter((col) => visibleColumns.includes(col.id)),
-    [visibleColumns],
+    () =>
+      CUSTOMER_COLUMNS.filter((col) => isAdvMode || visibleColumns.includes(col.id)).map((col) => ({
+        ...col,
+        label: isAdvMode ? advColumnLabel(col.id, col.label, advFilter) : col.label,
+      })),
+    [visibleColumns, isAdvMode, advFilter],
   )
 
   const sortedUsers = useMemo(() => {
+    // Nâng cao: giữ NGUYÊN thứ tự server (sắp xếp toàn cục theo đã nạp/còn lại); sort client chỉ
+    // xáo trong 1 trang và che mất thứ tự đó.
+    if (isAdvMode) return users
     const direction = sortDirection === 'asc' ? 1 : -1
     return [...users].sort((a, b) => {
       const av = columnValue(a, sortColumn)
@@ -256,7 +302,7 @@ export function UsersPage() {
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * direction
       return String(av).localeCompare(String(bv), 'vi', { numeric: true, sensitivity: 'base' }) * direction
     })
-  }, [users, sortColumn, sortDirection])
+  }, [users, sortColumn, sortDirection, isAdvMode])
 
   const tableGridStyle = useMemo(
     () => ({ '--customer-table-columns': displayedColumns.map((c) => c.width).join(' ') }) as CSSProperties,
@@ -333,35 +379,19 @@ export function UsersPage() {
   const deleteUserMutation = useMutation({
     mutationFn: () => {
       if (!selected) throw new Error('Chưa chọn tài khoản cần xóa')
-      return usersApi.deleteBatch([selected.userId])
+      return usersApi.deleteUser(selected.userId)
     },
     onSuccess: () => {
       setDeleteRequested(false)
       setSelectedSeed(null)
       pushToast('Đã xóa tài khoản hội viên và giữ lại lịch sử giao dịch.', 'success')
       void queryClient.invalidateQueries({ queryKey: ['users'] })
+      void queryClient.invalidateQueries({ queryKey: ['users-adv'] })
     },
-    onError: (err) => pushToast(err.message, 'error'),
-  })
-
-  /** Dọn dẹp hàng loạt (legacy feature) */
-  const loadCleanCandidatesMutation = useMutation({
-    mutationFn: () => usersApi.getCleanCandidates(cleanMonths, cleanIgnoreBalance),
-    onSuccess: (data: any) => {
-      setCleanCandidates(Array.isArray(data) ? data : (data.data || []))
+    onError: (err) => {
+      setDeleteRequested(false)
+      if (!isRbacDenied(err)) pushToast(describeDeleteError(err), 'error')
     },
-    onError: (err: any) => pushToast(`Lỗi: ${err.message}`, 'error'),
-  })
-
-  const deleteBatchMutation = useMutation({
-    mutationFn: () => usersApi.deleteBatch(cleanCandidates.map((c) => c.Id || c.userId)),
-    onSuccess: () => {
-      pushToast(`Đã xóa ${cleanCandidates.length} hội viên`, 'success')
-      setIsCleanModalOpen(false)
-      setCleanCandidates([])
-      void queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
-    },
-    onError: (err: any) => pushToast(`Lỗi: ${err.message}`, 'error'),
   })
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -490,12 +520,22 @@ export function UsersPage() {
                 </Button>
                 <Button
                   type="button"
-                  variant="danger-outline"
-                  icon={<Broom size={18} weight="bold" aria-hidden="true" />}
-                  onClick={() => setIsCleanModalOpen(true)}
+                  variant={isAdvMode ? 'primary' : 'secondary'}
+                  icon={<SlidersHorizontal size={18} weight="bold" aria-hidden="true" />}
+                  onClick={() => setIsAdvOpen(true)}
                 >
-                  Dọn dẹp
+                  Tìm kiếm nâng cao
                 </Button>
+                {canDeleteUsers ? (
+                  <Button
+                    type="button"
+                    variant="danger-outline"
+                    icon={<Broom size={18} weight="bold" aria-hidden="true" />}
+                    onClick={() => setIsCleanModalOpen(true)}
+                  >
+                    Dọn dẹp
+                  </Button>
+                ) : null}
               </>
             )}
             {activeTab !== 'combo' && (
@@ -528,6 +568,8 @@ export function UsersPage() {
               setActiveTab(id)
               setPage(0)
               setSelectedSeed(null)
+              setAdvFilter(null)
+              setAdvPage(0)
             }}
           >
             {label}
@@ -541,6 +583,9 @@ export function UsersPage() {
           e.preventDefault()
           setPage(0)
           setSearchQuery(searchTerm.trim())
+          // Tìm nhanh và tìm nâng cao loại trừ nhau.
+          setAdvFilter(null)
+          setAdvPage(0)
         }}
       >
         <label className="ds-field">
@@ -596,26 +641,61 @@ export function UsersPage() {
         </label>
       </form>
 
+      {isAdvMode && advFilter ? (
+        <div className="user-admin__chip" role="status">
+          <span>
+            Đang lọc nâng cao · <strong>{new Intl.NumberFormat('vi-VN').format(advTotal)}</strong> kết quả
+            {advQuery.isFetching ? ' · đang tải…' : ''} · {describeAdvFilter(advFilter)}
+          </span>
+          <Button type="button" variant="ghost" onClick={() => setIsAdvOpen(true)}>
+            Sửa bộ lọc
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setAdvFilter(null)
+              setAdvPage(0)
+              setSelectedSeed(null)
+            }}
+          >
+            Xóa lọc
+          </Button>
+        </div>
+      ) : null}
+
       <div className="customer-list-card">
         <ListToolbar
-          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(users.length)}</strong></>}
+          count={
+            <>
+              Tổng{' '}
+              <strong>
+                {new Intl.NumberFormat('vi-VN').format(isAdvMode ? advTotal : users.length)}
+              </strong>
+            </>
+          }
           actions={
             <>
               <RefreshButton
-                loading={isLoading}
+                loading={isLoading || (isAdvMode && advQuery.isFetching)}
                 onClick={() =>
-                  void queryClient.invalidateQueries({ queryKey: ['users', activeTab, page, searchQuery] })
+                  isAdvMode
+                    ? void advQuery.refetch()
+                    : void queryClient.invalidateQueries({ queryKey: ['users', activeTab, page, searchQuery] })
                 }
               />
               <ListPagination
-                page={page}
-                canNext={users.length >= limit}
+                page={currentPage}
+                totalPages={isAdvMode ? Math.max(1, Math.ceil(advTotal / limit)) : undefined}
+                canNext={isAdvMode ? (advPage + 1) * limit < advTotal : users.length >= limit}
                 onPrevious={() => {
-                  setPage((current) => Math.max(0, current - 1))
+                  if (isAdvMode) setAdvPage((current) => Math.max(0, current - 1))
+                  else setPage((current) => Math.max(0, current - 1))
                   setSelectedSeed(null)
                 }}
                 onNext={() => {
-                  setPage((current) => current + 1)
+                  if (isAdvMode) setAdvPage((current) => current + 1)
+                  else setPage((current) => current + 1)
                   setSelectedSeed(null)
                 }}
               />
@@ -636,16 +716,18 @@ export function UsersPage() {
                   role="columnheader"
                   className={col.money ? 'is-money' : ''}
                   aria-sort={
-                    sortColumn === col.id
+                    !isAdvMode && sortColumn === col.id
                       ? sortDirection === 'asc'
                         ? 'ascending'
                         : 'descending'
                       : 'none'
                   }
+                  disabled={isAdvMode}
+                  title={isAdvMode ? 'Thứ tự do bộ lọc nâng cao quyết định' : undefined}
                   onClick={() => toggleSort(col.id)}
                 >
                   <span>{col.label}</span>
-                  {sortColumn === col.id ? (
+                  {!isAdvMode && sortColumn === col.id ? (
                     <span className="customer-sort-mark" aria-hidden="true">
                       {sortDirection === 'asc' ? '↑' : '↓'}
                     </span>
@@ -661,10 +743,15 @@ export function UsersPage() {
             ) : isError ? (
               <div className="customer-table__empty" role="row">
                 <div role="cell">
-                  <p>Không tải được danh sách — {(error as Error).message}</p>
+                  <p>
+                    Không tải được danh sách —{' '}
+                    {isAdvMode ? describeFilterError(error) : (error as Error).message}
+                  </p>
                   <Button
                     onClick={() =>
-                      queryClient.invalidateQueries({ queryKey: ['users', activeTab, page, searchQuery] })
+                      isAdvMode
+                        ? void advQuery.refetch()
+                        : queryClient.invalidateQueries({ queryKey: ['users', activeTab, page, searchQuery] })
                     }
                   >
                     Thử lại
@@ -675,9 +762,11 @@ export function UsersPage() {
               <div className="customer-table__empty" role="row">
                 <div role="cell">
                   Không tìm thấy tài khoản —{' '}
-                  {searchQuery
-                    ? 'kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
-                    : 'danh sách hiện chưa có dữ liệu.'}
+                  {isAdvMode
+                    ? 'không có hội viên nào khớp bộ lọc nâng cao.'
+                    : searchQuery
+                      ? 'kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
+                      : 'danh sách hiện chưa có dữ liệu.'}
                 </div>
               </div>
             ) : (
@@ -977,108 +1066,29 @@ export function UsersPage() {
         onClose={() => setIsFilePrintOpen(false)}
       />
 
-      {/* Modal Dọn Dẹp */}
-      {isCleanModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-          }}
-        >
-          <div
-            className="page-card"
-            style={{ width: '600px', backgroundColor: 'var(--surface)', maxHeight: '90vh', overflowY: 'auto' }}
-          >
-            <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 600 }}>
-              Dọn dẹp hội viên cũ
-            </h3>
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
-              <label className="field" style={{ flex: 1 }}>
-                <span>Không hoạt động trong (tháng)</span>
-                <input
-                  type="number"
-                  value={cleanMonths}
-                  onChange={(e) => setCleanMonths(Number(e.target.value))}
-                  min={1}
-                />
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingBottom: '0.5rem', flex: 1 }}>
-                <input
-                  type="checkbox"
-                  checked={cleanIgnoreBalance}
-                  onChange={(e) => setCleanIgnoreBalance(e.target.checked)}
-                />
-                <span style={{ fontSize: '0.85em' }}>Bỏ qua tài khoản còn số dư</span>
-              </label>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => loadCleanCandidatesMutation.mutate()}
-                disabled={loadCleanCandidatesMutation.isPending}
-              >
-                Lọc danh sách
-              </button>
-            </div>
-
-            {cleanCandidates.length > 0 && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ color: 'var(--text-error)', marginBottom: '0.5rem', fontWeight: 500 }}>
-                  Tìm thấy {cleanCandidates.length} hội viên có thể xóa.
-                </div>
-                <div
-                  style={{
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    border: '1px solid var(--border)',
-                    borderRadius: '4px',
-                  }}
-                >
-                  <table className="data-table" style={{ margin: 0 }}>
-                    <thead>
-                      <tr><th>Username</th><th>Lần cuối HĐ</th></tr>
-                    </thead>
-                    <tbody>
-                      {cleanCandidates.map((c, idx) => (
-                        <tr key={idx}>
-                          <td>{c.Name || c.userName}</td>
-                          <td>{c.LastActive || 'N/A'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setIsCleanModalOpen(false)
-                  setCleanCandidates([])
-                }}
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                style={{ backgroundColor: 'var(--text-error)' }}
-                onClick={() => deleteBatchMutation.mutate()}
-                disabled={cleanCandidates.length === 0 || deleteBatchMutation.isPending}
-              >
-                {deleteBatchMutation.isPending ? 'Đang xóa...' : 'Xóa hàng loạt'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Dọn dẹp hội viên (quyền 23) + Tìm kiếm nâng cao ──────────────────────── */}
+      {isCleanModalOpen && canDeleteUsers ? (
+        <UserCleanupDialog onClose={() => setIsCleanModalOpen(false)} />
+      ) : null}
+      <UserAdvancedSearchDrawer
+        open={isAdvOpen}
+        applied={advFilter}
+        total={advTotal}
+        canChangeGroup={canChangeGroup}
+        onClose={() => setIsAdvOpen(false)}
+        onApply={(filter) => {
+          setSearchTerm('')
+          setSearchQuery('')
+          setAdvFilter(filter)
+          setAdvPage(0)
+          setSelectedSeed(null)
+        }}
+        onClear={() => {
+          setAdvFilter(null)
+          setAdvPage(0)
+          setSelectedSeed(null)
+        }}
+      />
 
     </section>
   )

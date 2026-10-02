@@ -1,4 +1,13 @@
 import { apiDelete, apiGet, apiGetBlob, apiPost, apiPostForm, apiPut } from './client'
+import {
+  buildAdvQuery,
+  buildChangeGroupBody,
+  buildCleanQuery,
+  summarizeDeleteResult,
+  type AdvFilter,
+  type ChangeGroupBody,
+  type CleanForm,
+} from '../features/customers/userAdminModel'
 
 export interface UserAccount {
   userId: number
@@ -286,25 +295,83 @@ export const getRechargeHistory = (userId: number, range: UserHistoryDateRange =
 export const getUserLogs = (userId: number, limit = 200, offset = 0, range: UserHistoryDateRange = {}) =>
   apiGet<UserUsageLog[]>(`/user/logs?userId=${userId}&limit=${limit}&offset=${offset}${dateRangeQuery(range)}`)
 
+export type CleanCandidate = {
+  userId: number
+  /** Viết thường (khác `userName` của UserAccount). */
+  username: string
+  remainMoney: number
+  /** Tên nhóm giá. */
+  priceType: string
+  /** YYYY-MM-DD */
+  lastLoginDate: string
+  debit: number
+  totalDebit: number
+}
+
+export type CleanCandidatesPage = { items: CleanCandidate[]; total: number }
+
+export const getCleanCandidates = (form: CleanForm, page: number) =>
+  apiGet<CleanCandidatesPage>(`/users/clean-candidates?${buildCleanQuery(form, page)}`)
+
+export type DeletePreview = {
+  count: number
+  hasStaff: boolean
+  totalDebit: number
+  deleted: false
+}
+
+export type DeleteResult = {
+  deletedCount: number
+  failed: number[]
+  deleted: true
+}
+
+export const deleteBatch = (userIds: number[], confirm: boolean) =>
+  apiDelete<DeletePreview | DeleteResult, { userIds: number[]; confirm: boolean }>(
+    '/users/batch',
+    { userIds, confirm },
+  )
+
+export async function deleteUser(userId: number) {
+  const result = await deleteBatch([userId], true)
+  const outcome = summarizeDeleteResult(1, result)
+  if (outcome.tone !== 'success') throw new Error(outcome.message)
+}
+
+export type UserAdvPage = { total: number; items: UserAccount[] }
+
+export const searchAdv = (filter: AdvFilter, limit: number, offset: number) =>
+  apiGet<UserAdvPage>(`/users/search-adv?${buildAdvQuery(filter, limit, offset)}`)
+
+export type ChangeGroupPreview = { count: number; changed: false }
+export type ChangeGroupResult = { count: number; effected: number; changed: true }
+
+export const changeGroupBulk = (
+  filter: AdvFilter,
+  groupId: number,
+  confirm: boolean,
+  expectedCount?: number,
+) =>
+  apiPost<ChangeGroupPreview | ChangeGroupResult, ChangeGroupBody>(
+    '/users/change-group',
+    buildChangeGroupBody(filter, groupId, confirm, expectedCount),
+  )
+
 export const usersApi = {
   generateUsers,
   
-  // Lấy danh sách hội viên cũ cần dọn dẹp
-  getCleanCandidates: async (months: number, ignoreBalance: boolean) => {
-    return apiGet<any>(`/users/clean-candidates?months=${months}&ignoreBalance=${ignoreBalance}`);
-  },
+  // Ứng viên dọn dẹp (CCleanMemberDlg). Cần quyền 23.
+  getCleanCandidates,
 
-  // Dọn dẹp hội viên
-  cleanCandidates: async (options: { beforeDays: number; status: string }) => {
-    const { apiDelete } = await import('./client');
-    return apiDelete<any, typeof options>('/users/candidates/clean', options);
-  },
+  // Xóa hội viên: `confirm` BẮT BUỘC tường minh. false = chỉ xem trước (server chưa xóa gì).
+  deleteBatch,
 
-  // Xóa hội viên hàng loạt
-  deleteBatch: async (userIds: number[]) => {
-    const { apiDelete } = await import('./client');
-    return apiDelete<any, { userIds: number[] }>('/users/batch', { userIds });
-  },
+  // Xóa MỘT tài khoản (đã có ConfirmAction ở UI) — ném lỗi nếu server không thật sự xóa.
+  deleteUser,
+
+  // Tìm kiếm nâng cao (CUserSearchAdvDlg) + đổi nhóm hàng loạt theo bộ lọc.
+  searchAdv,
+  changeGroupBulk,
 
   // Lịch sử nạp
   getRechargeHistory,

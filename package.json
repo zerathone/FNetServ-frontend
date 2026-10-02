@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test:unit": "node --test --experimental-strip-types tests/idempotency.test.ts tests/theme-registry.test.ts tests/settings-model.test.ts tests/workstation-model.test.ts tests/workstation-phase2-model.test.ts tests/checkout-model.test.ts tests/combo-usage-model.test.ts tests/notification-model.test.ts tests/transaction-model.test.ts tests/card-model.test.ts tests/credential-print-model.test.ts tests/anonym-model.test.ts tests/service-model.test.ts tests/app-model.test.ts tests/webblock-model.test.ts tests/machine-group-model.test.ts tests/user-group-model.test.ts tests/deposit-model.test.ts",
+    "test:unit": "node --test --experimental-strip-types tests/idempotency.test.ts tests/theme-registry.test.ts tests/settings-model.test.ts tests/workstation-model.test.ts tests/workstation-phase2-model.test.ts tests/checkout-model.test.ts tests/combo-usage-model.test.ts tests/notification-model.test.ts tests/transaction-model.test.ts tests/card-model.test.ts tests/credential-print-model.test.ts tests/anonym-model.test.ts tests/service-model.test.ts tests/app-model.test.ts tests/webblock-model.test.ts tests/machine-group-model.test.ts tests/user-group-model.test.ts tests/deposit-model.test.ts tests/user-admin-model.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

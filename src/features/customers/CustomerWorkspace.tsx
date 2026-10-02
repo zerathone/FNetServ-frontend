@@ -32,6 +32,7 @@ import {
 } from '../payments/depositModel'
 import { CreateUserDialog } from './CreateUserDialog'
 import { CustomerInspector } from './CustomerInspector'
+import { USER_ADMIN_RIGHTS, describeDeleteError, isRbacDenied } from './userAdminModel'
 import './customers.css'
 
 const PAGE_SIZE = 50
@@ -401,7 +402,7 @@ export function CustomerWorkspace() {
   const deleteMutation = useMutation({
     mutationFn: () => {
       if (!selected) throw new Error('Chưa chọn tài khoản cần xóa')
-      return usersApi.deleteBatch([selected.userId])
+      return usersApi.deleteUser(selected.userId)
     },
     onSuccess: () => {
       setDeleteRequested(false)
@@ -409,7 +410,10 @@ export function CustomerWorkspace() {
       pushToast('Đã xóa tài khoản hội viên và giữ lại lịch sử giao dịch.', 'success')
       void queryClient.invalidateQueries({ queryKey: ['users'] })
     },
-    onError: (error) => pushToast(error.message, 'error'),
+    onError: (error) => {
+      setDeleteRequested(false)
+      if (!isRbacDenied(error)) pushToast(describeDeleteError(error), 'error')
+    },
   })
 
   const submitSearch = (event: FormEvent) => {
@@ -772,7 +776,8 @@ export function CustomerWorkspace() {
           <CustomerInspector
             user={selected}
             userType={userType}
-            canDelete={isAdmin}
+            // Xóa đơn đi qua /users/batch (gate quyền 23): thiếu quyền thì ẩn nút. Giữ điều kiện admin cũ.
+            canDelete={isAdmin && hasRight(USER_ADMIN_RIGHTS.DELETE_USER)}
             onOpenAction={openAction}
             onRequestDelete={() => setDeleteRequested(true)}
           />
