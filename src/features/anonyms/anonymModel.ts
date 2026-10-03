@@ -7,14 +7,16 @@ export function maskIdCard(value: string) {
   return `${normalized.slice(0, 3)}••••${normalized.slice(-4)}`
 }
 
-export function matchesAnonymous(customer: AnonymousCustomer, search: string) {
+export type AnonymousSearchField = 'name' | 'idCard' | 'address'
+
+export function matchesAnonymous(
+  customer: AnonymousCustomer,
+  search: string,
+  field: AnonymousSearchField,
+) {
   const normalized = search.trim().toLocaleLowerCase('vi')
   if (!normalized) return true
-  return (
-    customer.name.toLocaleLowerCase('vi').includes(normalized) ||
-    customer.idCard.toLocaleLowerCase('vi').includes(normalized) ||
-    customer.address.toLocaleLowerCase('vi').includes(normalized)
-  )
+  return customer[field].toLocaleLowerCase('vi').includes(normalized)
 }
 
 export function validateAnonymousDetail(detail: {

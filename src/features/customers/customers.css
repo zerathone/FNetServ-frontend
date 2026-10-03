@@ -1907,6 +1907,14 @@
   gap: var(--space-3);
 }
 
+/* Cặp Tối thiểu / Tối đa — 2 CheckboxInput xếp cạnh nhau */
+.user-admin__money-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+
 .user-admin__panel-foot {
   display: flex;
   flex-wrap: wrap;
@@ -1919,6 +1927,44 @@
   display: grid;
   gap: var(--space-1);
   justify-items: start;
+}
+
+/* Label + Segmented trên 1 dòng, sát nhau */
+.user-admin__inline-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.user-admin__inline-group > .ds-field__label {
+  flex: none;
+  margin: 0;
+}
+
+/* Segmented-trong-border-box: sort field (có checkbox) và tri field (label tĩnh).
+ * [☐ Sắp xếp | Tăng dần · Giảm dần]  /  [Số CCCD | Không lọc · Có · Không có]
+ * Dùng đúng kiểu ds-checkbox-input: prefix nền xám + border-right + content bên phải. */
+.user-admin__sort-field.ds-checkbox-input,
+.user-admin__tri-field.ds-checkbox-input {
+  min-height: unset;
+  align-items: stretch;
+  width: fit-content;
+}
+
+.user-admin__sort-field .ds-segmented,
+.user-admin__tri-field .ds-segmented {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 3px;
+  margin: 0;
+  align-self: center;
+}
+
+.user-admin__sort-field .ds-segmented.is-disabled {
+  pointer-events: none;
+  opacity: 0.45;
 }
 
 /* Drawer: các khối xếp dọc, cách nhau rõ bằng tiêu đề + khoảng trắng. */
@@ -2046,10 +2092,137 @@
   flex: 1 1 16rem;
 }
 
+/* Dấu phân cách "Xóa lọc" / cụm đổi nhóm — tách 2 phần rõ trong cùng hàng chip. */
+.user-admin__chip-sep {
+  flex: none !important;
+  color: var(--color-border-strong);
+}
+
+/* Select nhóm: co lại vừa nội dung, không stretch */
+.user-admin__chip .ds-custom-select-container {
+  flex: none;
+  width: fit-content;
+  max-width: 16rem;
+}
+
+.user-admin__chip .ds-custom-select-trigger {
+  width: 100%;
+}
+
+.user-admin__chip .ds-button {
+  flex: none;
+}
+
+/* Đăng nhập cuối trước ngày: checkbox-prefix + input[type=date] liền 1 cụm (ds-checkbox-input__date). */
+.user-admin__date-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* ── Thời gian nạp: checkbox-prefix + DateRangePicker liền 1 cụm ── */
+.user-admin__lapse-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Row wrapper — position:relative để popover của DateRangePicker thoát ra (không bị overflow:hidden chặn) */
+.user-admin__lapse-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  transition: border-color var(--motion-fast) ease, opacity 150ms ease-out;
+  overflow: visible;
+}
+
+.user-admin__lapse-row:focus-within {
+  border-color: var(--color-focus);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 18%, transparent);
+}
+
+.user-admin__lapse-row.is-off {
+  opacity: 0.5;
+}
+
+/* Khi checkbox chưa tick: khoá toàn bộ tương tác với DateRangePicker */
+.user-admin__lapse-row.is-off .ds-date-range {
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* Prefix: checkbox + label, nền xám, đường kẻ dọc bên phải */
+.user-admin__lapse-prefix {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: stretch;
+  flex: none;
+  padding: 0 var(--space-3);
+  background: var(--color-surface-subtle);
+  border-right: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.user-admin__lapse-prefix input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  cursor: pointer;
+}
+
+/* Strip border/radius/background của DateRangePicker bên trong — để nó hoà làm 1 với prefix */
+.user-admin__lapse-row .ds-date-range {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-admin__lapse-row .ds-date-range__control {
+  border: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: transparent;
+  height: var(--control-height-compact);
+  box-shadow: none;
+  outline: none;
+}
+
+/* Popover canh phải từ mép phải control (thay vì mép trái mặc định) */
+/* Và thu về 1 tháng vì drawer không đủ rộng cho 2 tháng song song */
+.user-admin__lapse-row .ds-date-range__popover {
+  left: auto;
+  right: 0;
+  width: min(21rem, calc(100vw - 2rem));
+}
+
+.user-admin__lapse-row .ds-date-range__month-titles,
+.user-admin__lapse-row .ds-date-range__months {
+  grid-template-columns: 1fr;
+}
+
+.user-admin__lapse-row .ds-date-range__month-titles strong:last-child,
+.user-admin__lapse-row .ds-date-range__month + .ds-date-range__month {
+  display: none;
+}
+
+.user-admin__lapse-row:focus-within .ds-date-range__control {
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+
 @media (max-width: 640px) {
   .user-admin__criteria,
   .user-admin__criterion-body,
   .user-admin__pair,
+  .user-admin__money-pair,
   .user-admin__group-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2060,7 +2233,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .user-admin__criterion {
+  .user-admin__criterion,
+  .user-admin__money-group {
     transition: none;
   }
 }

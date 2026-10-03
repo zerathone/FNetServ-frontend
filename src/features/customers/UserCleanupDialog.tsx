@@ -4,12 +4,12 @@ import { Broom } from '@phosphor-icons/react'
 import { usersApi, type CleanCandidate } from '../../api/users'
 import {
   Button,
+  CheckboxInput,
   ConfirmAction,
   Dialog,
   InlineAlert,
   ListPagination,
   Segmented,
-  Select,
 } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import {
@@ -25,19 +25,17 @@ import {
   type CleanDebitMode,
   type CleanForm,
   type FormErrors,
-  type SortChoice,
+  type SortDir,
 } from './userAdminModel'
 
-const DEBIT_OPTIONS: Array<{ value: CleanDebitMode; label: string }> = [
-  { value: 'no', label: 'Không nợ' },
-  { value: 'have', label: 'Có nợ' },
-  { value: 'all', label: 'Tất cả' },
-]
-
-const SORT_OPTIONS: Array<{ value: SortChoice; label: string }> = [
-  { value: 'none', label: 'Không sắp xếp' },
+const SORT_DIR_OPTIONS: Array<{ value: SortDir; label: string }> = [
   { value: 'asc', label: 'Tăng dần' },
   { value: 'desc', label: 'Giảm dần' },
+]
+
+const DEBIT_YN_OPTIONS: Array<{ value: CleanDebitMode; label: string }> = [
+  { value: 'have', label: 'Có nợ' },
+  { value: 'no', label: 'Không nợ' },
 ]
 
 const nf = new Intl.NumberFormat('vi-VN')
@@ -150,6 +148,85 @@ export function UserCleanupDialog({ onClose }: { onClose: () => void }) {
   const deleteBlocked = debitMode === 'have'
   const totalPages = Math.max(1, Math.ceil(total / CLEAN_PAGE_SIZE))
 
+  /** Đăng nhập cuối trước ngày — [☐ label | dd/mm/yyyy] kiểu ds-checkbox-input__date (tham khảo
+   * UserAdvancedSearchDrawer). Unchecked -> opacity mờ, input disabled. */
+  const dateField = () => {
+    const enabled = form.useLastLogin
+    return (
+      <div className="user-admin__date-field">
+        <div className={`ds-checkbox-input${enabled ? '' : ' is-off'}`}>
+          <label className="ds-checkbox-input__prefix">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => update('useLastLogin', event.target.checked)}
+            />
+            <span>Đăng nhập cuối trước ngày</span>
+          </label>
+          <input
+            className="ds-checkbox-input__date"
+            type="date"
+            value={form.lastLogin}
+            disabled={!enabled}
+            aria-invalid={errors.lastLogin ? true : undefined}
+            onChange={(event) => update('lastLogin', event.target.value)}
+          />
+        </div>
+        {errors.lastLogin ? <span className="ds-field__error" role="alert">{errors.lastLogin}</span> : null}
+      </div>
+    )
+  }
+
+  /** Sắp xếp — [☐ Sắp xếp | Tăng dần · Giảm dần], giống hệt UserAdvancedSearchDrawer.
+   * Unchecked -> 'none' (không sắp xếp). Checked -> default giảm dần. */
+  const sortField = (key: 'sortLastLogin' | 'sortRemain') => {
+    const current = form[key]
+    const enabled = current !== 'none'
+    return (
+      <div className={`ds-checkbox-input user-admin__sort-field${enabled ? '' : ' is-off'}`}>
+        <label className="ds-checkbox-input__prefix">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) => update(key, event.target.checked ? 'desc' : 'none')}
+          />
+          <span>Sắp xếp</span>
+        </label>
+        <Segmented
+          ariaLabel="Chiều sắp xếp"
+          value={enabled ? current : 'desc'}
+          options={SORT_DIR_OPTIONS}
+          disabled={!enabled}
+          onChange={(value) => update(key, value)}
+        />
+      </div>
+    )
+  }
+
+  /** Công nợ — [☐ Công nợ | Có nợ · Không nợ]. Unchecked -> 'all' (không lọc theo nợ). */
+  const debitField = () => {
+    const enabled = form.debit !== 'all'
+    return (
+      <div className={`ds-checkbox-input user-admin__tri-field${enabled ? '' : ' is-off'}`}>
+        <label className="ds-checkbox-input__prefix">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) => update('debit', event.target.checked ? 'have' : 'all')}
+          />
+          <span>Công nợ</span>
+        </label>
+        <Segmented
+          ariaLabel="Công nợ"
+          value={enabled ? form.debit : 'have'}
+          options={DEBIT_YN_OPTIONS}
+          disabled={!enabled}
+          onChange={(value) => update('debit', value)}
+        />
+      </div>
+    )
+  }
+
   return (
     <Dialog
       open
@@ -186,89 +263,32 @@ export function UserCleanupDialog({ onClose }: { onClose: () => void }) {
           }}
         >
           <div className="user-admin__criteria">
-            <section className={`user-admin__criterion${form.useLastLogin ? '' : ' is-off'}`}>
-              <label className="user-admin__criterion-head">
-                <input
-                  type="checkbox"
-                  checked={form.useLastLogin}
-                  onChange={(event) => update('useLastLogin', event.target.checked)}
-                />
-                <span>Đăng nhập cuối trước ngày</span>
-              </label>
-              <div className="user-admin__criterion-body">
-                <label className="ds-field">
-                  <span className="ds-field__label">Ngày</span>
-                  <input
-                    className="ds-input"
-                    type="date"
-                    value={form.lastLogin}
-                    disabled={!form.useLastLogin}
-                    aria-invalid={errors.lastLogin ? true : undefined}
-                    onChange={(event) => update('lastLogin', event.target.value)}
-                  />
-                  {errors.lastLogin ? <span className="ds-field__error" role="alert">{errors.lastLogin}</span> : null}
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Sắp xếp</span>
-                  <Select
-                    value={form.sortLastLogin}
-                    onChange={(event) => update('sortLastLogin', event.target.value as SortChoice)}
-                  >
-                    {SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </Select>
-                </label>
-              </div>
+            <section className="user-admin__section">
+              <h3>Đăng nhập cuối</h3>
+              {dateField()}
+              {sortField('sortLastLogin')}
             </section>
 
-            <section className={`user-admin__criterion${form.useMaxRemain ? '' : ' is-off'}`}>
-              <label className="user-admin__criterion-head">
-                <input
-                  type="checkbox"
-                  checked={form.useMaxRemain}
-                  onChange={(event) => update('useMaxRemain', event.target.checked)}
-                />
-                <span>Số dư tối đa</span>
-              </label>
-              <div className="user-admin__criterion-body">
-                <label className="ds-field">
-                  <span className="ds-field__label">Số tiền (đ)</span>
-                  <input
-                    className="ds-input user-admin__number"
-                    inputMode="numeric"
-                    value={form.maxRemain}
-                    disabled={!form.useMaxRemain}
-                    aria-invalid={errors.maxRemain ? true : undefined}
-                    onChange={(event) => update('maxRemain', event.target.value.trim())}
-                  />
-                  {errors.maxRemain ? <span className="ds-field__error" role="alert">{errors.maxRemain}</span> : null}
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Sắp xếp</span>
-                  <Select
-                    value={form.sortRemain}
-                    onChange={(event) => update('sortRemain', event.target.value as SortChoice)}
-                  >
-                    {SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </Select>
-                </label>
-              </div>
+            <section className="user-admin__section">
+              <h3>Số dư</h3>
+              <CheckboxInput
+                label="Số dư tối đa"
+                checked={form.useMaxRemain}
+                onCheckedChange={(v) => update('useMaxRemain', v)}
+                placeholder="Số tiền (đ)"
+                inputMode="numeric"
+                maxLength={10}
+                value={form.maxRemain}
+                disabled={!form.useMaxRemain}
+                error={errors.maxRemain}
+                onChange={(event) => update('maxRemain', event.target.value.trim())}
+              />
+              {sortField('sortRemain')}
             </section>
           </div>
 
           <div className="user-admin__panel-foot">
-            <div className="user-admin__group">
-              <span className="ds-field__label">Công nợ</span>
-              <Segmented
-                ariaLabel="Công nợ"
-                value={form.debit}
-                options={DEBIT_OPTIONS}
-                onChange={(value) => update('debit', value)}
-              />
-            </div>
+            {debitField()}
             <Button type="submit" variant="primary" loading={query.isFetching}>
               Tìm
             </Button>

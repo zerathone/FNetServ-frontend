@@ -1,4 +1,4 @@
-﻿.ds-button {
+.ds-button {
   position: relative;
   height: var(--control-height-compact);
   display: inline-flex;
@@ -1433,4 +1433,132 @@ input[type="radio"]:disabled {
 .ds-segmented__item:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 1px;
+}
+
+.ds-segmented.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ─── CheckboxInput ────────────────────────────────────────────────────────────
+ * Input-group 1 dòng: [☐ label | ______input______]
+ * Checkbox prefix gắn bên trái — nền xám, border-right ngăn cách.
+ * is-off (checked=false) → opacity mờ toàn control.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+.ds-checkbox-input-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ds-checkbox-input {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height-compact);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  overflow: hidden;
+  transition: border-color var(--motion-fast) ease,
+              opacity 150ms ease-out;
+}
+
+.ds-checkbox-input:focus-within {
+  border-color: var(--color-focus);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 18%, transparent);
+}
+
+.ds-checkbox-input.is-off {
+  opacity: 0.5;
+}
+
+/* Prefix: checkbox + text — nền xám, đường kẻ dọc bên phải */
+.ds-checkbox-input__prefix {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: stretch;
+  flex: none;
+  padding: 0 var(--space-3);
+  background: var(--color-surface-subtle);
+  border-right: 1px solid var(--color-border-default);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ds-checkbox-input__prefix input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  cursor: pointer;
+}
+
+/* Input bên phải: flex chiếm hết, bỏ border/radius riêng */
+.ds-checkbox-input > input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: none;
+}
+
+.ds-checkbox-input > input[type='text']::placeholder {
+  color: var(--color-text-muted);
+  font-variant-numeric: normal;
+}
+
+.ds-checkbox-input > input[type='text']:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* Variant date: dùng khi có 1 hoặc 2 date picker thay cho text input */
+.ds-checkbox-input > .ds-checkbox-input__date {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.ds-checkbox-input > .ds-checkbox-input__date:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* Dấu phân cách giữa 2 date ("–") */
+.ds-checkbox-input__sep {
+  flex: none;
+  align-self: center;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-checkbox-input {
+    transition: none;
+  }
 }

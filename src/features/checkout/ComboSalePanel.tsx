@@ -89,7 +89,11 @@ export function ComboSalePanel() {
     queryFn: () => getComboCatalog('active'),
   })
   const catalog = useMemo(
-    () => (comboQuery.data?.items ?? []).filter((combo) => combo.status === 1),
+    () =>
+      (comboQuery.data?.items ?? [])
+        // Chỉ bán COMBO đã được xếp vào 1 trong 20 vị trí ở Quản lý > Combo.
+        .filter((combo) => combo.status === 1 && combo.order >= 0 && combo.order <= 19)
+        .sort((left, right) => left.order - right.order),
     [comboQuery.data],
   )
   const machineGroups = useMemo(() => {
@@ -232,14 +236,7 @@ export function ComboSalePanel() {
   }
 
   return (
-    <section className="checkout-panel combo-pos" aria-labelledby="combo-sale-title">
-      <div className="checkout-panel__header">
-        <div>
-          <h2 id="combo-sale-title">Bán COMBO trực tiếp</h2>
-          <p>Chọn COMBO để thêm vào phiếu bán · giá được máy chủ xác nhận khi chốt</p>
-        </div>
-      </div>
-
+    <section className="checkout-panel combo-pos" aria-label="Bán COMBO">
       {comboQuery.isLoading ? (
         <StateView title="Đang tải danh mục COMBO…" />
       ) : comboQuery.isError ? (

@@ -1,4 +1,5 @@
 export { Button, type ButtonProps, type ButtonVariant } from './Button'
+export { CheckboxInput, type CheckboxInputProps } from './CheckboxInput'
 export { ConfirmAction } from './ConfirmAction'
 export { DateRangePicker } from './DateRangePicker'
 export { Dialog, type DialogProps } from './Dialog'

@@ -1,5 +1,6 @@
 import {  useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import {
   anonymsApi,
   type AnonymousCustomer,
@@ -21,6 +22,7 @@ import {
   maskIdCard,
   matchesAnonymous,
   validateAnonymousDetail,
+  type AnonymousSearchField,
 } from './anonymModel'
 import './anonyms.css'
 
@@ -32,9 +34,22 @@ const emptyDetail: AnonymousDetailPayload = {
   address: '',
 }
 
+const SEARCH_FIELD_LABELS: Record<AnonymousSearchField, string> = {
+  name: 'Họ tên',
+  idCard: 'Số CCCD',
+  address: 'Địa chỉ',
+}
+
+const SEARCH_FIELD_PLACEHOLDERS: Record<AnonymousSearchField, string> = {
+  name: 'Nhập họ tên cần tìm...',
+  idCard: 'Nhập số CCCD cần tìm...',
+  address: 'Nhập địa chỉ cần tìm...',
+}
+
 export function AnonymWorkspace() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [searchField, setSearchField] = useState<AnonymousSearchField>('name')
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<AnonymousDetailPayload>(emptyDetail)
   const [detailError, setDetailError] = useState<string | null>(null)
@@ -55,9 +70,9 @@ export function AnonymWorkspace() {
   const customers = useMemo(
     () =>
       (customersQuery.data ?? []).filter((customer) =>
-        matchesAnonymous(customer, search),
+        matchesAnonymous(customer, search, searchField),
       ),
-    [customersQuery.data, search],
+    [customersQuery.data, search, searchField],
   )
   const eligibleMachines = useMemo(
     () =>
@@ -184,14 +199,38 @@ export function AnonymWorkspace() {
 
       <section className="anonym-toolbar" aria-label="Tìm khách vãng lai">
         <label className="ds-field">
-          <span className="ds-field__label">Tên / CCCD / địa chỉ</span>
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            placeholder="Nhập thông tin cần tìm"
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          <span className="ds-visually-hidden">{SEARCH_FIELD_LABELS[searchField]}</span>
+          <div className="ds-input-group ds-input-group--search">
+            <Select
+              value={searchField}
+              aria-label="Tìm theo trường"
+              onChange={(event) => setSearchField(event.target.value as AnonymousSearchField)}
+            >
+              <option value="name">Họ tên</option>
+              <option value="idCard">Số CCCD</option>
+              <option value="address">Địa chỉ</option>
+            </Select>
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={search}
+                placeholder={SEARCH_FIELD_PLACEHOLDERS[searchField]}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {search ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa tìm kiếm"
+                  onClick={() => setSearch('')}
+                >
+                  <X size={18} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </label>
         <div>
           <strong>{customers.length} hồ sơ hiển thị</strong>
@@ -221,7 +260,7 @@ export function AnonymWorkspace() {
             title={search ? 'Không tìm thấy hồ sơ phù hợp' : 'Chưa có khách vãng lai'}
             description={
               search
-                ? 'Thử một phần tên, CCCD hoặc địa chỉ khác.'
+                ? `Thử một phần ${SEARCH_FIELD_LABELS[searchField].toLocaleLowerCase('vi')} khác.`
                 : 'Tạo hồ sơ đầu tiên để bắt đầu quản lý CCCD.'
             }
           />

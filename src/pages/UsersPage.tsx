@@ -32,14 +32,19 @@ import { CustomerInspector } from '../features/customers/CustomerInspector'
 import { UserAdvancedSearchDrawer } from '../features/customers/UserAdvancedSearchDrawer'
 import { UserCleanupDialog } from '../features/customers/UserCleanupDialog'
 import {
+  MEMBER_GROUP_TYPE_CODE,
   USER_ADMIN_RIGHTS,
   advColumnLabel,
+  advHasCriteria,
   describeAdvFilter,
+  describeChangeGroupError,
   describeDeleteError,
   describeFilterError,
+  isCountMismatch,
   isRbacDenied,
   type AdvFilter,
 } from '../features/customers/userAdminModel'
+import { getUserGroups } from '../api/user-groups'
 import { CredentialFilePrintDialog } from '../features/printers/CredentialFilePrintDialog'
 import { DepositAmountPanel } from '../features/payments/DepositAmountPanel'
 import { DepositMethodSelector } from '../features/payments/DepositMethodSelector'
@@ -55,6 +60,7 @@ import { invalidateMoneyQueries } from '../lib/fintechQueries'
 import { useAuthStore } from '../store/auth'
 import { pushToast } from '../store/toast'
 import '../features/customers/customers.css'
+
 
 type CustomerAction = 'deposit' | 'give' | 'credit' | 'payDebt' | 'transfer'
 
@@ -221,6 +227,63 @@ export function UsersPage() {
   const canDeleteUsers = hasRight(USER_ADMIN_RIGHTS.DELETE_USER)
   const canChangeGroup = hasRight(USER_ADMIN_RIGHTS.USERGROUP_MODIFY_USER)
 
+  // ── Đổi nhóm hàng loạt ──────────────────────────────────────────────────────
+  type PendingGroup = { groupId: number; groupName: string; count: number }
+  const [groupId, setGroupId] = useState('')
+  const [pendingGroup, setPendingGroup] = useState<PendingGroup | null>(null)
+
+  const groupsQuery = useQuery({
+    queryKey: ['user-groups', 'users-page'],
+    queryFn: getUserGroups,
+    enabled: canChangeGroup,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+  const memberGroups = (groupsQuery.data ?? []).filter(
+    (g) => g.typeCode === MEMBER_GROUP_TYPE_CODE,
+  )
+  const selectedGroup = memberGroups.find((g) => String(g.id) === String(groupId))
+
+  const refreshAfterGroupChange = () => {
+    void queryClient.invalidateQueries({ queryKey: ['users-adv'] })
+    void queryClient.invalidateQueries({ queryKey: ['users', 'member'] })
+  }
+
+  const previewGroupMutation = useMutation({
+    mutationFn: (target: { groupId: number; groupName: string }) =>
+      usersApi.changeGroupBulk(advFilter as AdvFilter, target.groupId, false),
+    onSuccess: (result, target) => {
+      if (result.changed) {
+        pushToast('Phản hồi xem trước không hợp lệ, chưa đổi nhóm.', 'error')
+        return
+      }
+      setPendingGroup({ ...target, count: result.count })
+    },
+    onError: (error) => {
+      if (!isRbacDenied(error)) pushToast(describeChangeGroupError(error), 'error')
+    },
+  })
+
+  const changeGroupMutation = useMutation({
+    mutationFn: (target: PendingGroup) =>
+      usersApi.changeGroupBulk(advFilter as AdvFilter, target.groupId, true, target.count),
+    onSuccess: (result, target) => {
+      setPendingGroup(null)
+      if (!result.changed) {
+        pushToast('Máy chủ chưa đổi nhóm (mới chỉ xem trước).', 'error')
+        return
+      }
+      pushToast(`Đã đổi nhóm ${result.count} tài khoản sang "${target.groupName}".`, 'success')
+      refreshAfterGroupChange()
+    },
+    onError: (error) => {
+      setPendingGroup(null)
+      if (isRbacDenied(error)) return
+      pushToast(describeChangeGroupError(error), 'error')
+      if (isCountMismatch(error)) refreshAfterGroupChange()
+    },
+  })
+
   // ── Customer selection (seed pattern: sync với query sau refetch) ────────────
   const [selectedSeed, setSelectedSeed] = useState<UserAccount | null>(null)
 
@@ -269,6 +332,18 @@ export function UsersPage() {
   const { data, isLoading, isError, error } = activeQuery
   const advTotal = advQuery.data?.total ?? 0
   const currentPage = isAdvMode ? advPage : page
+
+  // ── Derived: đổi nhóm (dùng advTotal nên phải đặt sau query) ────────────────
+  const hasCriteria = advHasCriteria(advFilter)
+  const groupBlockReason = !canChangeGroup
+    ? `Thiếu quyền ${USER_ADMIN_RIGHTS.USERGROUP_MODIFY_USER} để đổi nhóm.`
+    : !advFilter
+      ? 'Hãy dùng tìm kiếm nâng cao trước; đổi nhóm áp dụng cho kết quả đó.'
+      : advTotal === 0
+        ? 'Lần tìm gần nhất không có kết quả.'
+        : !hasCriteria
+          ? 'Cần ít nhất một điều kiện lọc (sắp xếp không tính).'
+          : null
 
   const users = data?.items ?? []
 
@@ -661,6 +736,37 @@ export function UsersPage() {
           >
             Xóa lọc
           </Button>
+          {canChangeGroup && (
+            <>
+              <span className="user-admin__chip-sep" aria-hidden="true">|</span>
+              <Select
+                value={groupId}
+                disabled={groupBlockReason !== null || groupsQuery.isLoading}
+                title={groupBlockReason ?? undefined}
+                onChange={(event) => setGroupId(event.target.value)}
+              >
+                <option value="">Chưa chọn</option>
+                {memberGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                    {group.active ? '' : ' (ngừng dùng)'}
+                  </option>
+                ))}
+              </Select>
+              <Button
+                type="button"
+                variant="danger-outline"
+                loading={previewGroupMutation.isPending}
+                disabled={!selectedGroup}
+                onClick={() =>
+                  selectedGroup &&
+                  previewGroupMutation.mutate({ groupId: selectedGroup.id, groupName: selectedGroup.name })
+                }
+              >
+                Chuyển nhóm
+              </Button>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1072,9 +1178,6 @@ export function UsersPage() {
       ) : null}
       <UserAdvancedSearchDrawer
         open={isAdvOpen}
-        applied={advFilter}
-        total={advTotal}
-        canChangeGroup={canChangeGroup}
         onClose={() => setIsAdvOpen(false)}
         onApply={(filter) => {
           setSearchTerm('')
@@ -1089,6 +1192,26 @@ export function UsersPage() {
           setSelectedSeed(null)
         }}
       />
+
+      <ConfirmAction
+        open={pendingGroup !== null}
+        title="Chuyển nhóm hàng loạt?"
+        description={
+          pendingGroup
+            ? `Chuyển nhóm cho TOÀN BỘ ${new Intl.NumberFormat('vi-VN').format(pendingGroup.count)} tài khoản khớp bộ lọc (không chỉ trang đang xem) sang nhóm "${pendingGroup.groupName}"?`
+            : undefined
+        }
+        confirmLabel="Chuyển nhóm"
+        danger
+        pending={changeGroupMutation.isPending}
+        onCancel={() => setPendingGroup(null)}
+        onConfirm={() => pendingGroup && changeGroupMutation.mutate(pendingGroup)}
+      >
+        <InlineAlert tone="warning">
+          Thao tác ghi trực tiếp vào tài khoản hội viên và không có nút hoàn tác. Nếu số lượng thay
+          đổi giữa lúc xem trước và xác nhận, máy chủ sẽ từ chối để bạn kiểm tra lại.
+        </InlineAlert>
+      </ConfirmAction>
 
     </section>
   )
