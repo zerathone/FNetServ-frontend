@@ -57,10 +57,10 @@ type QueueEntry =
   | { kind: 'qr'; key: string; group: QrGroup }
   | { kind: 'service'; key: string; order: GroupedOrder }
 
+// task orders-qr-qty P5: Chấp nhận / Xác nhận phục vụ KHÔNG còn hộp xác nhận (parity Qt — thu ngân
+// bấm liên tục; idem vẫn bắt buộc). Chỉ hủy/từ chối và combo tiền mặt còn hỏi lại.
 type Confirmation =
-  | { type: 'accept-service'; order: GroupedOrder }
   | { type: 'cancel-service'; order: GroupedOrder }
-  | { type: 'accept-qr'; group: QrGroup }
   | { type: 'cancel-qr'; group: QrGroup }
   | { type: 'cancel-selected'; keys: string[] }
   | { type: 'accept-combo'; order: PendingComboOrder }
@@ -394,8 +394,6 @@ export function OrderWorkspace() {
 
   const closeConfirmation = () => {
     if (pendingMutation) return
-    if (confirmation?.type === 'accept-service') serviceIntent.clearKey()
-    if (confirmation?.type === 'accept-qr') qrIntent.clearKey()
     if (confirmation?.type === 'accept-combo') comboAcceptIntent.clearKey()
     if (confirmation?.type === 'reject-combo') comboRejectIntent.clearKey()
     setConfirmation(null)
@@ -404,12 +402,6 @@ export function OrderWorkspace() {
   const confirmAction = () => {
     if (!confirmation) return
     switch (confirmation.type) {
-      case 'accept-service':
-        serviceMutation.mutate(confirmation.order)
-        break
-      case 'accept-qr':
-        qrAcceptMutation.mutate(confirmation.group)
-        break
       case 'cancel-service':
         cancelMutation.mutate(serviceCancelItems(confirmation.order))
         break
@@ -471,7 +463,7 @@ export function OrderWorkspace() {
           type="button"
           variant="primary"
           disabled={pendingMutation}
-          onClick={() => setConfirmation({ type: 'accept-qr', group })}
+          onClick={() => qrAcceptMutation.mutate(group)}
         >
           Xác nhận phục vụ
         </Button>
@@ -564,7 +556,7 @@ export function OrderWorkspace() {
             type="button"
             variant="primary"
             disabled={pendingMutation}
-            onClick={() => setConfirmation({ type: 'accept-service', order })}
+            onClick={() => serviceMutation.mutate(order)}
           >
             Chấp nhận đơn
           </Button>
@@ -835,40 +827,27 @@ export function OrderWorkspace() {
       <ConfirmAction
         open={Boolean(confirmation)}
         title={
-          confirmation?.type === 'accept-service'
-            ? 'Chấp nhận đơn dịch vụ?'
-            : confirmation?.type === 'accept-qr'
-              ? `Xác nhận phục vụ phiếu QR #${confirmation.group.voucherId}?`
-              : confirmation?.type === 'cancel-qr'
-                ? `Hủy đơn đã trả QR #${confirmation.group.voucherId}?`
-                : confirmation?.type === 'accept-combo'
-                  ? 'Xác nhận đã thu tiền combo?'
-                  : confirmation?.type === 'reject-combo'
-                    ? 'Từ chối đơn combo?'
-                    : confirmation?.type === 'cancel-selected'
-                      ? `Hủy ${confirmation.keys.length} đơn đã chọn?`
-                      : 'Từ chối đơn dịch vụ?'
+          confirmation?.type === 'cancel-qr'
+            ? `Hủy đơn đã trả QR #${confirmation.group.voucherId}?`
+            : confirmation?.type === 'accept-combo'
+              ? 'Xác nhận đã thu tiền combo?'
+              : confirmation?.type === 'reject-combo'
+                ? 'Từ chối đơn combo?'
+                : confirmation?.type === 'cancel-selected'
+                  ? `Hủy ${confirmation.keys.length} đơn đã chọn?`
+                  : 'Từ chối đơn dịch vụ?'
         }
         description={
-          confirmation?.type === 'accept-service' ||
           confirmation?.type === 'cancel-service'
             ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.userName || 'Khách vãng lai'}`
-            : confirmation?.type === 'accept-qr' || confirmation?.type === 'cancel-qr'
+            : confirmation?.type === 'cancel-qr'
               ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
               : confirmation?.type === 'accept-combo' ||
                   confirmation?.type === 'reject-combo'
                 ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.comboName}`
                 : undefined
         }
-        confirmLabel={
-          confirmation?.type === 'accept-service'
-            ? 'Chấp nhận đơn'
-            : confirmation?.type === 'accept-qr'
-              ? 'Xác nhận phục vụ'
-              : confirmation?.type === 'accept-combo'
-                ? 'Xác nhận đã thu tiền'
-                : 'Xác nhận hủy'
-        }
+        confirmLabel={confirmation?.type === 'accept-combo' ? 'Xác nhận đã thu tiền' : 'Xác nhận hủy'}
         danger={
           confirmation?.type === 'cancel-service' ||
           confirmation?.type === 'cancel-qr' ||
@@ -880,18 +859,7 @@ export function OrderWorkspace() {
         onCancel={closeConfirmation}
         onConfirm={confirmAction}
       >
-        {confirmation?.type === 'accept-service' ? (
-          <dl className="order-confirm-summary">
-            <div><dt>Món chính + topping</dt><dd>{1 + confirmation.order.children.length} dòng</dd></div>
-            <div><dt>Tổng đơn (tạm tính)</dt><dd>{formatMoney(orderAmount(confirmation.order, qtyOverrides))}</dd></div>
-            <div><dt>Phương thức khách chọn</dt><dd>{getServicePaidLabel(confirmation.order.servicePaid)}</dd></div>
-          </dl>
-        ) : confirmation?.type === 'accept-qr' ? (
-          <dl className="order-confirm-summary">
-            <div><dt>Số món</dt><dd>{confirmation.group.lines.length} dòng</dd></div>
-            <div><dt>Đã thu (QR)</dt><dd>{formatMoney(confirmation.group.paidTotal)}</dd></div>
-          </dl>
-        ) : confirmation?.type === 'accept-combo' ? (
+        {confirmation?.type === 'accept-combo' ? (
           <div className="order-confirm-stack">
             <InlineAlert tone="warning">Xác nhận này có nghĩa là quầy đã nhận đủ tiền mặt.</InlineAlert>
             <dl className="order-confirm-summary">
