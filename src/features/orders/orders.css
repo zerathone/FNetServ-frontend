@@ -314,3 +314,16 @@
     justify-items: start;
   }
 }
+
+/* service-payrequest-core: banner cố định "đã ghi phiếu cấn trừ nhưng chưa trừ ví" */
+.order-deduct-alert {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.order-deduct-alert__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}

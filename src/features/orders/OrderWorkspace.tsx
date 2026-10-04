@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiError, RbacDeniedError } from '../../api/client'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
+import {
+  payRequest,
+  payRequestDryRun,
+  type PayRequestDryRunResponse,
+  type PayRequestPayload,
+  type PayRequestResponse,
+} from '../../api/payment'
+import { getWorkstationsRuntime } from '../../api/workstations'
 import {
   acceptComboOrder,
   acceptServiceOrder,
@@ -51,6 +60,22 @@ import {
   type QrGroup,
   type QtyOverrides,
 } from './orderQueueModel'
+import {
+  SERVICE_EXCEPT_RIGHT,
+  classifyPayError,
+  classifyPayResult,
+  describeAlertReason,
+  dryRunPayload,
+  formatVnd,
+  payFingerprint,
+  payGates,
+  payPayload,
+  removeAlert,
+  upsertAlert,
+  type DeductAlert,
+  type MachineLookup,
+  type PayMethod,
+} from './orderPayModel'
 import './orders.css'
 
 const PAGE_SIZE = 20
@@ -62,6 +87,10 @@ type QueueEntry =
 // task orders-qr-qty P5: Chấp nhận / Xác nhận phục vụ KHÔNG còn hộp xác nhận (parity Qt — thu ngân
 // bấm liên tục; idem vẫn bắt buộc). Chỉ hủy/từ chối và combo tiền mặt còn hỏi lại.
 type Confirmation =
+  // service-payrequest-core: Thanh toán / Cấn trừ LUÔN hỏi lại (tiền thật) và đi qua `dryRun` trước —
+  // `preview` là số BE tính lại, hộp xác nhận hiển thị số đó chứ không phải số trên thẻ.
+  | { type: 'pay-cash'; order: GroupedOrder; preview: PayRequestDryRunResponse }
+  | { type: 'pay-deduct'; order: GroupedOrder; preview: PayRequestDryRunResponse }
   | { type: 'cancel-service'; order: GroupedOrder }
   | { type: 'cancel-qr'; group: QrGroup }
   | { type: 'cancel-selected'; keys: string[] }
@@ -117,6 +146,8 @@ export function OrderWorkspace() {
   // task orders-qr-qty P5: Hủy/Từ chối cần R_DELETE_ORDER (44). Chỉ là UX — backend vẫn chặn.
   const canCancel = useAuthStore((state) => state.hasRight(ORDER_RIGHTS.DELETE_ORDER))
   const cancelTitle = canCancel ? undefined : `Thiếu quyền hủy đơn (${ORDER_RIGHTS.DELETE_ORDER})`
+  // service-payrequest-core: chỉ Cấn trừ cần 9224 (Thanh toán tiền mặt thì không — parity Qt). Chỉ là UX.
+  const canDeduct = useAuthStore((state) => state.hasRight(SERVICE_EXCEPT_RIGHT))
   const selectedUserId = useOrderQueueStore((state) => state.selectedUserId)
   const hostName = useOrderQueueStore((state) => state.hostName)
   const setSelectedUserId = useOrderQueueStore((state) => state.setSelectedUserId)
@@ -133,6 +164,9 @@ export function OrderWorkspace() {
   const qrIntent = useIdempotentIntent('order-qr')
   const comboAcceptIntent = useIdempotentIntent('order-cb-acc')
   const comboRejectIntent = useIdempotentIntent('order-cb-rej')
+  const payIntent = useIdempotentIntent('order-pay')
+  // Banner cố định "đã ghi phiếu cấn trừ nhưng chưa trừ ví" — KHÔNG phải toast tự tắt (KNOWLEDGE §47).
+  const [deductAlerts, setDeductAlerts] = useState<DeductAlert[]>([])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
@@ -154,6 +188,24 @@ export function OrderWorkspace() {
     queryFn: getPendingComboOrders,
     refetchInterval: connected ? 30_000 : 5_000,
   })
+
+  // Dùng chung cache `['workstations']` với trang Máy trạm (cùng queryFn). Chỉ để bật/tắt nút theo
+  // trạng thái máy / loại tài khoản (parity Qt) — lỗi hoặc chưa tải ⇒ KHÔNG chặn gì, backend vẫn kiểm.
+  const workstationsQuery = useQuery({
+    queryKey: ['workstations'],
+    queryFn: getWorkstationsRuntime,
+    refetchInterval: connected ? 30_000 : 10_000,
+    retry: false,
+  })
+  const machineByHost = useMemo(() => {
+    const items = workstationsQuery.data?.items
+    if (!items) return undefined
+    return new Map(items.map((machine) => [machine.hostName.toLocaleLowerCase('vi'), machine]))
+  }, [workstationsQuery.data])
+  const machineFor = (host: string | null | undefined): MachineLookup => {
+    if (!machineByHost || !host) return undefined
+    return machineByHost.get(host.toLocaleLowerCase('vi')) ?? null
+  }
 
   const groupedOrders = useMemo(
     () => groupOrders(servicesQuery.data ?? []).filter((order) => matchesHost(order.hostName, hostName)),
@@ -309,6 +361,94 @@ export function OrderWorkspace() {
     },
   })
 
+  // ===== service-payrequest-core: Thanh toán tiền mặt / Cấn trừ (nhánh `fullCore`) =====
+  const reportPayError = (error: unknown) => {
+    // client.ts đã tự toast thông báo RBAC_DENIED của backend — không toast lần hai.
+    if (!(error instanceof RbacDeniedError)) {
+      pushToast(error instanceof Error ? error.message : 'Không xử lý được đơn.', 'error')
+    }
+    const code = error instanceof ApiError ? error.code : undefined
+    const plan = classifyPayError(code)
+    if (plan.resetKey) payIntent.clearKey()
+    if (plan.refetch) refreshServiceQueue()
+    // Lỗi nghiệp vụ (có `code`) = backend đã từ chối, 0 ghi ⇒ đóng hộp. Lỗi mạng/timeout (không có
+    // `code`) thì GIỮ hộp mở: bấm lại gửi đúng `idem` cũ nên không thu hai lần.
+    if (error instanceof ApiError && error.code) setConfirmation(null)
+  }
+
+  // Một lối duy nhất cho cả lần bấm đầu và "Thử trừ ví lại" — `status=1` không có nghĩa là đã trừ ví.
+  const handlePayResponse = (
+    method: PayMethod,
+    response: PayRequestResponse,
+    request: PayRequestPayload,
+    who: { hostName: string; customerLabel: string },
+  ) => {
+    const outcome = classifyPayResult(method, response)
+    const paymentId = response.paymentId ?? 0
+    if (outcome.kind === 'manual-fix') {
+      setDeductAlerts((current) =>
+        upsertAlert(current, {
+          paymentId,
+          hostName: who.hostName,
+          customerLabel: who.customerLabel,
+          amount: response.amount ?? response.total ?? 0,
+          code: outcome.code,
+          retryable: outcome.retryable,
+          request,
+        }),
+      )
+      pushToast(`${outcome.message} Xem cảnh báo ở đầu trang.`, 'error')
+    } else {
+      if (paymentId) setDeductAlerts((current) => removeAlert(current, paymentId))
+      if (outcome.clearKey) payIntent.clearKey()
+      pushToast(outcome.message, outcome.kind === 'success' ? 'success' : 'info')
+    }
+    setConfirmation(null)
+    clearOverrides(request.items.map((item) => item.detailId))
+    refreshServiceQueue()
+    void invalidateMoneyQueries(queryClient)
+  }
+
+  const previewMutation = useMutation({
+    mutationFn: ({ order, method }: { order: GroupedOrder; method: PayMethod }) =>
+      payRequestDryRun(dryRunPayload(method, order, staffId ?? 0, qtyOverrides)),
+    onSuccess: (preview, { order, method }) => {
+      setConfirmation({ type: method === 'cash' ? 'pay-cash' : 'pay-deduct', order, preview })
+      if (preview.code === 'invalid_lines') refreshServiceQueue()
+    },
+    onError: reportPayError,
+  })
+
+  const payMutation = useMutation({
+    mutationFn: async ({ order, method }: { order: GroupedOrder; method: PayMethod }) => {
+      // Fingerprint gồm hình thức + khách + từng dòng (detailId, SL) ⇒ đổi bất kỳ thứ gì là `idem` mới.
+      const idem = payIntent.getKey(fingerprintIntent(payFingerprint(method, order, qtyOverrides)))
+      const request = payPayload(method, order, staffId ?? 0, idem, qtyOverrides)
+      return { response: await payRequest(request), request }
+    },
+    onSuccess: ({ response, request }, { order, method }) =>
+      handlePayResponse(method, response, request, {
+        hostName: order.hostName || '',
+        customerLabel: order.userName || `ID ${order.userId}`,
+      }),
+    onError: reportPayError,
+  })
+
+  // "Thử trừ ví lại": gửi lại ĐÚNG request cũ (cùng `idem`). Backend nhận ra phiếu đã ghi và chỉ chạy lại
+  // bước trừ ví (trạng thái a) — không tạo phiếu thứ hai, không trừ hai lần.
+  const retryDeductMutation = useMutation({
+    mutationFn: async (alert: DeductAlert) => ({
+      response: await payRequest(alert.request),
+      alert,
+    }),
+    onSuccess: ({ response, alert }) =>
+      handlePayResponse('deduct', response, alert.request, {
+        hostName: alert.hostName,
+        customerLabel: alert.customerLabel,
+      }),
+    onError: reportPayError,
+  })
+
   const comboAcceptMutation = useMutation({
     mutationFn: (order: PendingComboOrder) =>
       acceptComboOrder({
@@ -376,6 +516,9 @@ export function OrderWorkspace() {
   const pendingMutation =
     serviceMutation.isPending ||
     qrAcceptMutation.isPending ||
+    previewMutation.isPending ||
+    payMutation.isPending ||
+    retryDeductMutation.isPending ||
     cancelMutation.isPending ||
     comboAcceptMutation.isPending ||
     comboRejectMutation.isPending
@@ -411,6 +554,12 @@ export function OrderWorkspace() {
   const confirmAction = () => {
     if (!confirmation) return
     switch (confirmation.type) {
+      case 'pay-cash':
+        payMutation.mutate({ order: confirmation.order, method: 'cash' })
+        break
+      case 'pay-deduct':
+        payMutation.mutate({ order: confirmation.order, method: 'deduct' })
+        break
       case 'cancel-service':
         cancelMutation.mutate(serviceCancelItems(confirmation.order))
         break
@@ -492,7 +641,10 @@ export function OrderWorkspace() {
   const renderServiceCard = (order: GroupedOrder) => {
     const key = serviceSelectKey(order)
     const quantity = quantityOf(order, qtyOverrides)
-    const editable = canChangeQuantity(order)
+    // Parity Qt `OnOffRequestFunction`: trạng thái máy / loại tài khoản khoá Chấp nhận, Thanh toán,
+    // Cấn trừ và đổi số lượng. Chưa có dữ liệu máy ⇒ không chặn (backend vẫn kiểm).
+    const gates = payGates(order, machineFor(order.hostName), canDeduct)
+    const editable = canChangeQuantity(order) && gates.accept.enabled
     return (
       <article key={key} className="order-card">
         <label className="order-card__check">
@@ -565,10 +717,29 @@ export function OrderWorkspace() {
           <Button
             type="button"
             variant="primary"
-            disabled={pendingMutation}
+            disabled={pendingMutation || !gates.accept.enabled}
+            title={gates.accept.reason}
             onClick={() => serviceMutation.mutate(order)}
           >
             Chấp nhận đơn
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pendingMutation || !gates.cash.enabled}
+            title={gates.cash.reason ?? 'Thu tiền mặt và chốt đơn ngay'}
+            onClick={() => previewMutation.mutate({ order, method: 'cash' })}
+          >
+            Thanh toán
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pendingMutation || !gates.deduct.enabled}
+            title={gates.deduct.reason ?? 'Trừ vào tài khoản hội viên đang online'}
+            onClick={() => previewMutation.mutate({ order, method: 'deduct' })}
+          >
+            Cấn trừ
           </Button>
           <Button
             type="button"
@@ -609,6 +780,42 @@ export function OrderWorkspace() {
           />
         }
       />
+
+      {deductAlerts.map((alert) => (
+        <InlineAlert key={alert.paymentId} tone="danger">
+          <div className="order-deduct-alert">
+            <strong>
+              Đã ghi phiếu cấn trừ #{alert.paymentId} ({formatVnd(alert.amount)}) cho{' '}
+              {alert.hostName || 'máy ??'} · {alert.customerLabel} nhưng CHƯA trừ ví hội viên.
+            </strong>
+            <span>Đã ghi log “Cấn trừ lỗi” vào nhật ký hệ thống. {describeAlertReason(alert.code)}</span>
+            <small>
+              Cảnh báo này mất khi tải lại trang — nhật ký “Cấn trừ lỗi” là nơi xử lý chính.
+            </small>
+            <div className="order-deduct-alert__actions">
+              {alert.retryable ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={retryDeductMutation.isPending}
+                  disabled={pendingMutation}
+                  onClick={() => retryDeductMutation.mutate(alert)}
+                >
+                  Thử trừ ví lại
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={retryDeductMutation.isPending}
+                onClick={() => setDeductAlerts((current) => removeAlert(current, alert.paymentId))}
+              >
+                Đã xử lý / Đóng
+              </Button>
+            </div>
+          </div>
+        </InlineAlert>
+      ))}
 
       <div className="order-summary">
         <button
@@ -840,7 +1047,11 @@ export function OrderWorkspace() {
       <ConfirmAction
         open={Boolean(confirmation)}
         title={
-          confirmation?.type === 'cancel-qr'
+          confirmation?.type === 'pay-cash'
+            ? 'Xác nhận đã thu tiền mặt?'
+            : confirmation?.type === 'pay-deduct'
+              ? 'Cấn trừ vào tài khoản hội viên?'
+              : confirmation?.type === 'cancel-qr'
             ? `Hủy đơn đã trả QR #${confirmation.group.voucherId}?`
             : confirmation?.type === 'accept-combo'
               ? 'Xác nhận đã thu tiền combo?'
@@ -851,7 +1062,9 @@ export function OrderWorkspace() {
                   : 'Từ chối đơn dịch vụ?'
         }
         description={
-          confirmation?.type === 'cancel-service'
+          confirmation?.type === 'cancel-service' ||
+          confirmation?.type === 'pay-cash' ||
+          confirmation?.type === 'pay-deduct'
             ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.userName || 'Khách vãng lai'}`
             : confirmation?.type === 'cancel-qr'
               ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
@@ -860,7 +1073,15 @@ export function OrderWorkspace() {
                 ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.comboName}`
                 : undefined
         }
-        confirmLabel={confirmation?.type === 'accept-combo' ? 'Xác nhận đã thu tiền' : 'Xác nhận hủy'}
+        confirmLabel={
+          confirmation?.type === 'accept-combo'
+            ? 'Xác nhận đã thu tiền'
+            : confirmation?.type === 'pay-cash'
+              ? 'Đã thu tiền mặt'
+              : confirmation?.type === 'pay-deduct'
+                ? 'Cấn trừ'
+                : 'Xác nhận hủy'
+        }
         danger={
           confirmation?.type === 'cancel-service' ||
           confirmation?.type === 'cancel-qr' ||
@@ -868,11 +1089,58 @@ export function OrderWorkspace() {
           confirmation?.type === 'reject-combo'
         }
         pending={pendingMutation}
-        confirmDisabled={confirmNeedsQrAck && !qrCancelAck}
+        // Thanh toán/Cấn trừ: `ok:false` ⇒ hiện lý do của backend và KHÔNG cho xác nhận.
+        confirmDisabled={
+          (confirmNeedsQrAck && !qrCancelAck) ||
+          ((confirmation?.type === 'pay-cash' || confirmation?.type === 'pay-deduct') &&
+            confirmation.preview.ok === false)
+        }
         onCancel={closeConfirmation}
         onConfirm={confirmAction}
       >
-        {confirmation?.type === 'accept-combo' ? (
+        {confirmation?.type === 'pay-cash' || confirmation?.type === 'pay-deduct' ? (
+          <div className="order-confirm-stack">
+            {confirmation.preview.ok === false ? (
+              <InlineAlert tone="danger">
+                {confirmation.preview.message || 'Không thực hiện được.'}
+              </InlineAlert>
+            ) : confirmation.type === 'pay-cash' ? (
+              <InlineAlert tone="warning">
+                Chỉ xác nhận sau khi đã nhận đủ tiền mặt. Số tiền do máy chủ tính lại từ dữ liệu đơn.
+              </InlineAlert>
+            ) : (
+              <InlineAlert tone="warning">
+                Trừ trực tiếp vào tài khoản chính của hội viên đang online tại máy này. Không hoàn tác được từ trang này.
+              </InlineAlert>
+            )}
+            <dl className="order-confirm-summary">
+              <div><dt>Món</dt><dd>{1 + confirmation.order.children.length} dòng</dd></div>
+              <div>
+                <dt>{confirmation.type === 'pay-cash' ? 'Cần thu' : 'Tổng phí cấn trừ'}</dt>
+                <dd>
+                  {typeof confirmation.preview.total === 'number'
+                    ? formatMoney(confirmation.preview.total)
+                    : formatMoney(orderAmount(confirmation.order, qtyOverrides))}
+                </dd>
+              </div>
+              {confirmation.type === 'pay-deduct' && confirmation.preview.memberName ? (
+                <div><dt>Hội viên</dt><dd>{confirmation.preview.memberName}</dd></div>
+              ) : null}
+              {confirmation.type === 'pay-deduct' && typeof confirmation.preview.walletMain === 'number' ? (
+                <>
+                  <div><dt>Tài khoản chính</dt><dd>{formatMoney(confirmation.preview.walletMain)}</dd></div>
+                  {typeof confirmation.preview.total === 'number' ? (
+                    <div>
+                      <dt>Còn lại sau khi trừ</dt>
+                      <dd>{formatMoney(confirmation.preview.walletMain - confirmation.preview.total)}</dd>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              <div><dt>Khách chọn trên máy</dt><dd>{getServicePaidLabel(confirmation.order.servicePaid)}</dd></div>
+            </dl>
+          </div>
+        ) : confirmation?.type === 'accept-combo' ? (
           <div className="order-confirm-stack">
             <InlineAlert tone="warning">Xác nhận này có nghĩa là quầy đã nhận đủ tiền mặt.</InlineAlert>
             <dl className="order-confirm-summary">

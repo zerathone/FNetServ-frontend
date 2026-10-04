@@ -7,13 +7,69 @@ export type PayRequestPayload = {
   idem: string
   paymentMethod: 'cash' | 'deduct' | 'guest'
   items: Array<{ detailId: number; quantity: number; amount: number }>
+  /**
+   * task service-payrequest-core: nhánh opt-in của WebUI. BE tự làm việc phụ (VAT / FN2 / trừ ví / báo
+   * máy trạm) và bắt buộc Bearer + `idem` ≤ 50 ký tự. Bỏ trống = hành vi cũ (Qt/MFC) — web luôn gửi true.
+   */
+  fullCore?: boolean
+}
+
+/**
+ * Response `fullCore`. `paymentId`/`paid` giữ nguyên như bản cũ; phần còn lại additive.
+ * ⚠️ `needsManualFix` / `deductApplied:false` đi kèm `status=1` (phiếu ĐÃ ghi) — KHÔNG phải lỗi HTTP,
+ * FE phải tự kiểm cờ (KNOWLEDGE §47) chứ không coi "không ném lỗi" là đã trừ ví.
+ */
+export type PayRequestResponse = {
+  paymentId?: number
+  paid?: number
+  fullCore?: boolean
+  /** Tổng BE tính lại từ DB (không phải số FE gửi). */
+  total?: number
+  /** Cấn trừ: số đã ghi vào phiếu khi chạy `fcApplyDeduct`. */
+  amount?: number
+  duplicated?: boolean
+  /** true = lần "Thử trừ ví lại" (trạng thái a) — KHÔNG đồng nghĩa duplicated. */
+  retried?: boolean
+  deductApplied?: boolean
+  needsManualFix?: boolean
+  /** deduct_failed (thử lại được) | deduct_incomplete (trừ dở — không tự chạy lại) | member_offline */
+  code?: string
+  step?: string
+  logId?: number
+  stampId?: number
+  remainTime?: number
+  walletMainAfter?: number
 }
 
 export async function payRequest(payload: PayRequestPayload) {
-  return apiPost<{ paymentId: number; paid: number }, PayRequestPayload>(
-    '/service/payrequest',
-    payload,
-  )
+  return apiPost<PayRequestResponse, PayRequestPayload>('/service/payrequest', payload)
+}
+
+export type PayRequestDryRunPayload = Omit<PayRequestPayload, 'idem' | 'fullCore'>
+
+/**
+ * `dryRun`: BE chạy toàn bộ kiểm tra (quyền, FN2, online, kiểm dòng, nợ, số dư) và KHÔNG ghi gì.
+ * Luôn `status=1` kể cả `ok:false` (đó là "báo cáo", không phải lỗi) — lỗi request (thiếu quyền 9224,
+ * userId/items sai…) mới ném `ApiError`.
+ */
+export type PayRequestDryRunResponse = {
+  ok: boolean
+  dryRun?: boolean
+  /** deduct_limited | member_offline | invalid_lines | deduct_check_failed */
+  code?: string
+  message?: string
+  total?: number
+  /** Chỉ có khi `deduct`. */
+  walletMain?: number
+  debit?: number
+  minBalance?: number
+  memberName?: string
+  invalidIds?: number[]
+}
+
+export function payRequestDryRun(payload: PayRequestDryRunPayload) {
+  const body = { ...payload, fullCore: true, dryRun: true }
+  return apiPost<PayRequestDryRunResponse, typeof body>('/service/payrequest', body)
 }
 
 export type ComboSellLine = {
