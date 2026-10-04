@@ -6,6 +6,7 @@ import {
   Button,
   CheckboxInput,
   ConfirmAction,
+  DatePicker,
   Dialog,
   InlineAlert,
   ListPagination,
@@ -163,13 +164,12 @@ export function UserCleanupDialog({ onClose }: { onClose: () => void }) {
             />
             <span>Đăng nhập cuối trước ngày</span>
           </label>
-          <input
-            className="ds-checkbox-input__date"
-            type="date"
+          <DatePicker
+            className="ds-date-picker--embedded"
             value={form.lastLogin}
             disabled={!enabled}
-            aria-invalid={errors.lastLogin ? true : undefined}
-            onChange={(event) => update('lastLogin', event.target.value)}
+            aria-label="Đăng nhập cuối trước ngày"
+            onChange={(value) => update('lastLogin', value)}
           />
         </div>
         {errors.lastLogin ? <span className="ds-field__error" role="alert">{errors.lastLogin}</span> : null}

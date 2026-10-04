@@ -1,6 +1,6 @@
 import {  useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
+import { Eye, EyeSlash, MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import {
   getChangePCLogs,
   getTransferLogs,
@@ -28,12 +28,15 @@ import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import {
+  R_DELETE_PAYMENT,
+  VOUCHER_TRUNCATE_ENABLED,
   hasServiceDetails,
   hasTransferDetails,
   isVoucherRefundable,
   mayHaveChangePCDetails,
   paymentTypeLabel,
 } from './transactionModel'
+import { TruncateVoucherDialog } from './TruncateVoucherDialog'
 import './transactions.css'
 
 const PAGE_SIZE = 50
@@ -74,6 +77,8 @@ export function TransactionWorkspace() {
   const [identityQuery, setIdentityQuery] = useState('')
   const [selectedIdentity, setSelectedIdentity] = useState<UserAccount | null>(null)
   const [page, setPage] = useState(0)
+  const [debtView, setDebtView] = useState(false)
+  const [truncateOpen, setTruncateOpen] = useState(false)
   const [selectedVoucher, setSelectedVoucher] = useState<VoucherLog | null>(null)
   const [refundTarget, setRefundTarget] = useState<VoucherLog | null>(null)
   const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash')
@@ -96,6 +101,7 @@ export function TransactionWorkspace() {
       page,
       identityType,
       filterText,
+      debtView,
     ],
     queryFn: () =>
       getVoucherLogs(
@@ -105,8 +111,11 @@ export function TransactionWorkspace() {
         page * PAGE_SIZE,
         identityType === 'member' ? 0 : 1,
         filterText,
+        debtView,
       ),
-    enabled: dateRangeValid,
+    enabled: debtView || dateRangeValid,
+    // Công nợ bỏ lọc ngày → mỗi lần tải là quét toàn PaymentTb; tránh refetch khi chỉ đổi focus.
+    staleTime: debtView ? 30_000 : 0,
   })
 
   const serviceDetailsQuery = useQuery({
@@ -197,17 +206,18 @@ export function TransactionWorkspace() {
       <PageHeader
         eyebrow="Vận hành"
         title="Nhật ký giao dịch"
-        description="Tra cứu giao dịch theo ngày và xác minh đúng khách hàng trước khi thực hiện tác vụ rủi ro."
       />
 
       <section className="transaction-filters" aria-label="Bộ lọc giao dịch">
         <div className="transaction-filters__fields">
-          <DateRangePicker
-            fromDate={fromDate}
-            toDate={toDate}
-            onFromDateChange={(value) => { setFromDate(value); setPage(0) }}
-            onToDateChange={(value) => { setToDate(value); setPage(0) }}
-          />
+          {debtView ? null : (
+            <DateRangePicker
+              fromDate={fromDate}
+              toDate={toDate}
+              onFromDateChange={(value) => { setFromDate(value); setPage(0) }}
+              onToDateChange={(value) => { setToDate(value); setPage(0) }}
+            />
+          )}
           <form className="transaction-search" onSubmit={submitIdentitySearch} style={{ flex: 1 }}>
             <label className="ds-field" style={{ flex: 1 }}>
               <span className="ds-visually-hidden">Tìm kiếm</span>
@@ -243,10 +253,36 @@ export function TransactionWorkspace() {
               </div>
             </label>
           </form>
+          <div className="transaction-filters__actions">
+            <Button
+              type="button"
+              variant={debtView ? 'primary' : 'secondary'}
+              aria-pressed={debtView}
+              icon={
+                debtView
+                  ? <EyeSlash size={18} weight="bold" aria-hidden="true" />
+                  : <Eye size={18} weight="bold" aria-hidden="true" />
+              }
+              onClick={() => { setDebtView((value) => !value); setPage(0) }}
+            >
+              {debtView ? 'Bỏ xem công nợ' : 'Xem công nợ'}
+            </Button>
+            {VOUCHER_TRUNCATE_ENABLED && hasRight(R_DELETE_PAYMENT) ? (
+              <Button type="button" variant="danger-outline" onClick={() => setTruncateOpen(true)}>
+                Xóa nhật ký
+              </Button>
+            ) : null}
+          </div>
         </div>
       </section>
 
-      {!dateRangeValid ? (
+      {debtView ? (
+        <InlineAlert tone="info">
+          Đang xem toàn bộ công nợ (phiếu chưa thanh toán), không giới hạn theo ngày.
+        </InlineAlert>
+      ) : null}
+
+      {!debtView && !dateRangeValid ? (
         <InlineAlert tone="danger">Ngày bắt đầu không được sau ngày kết thúc.</InlineAlert>
       ) : null}
 
@@ -569,6 +605,10 @@ export function TransactionWorkspace() {
           </div>
         ) : null}
       </Drawer>
+
+      {VOUCHER_TRUNCATE_ENABLED ? (
+        <TruncateVoucherDialog open={truncateOpen} onClose={() => setTruncateOpen(false)} />
+      ) : null}
 
       <ConfirmAction
         open={refundTarget !== null}

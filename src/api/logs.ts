@@ -110,11 +110,13 @@ export const getWebHistoryLogs = (from: string, to: string, limit: number = 200,
 }
 
 // Server returns { total, items, viewAllVoucher } but we only care about PagedResult
-export const getVoucherLogs = (from: string, to: string, limit: number = 200, offset: number = 0, filterType?: number, filterText?: string) => {
+// debt=true: chỉ phiếu chưa thanh toán (ServicePaid=0), server bỏ qua khoảng ngày.
+export const getVoucherLogs = (from: string, to: string, limit: number = 200, offset: number = 0, filterType?: number, filterText?: string, debt: boolean = false) => {
   let url = `/logs/voucher?from=${from}&to=${to}&limit=${limit}&offset=${offset}`;
   if (filterType !== undefined && filterText) {
     url += `&filterType=${filterType}&filterText=${encodeURIComponent(filterText)}`;
   }
+  if (debt) url += '&debt=1';
   return apiGet<PagedResult<VoucherLog>>(url);
 }
 
@@ -155,4 +157,17 @@ export const getPaymentWaitLogs = () =>
 export const truncateSystemLogs = () => apiPost<any, any>('/logs/system/truncate', {})
 export const truncateServerLogs = () => apiPost<any, any>('/logs/server/truncate', {})
 export const truncateWebHistoryLogs = () => apiPost<any, any>('/logs/webhistory/truncate', {})
-export const truncateVoucherLogs = () => apiPost<any, any>('/logs/voucher/truncate', {})
+
+export interface TruncateVoucherResult {
+  /** Số phiếu xóa trong lô này (server xử lý tối đa 1 lô mỗi request). */
+  affected: number
+  /** Số phiếu còn thỏa điều kiện sau lô này; 0 = đã xóa hết. */
+  remaining: number
+  /** Số phiếu xóa lỗi trong lô này. */
+  failed: number
+}
+
+// Xóa phiếu đã thanh toán đến HẾT `date` (YYYY-MM-DD). Mỗi lần gọi chỉ xử lý 1 lô —
+// caller lặp tới khi remaining === 0.
+export const truncateVoucherLogs = (date: string) =>
+  apiPost<TruncateVoucherResult, { date: string }>('/logs/voucher/truncate', { date })

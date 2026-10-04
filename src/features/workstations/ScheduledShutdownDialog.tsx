@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getShutdownAll, shutdownAllNow, updateShutdownAll } from '../../api/workstations'
-import { Button, ConfirmAction, Dialog, InlineAlert, StateView } from '../../design-system/components'
+import { Button, ConfirmAction, DatePicker, Dialog, InlineAlert, StateView } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import {
   shutdownEpoch,
@@ -99,7 +99,7 @@ export function ScheduledShutdownDialog({ open, canManage, onClose }: ScheduledS
                 <label><input type="radio" name="shutdown-mode" checked={mode === 'daily'} onChange={() => setMode('daily')} /><span><strong>Hằng ngày</strong><small>Lặp lại vào cùng một giờ mỗi ngày.</small></span></label>
               </fieldset>
               {mode === 'once' ? (
-                <label className="ds-field"><span className="ds-field__label">Ngày giờ tắt máy</span><input className="ds-input" type="datetime-local" value={onceAt} onChange={(event) => setOnceAt(event.target.value)} /></label>
+                <label className="ds-field"><span className="ds-field__label">Ngày giờ tắt máy</span><DatePicker showTime value={onceAt} onChange={setOnceAt} aria-label="Ngày giờ tắt máy" /></label>
               ) : null}
               {mode === 'daily' ? (
                 <label className="ds-field"><span className="ds-field__label">Giờ tắt máy hằng ngày</span><input className="ds-input" type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></label>

@@ -7,8 +7,7 @@ import {
   getVoucherLogs,
   truncateSystemLogs,
   truncateServerLogs,
-  truncateWebHistoryLogs,
-  truncateVoucherLogs
+  truncateWebHistoryLogs
 } from '../api/logs';
 import { pushToast } from '../store/toast';
 import type { SystemLog, ServerLog, WebHistoryLog, VoucherLog } from '../api/logs';
@@ -60,8 +59,12 @@ export default function LogsPage() {
       if (activeTab === 'system') await truncateSystemLogs();
       else if (activeTab === 'server') await truncateServerLogs();
       else if (activeTab === 'webhistory') await truncateWebHistoryLogs();
-      else if (activeTab === 'voucher') await truncateVoucherLogs();
-      
+      else if (activeTab === 'voucher') {
+        // Xóa nhật ký giao dịch cần chọn ngày + xóa theo lô → làm ở trang Giao dịch.
+        pushToast('Xóa nhật ký giao dịch thực hiện tại trang Giao dịch.', 'info');
+        return;
+      }
+
       pushToast('Logs truncated successfully', 'success');
       fetchLogs(); // Refresh
     } catch (error: any) {
@@ -213,8 +216,8 @@ export default function LogsPage() {
         </button>
       </div>
 
-      <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-        <button 
+      <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'flex-end', visibility: activeTab === 'voucher' ? 'hidden' : 'visible' }}>
+        <button
           onClick={handleTruncate}
           style={{ padding: '0.5rem 1rem', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
         >

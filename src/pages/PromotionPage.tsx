@@ -17,7 +17,7 @@ import { getUserGroups } from '../api/user-groups';
 import { getMachineGroups } from '../api/machine-groups';
 import { supportsUserGroupPricingAndPromotion } from '../features/user-groups/userGroupModel';
 import { pushToast } from '../store/toast';
-import { Select } from '../design-system/components';
+import { DatePicker, Select } from '../design-system/components';
 
 export function PromotionPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -187,11 +187,11 @@ function PromotionMemberTab({ priceId }: { priceId: number }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', opacity: apply ? 1 : 0.5, pointerEvents: apply ? 'auto' : 'none' }}>
         <label className="field">
           <span>Từ ngày</span>
-          <input type="date" value={beginDate} onChange={e => setBeginDate(e.target.value)} />
+          <DatePicker value={beginDate} onChange={setBeginDate} aria-label="Từ ngày" />
         </label>
         <label className="field">
           <span>Đến ngày</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          <DatePicker value={endDate} onChange={setEndDate} aria-label="Đến ngày" />
         </label>
       </div>
 
@@ -341,11 +341,11 @@ function PromotionTimeTab({ priceId, machineGroups }: { priceId: number, machine
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <label className="field">
           <span>Từ ngày</span>
-          <input type="date" value={beginDate} onChange={e => setBeginDate(e.target.value)} />
+          <DatePicker value={beginDate} onChange={setBeginDate} aria-label="Từ ngày" />
         </label>
         <label className="field">
           <span>Đến ngày</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          <DatePicker value={endDate} onChange={setEndDate} aria-label="Đến ngày" />
         </label>
       </div>
 
@@ -436,11 +436,11 @@ function PromotionDiscountTab({ priceId, machineGroups }: { priceId: number, mac
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <label className="field">
           <span>Từ ngày</span>
-          <input type="date" value={beginDate} onChange={e => setBeginDate(e.target.value)} />
+          <DatePicker value={beginDate} onChange={setBeginDate} aria-label="Từ ngày" />
         </label>
         <label className="field">
           <span>Đến ngày</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          <DatePicker value={endDate} onChange={setEndDate} aria-label="Đến ngày" />
         </label>
       </div>
 

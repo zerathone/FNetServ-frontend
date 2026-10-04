@@ -33,7 +33,7 @@ import {
   type UserDetail,
 } from '../../api/users'
 import { getUserGroups } from '../../api/user-groups'
-import { Button, Dialog, Select, StateView } from '../../design-system/components'
+import { Button, DatePicker, Dialog, Select, StateView } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import { CustomerCameraDialog } from './CustomerCameraDialog'
 import { blobToDataUrl } from './CustomerInspector'
@@ -88,26 +88,17 @@ type DateInputProps = {
   onChange: (value: string) => void
 }
 
-/** `type="date"` không có placeholder: chữ gợi ý nằm bên trái, dd/mm/yyyy dồn sang phải; bấm đâu cũng mở lịch. */
+/** Nằm trong khung "icon + ngày" của form tạo: dùng biến thể embedded (khung ngoài đã có viền), chữ gợi ý là placeholder. */
 function DateInput({ id, placeholder, value, onChange }: DateInputProps) {
   return (
-    <div className={`customer-create-form__date${value ? '' : ' is-empty'}`}>
-      <span className="customer-create-form__date-placeholder" aria-hidden="true">{placeholder}</span>
-      <input
-        id={id}
-        className="ds-input"
-        type="date"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onClick={(event) => {
-          try {
-            event.currentTarget.showPicker?.()
-          } catch {
-            // Trình duyệt không cho mở lịch từ thao tác này: vẫn nhập tay được.
-          }
-        }}
-      />
-    </div>
+    <DatePicker
+      id={id}
+      className="ds-date-picker--embedded"
+      placeholder={placeholder}
+      aria-label={placeholder}
+      value={value}
+      onChange={onChange}
+    />
   )
 }
 

@@ -1562,3 +1562,305 @@ input[type="radio"]:disabled {
     transition: none;
   }
 }
+/* --- DatePicker (một ngày / ngày giờ, kiểu Ant Design) --- */
+
+.ds-date-picker {
+  position: relative;
+  width: 100%;
+}
+
+.ds-date-picker__control {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-compact);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--input-radius);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.ds-date-picker__control:hover {
+  border-color: var(--color-border-strong);
+}
+
+.ds-date-picker__control:focus-within,
+.ds-date-picker__control.is-open {
+  border-color: var(--color-focus);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 18%, transparent);
+}
+
+.ds-date-picker__control.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Chọn 2 class để thắng selector toàn cục input[type="text"]. */
+.ds-date-picker__control .ds-date-picker__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: 0;
+}
+
+.ds-date-picker__control .ds-date-picker__input:hover,
+.ds-date-picker__control .ds-date-picker__input:focus {
+  border: 0;
+  outline: 0;
+}
+
+.ds-date-picker__icon {
+  flex: 0 0 auto;
+  order: 3;
+  color: var(--color-text-secondary);
+}
+
+.ds-date-picker__clear {
+  display: none;
+  flex: 0 0 auto;
+  order: 2;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.ds-date-picker__control:hover .ds-date-picker__clear,
+.ds-date-picker__control:focus-within .ds-date-picker__clear {
+  display: inline-grid;
+}
+
+.ds-date-picker__control:hover .ds-date-picker__clear + .ds-date-picker__icon,
+.ds-date-picker__control:focus-within .ds-date-picker__clear + .ds-date-picker__icon {
+  display: none;
+}
+
+.ds-date-picker__clear:hover {
+  color: var(--color-text-primary);
+}
+
+.ds-date-picker__popover {
+  position: fixed;
+  z-index: calc(var(--z-toast) + 10);
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-overlay);
+}
+
+.ds-date-picker__header {
+  display: grid;
+  grid-template-columns: 2rem 2rem minmax(0, 1fr) 2rem 2rem;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.ds-date-picker__nav {
+  display: inline-grid;
+  place-items: center;
+  height: 2rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.ds-date-picker__nav:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.ds-date-picker__title {
+  height: 2rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ds-date-picker__title:hover {
+  color: var(--color-action-primary);
+}
+
+.ds-date-picker__weekdays,
+.ds-date-picker__days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.ds-date-picker__weekdays {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  text-align: center;
+}
+
+.ds-date-picker__days {
+  row-gap: 2px;
+}
+
+.ds-date-picker__day,
+.ds-date-picker__month {
+  position: relative;
+  min-height: 2rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ds-date-picker__day:hover:not(:disabled),
+.ds-date-picker__month:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ds-date-picker__day.is-outside {
+  color: var(--color-text-secondary);
+  opacity: 0.58;
+}
+
+.ds-date-picker__day.is-today {
+  outline: 1px solid var(--color-action-primary);
+  outline-offset: -1px;
+}
+
+.ds-date-picker__day.is-selected,
+.ds-date-picker__month.is-selected {
+  background: var(--color-action-primary);
+  color: var(--color-text-inverse);
+  font-weight: 700;
+}
+
+.ds-date-picker__day:disabled,
+.ds-date-picker__month:disabled,
+.ds-date-picker__today:disabled {
+  background: color-mix(in srgb, var(--color-text-secondary) 10%, transparent);
+  color: var(--color-text-secondary);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ds-date-picker__months {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.ds-date-picker__months .ds-date-picker__month {
+  min-height: 2.5rem;
+}
+
+.ds-date-picker__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.ds-date-picker__today,
+.ds-date-picker__ok {
+  border: 0;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--color-action-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ds-date-picker__ok {
+  border-radius: var(--radius-sm);
+  background: var(--color-action-primary);
+  color: var(--color-text-inverse);
+}
+
+.ds-date-picker__time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ds-date-picker__time select {
+  width: auto;
+  min-height: 1.75rem;
+  padding: 0 var(--space-1);
+}
+
+/* Biến thể nằm trong khung ghép (checkbox/icon + ngày): khung ngoài đã có viền. */
+.ds-date-picker--embedded {
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  width: auto;
+}
+
+.ds-date-picker--embedded .ds-date-picker__control {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  outline: 0;
+  box-shadow: none;
+}
+
+.ds-date-picker--embedded .ds-date-picker__control:focus-within,
+.ds-date-picker--embedded .ds-date-picker__control.is-open {
+  outline: 0;
+}
+
+.ds-date-picker__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.ds-date-picker__preset {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+
+.ds-date-picker__preset:hover {
+  background: color-mix(in srgb, var(--color-action-primary) 10%, transparent);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}

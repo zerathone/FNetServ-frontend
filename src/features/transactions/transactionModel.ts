@@ -22,6 +22,16 @@ export const PAYMENT_TYPES = {
 
 const SERVICE_PAID_CANCELED = 3
 
+/** Quyền "Xóa nhật ký giao dịch" (R_DELETE_PAYMENT, define.h). */
+export const R_DELETE_PAYMENT = 41
+
+/**
+ * Nút "Xóa nhật ký" cần route `POST /logs/voucher/truncate` ở server. BE đã có
+ * (ServerSide_ai f887247 + 0d6f626, harness test_voucher_truncate.ps1 49/49) →
+ * bật. Đặt `false` để ẩn nút nếu phải rollback FE trước BE.
+ */
+export const VOUCHER_TRUNCATE_ENABLED = true
+
 export function paymentTypeLabel(type: number) {
   switch (type) {
     case PAYMENT_TYPES.GUEST_SERVICE:

@@ -29,6 +29,7 @@ import {
 import { getUserGroups } from '../../api/user-groups'
 import { Select,
   Button,
+  DatePicker,
   InlineAlert,
   StateView,
   StatusBadge,
@@ -927,22 +928,20 @@ export function CustomerInspector({
                 </label>
                 <label className="ds-field">
                   <span className="ds-field__label">Ngày sinh</span>
-                  <input
-                    className="ds-input"
-                    type="date"
+                  <DatePicker
                     value={draft.birthday}
                     disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, birthday: event.target.value })}
+                    aria-label="Ngày sinh"
+                    onChange={(value) => setDraft({ ...draft, birthday: value })}
                   />
                 </label>
                 <label className="ds-field">
                   <span className="ds-field__label">Ngày hết hạn</span>
-                  <input
-                    className="ds-input"
-                    type="date"
+                  <DatePicker
                     value={draft.expiryDate}
                     disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, expiryDate: event.target.value })}
+                    aria-label="Ngày hết hạn"
+                    onChange={(value) => setDraft({ ...draft, expiryDate: value })}
                   />
                 </label>
                 <label className="ds-field">

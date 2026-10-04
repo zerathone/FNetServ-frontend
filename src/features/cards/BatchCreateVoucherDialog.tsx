@@ -4,6 +4,7 @@ import { cardsApi } from '../../api/cards'
 import {
   Button,
   ConfirmAction,
+  DatePicker,
   Dialog,
   InlineAlert,
   MoneyInput,
@@ -121,7 +122,7 @@ export function BatchCreateVoucherDialog({ open, onClose }: Props) {
           </label>
           <label className="ds-field">
             <span className="ds-field__label">Ngày hết hạn</span>
-            <input className="ds-input" type="date" min={tomorrow} value={expiry} onChange={(event) => setExpiry(event.target.value)} />
+            <DatePicker min={tomorrow} value={expiry} onChange={setExpiry} aria-label="Ngày hết hạn" />
           </label>
           <fieldset className="card-generate-form__wallet">
             <legend>Loại tài khoản</legend>

@@ -33,6 +33,14 @@
   width: 21rem;
 }
 
+/* "Xem/Bỏ xem công nợ" + "Xóa nhật ký" nằm cùng hàng với chọn ngày + tìm kiếm, sát mép phải. */
+.transaction-filters__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
 .transaction-panel > .ds-list-toolbar {
   padding-left: 0;
   padding-right: 0;
@@ -335,6 +343,14 @@
     width: 100%;
   }
 
+  .transaction-filters__actions {
+    flex-wrap: wrap;
+  }
+
+  .transaction-filters__actions > .ds-button {
+    flex: 1 1 auto;
+  }
+
   .transaction-resolver__header {
     align-items: stretch;
     flex-direction: column;
@@ -343,4 +359,19 @@
   .transaction-resolver__list {
     grid-template-columns: 1fr;
   }
+}
+
+.transaction-truncate {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.transaction-truncate__ack {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.transaction-truncate__progress {
+  margin: 0;
 }

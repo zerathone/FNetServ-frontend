@@ -5,6 +5,7 @@ import { getUserGroups } from '../../api/user-groups'
 import {
   Button,
   ConfirmAction,
+  DatePicker,
   Dialog,
   InlineAlert,
   MoneyInput,
@@ -152,7 +153,7 @@ export function AutoGenerateMemberDialog({ open, onClose }: Props) {
             />
             <label className="ds-field">
               <span className="ds-field__label">Ngày hết hạn</span>
-              <input className="ds-input" type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} />
+              <DatePicker value={expiryDate} onChange={setExpiryDate} aria-label="Ngày hết hạn" />
               <span className="ds-field__hint">Để trống nếu không giới hạn.</span>
             </label>
             <label className="ds-field member-generate-form__wide">
