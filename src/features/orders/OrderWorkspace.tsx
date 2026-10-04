@@ -33,6 +33,7 @@ import {
   QTY_MIN,
   canChangeQuantity,
   clampQuantity,
+  describeInventoryWarnings,
   describeProcessedCount,
   groupOrders,
   groupQrOrders,
@@ -248,6 +249,8 @@ export function OrderWorkspace() {
             }`
           : ''
       pushToast(`${result.message}${detail}`, result.tone)
+      const lowStock = describeInventoryWarnings(response.inventoryWarnings)
+      if (lowStock) pushToast(lowStock, 'info')
       refreshServiceQueue()
       void invalidateMoneyQueries(queryClient)
     },
@@ -277,6 +280,8 @@ export function OrderWorkspace() {
         response.accepted > 0 ? `${result.message} · Phiếu QR #${group.voucherId}` : result.message,
         result.tone,
       )
+      const lowStock = describeInventoryWarnings(response.inventoryWarnings)
+      if (lowStock) pushToast(lowStock, 'info')
       refreshServiceQueue()
     },
     onError: (error) => {

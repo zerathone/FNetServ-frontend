@@ -211,6 +211,14 @@ export function qrSelectKey(group: QrGroup) {
   return `qr:${group.voucherId}`
 }
 
+/** P5: parity Qt `checkServiceInventoryWarning` — "+ <món>: còn [x]." ; rỗng ⇒ null (không toast). */
+export function describeInventoryWarnings(
+  warnings: Array<{ serviceName: string; inventory: number }> | undefined,
+) {
+  if (!warnings || warnings.length === 0) return null
+  return `Sắp hết hàng: ${warnings.map((w) => `${w.serviceName} còn ${w.inventory}`).join('; ')}.`
+}
+
 /** KNOWLEDGE §47: `accepted/cancelled === 0` ⇒ KHÔNG báo thành công. */
 export function describeProcessedCount(count: number, verb: string) {
   if (count <= 0) {

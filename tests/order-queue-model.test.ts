@@ -5,6 +5,7 @@ import {
   canChangeQuantity,
   clampQuantity,
   customerInfoOf,
+  describeInventoryWarnings,
   describeProcessedCount,
   groupOrders,
   groupQrOrders,
@@ -94,6 +95,15 @@ test('cancel payload carries machine/customer/service/qty/amount for the audit l
   assert.equal(customerInfoOf(''), 'Khách vãng lai')
   const qr = groupQrOrders([line({ serviceDetailId: 9, servicePaid: 1, voucherId: 5, serviceAmount: 4000 })])[0]
   assert.equal(qrCancelItems(qr)[0].amount, 4000)
+})
+
+test('inventory warnings become one toast line, none when empty', () => {
+  assert.equal(describeInventoryWarnings([]), null)
+  assert.equal(describeInventoryWarnings(undefined), null)
+  assert.equal(
+    describeInventoryWarnings([{ serviceName: 'Sting', inventory: 3 }]),
+    'Sắp hết hàng: Sting còn 3.',
+  )
 })
 
 test('zero processed rows never reports success (KNOWLEDGE 47)', () => {
