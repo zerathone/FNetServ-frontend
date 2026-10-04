@@ -28,6 +28,7 @@ import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { useWsStatusStore } from '../../store/wsStatus'
 import {
+  ORDER_RIGHTS,
   QTY_MAX,
   QTY_MIN,
   canChangeQuantity,
@@ -112,6 +113,9 @@ export function OrderWorkspace() {
   const queryClient = useQueryClient()
   const connected = useWsStatusStore((state) => state.connected)
   const staffId = useAuthStore((state) => state.staffId)
+  // task orders-qr-qty P5: Hủy/Từ chối cần R_DELETE_ORDER (44). Chỉ là UX — backend vẫn chặn.
+  const canCancel = useAuthStore((state) => state.hasRight(ORDER_RIGHTS.DELETE_ORDER))
+  const cancelTitle = canCancel ? undefined : `Thiếu quyền hủy đơn (${ORDER_RIGHTS.DELETE_ORDER})`
   const selectedUserId = useOrderQueueStore((state) => state.selectedUserId)
   const hostName = useOrderQueueStore((state) => state.hostName)
   const setSelectedUserId = useOrderQueueStore((state) => state.setSelectedUserId)
@@ -470,7 +474,8 @@ export function OrderWorkspace() {
         <Button
           type="button"
           variant="ghost"
-          disabled={pendingMutation}
+          disabled={pendingMutation || !canCancel}
+          title={cancelTitle}
           onClick={() => setConfirmation({ type: 'cancel-qr', group })}
         >
           Hủy
@@ -563,7 +568,8 @@ export function OrderWorkspace() {
           <Button
             type="button"
             variant="ghost"
-            disabled={pendingMutation}
+            disabled={pendingMutation || !canCancel}
+            title={cancelTitle}
             onClick={() => setConfirmation({ type: 'cancel-service', order })}
           >
             Từ chối
@@ -674,6 +680,8 @@ export function OrderWorkspace() {
                 <Button
                   type="button"
                   variant="danger"
+                  disabled={!canCancel}
+                  title={cancelTitle}
                   onClick={() =>
                     setConfirmation({
                       type: 'cancel-selected',
