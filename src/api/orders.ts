@@ -19,6 +19,14 @@ export type PendingOrder = {
   parentId?: number | null
   topping?: number | null
   unit?: string
+
+  // task orders-qr-qty (P2) — chỉ có khi gọi `?includePaid=1`.
+  //  voucherId: phiếu gắn với dòng (đơn trả QR = phiếu PY_SERVICE_QR; 0 = chưa có)
+  //  serviceAmount: ServiceAmount trong DB (đơn QR = số ĐÃ THU)
+  //  unitPrice: đơn giá snapshot lúc đặt = ServiceAmount / ServiceQuantity (BE tính lại theo số này)
+  voucherId?: number
+  serviceAmount?: number
+  unitPrice?: number
 }
 
 // task 2.24 (P2) — một đơn combo khách mua từ máy trạm đang chờ thu ngân xác nhận (Accept=0).
@@ -45,14 +53,28 @@ type PendingComboResponse = {
   items: PendingComboOrder[]
 }
 
+export type InventoryWarning = { serviceId: number; serviceName: string; inventory: number }
+export type InventoryShortItem = InventoryWarning & { requested: number }
+
 type ApproveOrderResponse = {
   accepted: number
   paymentId?: number
+  /** task orders-qr-qty: tổng tiền BE tính lại và ghi vào phiếu sổ chờ. */
+  amount?: number
+  /** task orders-qr-qty (P5): món chạm ngưỡng cảnh báo tồn sau khi trừ. */
+  inventoryWarnings?: InventoryWarning[]
 }
 
-export function getPendingOrders(userId?: string) {
-  const query = userId ? `?userId=${encodeURIComponent(userId)}` : ''
-  return apiGet<PendingOrder[]>(`/orders/pending${query}`)
+/**
+ * includePaid: thêm đơn khách đã trả QR (servicePaid=1) + voucherId/serviceAmount/unitPrice.
+ * Mặc định tắt = response y hệt trước (trang `/orders/legacy` vẫn dùng dạng cũ).
+ */
+export function getPendingOrders(userId?: string, options: { includePaid?: boolean } = {}) {
+  const params = new URLSearchParams()
+  if (userId) params.set('userId', userId)
+  if (options.includePaid) params.set('includePaid', '1')
+  const query = params.toString()
+  return apiGet<PendingOrder[]>(`/orders/pending${query ? `?${query}` : ''}`)
 }
 
 export function acceptServiceOrder(payload: {
@@ -68,7 +90,16 @@ export function acceptServiceOrder(payload: {
 
 export function cancelServiceOrder(payload: {
   staffId: string;
-  items: Array<{ type: 'service' | 'combo'; id: number }>;
+  // task orders-qr-qty (P3): field mô tả để BE ghi log hủy đầy đủ (optional, additive).
+  items: Array<{
+    type: 'service' | 'combo';
+    id: number;
+    machineName?: string;
+    customerInfo?: string;
+    serviceName?: string;
+    quantity?: number;
+    amount?: number;
+  }>;
 }) {
   return apiPost<{ cancelled: number }, typeof payload>('/service/cancel', payload);
 }
@@ -77,6 +108,8 @@ export function getServicePaidLabel(servicePaid: number) {
   switch (servicePaid) {
     case 0:
       return 'Chưa thanh toán'
+    case 1:
+      return 'Đã trả QR'
     case 4:
       return 'Khách chọn tiền mặt tại máy'
     case 5:

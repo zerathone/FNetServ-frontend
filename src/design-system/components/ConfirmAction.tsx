@@ -11,6 +11,8 @@ type ConfirmActionProps = {
   cancelLabel?: string
   danger?: boolean
   pending?: boolean
+  /** Tắt nút xác nhận (vd bắt tick "đã hiểu" trước khi cho hủy đơn đã thu tiền). */
+  confirmDisabled?: boolean
   onCancel: () => void
   onConfirm: () => void
 }
@@ -24,6 +26,7 @@ export function ConfirmAction({
   cancelLabel = 'Hủy',
   danger = false,
   pending = false,
+  confirmDisabled = false,
   onCancel,
   onConfirm,
 }: ConfirmActionProps) {
@@ -43,6 +46,7 @@ export function ConfirmAction({
             type="button"
             variant={danger ? 'danger' : 'primary'}
             loading={pending}
+            disabled={confirmDisabled}
             onClick={onConfirm}
           >
             {confirmLabel}

@@ -10,7 +10,6 @@ import {
   getServicePaidLabel,
   rejectComboOrder,
   type PendingComboOrder,
-  type PendingOrder,
 } from '../../api/orders'
 import {
   Button,
@@ -28,31 +27,51 @@ import { useOrderQueueStore } from '../../store/orderQueue'
 import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { useWsStatusStore } from '../../store/wsStatus'
+import {
+  QTY_MAX,
+  QTY_MIN,
+  canChangeQuantity,
+  clampQuantity,
+  describeProcessedCount,
+  groupOrders,
+  groupQrOrders,
+  lineAmount,
+  orderAmount,
+  qrAcceptItems,
+  qrCancelItems,
+  qrSelectKey,
+  quantityOf,
+  serviceCancelItems,
+  serviceItems,
+  serviceSelectKey,
+  type CancelItem,
+  type GroupedOrder,
+  type QrGroup,
+  type QtyOverrides,
+} from './orderQueueModel'
 import './orders.css'
 
 const PAGE_SIZE = 20
 
-type GroupedOrder = PendingOrder & {
-  children: PendingOrder[]
-  createdAtMs: number
-}
+type QueueEntry =
+  | { kind: 'qr'; key: string; group: QrGroup }
+  | { kind: 'service'; key: string; order: GroupedOrder }
 
 type Confirmation =
   | { type: 'accept-service'; order: GroupedOrder }
   | { type: 'cancel-service'; order: GroupedOrder }
-  | { type: 'cancel-selected'; ids: number[] }
+  | { type: 'accept-qr'; group: QrGroup }
+  | { type: 'cancel-qr'; group: QrGroup }
+  | { type: 'cancel-selected'; keys: string[] }
   | { type: 'accept-combo'; order: PendingComboOrder }
   | { type: 'reject-combo'; order: PendingComboOrder }
   | null
 
+const QR_CANCEL_WARNING =
+  'Khách đã chuyển khoản. Hệ thống chỉ đánh dấu phiếu đã hủy, KHÔNG hoàn tiền — phải hoàn tiền thủ công cho khách.'
+
 function formatMoney(value: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
-}
-
-function parseCreatedAt(date?: string, time?: string) {
-  if (!date || !time) return 0
-  const parsed = new Date(`${date}T${time}`).getTime()
-  return Number.isNaN(parsed) ? 0 : parsed
 }
 
 function parseComboCreatedAt(value?: string) {
@@ -84,62 +103,9 @@ function waitTone(createdAtMs: number, now: number): 'neutral' | 'info' | 'warni
   return 'info'
 }
 
-function groupOrders(orders: PendingOrder[]): GroupedOrder[] {
-  const mainIds = new Set(
-    orders
-      .filter((order) => !order.parentId || order.parentId === 0)
-      .map((order) => order.serviceDetailId),
-  )
-  const mains = orders.filter(
-    (order) => !order.parentId || order.parentId === 0 || !mainIds.has(order.parentId),
-  )
-  const toppings = orders.filter(
-    (order) => order.parentId && order.parentId > 0 && mainIds.has(order.parentId),
-  )
-  return mains
-    .map((main) => ({
-      ...main,
-      children: toppings.filter((item) => item.parentId === main.serviceDetailId),
-      createdAtMs: parseCreatedAt(main.serviceDate, main.serviceTime),
-    }))
-    .sort((left, right) => {
-      if (!left.createdAtMs) return 1
-      if (!right.createdAtMs) return -1
-      return left.createdAtMs - right.createdAtMs
-    })
-}
-
-function serviceItems(order: GroupedOrder) {
-  // `/orders/pending` chỉ chứa ServicePaid IN (0,4,5). MFC tạo voucher cho cả ba
-  // trạng thái, vì vậy `alreadyPaid` luôn false. Không suy luận `servicePaid !== 0`.
-  return [
-    {
-      detailId: order.serviceDetailId,
-      quantity: order.quantity,
-      amount: order.amount,
-      alreadyPaid: false,
-    },
-    ...order.children.map((child) => ({
-      detailId: child.serviceDetailId,
-      quantity: child.quantity,
-      amount: child.amount,
-      alreadyPaid: false,
-    })),
-  ]
-}
-
-function serviceCancelItems(order: GroupedOrder) {
-  return [
-    { type: 'service' as const, id: order.serviceDetailId },
-    ...order.children.map((child) => ({
-      type: 'service' as const,
-      id: child.serviceDetailId,
-    })),
-  ]
-}
-
-function orderAmount(order: GroupedOrder) {
-  return order.amount + order.children.reduce((sum, child) => sum + child.amount, 0)
+function matchesHost(hostName: string | null | undefined, filter: string) {
+  if (!filter) return true
+  return (hostName ?? '').toLocaleLowerCase('vi').includes(filter.toLocaleLowerCase('vi'))
 }
 
 export function OrderWorkspace() {
@@ -153,21 +119,29 @@ export function OrderWorkspace() {
   const [activeTab, setActiveTab] = useState<'service' | 'combo'>('service')
   const [servicePage, setServicePage] = useState(0)
   const [comboPage, setComboPage] = useState(0)
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
+  const [qrCancelAck, setQrCancelAck] = useState(false)
+  const [qtyOverrides, setQtyOverrides] = useState<QtyOverrides>({})
   const [now, setNow] = useState(() => Date.now())
-  const serviceIntent = useIdempotentIntent('order-service-accept')
-  const comboAcceptIntent = useIdempotentIntent('order-combo-accept')
-  const comboRejectIntent = useIdempotentIntent('order-combo-reject')
+  const serviceIntent = useIdempotentIntent('order-svc')
+  const qrIntent = useIdempotentIntent('order-qr')
+  const comboAcceptIntent = useIdempotentIntent('order-cb-acc')
+  const comboRejectIntent = useIdempotentIntent('order-cb-rej')
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    setQrCancelAck(false)
+  }, [confirmation])
+
   const servicesQuery = useQuery({
-    queryKey: ['pending-orders', selectedUserId],
-    queryFn: () => getPendingOrders(selectedUserId || undefined),
+    // Khóa riêng 'with-paid': trang /orders/legacy dùng dạng response cũ (không includePaid).
+    queryKey: ['pending-orders', selectedUserId, 'with-paid'],
+    queryFn: () => getPendingOrders(selectedUserId || undefined, { includePaid: true }),
     refetchInterval: connected ? 30_000 : 5_000,
   })
   const comboQuery = useQuery({
@@ -177,35 +151,34 @@ export function OrderWorkspace() {
   })
 
   const groupedOrders = useMemo(
-    () =>
-      groupOrders(servicesQuery.data ?? []).filter((order) =>
-        hostName
-          ? (order.hostName ?? '').toLocaleLowerCase('vi').includes(
-              hostName.toLocaleLowerCase('vi'),
-            )
-          : true,
-      ),
+    () => groupOrders(servicesQuery.data ?? []).filter((order) => matchesHost(order.hostName, hostName)),
     [hostName, servicesQuery.data],
+  )
+  const qrGroups = useMemo(
+    () => groupQrOrders(servicesQuery.data ?? []).filter((group) => matchesHost(group.hostName, hostName)),
+    [hostName, servicesQuery.data],
+  )
+  // Đơn QR (khách đã trả tiền, đang chờ món) xếp TRÊN CÙNG, không lẫn vào đơn thường.
+  const serviceEntries = useMemo<QueueEntry[]>(
+    () => [
+      ...qrGroups.map((group) => ({ kind: 'qr' as const, key: qrSelectKey(group), group })),
+      ...groupedOrders.map((order) => ({ kind: 'service' as const, key: serviceSelectKey(order), order })),
+    ],
+    [groupedOrders, qrGroups],
   )
   const comboOrders = useMemo(
     () =>
       (comboQuery.data ?? [])
-        .filter((order) =>
-          hostName
-            ? (order.hostName ?? '').toLocaleLowerCase('vi').includes(
-                hostName.toLocaleLowerCase('vi'),
-              )
-            : true,
-        )
+        .filter((order) => matchesHost(order.hostName, hostName))
         .sort(
           (left, right) =>
             parseComboCreatedAt(left.createdAt) - parseComboCreatedAt(right.createdAt),
         ),
     [comboQuery.data, hostName],
   )
-  const serviceTotalPages = Math.max(1, Math.ceil(groupedOrders.length / PAGE_SIZE))
+  const serviceTotalPages = Math.max(1, Math.ceil(serviceEntries.length / PAGE_SIZE))
   const comboTotalPages = Math.max(1, Math.ceil(comboOrders.length / PAGE_SIZE))
-  const visibleServiceOrders = groupedOrders.slice(
+  const visibleServiceEntries = serviceEntries.slice(
     servicePage * PAGE_SIZE,
     (servicePage + 1) * PAGE_SIZE,
   )
@@ -217,7 +190,7 @@ export function OrderWorkspace() {
   useEffect(() => {
     setServicePage(0)
     setComboPage(0)
-    setSelectedIds(new Set())
+    setSelectedKeys(new Set())
   }, [hostName, selectedUserId])
 
   useEffect(() => {
@@ -228,15 +201,27 @@ export function OrderWorkspace() {
     if (comboPage >= comboTotalPages) setComboPage(comboTotalPages - 1)
   }, [comboPage, comboTotalPages])
 
+  const refreshServiceQueue = () => {
+    void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+  }
+
+  const clearOverrides = (ids: number[]) =>
+    setQtyOverrides((current) => {
+      const next = { ...current }
+      ids.forEach((id) => delete next[id])
+      return next
+    })
+
   const serviceMutation = useMutation({
     mutationFn: (order: GroupedOrder) => {
-      const items = serviceItems(order)
+      const items = serviceItems(order, qtyOverrides)
       return acceptServiceOrder({
         staffId: String(staffId ?? ''),
         userId: order.userId,
         anonymous: order.userId === 0,
         hostName: order.hostName || '',
         idem: serviceIntent.getKey(
+          // Fingerprint gồm số lượng từng dòng ⇒ đổi SL là ý định mới (idem mới).
           fingerprintIntent({
             userId: order.userId,
             hostName: order.hostName || '',
@@ -247,32 +232,72 @@ export function OrderWorkspace() {
         items,
       })
     },
-    onSuccess: (response) => {
+    onSuccess: (response, order) => {
       serviceIntent.clearKey()
       setConfirmation(null)
-      pushToast(
-        `Đã chấp nhận ${response.accepted} dòng dịch vụ${response.paymentId ? ` · Phiếu #${response.paymentId}` : ''}.`,
-        'success',
-      )
-      void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+      clearOverrides([order.serviceDetailId, ...order.children.map((child) => child.serviceDetailId)])
+      const result = describeProcessedCount(response.accepted, 'chấp nhận')
+      const detail =
+        response.accepted > 0
+          ? `${response.paymentId ? ` · Phiếu #${response.paymentId}` : ''}${
+              typeof response.amount === 'number' ? ` · ${formatMoney(response.amount)}` : ''
+            }`
+          : ''
+      pushToast(`${result.message}${detail}`, result.tone)
+      refreshServiceQueue()
       void invalidateMoneyQueries(queryClient)
     },
-    onError: (error) => pushToast(error.message, 'error'),
+    onError: (error) => {
+      pushToast(error.message, 'error')
+      refreshServiceQueue()
+    },
+  })
+
+  const qrAcceptMutation = useMutation({
+    mutationFn: (group: QrGroup) => {
+      const items = qrAcceptItems(group)
+      return acceptServiceOrder({
+        staffId: String(staffId ?? ''),
+        userId: group.userId,
+        anonymous: group.userId === 0,
+        hostName: group.hostName || '',
+        idem: qrIntent.getKey(fingerprintIntent({ voucherId: group.voucherId, items })),
+        items,
+      })
+    },
+    onSuccess: (response, group) => {
+      qrIntent.clearKey()
+      setConfirmation(null)
+      const result = describeProcessedCount(response.accepted, 'xác nhận phục vụ')
+      pushToast(
+        response.accepted > 0 ? `${result.message} · Phiếu QR #${group.voucherId}` : result.message,
+        result.tone,
+      )
+      refreshServiceQueue()
+    },
+    onError: (error) => {
+      pushToast(error.message, 'error')
+      refreshServiceQueue()
+    },
   })
 
   const cancelMutation = useMutation({
-    mutationFn: (orders: GroupedOrder[]) =>
+    mutationFn: (items: CancelItem[]) =>
       cancelServiceOrder({
         staffId: String(staffId ?? ''),
-        items: orders.flatMap(serviceCancelItems),
+        items,
       }),
     onSuccess: (response) => {
       setConfirmation(null)
-      setSelectedIds(new Set())
-      pushToast(`Đã hủy ${response.cancelled} dòng dịch vụ.`, 'success')
-      void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+      setSelectedKeys(new Set())
+      const result = describeProcessedCount(response.cancelled, 'hủy')
+      pushToast(result.message, result.tone)
+      refreshServiceQueue()
     },
-    onError: (error) => pushToast(error.message, 'error'),
+    onError: (error) => {
+      pushToast(error.message, 'error')
+      refreshServiceQueue()
+    },
   })
 
   const comboAcceptMutation = useMutation({
@@ -325,26 +350,52 @@ export function OrderWorkspace() {
     onError: (error) => pushToast(error.message, 'error'),
   })
 
-  const selectedOrders = groupedOrders.filter((order) =>
-    selectedIds.has(order.serviceDetailId),
+  const entryByKey = useMemo(
+    () => new Map(serviceEntries.map((entry) => [entry.key, entry])),
+    [serviceEntries],
   )
+  const selectedEntries = serviceEntries.filter((entry) => selectedKeys.has(entry.key))
   const allSelected =
-    visibleServiceOrders.length > 0 &&
-    visibleServiceOrders.every((order) => selectedIds.has(order.serviceDetailId))
+    visibleServiceEntries.length > 0 &&
+    visibleServiceEntries.every((entry) => selectedKeys.has(entry.key))
   const serviceTotal = groupedOrders.reduce(
-    (sum, order) => sum + orderAmount(order),
+    (sum, order) => sum + orderAmount(order, qtyOverrides),
     0,
   )
+  const qrPaidTotal = qrGroups.reduce((sum, group) => sum + group.paidTotal, 0)
   const comboTotal = comboOrders.reduce((sum, order) => sum + order.price, 0)
   const pendingMutation =
     serviceMutation.isPending ||
+    qrAcceptMutation.isPending ||
     cancelMutation.isPending ||
     comboAcceptMutation.isPending ||
     comboRejectMutation.isPending
 
+  const cancelItemsForKeys = (keys: string[]) =>
+    keys.flatMap((key) => {
+      const entry = entryByKey.get(key)
+      if (!entry) return []
+      return entry.kind === 'qr' ? qrCancelItems(entry.group) : serviceCancelItems(entry.order)
+    })
+  const selectionHasQr = (keys: string[]) => keys.some((key) => entryByKey.get(key)?.kind === 'qr')
+  const confirmNeedsQrAck =
+    confirmation?.type === 'cancel-qr' ||
+    (confirmation?.type === 'cancel-selected' && selectionHasQr(confirmation.keys))
+
+  const setQuantity = (order: GroupedOrder, value: number) => {
+    const next = clampQuantity(value)
+    setQtyOverrides((current) => {
+      const updated = { ...current }
+      if (next === order.quantity) delete updated[order.serviceDetailId]
+      else updated[order.serviceDetailId] = next
+      return updated
+    })
+  }
+
   const closeConfirmation = () => {
     if (pendingMutation) return
     if (confirmation?.type === 'accept-service') serviceIntent.clearKey()
+    if (confirmation?.type === 'accept-qr') qrIntent.clearKey()
     if (confirmation?.type === 'accept-combo') comboAcceptIntent.clearKey()
     if (confirmation?.type === 'reject-combo') comboRejectIntent.clearKey()
     setConfirmation(null)
@@ -356,13 +407,17 @@ export function OrderWorkspace() {
       case 'accept-service':
         serviceMutation.mutate(confirmation.order)
         break
+      case 'accept-qr':
+        qrAcceptMutation.mutate(confirmation.group)
+        break
       case 'cancel-service':
-        cancelMutation.mutate([confirmation.order])
+        cancelMutation.mutate(serviceCancelItems(confirmation.order))
+        break
+      case 'cancel-qr':
+        cancelMutation.mutate(qrCancelItems(confirmation.group))
         break
       case 'cancel-selected':
-        cancelMutation.mutate(
-          groupedOrders.filter((order) => confirmation.ids.includes(order.serviceDetailId)),
-        )
+        cancelMutation.mutate(cancelItemsForKeys(confirmation.keys))
         break
       case 'accept-combo':
         comboAcceptMutation.mutate(confirmation.order)
@@ -373,12 +428,165 @@ export function OrderWorkspace() {
     }
   }
 
+  const toggleKey = (key: string) =>
+    setSelectedKeys((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  const renderQrCard = (group: QrGroup) => (
+    <article key={qrSelectKey(group)} className="order-card order-card--qr">
+      <label className="order-card__check">
+        <input
+          type="checkbox"
+          checked={selectedKeys.has(qrSelectKey(group))}
+          aria-label={`Chọn phiếu QR #${group.voucherId}`}
+          onChange={() => toggleKey(qrSelectKey(group))}
+        />
+      </label>
+      <div className="order-card__identity">
+        <strong>{group.hostName || 'Chưa xác định máy'}</strong>
+        <span>{group.userName || 'Khách vãng lai'}</span>
+        <StatusBadge tone="success">Đã trả QR · Phiếu #{group.voucherId}</StatusBadge>
+        <StatusBadge tone={waitTone(group.createdAtMs, now)}>
+          Chờ {waitLabel(group.createdAtMs, now)}
+        </StatusBadge>
+      </div>
+      <div className="order-card__items">
+        {group.lines.map((line) => (
+          <div key={line.serviceDetailId}>
+            <strong>{line.quantity} × {line.serviceName}</strong>
+            <span>{formatMoney(line.serviceAmount ?? line.amount)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="order-card__total">
+        <span>Đã thu</span>
+        <strong>{formatMoney(group.paidTotal)}</strong>
+      </div>
+      <div className="order-card__actions">
+        <Button
+          type="button"
+          variant="primary"
+          disabled={pendingMutation}
+          onClick={() => setConfirmation({ type: 'accept-qr', group })}
+        >
+          Xác nhận phục vụ
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={pendingMutation}
+          onClick={() => setConfirmation({ type: 'cancel-qr', group })}
+        >
+          Hủy
+        </Button>
+      </div>
+    </article>
+  )
+
+  const renderServiceCard = (order: GroupedOrder) => {
+    const key = serviceSelectKey(order)
+    const quantity = quantityOf(order, qtyOverrides)
+    const editable = canChangeQuantity(order)
+    return (
+      <article key={key} className="order-card">
+        <label className="order-card__check">
+          <input
+            type="checkbox"
+            checked={selectedKeys.has(key)}
+            aria-label={`Chọn đơn ${order.serviceName}`}
+            onChange={() => toggleKey(key)}
+          />
+        </label>
+        <div className="order-card__identity">
+          <strong>{order.hostName || 'Chưa xác định máy'}</strong>
+          <span>{order.userName || 'Khách vãng lai'}</span>
+          <StatusBadge tone={waitTone(order.createdAtMs, now)}>
+            Chờ {waitLabel(order.createdAtMs, now)}
+          </StatusBadge>
+        </div>
+        <div className="order-card__items">
+          <div>
+            <strong>{quantity} × {order.serviceName}</strong>
+            <span>
+              {formatMoney(lineAmount(order, qtyOverrides))} · {getServicePaidLabel(order.servicePaid)}
+            </span>
+            {editable ? (
+              <div className="order-qty" role="group" aria-label={`Số lượng ${order.serviceName}`}>
+                <button
+                  type="button"
+                  className="order-qty__btn"
+                  disabled={pendingMutation || quantity <= QTY_MIN}
+                  aria-label="Giảm số lượng"
+                  onClick={() => setQuantity(order, quantity - 1)}
+                >
+                  −
+                </button>
+                <input
+                  className="order-qty__input"
+                  inputMode="numeric"
+                  value={quantity}
+                  aria-label="Số lượng"
+                  disabled={pendingMutation}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, '')
+                    if (digits) setQuantity(order, Number(digits))
+                  }}
+                />
+                <button
+                  type="button"
+                  className="order-qty__btn"
+                  disabled={pendingMutation || quantity >= QTY_MAX}
+                  aria-label="Tăng số lượng"
+                  onClick={() => setQuantity(order, quantity + 1)}
+                >
+                  +
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {order.children.map((child) => (
+            <div key={child.serviceDetailId} className="order-card__topping">
+              <strong>+ {child.quantity} × {child.serviceName}</strong>
+              <span>{formatMoney(lineAmount(child, qtyOverrides))}</span>
+            </div>
+          ))}
+        </div>
+        <div className="order-card__total">
+          <span>Tổng đơn</span>
+          <strong>{formatMoney(orderAmount(order, qtyOverrides))}</strong>
+        </div>
+        <div className="order-card__actions">
+          <Button
+            type="button"
+            variant="primary"
+            disabled={pendingMutation}
+            onClick={() => setConfirmation({ type: 'accept-service', order })}
+          >
+            Chấp nhận đơn
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={pendingMutation}
+            onClick={() => setConfirmation({ type: 'cancel-service', order })}
+          >
+            Từ chối
+          </Button>
+        </div>
+      </article>
+    )
+  }
+
   return (
     <section className="order-workspace">
       <PageHeader
         eyebrow="Thu ngân"
         title="Hàng đợi gọi món"
-        description="Đơn chờ lâu được xếp trước; món chính và topping luôn xử lý cùng nhau."
+        description="Đơn khách đã trả QR xếp trên cùng; đơn chờ lâu xếp trước; món chính và topping luôn xử lý cùng nhau."
         actions={
           <PollingStatus
             connected={connected}
@@ -407,7 +615,16 @@ export function OrderWorkspace() {
         >
           <span>Dịch vụ chờ</span>
           <strong>{groupedOrders.length}</strong>
-          <small>{formatMoney(serviceTotal)}</small>
+          <small>Cần thu {formatMoney(serviceTotal)}</small>
+        </button>
+        <button
+          type="button"
+          className={qrGroups.length > 0 ? 'order-summary__qr' : ''}
+          onClick={() => setActiveTab('service')}
+        >
+          <span>Đã trả QR chờ món</span>
+          <strong>{qrGroups.length}</strong>
+          <small>Đã thu {formatMoney(qrPaidTotal)}</small>
         </button>
         <button
           type="button"
@@ -458,9 +675,9 @@ export function OrderWorkspace() {
 
       {activeTab === 'service' ? (
         <div className="order-panel">
-          {selectedOrders.length > 0 ? (
+          {selectedEntries.length > 0 ? (
             <div className="order-selection">
-              <strong>{selectedOrders.length} đơn đã chọn</strong>
+              <strong>{selectedEntries.length} đơn đã chọn</strong>
               <div>
                 <Button
                   type="button"
@@ -468,13 +685,13 @@ export function OrderWorkspace() {
                   onClick={() =>
                     setConfirmation({
                       type: 'cancel-selected',
-                      ids: selectedOrders.map((order) => order.serviceDetailId),
+                      keys: selectedEntries.map((entry) => entry.key),
                     })
                   }
                 >
                   Hủy các đơn đã chọn
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <Button type="button" variant="ghost" onClick={() => setSelectedKeys(new Set())}>
                   Bỏ chọn
                 </Button>
               </div>
@@ -489,7 +706,7 @@ export function OrderWorkspace() {
               description={(servicesQuery.error as Error).message}
               action={<Button onClick={() => servicesQuery.refetch()}>Thử lại</Button>}
             />
-          ) : groupedOrders.length === 0 ? (
+          ) : serviceEntries.length === 0 ? (
             <StateView
               title="Không có đơn dịch vụ đang chờ"
               description={
@@ -512,11 +729,11 @@ export function OrderWorkspace() {
                   type="checkbox"
                   checked={allSelected}
                   onChange={() =>
-                    setSelectedIds((current) => {
+                    setSelectedKeys((current) => {
                       const next = new Set(current)
-                      visibleServiceOrders.forEach((order) => {
-                        if (allSelected) next.delete(order.serviceDetailId)
-                        else next.add(order.serviceDetailId)
+                      visibleServiceEntries.forEach((entry) => {
+                        if (allSelected) next.delete(entry.key)
+                        else next.add(entry.key)
                       })
                       return next
                     })
@@ -526,69 +743,9 @@ export function OrderWorkspace() {
               </label>
               <div className="order-list-region">
                 <div className="order-list">
-                {visibleServiceOrders.map((order) => (
-                  <article key={order.serviceDetailId} className="order-card">
-                    <label className="order-card__check">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(order.serviceDetailId)}
-                        aria-label={`Chọn đơn ${order.serviceName}`}
-                        onChange={() =>
-                          setSelectedIds((current) => {
-                            const next = new Set(current)
-                            if (next.has(order.serviceDetailId)) {
-                              next.delete(order.serviceDetailId)
-                            } else {
-                              next.add(order.serviceDetailId)
-                            }
-                            return next
-                          })
-                        }
-                      />
-                    </label>
-                    <div className="order-card__identity">
-                      <strong>{order.hostName || 'Chưa xác định máy'}</strong>
-                      <span>{order.userName || 'Khách vãng lai'}</span>
-                      <StatusBadge tone={waitTone(order.createdAtMs, now)}>
-                        Chờ {waitLabel(order.createdAtMs, now)}
-                      </StatusBadge>
-                    </div>
-                    <div className="order-card__items">
-                      <div>
-                        <strong>{order.quantity} × {order.serviceName}</strong>
-                        <span>{formatMoney(order.amount)} · {getServicePaidLabel(order.servicePaid)}</span>
-                      </div>
-                      {order.children.map((child) => (
-                        <div key={child.serviceDetailId} className="order-card__topping">
-                          <strong>+ {child.quantity} × {child.serviceName}</strong>
-                          <span>{formatMoney(child.amount)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="order-card__total">
-                      <span>Tổng đơn</span>
-                      <strong>{formatMoney(orderAmount(order))}</strong>
-                    </div>
-                    <div className="order-card__actions">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        disabled={pendingMutation}
-                        onClick={() => setConfirmation({ type: 'accept-service', order })}
-                      >
-                        Chấp nhận đơn
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={pendingMutation}
-                        onClick={() => setConfirmation({ type: 'cancel-service', order })}
-                      >
-                        Từ chối
-                      </Button>
-                    </div>
-                  </article>
-                ))}
+                  {visibleServiceEntries.map((entry) =>
+                    entry.kind === 'qr' ? renderQrCard(entry.group) : renderServiceCard(entry.order),
+                  )}
                 </div>
               </div>
             </>
@@ -680,44 +837,59 @@ export function OrderWorkspace() {
         title={
           confirmation?.type === 'accept-service'
             ? 'Chấp nhận đơn dịch vụ?'
-            : confirmation?.type === 'accept-combo'
-              ? 'Xác nhận đã thu tiền combo?'
-              : confirmation?.type === 'reject-combo'
-                ? 'Từ chối đơn combo?'
-                : confirmation?.type === 'cancel-selected'
-                  ? `Hủy ${confirmation.ids.length} đơn đã chọn?`
-                  : 'Từ chối đơn dịch vụ?'
+            : confirmation?.type === 'accept-qr'
+              ? `Xác nhận phục vụ phiếu QR #${confirmation.group.voucherId}?`
+              : confirmation?.type === 'cancel-qr'
+                ? `Hủy đơn đã trả QR #${confirmation.group.voucherId}?`
+                : confirmation?.type === 'accept-combo'
+                  ? 'Xác nhận đã thu tiền combo?'
+                  : confirmation?.type === 'reject-combo'
+                    ? 'Từ chối đơn combo?'
+                    : confirmation?.type === 'cancel-selected'
+                      ? `Hủy ${confirmation.keys.length} đơn đã chọn?`
+                      : 'Từ chối đơn dịch vụ?'
         }
         description={
           confirmation?.type === 'accept-service' ||
           confirmation?.type === 'cancel-service'
             ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.userName || 'Khách vãng lai'}`
-            : confirmation?.type === 'accept-combo' ||
-                confirmation?.type === 'reject-combo'
-              ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.comboName}`
-              : undefined
+            : confirmation?.type === 'accept-qr' || confirmation?.type === 'cancel-qr'
+              ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
+              : confirmation?.type === 'accept-combo' ||
+                  confirmation?.type === 'reject-combo'
+                ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.comboName}`
+                : undefined
         }
         confirmLabel={
           confirmation?.type === 'accept-service'
             ? 'Chấp nhận đơn'
-            : confirmation?.type === 'accept-combo'
-              ? 'Xác nhận đã thu tiền'
-              : 'Xác nhận hủy'
+            : confirmation?.type === 'accept-qr'
+              ? 'Xác nhận phục vụ'
+              : confirmation?.type === 'accept-combo'
+                ? 'Xác nhận đã thu tiền'
+                : 'Xác nhận hủy'
         }
         danger={
           confirmation?.type === 'cancel-service' ||
+          confirmation?.type === 'cancel-qr' ||
           confirmation?.type === 'cancel-selected' ||
           confirmation?.type === 'reject-combo'
         }
         pending={pendingMutation}
+        confirmDisabled={confirmNeedsQrAck && !qrCancelAck}
         onCancel={closeConfirmation}
         onConfirm={confirmAction}
       >
         {confirmation?.type === 'accept-service' ? (
           <dl className="order-confirm-summary">
             <div><dt>Món chính + topping</dt><dd>{1 + confirmation.order.children.length} dòng</dd></div>
-            <div><dt>Tổng đơn</dt><dd>{formatMoney(orderAmount(confirmation.order))}</dd></div>
+            <div><dt>Tổng đơn (tạm tính)</dt><dd>{formatMoney(orderAmount(confirmation.order, qtyOverrides))}</dd></div>
             <div><dt>Phương thức khách chọn</dt><dd>{getServicePaidLabel(confirmation.order.servicePaid)}</dd></div>
+          </dl>
+        ) : confirmation?.type === 'accept-qr' ? (
+          <dl className="order-confirm-summary">
+            <div><dt>Số món</dt><dd>{confirmation.group.lines.length} dòng</dd></div>
+            <div><dt>Đã thu (QR)</dt><dd>{formatMoney(confirmation.group.paidTotal)}</dd></div>
           </dl>
         ) : confirmation?.type === 'accept-combo' ? (
           <div className="order-confirm-stack">
@@ -727,6 +899,18 @@ export function OrderWorkspace() {
               <div><dt>Số tiền</dt><dd>{formatMoney(confirmation.order.price)}</dd></div>
               <div><dt>Thẻ combo</dt><dd>{confirmation.order.comboUserName}</dd></div>
             </dl>
+          </div>
+        ) : confirmNeedsQrAck ? (
+          <div className="order-confirm-stack">
+            <InlineAlert tone="danger">{QR_CANCEL_WARNING}</InlineAlert>
+            <label className="order-confirm-ack">
+              <input
+                type="checkbox"
+                checked={qrCancelAck}
+                onChange={(event) => setQrCancelAck(event.target.checked)}
+              />
+              Tôi hiểu: phải hoàn tiền thủ công cho khách.
+            </label>
           </div>
         ) : (
           <InlineAlert tone="warning">

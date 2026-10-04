@@ -6,7 +6,7 @@
 
 .order-summary {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -51,6 +51,59 @@
 
 .order-summary small {
   color: var(--color-text-muted);
+}
+
+/* task orders-qr-qty: có đơn khách đã trả QR đang chờ món -> nhấn mạnh ô đếm. */
+.order-summary button.order-summary__qr strong {
+  color: var(--color-status-success, var(--color-action-primary));
+}
+
+.order-card--qr {
+  border-color: color-mix(in srgb, var(--color-status-success, var(--color-action-primary)) 45%, var(--color-border-default));
+  background: color-mix(in srgb, var(--color-status-success, var(--color-action-primary)) 5%, var(--color-surface-default));
+}
+
+.order-card__items > div:has(.order-qty) {
+  flex-wrap: wrap;
+}
+
+.order-qty {
+  flex-basis: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.order-qty__btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.order-qty__btn:disabled {
+  opacity: 0.45;
+}
+
+.order-qty__input {
+  width: 3rem;
+  height: 1.75rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-confirm-ack {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
 }
 
 .order-filters {
