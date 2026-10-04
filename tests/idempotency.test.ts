@@ -6,10 +6,19 @@ import {
   IdempotencyIntent,
 } from '../src/lib/idempotency.ts'
 
-test('idem key fits backend limit and contains a safe scope', () => {
+test('idem key fits paymenttb.zOid VARCHAR(50) and keeps a safe scope prefix', () => {
   const key = createIdempotencyKey('Payment Wait/Payout')
-  assert.match(key, /^payment-wait-payout-/)
-  assert.ok(key.length <= 64)
+  assert.match(key, /^payment-wait-[0-9a-f-]+$/)
+  assert.ok(key.length <= 50)
+})
+
+test('long scopes never push the random part past 50 chars', () => {
+  for (const scope of ['order-service-accept', 'workstation-workspace-money', 'x'.repeat(80)]) {
+    const key = createIdempotencyKey(scope)
+    assert.ok(key.length <= 50, `${scope} -> ${key.length}`)
+    // UUID 36 ký tự còn nguyên ở cuối (không bị cắt mất tính ngẫu nhiên)
+    assert.match(key, /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+  }
 })
 
 test('same intent reuses key across retry', () => {

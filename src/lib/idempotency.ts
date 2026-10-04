@@ -15,9 +15,18 @@ function randomId() {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * idem đi thẳng vào cột `paymenttb.zOid VARCHAR(50)` ⇒ TỐI ĐA 50 ký tự (user chốt 2026-10-04,
+ * dài hơn là sai: MySQL cắt im lặng ⇒ gọi lại không tìm thấy ⇒ mất idempotency).
+ * Dạng `<scope ≤13>-<uuid 36>` = 50. Cắt scope chứ KHÔNG cắt phần ngẫu nhiên.
+ */
+export const IDEM_MAX_LENGTH = 50
+const IDEM_SCOPE_MAX = 13
+
 export function createIdempotencyKey(scope: string) {
-  const safeScope = scope.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20) || 'intent'
-  return `${safeScope}-${randomId()}`.slice(0, 64)
+  const safeScope =
+    scope.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, IDEM_SCOPE_MAX) || 'intent'
+  return `${safeScope}-${randomId()}`.slice(0, IDEM_MAX_LENGTH)
 }
 
 export function fingerprintIntent(value: unknown) {
