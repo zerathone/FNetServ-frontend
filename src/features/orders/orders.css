@@ -320,9 +320,8 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Combo và "Đã chấp nhận - chưa thanh toán" không có checkbox (không bulk-select) -- bỏ cột 2rem đầu. */
-.order-card--combo,
-.order-card--accepted-unpaid {
+/* Combo không có checkbox (không bulk-select) -- bỏ cột 2rem đầu. */
+.order-card--combo {
   grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) 10rem;
 }
 
@@ -417,13 +416,11 @@
 
 @media (max-width: 1120px) {
   .order-card,
-  .order-card--combo,
-  .order-card--accepted-unpaid {
+  .order-card--combo {
     grid-template-columns: 2rem minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
-  .order-card--combo,
-  .order-card--accepted-unpaid {
+  .order-card--combo {
     grid-template-columns: minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
@@ -432,8 +429,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .order-card--combo .order-card__actions,
-  .order-card--accepted-unpaid .order-card__actions {
+  .order-card--combo .order-card__actions {
     grid-column: 1 / -1;
   }
 }
@@ -458,13 +454,11 @@
   }
 
   .order-card,
-  .order-card--combo,
-  .order-card--accepted-unpaid {
+  .order-card--combo {
     grid-template-columns: 2rem minmax(0, 1fr);
   }
 
-  .order-card--combo,
-  .order-card--accepted-unpaid {
+  .order-card--combo {
     grid-template-columns: 1fr;
   }
 
@@ -476,10 +470,7 @@
 
   .order-card--combo .order-card__items,
   .order-card--combo .order-card__total,
-  .order-card--combo .order-card__actions,
-  .order-card--accepted-unpaid .order-card__items,
-  .order-card--accepted-unpaid .order-card__total,
-  .order-card--accepted-unpaid .order-card__actions {
+  .order-card--combo .order-card__actions {
     grid-column: 1;
   }
 
