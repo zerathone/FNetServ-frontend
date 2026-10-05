@@ -5,6 +5,7 @@ import {
   acceptComboOrder,
   acceptServiceOrder,
   cancelServiceOrder,
+  getAcceptedUnpaidSummary,
   getPendingComboOrders,
   getPendingOrders,
   getServicePaidLabel,
@@ -84,6 +85,15 @@ export function OrderQueuePage() {
     refetchInterval: connected ? 30000 : 5000,
   })
   const comboOrders = comboQuery.data ?? []
+
+  // Đơn đã duyệt (Accept=1) nhưng chưa thu tiền (ServicePaid=0) — không còn trong /orders/pending
+  // (chỉ trả Accept=0) nhưng vẫn là việc "chờ giải quyết". Toàn hệ thống, không theo filter userId.
+  const acceptedUnpaidQuery = useQuery({
+    queryKey: ['orders-accepted-unpaid-summary'],
+    queryFn: getAcceptedUnpaidSummary,
+    refetchInterval: connected ? 30000 : 5000,
+  })
+  const acceptedUnpaid = acceptedUnpaidQuery.data ?? { count: 0, amount: 0 }
 
   // Gom món chính và topping theo parentId — KHÔNG áp paidFilter ở đây để summary luôn đúng
   const allGroupedOrders = useMemo<GroupedOrder[]>(() => {
@@ -501,6 +511,16 @@ export function OrderQueuePage() {
                 </button>
               )
             })}
+            {/* Đơn đã duyệt nhưng chưa thu tiền — toàn hệ thống, không nằm trong groupedOrders nên
+                không gắn filter, chỉ hiển thị thông tin. */}
+            <div
+              className="oq-summary__row"
+              title={`Đơn đã bấm Chấp nhận nhưng khách chưa thanh toán — vẫn đang chờ giải quyết (${formatMoney(acceptedUnpaid.amount)}đ)`}
+            >
+              <span className="oq-summary__dot oq-summary__dot--accepted" aria-hidden="true" />
+              <span className="oq-summary__label">Đã chấp nhận - chưa thanh toán</span>
+              <strong>{acceptedUnpaid.count}</strong>
+            </div>
           </div>
         </div>
 

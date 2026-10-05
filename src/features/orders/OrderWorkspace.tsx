@@ -4,17 +4,22 @@ import { CheckCircle, CurrencyCircleDollar, HandCoins, MagnifyingGlass, XCircle 
 import { ApiError, RbacDeniedError } from '../../api/client'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
 import {
+  clearAcceptedService,
   payRequest,
   payRequestDryRun,
+  servicePayDryRun,
+  servicePayFullCore,
   type PayRequestDryRunResponse,
-  type PayRequestPayload,
   type PayRequestResponse,
+  type ServicePayDryRunPayload,
+  type ServicePayFullCorePayload,
 } from '../../api/payment'
 import { getWorkstationsRuntime } from '../../api/workstations'
 import {
   acceptComboOrder,
   acceptServiceOrder,
   cancelServiceOrder,
+  getAcceptedUnpaidOrders,
   getPendingComboOrders,
   getPendingOrders,
   getServicePaidLabel,
@@ -42,10 +47,15 @@ import {
   ORDER_RIGHTS,
   QTY_MAX,
   QTY_MIN,
+  acceptedUnpaidDetailIds,
+  acceptedUnpaidSelectKey,
   canChangeQuantity,
   clampQuantity,
+  clearAcceptedVouchers,
+  countAcceptedUnpaidWithoutVoucher,
   describeInventoryWarnings,
   describeProcessedCount,
+  groupAcceptedUnpaidOrders,
   groupOrders,
   groupQrOrders,
   lineAmount,
@@ -57,6 +67,7 @@ import {
   serviceCancelItems,
   serviceItems,
   serviceSelectKey,
+  type AcceptedUnpaidGroup,
   type CancelItem,
   type GroupedOrder,
   type QrGroup,
@@ -75,6 +86,7 @@ import {
   removeAlert,
   upsertAlert,
   type DeductAlert,
+  type DeductRetry,
   type MachineLookup,
   type PayMethod,
 } from './orderPayModel'
@@ -100,6 +112,12 @@ type Confirmation =
   | { type: 'cancel-selected'; keys: string[] }
   | { type: 'accept-combo'; order: PendingComboOrder }
   | { type: 'reject-combo'; order: PendingComboOrder }
+  // Đơn ĐÃ DUYỆT còn nợ tiền — `/service/pay` nhánh `fullCore` (task service-pay-fullcore): cũng
+  // đi qua `dryRun` trước, `preview` là số BE tính lại (+ số dư ví khi cấn trừ).
+  | { type: 'au-pay-cash'; group: AcceptedUnpaidGroup; preview: PayRequestDryRunResponse }
+  | { type: 'au-pay-deduct'; group: AcceptedUnpaidGroup; preview: PayRequestDryRunResponse }
+  | { type: 'au-clear'; group: AcceptedUnpaidGroup }
+  | { type: 'au-clear-selected'; keys: string[] }
   | null
 
 const QR_CANCEL_WARNING =
@@ -162,13 +180,20 @@ export function OrderWorkspace() {
   const hostName = useOrderQueueStore((state) => state.hostName)
   const setCustomerNameFilter = useOrderQueueStore((state) => state.setCustomerNameFilter)
   const setHostName = useOrderQueueStore((state) => state.setHostName)
-  // 'all' (= tile "Đơn chờ") hiện cả 3 nhóm cùng lúc; 3 giá trị còn lại lọc đúng 1 nhóm.
-  const [activeView, setActiveView] = useState<'all' | 'service' | 'paid' | 'combo'>('all')
+  // 'all' (= tile "Đơn chờ") hiện CẢ 4 nhóm (user chốt 2026-10-05: đơn đã duyệt còn nợ vẫn là "đơn
+  // chờ" trên Web UI — Qt giữ cách cũ, không hiện); các giá trị còn lại lọc đúng 1 nhóm.
+  // 'accepted-unpaid' không dùng chung selectedKeys/bulk-cancel vì endpoint xử lý khác hẳn
+  // (xem renderAcceptedUnpaidCard).
+  const [activeView, setActiveView] = useState<'all' | 'service' | 'paid' | 'combo' | 'accepted-unpaid'>('all')
   // Gộp 2 ô lọc cũ thành 1 thanh search (parity /logs/system): dropdown chọn trường, 1 ô nhập.
   const [searchField, setSearchField] = useState<'customer' | 'host'>('customer')
   const [servicePage, setServicePage] = useState(0)
   const [comboPage, setComboPage] = useState(0)
+  const [acceptedUnpaidPage, setAcceptedUnpaidPage] = useState(0)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
+  // Khóa chọn riêng (acceptedUnpaidSelectKey) -- KHÔNG dùng chung `selectedKeys`/`cancelMutation` của
+  // Dịch vụ: đó là `/service/cancel` (chỉ Accept=0), gọi nhầm cho Accept=1 sẽ hỏng dữ liệu (KNOWLEDGE.md §50).
+  const [selectedAcceptedUnpaidKeys, setSelectedAcceptedUnpaidKeys] = useState<Set<string>>(new Set())
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
   const [qrCancelAck, setQrCancelAck] = useState(false)
   const [qtyOverrides, setQtyOverrides] = useState<QtyOverrides>({})
@@ -178,6 +203,7 @@ export function OrderWorkspace() {
   const comboAcceptIntent = useIdempotentIntent('order-cb-acc')
   const comboRejectIntent = useIdempotentIntent('order-cb-rej')
   const payIntent = useIdempotentIntent('order-pay')
+  const acceptedUnpaidPayIntent = useIdempotentIntent('order-au-pay')
   // Banner cố định "đã ghi phiếu cấn trừ nhưng chưa trừ ví" — KHÔNG phải toast tự tắt (KNOWLEDGE §47).
   const [deductAlerts, setDeductAlerts] = useState<DeductAlert[]>([])
 
@@ -202,6 +228,35 @@ export function OrderWorkspace() {
     queryFn: getPendingComboOrders,
     refetchInterval: connected ? 30_000 : 5_000,
   })
+  // Đơn đã bấm "Chấp nhận" (Accept=1) nên không còn nằm trong servicesQuery (chỉ Accept=0), nhưng
+  // khách vẫn CHƯA thanh toán (ServicePaid IN 0,4,5) -- về nghiệp vụ vẫn "chờ giải quyết". Toàn hệ
+  // thống, không theo bộ lọc máy/khách đang gõ trên trang (lọc máy/khách áp riêng ở client giống
+  // servicesQuery/comboQuery bên dưới).
+  const acceptedUnpaidQuery = useQuery({
+    queryKey: ['orders-accepted-unpaid'],
+    queryFn: () => getAcceptedUnpaidOrders(),
+    refetchInterval: connected ? 30_000 : 5_000,
+  })
+  const acceptedUnpaidGroups = useMemo(
+    () =>
+      groupAcceptedUnpaidOrders(acceptedUnpaidQuery.data ?? []).filter(
+        (group) => matchesHost(group.hostName, hostName) && matchesCustomer(group.userName, customerNameFilter),
+      ),
+    [acceptedUnpaidQuery.data, hostName, customerNameFilter],
+  )
+  const acceptedUnpaidWithoutVoucher = useMemo(
+    () => countAcceptedUnpaidWithoutVoucher(acceptedUnpaidQuery.data ?? []),
+    [acceptedUnpaidQuery.data],
+  )
+  const acceptedUnpaidTotal = acceptedUnpaidGroups.reduce((sum, group) => sum + group.total, 0)
+  const acceptedUnpaidTotalPages = Math.max(1, Math.ceil(acceptedUnpaidGroups.length / PAGE_SIZE))
+  const visibleAcceptedUnpaidGroups = acceptedUnpaidGroups.slice(
+    acceptedUnpaidPage * PAGE_SIZE,
+    (acceptedUnpaidPage + 1) * PAGE_SIZE,
+  )
+  const refreshAcceptedUnpaid = () => {
+    void queryClient.invalidateQueries({ queryKey: ['orders-accepted-unpaid'] })
+  }
 
   // Dùng chung cache `['workstations']` với trang Máy trạm (cùng queryFn). Chỉ để bật/tắt nút theo
   // trạng thái máy / loại tài khoản (parity Qt) — lỗi hoặc chưa tải ⇒ KHÔNG chặn gì, backend vẫn kiểm.
@@ -249,8 +304,10 @@ export function OrderWorkspace() {
     () => (visibleEntryKind ? serviceEntries.filter((entry) => entry.kind === visibleEntryKind) : serviceEntries),
     [serviceEntries, visibleEntryKind],
   )
-  const showServicePanel = activeView !== 'combo'
+  const showServicePanel = activeView !== 'combo' && activeView !== 'accepted-unpaid'
   const showComboPanel = activeView === 'all' || activeView === 'combo'
+  // D3 (user chốt 2026-10-05): 'all' cũng hiện nhóm này ⇒ số trên tile "Đơn chờ" = những gì thấy.
+  const showAcceptedUnpaidPanel = activeView === 'all' || activeView === 'accepted-unpaid'
   const comboOrders = useMemo(
     () =>
       (comboQuery.data ?? [])
@@ -278,7 +335,9 @@ export function OrderWorkspace() {
   useEffect(() => {
     setServicePage(0)
     setComboPage(0)
+    setAcceptedUnpaidPage(0)
     setSelectedKeys(new Set())
+    setSelectedAcceptedUnpaidKeys(new Set())
   }, [hostName, customerNameFilter, activeView])
 
   useEffect(() => {
@@ -288,6 +347,10 @@ export function OrderWorkspace() {
   useEffect(() => {
     if (comboPage >= comboTotalPages) setComboPage(comboTotalPages - 1)
   }, [comboPage, comboTotalPages])
+
+  useEffect(() => {
+    if (acceptedUnpaidPage >= acceptedUnpaidTotalPages) setAcceptedUnpaidPage(acceptedUnpaidTotalPages - 1)
+  }, [acceptedUnpaidPage, acceptedUnpaidTotalPages])
 
   const refreshServiceQueue = () => {
     void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
@@ -393,15 +456,20 @@ export function OrderWorkspace() {
   })
 
   // ===== service-payrequest-core: Thanh toán tiền mặt / Cấn trừ (nhánh `fullCore`) =====
-  const reportPayError = (error: unknown) => {
+  // task service-pay-fullcore: dùng chung cho đơn chưa duyệt (`/service/payrequest`) và đơn ĐÃ DUYỆT
+  // (`/service/pay`) — chỉ khác key idem và danh sách cần tải lại.
+  const reportPayError = (error: unknown, endpoint: DeductRetry['endpoint']) => {
     // client.ts đã tự toast thông báo RBAC_DENIED của backend — không toast lần hai.
     if (!(error instanceof RbacDeniedError)) {
       pushToast(error instanceof Error ? error.message : 'Không xử lý được đơn.', 'error')
     }
     const code = error instanceof ApiError ? error.code : undefined
     const plan = classifyPayError(code)
-    if (plan.resetKey) payIntent.clearKey()
-    if (plan.refetch) refreshServiceQueue()
+    if (plan.resetKey) (endpoint === 'payrequest' ? payIntent : acceptedUnpaidPayIntent).clearKey()
+    if (plan.refetch) {
+      if (endpoint === 'payrequest') refreshServiceQueue()
+      else refreshAcceptedUnpaid()
+    }
     // Lỗi nghiệp vụ (có `code`) = backend đã từ chối, 0 ghi ⇒ đóng hộp. Lỗi mạng/timeout (không có
     // `code`) thì GIỮ hộp mở: bấm lại gửi đúng `idem` cũ nên không thu hai lần.
     if (error instanceof ApiError && error.code) setConfirmation(null)
@@ -411,7 +479,7 @@ export function OrderWorkspace() {
   const handlePayResponse = (
     method: PayMethod,
     response: PayRequestResponse,
-    request: PayRequestPayload,
+    retry: DeductRetry,
     who: { hostName: string; customerLabel: string },
   ) => {
     const outcome = classifyPayResult(method, response)
@@ -425,18 +493,22 @@ export function OrderWorkspace() {
           amount: response.amount ?? response.total ?? 0,
           code: outcome.code,
           retryable: outcome.retryable,
-          request,
+          retry,
         }),
       )
       pushToast(`${outcome.message} Xem cảnh báo ở đầu trang.`, 'error')
     } else {
       if (paymentId) setDeductAlerts((current) => removeAlert(current, paymentId))
-      if (outcome.clearKey) payIntent.clearKey()
+      if (outcome.clearKey) (retry.endpoint === 'payrequest' ? payIntent : acceptedUnpaidPayIntent).clearKey()
       pushToast(outcome.message, outcome.kind === 'success' ? 'success' : 'info')
     }
     setConfirmation(null)
-    clearOverrides(request.items.map((item) => item.detailId))
-    refreshServiceQueue()
+    if (retry.endpoint === 'payrequest') {
+      clearOverrides(retry.request.items.map((item) => item.detailId))
+      refreshServiceQueue()
+    } else {
+      refreshAcceptedUnpaid()
+    }
     void invalidateMoneyQueries(queryClient)
   }
 
@@ -447,7 +519,7 @@ export function OrderWorkspace() {
       setConfirmation({ type: method === 'cash' ? 'pay-cash' : 'pay-deduct', order, preview })
       if (preview.code === 'invalid_lines') refreshServiceQueue()
     },
-    onError: reportPayError,
+    onError: (error) => reportPayError(error, 'payrequest'),
   })
 
   const payMutation = useMutation({
@@ -458,27 +530,126 @@ export function OrderWorkspace() {
       return { response: await payRequest(request), request }
     },
     onSuccess: ({ response, request }, { order, method }) =>
-      handlePayResponse(method, response, request, {
+      handlePayResponse(method, response, { endpoint: 'payrequest', request }, {
         hostName: order.hostName || '',
         // userId là key nội bộ — không hiển thị ra UI, kể cả khi thiếu userName.
         customerLabel: order.userName || 'Hội viên (chưa rõ tên)',
       }),
-    onError: reportPayError,
+    onError: (error) => reportPayError(error, 'payrequest'),
   })
 
-  // "Thử trừ ví lại": gửi lại ĐÚNG request cũ (cùng `idem`). Backend nhận ra phiếu đã ghi và chỉ chạy lại
-  // bước trừ ví (trạng thái a) — không tạo phiếu thứ hai, không trừ hai lần.
+  // "Thử trừ ví lại": gửi lại ĐÚNG request cũ (cùng `idem`) tới ĐÚNG endpoint gốc. Backend nhận ra phiếu
+  // đã ghi và chỉ chạy lại bước trừ ví (trạng thái a) — không tạo phiếu thứ hai, không trừ hai lần.
   const retryDeductMutation = useMutation({
-    mutationFn: async (alert: DeductAlert) => ({
-      response: await payRequest(alert.request),
-      alert,
-    }),
+    mutationFn: async (alert: DeductAlert) => {
+      const retry = alert.retry
+      const response =
+        retry.endpoint === 'payrequest'
+          ? await payRequest(retry.request)
+          : await servicePayFullCore(retry.request)
+      return { response, alert }
+    },
     onSuccess: ({ response, alert }) =>
-      handlePayResponse('deduct', response, alert.request, {
+      handlePayResponse('deduct', response, alert.retry, {
         hostName: alert.hostName,
         customerLabel: alert.customerLabel,
       }),
-    onError: reportPayError,
+    onError: (error, alert) => reportPayError(error, alert.retry.endpoint),
+  })
+
+  // ===== Đơn ĐÃ DUYỆT còn nợ tiền -- `/service/pay` + `/service/clearaccepted` nhánh `fullCore`, KHÁC
+  // hẳn `/service/payrequest`/`/service/cancel` ở trên (những cái đó chỉ nhận đơn CHƯA duyệt, Accept=0;
+  // xem handoff/HANDOFF_orders-accepted-unpaid-actions.md §2). task service-pay-fullcore: Cấn trừ trừ
+  // ví thật (BE), có dryRun như nhóm Dịch vụ. =====
+  const acceptedUnpaidDryRunPayload = (
+    group: AcceptedUnpaidGroup,
+    method: PayMethod,
+  ): ServicePayDryRunPayload => ({
+    staffId: staffId ?? 0,
+    paymentMethod: method,
+    hostName: group.hostName || '',
+    vouchers: [{ voucherId: group.voucherId, detailIds: acceptedUnpaidDetailIds(group) }],
+  })
+
+  const acceptedUnpaidPreviewMutation = useMutation({
+    mutationFn: ({ group, method }: { group: AcceptedUnpaidGroup; method: PayMethod }) =>
+      servicePayDryRun(acceptedUnpaidDryRunPayload(group, method)),
+    onSuccess: (preview, { group, method }) => {
+      setConfirmation({ type: method === 'cash' ? 'au-pay-cash' : 'au-pay-deduct', group, preview })
+      if (preview.code === 'invalid_lines') refreshAcceptedUnpaid()
+    },
+    onError: (error) => reportPayError(error, 'service-pay'),
+  })
+
+  const acceptedUnpaidPayMutation = useMutation({
+    mutationFn: async ({ group, method }: { group: AcceptedUnpaidGroup; method: PayMethod }) => {
+      const base = acceptedUnpaidDryRunPayload(group, method)
+      // Fingerprint gồm hình thức + phiếu + máy + từng dòng ⇒ đổi bất kỳ thứ gì là `idem` mới.
+      const idem = acceptedUnpaidPayIntent.getKey(
+        fingerprintIntent({
+          method,
+          voucherId: group.voucherId,
+          servicePaid: group.servicePaid,
+          hostName: base.hostName,
+          detailIds: base.vouchers[0].detailIds,
+        }),
+      )
+      const request: ServicePayFullCorePayload = { ...base, idem, fullCore: true }
+      return { response: await servicePayFullCore(request), request }
+    },
+    onSuccess: ({ response, request }, { group, method }) =>
+      handlePayResponse(method, response, { endpoint: 'service-pay', request }, {
+        hostName: group.hostName || '',
+        customerLabel: group.userName || 'Hội viên (chưa rõ tên)',
+      }),
+    onError: (error) => reportPayError(error, 'service-pay'),
+  })
+
+  const acceptedUnpaidClearMutation = useMutation({
+    mutationFn: (group: AcceptedUnpaidGroup) =>
+      clearAcceptedService({
+        staffId: staffId ?? 0,
+        vouchers: clearAcceptedVouchers([group]),
+        fullCore: true,
+      }),
+    onSuccess: (response) => {
+      setConfirmation(null)
+      pushToast(
+        response.processed > 0 ? 'Đã hủy đơn.' : 'Đơn đã được xử lý trước đó.',
+        response.processed > 0 ? 'success' : 'info',
+      )
+      refreshAcceptedUnpaid()
+    },
+    onError: (error) => {
+      pushToast(error.message, 'error')
+      refreshAcceptedUnpaid()
+    },
+  })
+
+  // Hủy hàng loạt -- /service/clearaccepted nhận MẢNG vouchers nên gửi 1 lần cho mọi card đã chọn
+  // (card cùng phiếu gộp về 1 entry).
+  const acceptedUnpaidBulkClearMutation = useMutation({
+    mutationFn: (keys: string[]) => {
+      const groups = acceptedUnpaidGroups.filter((group) => keys.includes(acceptedUnpaidSelectKey(group)))
+      return clearAcceptedService({
+        staffId: staffId ?? 0,
+        vouchers: clearAcceptedVouchers(groups),
+        fullCore: true,
+      })
+    },
+    onSuccess: (response) => {
+      setConfirmation(null)
+      setSelectedAcceptedUnpaidKeys(new Set())
+      pushToast(
+        response.processed > 0 ? `Đã hủy ${response.processed} phiếu.` : 'Các phiếu đã được xử lý trước đó.',
+        response.processed > 0 ? 'success' : 'info',
+      )
+      refreshAcceptedUnpaid()
+    },
+    onError: (error) => {
+      pushToast(error.message, 'error')
+      refreshAcceptedUnpaid()
+    },
   })
 
   const comboAcceptMutation = useMutation({
@@ -539,6 +710,12 @@ export function OrderWorkspace() {
   const allSelected =
     visibleServiceEntries.length > 0 &&
     visibleServiceEntries.every((entry) => selectedKeys.has(entry.key))
+  const selectedAcceptedUnpaidGroups = acceptedUnpaidGroups.filter((group) =>
+    selectedAcceptedUnpaidKeys.has(acceptedUnpaidSelectKey(group)),
+  )
+  const allAcceptedUnpaidSelected =
+    visibleAcceptedUnpaidGroups.length > 0 &&
+    visibleAcceptedUnpaidGroups.every((group) => selectedAcceptedUnpaidKeys.has(acceptedUnpaidSelectKey(group)))
   const serviceTotal = groupedOrders.reduce(
     (sum, order) => sum + orderAmount(order, qtyOverrides),
     0,
@@ -553,7 +730,11 @@ export function OrderWorkspace() {
     retryDeductMutation.isPending ||
     cancelMutation.isPending ||
     comboAcceptMutation.isPending ||
-    comboRejectMutation.isPending
+    comboRejectMutation.isPending ||
+    acceptedUnpaidPreviewMutation.isPending ||
+    acceptedUnpaidPayMutation.isPending ||
+    acceptedUnpaidClearMutation.isPending ||
+    acceptedUnpaidBulkClearMutation.isPending
 
   const cancelItemsForKeys = (keys: string[]) =>
     keys.flatMap((key) => {
@@ -580,6 +761,8 @@ export function OrderWorkspace() {
     if (pendingMutation) return
     if (confirmation?.type === 'accept-combo') comboAcceptIntent.clearKey()
     if (confirmation?.type === 'reject-combo') comboRejectIntent.clearKey()
+    if (confirmation?.type === 'au-pay-cash' || confirmation?.type === 'au-pay-deduct')
+      acceptedUnpaidPayIntent.clearKey()
     setConfirmation(null)
   }
 
@@ -607,11 +790,31 @@ export function OrderWorkspace() {
       case 'reject-combo':
         comboRejectMutation.mutate(confirmation.order)
         break
+      case 'au-pay-cash':
+        acceptedUnpaidPayMutation.mutate({ group: confirmation.group, method: 'cash' })
+        break
+      case 'au-pay-deduct':
+        acceptedUnpaidPayMutation.mutate({ group: confirmation.group, method: 'deduct' })
+        break
+      case 'au-clear':
+        acceptedUnpaidClearMutation.mutate(confirmation.group)
+        break
+      case 'au-clear-selected':
+        acceptedUnpaidBulkClearMutation.mutate(confirmation.keys)
+        break
     }
   }
 
   const toggleKey = (key: string) =>
     setSelectedKeys((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  const toggleAcceptedUnpaidSelection = (key: string) =>
+    setSelectedAcceptedUnpaidKeys((current) => {
       const next = new Set(current)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -669,6 +872,97 @@ export function OrderWorkspace() {
       </div>
     </article>
   )
+
+  // Đơn ĐÃ DUYỆT còn nợ tiền -- checkbox chỉ phục vụ Hủy hàng loạt (giống Dịch vụ); Thanh toán/Cấn trừ
+  // vẫn LUÔN theo từng card riêng, không có bản hàng loạt. Nút khóa theo hình thức khách đã chọn tại máy
+  // (user chốt 2026-10-05, BE kiểm lại): mỗi card chỉ một hình thức (gom theo voucherId + servicePaid).
+  const acceptedUnpaidGates = (group: AcceptedUnpaidGroup) => {
+    const cashReason =
+      group.lockedMethod === 'deduct' ? 'Khách đã chọn cấn trừ tại máy — dùng nút Cấn trừ.' : undefined
+    const deductReason =
+      group.lockedMethod === 'cash'
+        ? 'Khách đã chọn tiền mặt tại máy — dùng nút Thanh toán.'
+        : !canDeduct
+          ? `Thiếu quyền cấn trừ dịch vụ (${SERVICE_EXCEPT_RIGHT}).`
+          : !group.hostName
+            ? 'Hội viên không online tại máy nào — không cấn trừ được.'
+            : undefined
+    return { cashReason, deductReason }
+  }
+
+  const renderAcceptedUnpaidCard = (group: AcceptedUnpaidGroup) => {
+    const { cashReason, deductReason } = acceptedUnpaidGates(group)
+    const selectKey = acceptedUnpaidSelectKey(group)
+    return (
+    <article key={selectKey} className="order-card">
+      <label className="order-card__check">
+        <input
+          type="checkbox"
+          checked={selectedAcceptedUnpaidKeys.has(selectKey)}
+          aria-label={`Chọn phiếu #${group.voucherId}`}
+          onChange={() => toggleAcceptedUnpaidSelection(selectKey)}
+        />
+      </label>
+      <div className="order-card__identity">
+        <strong>{group.hostName || 'Chưa xác định máy'}</strong>
+        <span>{group.userName || 'Khách vãng lai'}</span>
+        <StatusBadge tone="warning">Đã duyệt · Phiếu #{group.voucherId}</StatusBadge>
+        {group.lockedMethod ? (
+          <StatusBadge tone="info">
+            {group.lockedMethod === 'cash' ? 'Khách chọn tiền mặt tại máy' : 'Khách chọn cấn trừ tại máy'}
+          </StatusBadge>
+        ) : null}
+        <StatusBadge tone={waitTone(group.createdAtMs, now)}>
+          Chờ {waitLabel(group.createdAtMs, now)}
+        </StatusBadge>
+      </div>
+      <div className="order-card__items">
+        {group.lines.map((line) => (
+          <div key={line.serviceDetailId}>
+            <strong>{line.quantity} × {line.serviceName}</strong>
+            <span>{formatMoney(line.serviceAmount ?? line.amount)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="order-card__total">
+        <span>Còn nợ</span>
+        <strong>{formatMoney(group.total)}</strong>
+      </div>
+      <div className="order-card__actions">
+        <Button
+          type="button"
+          variant="primary"
+          icon={<CurrencyCircleDollar {...actionIconProps} />}
+          disabled={pendingMutation || Boolean(cashReason)}
+          title={cashReason}
+          onClick={() => acceptedUnpaidPreviewMutation.mutate({ group, method: 'cash' })}
+        >
+          Thanh toán
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          icon={<HandCoins {...actionIconProps} />}
+          disabled={pendingMutation || Boolean(deductReason)}
+          title={deductReason}
+          onClick={() => acceptedUnpaidPreviewMutation.mutate({ group, method: 'deduct' })}
+        >
+          Cấn trừ
+        </Button>
+        <Button
+          type="button"
+          variant="danger-outline"
+          icon={<XCircle {...actionIconProps} />}
+          disabled={pendingMutation || !canCancel}
+          title={cancelTitle}
+          onClick={() => setConfirmation({ type: 'au-clear', group })}
+        >
+          Hủy
+        </Button>
+      </div>
+    </article>
+    )
+  }
 
   const renderServiceCard = (order: GroupedOrder) => {
     const key = serviceSelectKey(order)
@@ -799,8 +1093,10 @@ export function OrderWorkspace() {
         actions={
           <PollingStatus
             connected={connected}
+            // Lỗi của danh sách đơn đã duyệt (vd Server cũ chưa có /orders/accepted-unpaid) chỉ báo ở
+            // panel của nó — không làm cả trang báo lỗi.
             isError={servicesQuery.isError || comboQuery.isError}
-            isFetching={servicesQuery.isFetching || comboQuery.isFetching}
+            isFetching={servicesQuery.isFetching || comboQuery.isFetching || acceptedUnpaidQuery.isFetching}
             dataUpdatedAt={servicesQuery.dataUpdatedAt}
             intervalMs={connected ? 30_000 : 5_000}
             errorDetail={
@@ -811,6 +1107,7 @@ export function OrderWorkspace() {
             onRefresh={() => {
               void servicesQuery.refetch()
               void comboQuery.refetch()
+              void acceptedUnpaidQuery.refetch()
             }}
           />
         }
@@ -860,7 +1157,7 @@ export function OrderWorkspace() {
             onClick={() => setActiveView('all')}
           >
             <span>Đơn chờ</span>
-            <strong>{groupedOrders.length + qrGroups.length + comboOrders.length}</strong>
+            <strong>{groupedOrders.length + qrGroups.length + comboOrders.length + acceptedUnpaidGroups.length}</strong>
           </button>
           <div className="order-summary__breakdown">
             <button
@@ -898,6 +1195,21 @@ export function OrderWorkspace() {
                 <small className="order-summary__hint">{formatMoney(comboTotal)}</small>
               </span>
               <strong>{comboOrders.length}</strong>
+            </button>
+            {/* Đơn ĐÃ DUYỆT nhưng còn nợ tiền -- CÓ nằm trong tổng "Đơn chờ" và view "Tất cả" (user chốt
+                2026-10-05, chỉ Web UI; Qt không hiện). Bấm vào lọc đúng view này. */}
+            <button
+              type="button"
+              className={`order-summary__row order-summary__accepted-unpaid ${activeView === 'accepted-unpaid' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('accepted-unpaid')}
+              title="Đơn đã bấm Chấp nhận nhưng khách chưa thanh toán -- vẫn đang chờ giải quyết"
+            >
+              <span className="order-summary__dot order-summary__dot--accepted-unpaid" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Đã chấp nhận - chưa thanh toán</span>
+                <small className="order-summary__hint">{formatMoney(acceptedUnpaidTotal)}</small>
+              </span>
+              <strong>{acceptedUnpaidGroups.length}</strong>
             </button>
           </div>
         </div>
@@ -1125,6 +1437,101 @@ export function OrderWorkspace() {
         </div>
       ) : null}
 
+      {showAcceptedUnpaidPanel ? (
+        <div className="order-panel">
+          <InlineAlert tone="warning">
+            Đã chấp nhận - chưa thanh toán: đơn đã bấm "Chấp nhận" nhưng khách CHƯA trả tiền. Nếu khách
+            đã chọn hình thức tại máy thì chỉ dùng được đúng hình thức đó.
+          </InlineAlert>
+          {acceptedUnpaidWithoutVoucher > 0 ? (
+            <InlineAlert tone="info">
+              {acceptedUnpaidWithoutVoucher} dòng đã duyệt không gắn phiếu nên không hiện ở đây — xử lý ở
+              màn hình Qt.
+            </InlineAlert>
+          ) : null}
+          {selectedAcceptedUnpaidGroups.length > 0 ? (
+            <div className="order-selection">
+              <strong>{selectedAcceptedUnpaidGroups.length} phiếu đã chọn</strong>
+              <div>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={!canCancel}
+                  title={cancelTitle}
+                  onClick={() =>
+                    setConfirmation({
+                      type: 'au-clear-selected',
+                      keys: selectedAcceptedUnpaidGroups.map((group) => acceptedUnpaidSelectKey(group)),
+                    })
+                  }
+                >
+                  Hủy các phiếu đã chọn
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSelectedAcceptedUnpaidKeys(new Set())}
+                >
+                  Bỏ chọn
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {acceptedUnpaidQuery.isLoading ? (
+            <StateView title="Đang tải đơn đã duyệt" />
+          ) : acceptedUnpaidQuery.isError ? (
+            <StateView
+              title="Không tải được danh sách"
+              description={(acceptedUnpaidQuery.error as Error).message}
+              action={<Button onClick={() => acceptedUnpaidQuery.refetch()}>Thử lại</Button>}
+            />
+          ) : acceptedUnpaidGroups.length === 0 ? (
+            <StateView
+              title="Không có đơn đã duyệt nào còn nợ tiền"
+              description={
+                hostName || customerNameFilter
+                  ? 'Không có đơn khớp bộ lọc hiện tại.'
+                  : 'Đơn sau khi bấm "Chấp nhận" ở nhóm Dịch vụ sẽ chuyển vào đây cho tới khi được thanh toán.'
+              }
+            />
+          ) : (
+            <>
+              <ListPagination
+                page={acceptedUnpaidPage}
+                totalPages={acceptedUnpaidTotalPages}
+                canNext={acceptedUnpaidPage < acceptedUnpaidTotalPages - 1}
+                onPrevious={() => setAcceptedUnpaidPage((value) => Math.max(0, value - 1))}
+                onNext={() => setAcceptedUnpaidPage((value) => Math.min(acceptedUnpaidTotalPages - 1, value + 1))}
+              />
+              <label className="order-select-all">
+                <input
+                  type="checkbox"
+                  checked={allAcceptedUnpaidSelected}
+                  onChange={() =>
+                    setSelectedAcceptedUnpaidKeys((current) => {
+                      const next = new Set(current)
+                      visibleAcceptedUnpaidGroups.forEach((group) => {
+                        const key = acceptedUnpaidSelectKey(group)
+                        if (allAcceptedUnpaidSelected) next.delete(key)
+                        else next.add(key)
+                      })
+                      return next
+                    })
+                  }
+                />
+                Chọn tất cả đơn đang hiển thị
+              </label>
+              <div className="order-list-region">
+                <div className="order-list">
+                  {visibleAcceptedUnpaidGroups.map((group) => renderAcceptedUnpaidCard(group))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+
       <ConfirmAction
         open={Boolean(confirmation)}
         title={
@@ -1140,7 +1547,15 @@ export function OrderWorkspace() {
                 ? 'Từ chối đơn combo?'
                 : confirmation?.type === 'cancel-selected'
                   ? `Hủy ${confirmation.keys.length} đơn đã chọn?`
-                  : 'Từ chối đơn dịch vụ?'
+                  : confirmation?.type === 'au-pay-cash'
+                    ? 'Xác nhận đã thu tiền mặt?'
+                    : confirmation?.type === 'au-pay-deduct'
+                      ? 'Cấn trừ vào tài khoản hội viên?'
+                      : confirmation?.type === 'au-clear'
+                        ? `Hủy phiếu #${confirmation.group.voucherId}?`
+                        : confirmation?.type === 'au-clear-selected'
+                          ? `Hủy ${confirmation.keys.length} phiếu đã chọn?`
+                          : 'Từ chối đơn dịch vụ?'
         }
         description={
           confirmation?.type === 'cancel-service' ||
@@ -1152,14 +1567,18 @@ export function OrderWorkspace() {
               : confirmation?.type === 'accept-combo' ||
                   confirmation?.type === 'reject-combo'
                 ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.comboName}`
-                : undefined
+                : confirmation?.type === 'au-pay-cash' ||
+                    confirmation?.type === 'au-pay-deduct' ||
+                    confirmation?.type === 'au-clear'
+                  ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
+                  : undefined
         }
         confirmLabel={
           confirmation?.type === 'accept-combo'
             ? 'Xác nhận đã thu tiền'
-            : confirmation?.type === 'pay-cash'
+            : confirmation?.type === 'pay-cash' || confirmation?.type === 'au-pay-cash'
               ? 'Đã thu tiền mặt'
-              : confirmation?.type === 'pay-deduct'
+              : confirmation?.type === 'pay-deduct' || confirmation?.type === 'au-pay-deduct'
                 ? 'Cấn trừ'
                 : 'Xác nhận hủy'
         }
@@ -1167,13 +1586,18 @@ export function OrderWorkspace() {
           confirmation?.type === 'cancel-service' ||
           confirmation?.type === 'cancel-qr' ||
           confirmation?.type === 'cancel-selected' ||
-          confirmation?.type === 'reject-combo'
+          confirmation?.type === 'reject-combo' ||
+          confirmation?.type === 'au-clear' ||
+          confirmation?.type === 'au-clear-selected'
         }
         pending={pendingMutation}
         // Thanh toán/Cấn trừ: `ok:false` ⇒ hiện lý do của backend và KHÔNG cho xác nhận.
         confirmDisabled={
           (confirmNeedsQrAck && !qrCancelAck) ||
-          ((confirmation?.type === 'pay-cash' || confirmation?.type === 'pay-deduct') &&
+          ((confirmation?.type === 'pay-cash' ||
+            confirmation?.type === 'pay-deduct' ||
+            confirmation?.type === 'au-pay-cash' ||
+            confirmation?.type === 'au-pay-deduct') &&
             confirmation.preview.ok === false)
         }
         onCancel={closeConfirmation}
@@ -1228,6 +1652,50 @@ export function OrderWorkspace() {
               <div><dt>Combo</dt><dd>{confirmation.order.comboName}</dd></div>
               <div><dt>Số tiền</dt><dd>{formatMoney(confirmation.order.price)}</dd></div>
               <div><dt>Thẻ combo</dt><dd>{confirmation.order.comboUserName}</dd></div>
+            </dl>
+          </div>
+        ) : confirmation?.type === 'au-pay-cash' || confirmation?.type === 'au-pay-deduct' ? (
+          // task service-pay-fullcore: số trong hộp là số BE tính lại qua `dryRun` (`/service/pay`).
+          <div className="order-confirm-stack">
+            {confirmation.preview.ok === false ? (
+              <InlineAlert tone="danger">
+                {confirmation.preview.message || 'Không thực hiện được.'}
+              </InlineAlert>
+            ) : (
+              <InlineAlert tone="warning">
+                {confirmation.type === 'au-pay-cash'
+                  ? 'Chỉ xác nhận sau khi đã nhận đủ tiền mặt. Số tiền do máy chủ tính lại từ dữ liệu phiếu.'
+                  : 'Trừ trực tiếp vào tài khoản chính của hội viên đang online tại máy này. Không hoàn tác được từ trang này.'}
+              </InlineAlert>
+            )}
+            <dl className="order-confirm-summary">
+              <div><dt>Phiếu</dt><dd>#{confirmation.group.voucherId}</dd></div>
+              <div><dt>Món</dt><dd>{confirmation.group.lines.length} dòng</dd></div>
+              <div>
+                <dt>{confirmation.type === 'au-pay-cash' ? 'Cần thu' : 'Tổng phí cấn trừ'}</dt>
+                <dd>
+                  {formatMoney(
+                    typeof confirmation.preview.total === 'number'
+                      ? confirmation.preview.total
+                      : confirmation.group.total,
+                  )}
+                </dd>
+              </div>
+              {confirmation.type === 'au-pay-deduct' && confirmation.preview.memberName ? (
+                <div><dt>Hội viên</dt><dd>{confirmation.preview.memberName}</dd></div>
+              ) : null}
+              {confirmation.type === 'au-pay-deduct' && typeof confirmation.preview.walletMain === 'number' ? (
+                <>
+                  <div><dt>Tài khoản chính</dt><dd>{formatMoney(confirmation.preview.walletMain)}</dd></div>
+                  {typeof confirmation.preview.total === 'number' ? (
+                    <div>
+                      <dt>Còn lại sau khi trừ</dt>
+                      <dd>{formatMoney(confirmation.preview.walletMain - confirmation.preview.total)}</dd>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              <div><dt>Khách chọn trên máy</dt><dd>{getServicePaidLabel(confirmation.group.servicePaid)}</dd></div>
             </dl>
           </div>
         ) : confirmNeedsQrAck ? (

@@ -2,9 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { PendingOrder } from '../src/api/orders.ts'
 import {
+  acceptedUnpaidSelectKey,
   canChangeQuantity,
   clampQuantity,
+  clearAcceptedVouchers,
+  countAcceptedUnpaidWithoutVoucher,
   customerInfoOf,
+  groupAcceptedUnpaidOrders,
   describeInventoryWarnings,
   describeProcessedCount,
   groupOrders,
@@ -38,6 +42,46 @@ function line(partial: Partial<PendingOrder>): PendingOrder {
     ...partial,
   }
 }
+
+test('accepted-unpaid: gom theo (phieu, hinh thuc khach chon); 4 => chi tien mat, 5 => chi can tru', () => {
+  const rows = [
+    line({ serviceDetailId: 1, voucherId: 50, servicePaid: 0, serviceAmount: 6000 }),
+    line({ serviceDetailId: 2, voucherId: 50, servicePaid: 4, serviceAmount: 3000 }),
+    line({ serviceDetailId: 3, voucherId: 50, servicePaid: 0, serviceAmount: 1000 }),
+    line({ serviceDetailId: 4, voucherId: 51, servicePaid: 5, serviceAmount: 2000 }),
+    line({ serviceDetailId: 5, voucherId: 0, servicePaid: 0 }),
+  ]
+  const groups = groupAcceptedUnpaidOrders(rows)
+  assert.equal(groups.length, 3)
+  const g50free = groups.find((g) => g.voucherId === 50 && g.servicePaid === 0)
+  const g50cash = groups.find((g) => g.voucherId === 50 && g.servicePaid === 4)
+  const g51 = groups.find((g) => g.voucherId === 51)
+  assert.deepEqual(g50free?.lines.map((l) => l.serviceDetailId), [1, 3])
+  assert.equal(g50free?.total, 7000)
+  assert.equal(g50free?.lockedMethod, null)
+  assert.equal(g50cash?.lockedMethod, 'cash')
+  assert.equal(g51?.lockedMethod, 'deduct')
+  // dong thieu phieu khong vao nhom nao nhung duoc dem de bao cho thu ngan
+  assert.equal(countAcceptedUnpaidWithoutVoucher(rows), 1)
+  // 2 card cung phieu co key khac nhau
+  assert.notEqual(acceptedUnpaidSelectKey(g50free!), acceptedUnpaidSelectKey(g50cash!))
+})
+
+test('accepted-unpaid: huy hang loat gop cac card cung phieu thanh 1 entry', () => {
+  const rows = [
+    line({ serviceDetailId: 1, voucherId: 50, servicePaid: 0 }),
+    line({ serviceDetailId: 2, voucherId: 50, servicePaid: 4 }),
+    line({ serviceDetailId: 4, voucherId: 51, servicePaid: 5 }),
+  ]
+  const vouchers = clearAcceptedVouchers(groupAcceptedUnpaidOrders(rows))
+  assert.deepEqual(
+    vouchers.map((v) => ({ voucherId: v.voucherId, detailIds: [...v.detailIds].sort() })),
+    [
+      { voucherId: 50, detailIds: [1, 2] },
+      { voucherId: 51, detailIds: [4] },
+    ],
+  )
+})
 
 test('QR rows are split out of the normal queue and grouped per voucher', () => {
   const rows = [

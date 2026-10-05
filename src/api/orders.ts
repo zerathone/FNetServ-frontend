@@ -77,6 +77,18 @@ export function getPendingOrders(userId?: string, options: { includePaid?: boole
   return apiGet<PendingOrder[]>(`/orders/pending${query ? `?${query}` : ''}`)
 }
 
+/**
+ * Đơn ĐÃ bấm "Chấp nhận" (Accept=1) nhưng còn nợ tiền (ServicePaid IN 0,4,5) -- không còn nằm trong
+ * `/orders/pending` (chỉ trả Accept=0). Luôn kèm `voucherId`/`serviceAmount`/`unitPrice` (bắt buộc để
+ * gọi `/service/pay`/`/service/clearaccepted` -- xem `api/payment.ts`).
+ */
+export function getAcceptedUnpaidOrders(userId?: string) {
+  const params = new URLSearchParams()
+  if (userId) params.set('userId', userId)
+  const query = params.toString()
+  return apiGet<PendingOrder[]>(`/orders/accepted-unpaid${query ? `?${query}` : ''}`)
+}
+
 export function acceptServiceOrder(payload: {
   staffId: string;
   userId: number;
@@ -118,6 +130,17 @@ export function getServicePaidLabel(servicePaid: number) {
       // Giữ nguyên dạng forward-compatible: giá trị lạ vẫn đọc được, không che lỗi.
       return `Unknown (${servicePaid})`
   }
+}
+
+export type AcceptedUnpaidSummary = { count: number; amount: number }
+
+/**
+ * Đơn đã bấm "Chấp nhận" (Accept=1) nên không còn nằm trong `/orders/pending` (chỉ trả Accept=0),
+ * nhưng vẫn CHƯA thu tiền (ServicePaid=0) — về nghiệp vụ vẫn "chờ giải quyết". Toàn hệ thống,
+ * không lọc theo userId đang filter trên trang.
+ */
+export function getAcceptedUnpaidSummary() {
+  return apiGet<AcceptedUnpaidSummary>('/orders/accepted-unpaid/summary')
 }
 
 // ===== task 2.24 (P2/P3) — tab "Combo chờ duyệt" =====

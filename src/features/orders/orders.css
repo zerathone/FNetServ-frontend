@@ -116,6 +116,7 @@
 .order-summary__dot--service { background: var(--color-warning); }
 .order-summary__dot--paid { background: var(--color-success); }
 .order-summary__dot--combo { background: var(--color-info); }
+.order-summary__dot--accepted-unpaid { background: var(--color-chart-2, #06b6d4); }
 
 .order-summary__label,
 .order-summary__hint {
@@ -160,6 +161,11 @@
 .order-summary__combo.is-active {
   color: var(--color-info);
   background: color-mix(in srgb, var(--color-info) 12%, var(--color-surface-default));
+}
+
+.order-summary__accepted-unpaid.is-active {
+  color: var(--color-chart-2, #06b6d4);
+  background: color-mix(in srgb, var(--color-chart-2, #06b6d4) 12%, var(--color-surface-default));
 }
 
 .order-summary__row.is-active strong,
@@ -314,6 +320,7 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Combo không có checkbox (không bulk-select) -- bỏ cột 2rem đầu. */
 .order-card--combo {
   grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) 10rem;
 }
