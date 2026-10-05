@@ -184,11 +184,6 @@
   background: color-mix(in srgb, var(--color-status-success, var(--color-action-primary)) 5%, var(--color-surface-default));
 }
 
-.order-card--accepted-unpaid {
-  border-color: color-mix(in srgb, var(--color-chart-2, #06b6d4) 45%, var(--color-border-default));
-  background: color-mix(in srgb, var(--color-chart-2, #06b6d4) 5%, var(--color-surface-default));
-}
-
 /* Dòng dịch vụ có ô số lượng: đổi sang cột dọc để số lượng LUÔN nằm dưới tên, không cùng hàng với
    giá — mẹo "flex-basis:100% để ép xuống dòng" (cách cũ) xung đột với `max-width` cố định bên dưới
    (trình duyệt tính kích thước "có vừa 1 hàng" dựa trên giá trị đã bị max-width kẹp, nên lại vừa 1
@@ -325,7 +320,9 @@
   box-shadow: var(--shadow-sm);
 }
 
-.order-card--combo {
+/* Combo và "Đã chấp nhận - chưa thanh toán" không có checkbox (không bulk-select) -- bỏ cột 2rem đầu. */
+.order-card--combo,
+.order-card--accepted-unpaid {
   grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) 10rem;
 }
 
@@ -420,11 +417,13 @@
 
 @media (max-width: 1120px) {
   .order-card,
-  .order-card--combo {
+  .order-card--combo,
+  .order-card--accepted-unpaid {
     grid-template-columns: 2rem minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
-  .order-card--combo {
+  .order-card--combo,
+  .order-card--accepted-unpaid {
     grid-template-columns: minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
@@ -433,7 +432,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .order-card--combo .order-card__actions {
+  .order-card--combo .order-card__actions,
+  .order-card--accepted-unpaid .order-card__actions {
     grid-column: 1 / -1;
   }
 }
@@ -458,11 +458,13 @@
   }
 
   .order-card,
-  .order-card--combo {
+  .order-card--combo,
+  .order-card--accepted-unpaid {
     grid-template-columns: 2rem minmax(0, 1fr);
   }
 
-  .order-card--combo {
+  .order-card--combo,
+  .order-card--accepted-unpaid {
     grid-template-columns: 1fr;
   }
 
@@ -474,7 +476,10 @@
 
   .order-card--combo .order-card__items,
   .order-card--combo .order-card__total,
-  .order-card--combo .order-card__actions {
+  .order-card--combo .order-card__actions,
+  .order-card--accepted-unpaid .order-card__items,
+  .order-card--accepted-unpaid .order-card__total,
+  .order-card--accepted-unpaid .order-card__actions {
     grid-column: 1;
   }
 
