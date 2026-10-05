@@ -1032,7 +1032,7 @@ export function OrderWorkspace() {
             onClick={() => setActiveView('all')}
           >
             <span>Đơn chờ</span>
-            <strong>{groupedOrders.length + qrGroups.length + comboOrders.length}</strong>
+            <strong>{groupedOrders.length + qrGroups.length + comboOrders.length + acceptedUnpaidGroups.length}</strong>
           </button>
           <div className="order-summary__breakdown">
             <button
@@ -1084,7 +1084,7 @@ export function OrderWorkspace() {
                 <span className="order-summary__label">Đã chấp nhận - chưa thanh toán</span>
                 <small className="order-summary__hint">{formatMoney(acceptedUnpaidTotal)}</small>
               </span>
-              <strong>{acceptedUnpaidGroups.reduce((sum, group) => sum + group.lines.length, 0)}</strong>
+              <strong>{acceptedUnpaidGroups.length}</strong>
             </button>
           </div>
         </div>
