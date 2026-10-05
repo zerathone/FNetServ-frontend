@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import './orders.css'
 import {
   acceptComboOrder,
   acceptServiceOrder,
@@ -61,6 +62,8 @@ export function OrderQueuePage() {
   const [viewMode, setViewMode] = useState<'thumbnail' | 'content'>('thumbnail')
   // task 2.24 (P4): 2 tab — "Dịch vụ" (hành vi cũ, không đổi) và "Combo chờ duyệt" (mới).
   const [activeTab, setActiveTab] = useState<'service' | 'combo'>('service')
+  // Filter breakdown theo servicePaid: null = tất cả, 0/4/5 = lọc theo loại
+  const [paidFilter, setPaidFilter] = useState<number | null>(null)
   const acceptOrderIntent = useIdempotentIntent('accept-order')
   const acceptComboIntent = useIdempotentIntent('accept-combo')
   const rejectComboIntent = useIdempotentIntent('reject-combo')
@@ -82,17 +85,14 @@ export function OrderQueuePage() {
   })
   const comboOrders = comboQuery.data ?? []
 
-  // Gom món chính và topping theo parentId
-  const groupedOrders = useMemo<GroupedOrder[]>(() => {
+  // Gom món chính và topping theo parentId — KHÔNG áp paidFilter ở đây để summary luôn đúng
+  const allGroupedOrders = useMemo<GroupedOrder[]>(() => {
     const orders = ordersQuery.data ?? []
     const mainDetailIds = new Set(
       orders.filter((o: PendingOrder) => !o.parentId || o.parentId === 0).map((o: PendingOrder) => o.serviceDetailId)
     )
-    
     const mainOrders = orders.filter((o: PendingOrder) => !o.parentId || o.parentId === 0 || !mainDetailIds.has(o.parentId))
     const toppings = orders.filter((o: PendingOrder) => o.parentId && o.parentId > 0 && mainDetailIds.has(o.parentId))
-    
-    // Áp dụng filter local theo hostName (nếu Backend chưa filter)
     return mainOrders
       .map((main: PendingOrder) => ({
         ...main,
@@ -104,6 +104,12 @@ export function OrderQueuePage() {
         return host.toLowerCase().includes(hostNameFilter.toLowerCase())
       })
   }, [ordersQuery.data, hostNameFilter])
+
+  // groupedOrders: áp dụng thêm paidFilter từ breakdown summary
+  const groupedOrders = useMemo<GroupedOrder[]>(() => {
+    if (paidFilter === null) return allGroupedOrders
+    return allGroupedOrders.filter((o: GroupedOrder) => o.servicePaid === paidFilter)
+  }, [allGroupedOrders, paidFilter])
 
   // task 2.24 (P1) — `alreadyPaid: false` cho MỌI dòng là ĐÚNG parity, đã verify 2026-07-29:
   //  • MFC `CServiceWaitingList::AcceptService` (nút Accept) cộng lTotalAmount cho TẤT CẢ dòng đang
@@ -263,16 +269,21 @@ export function OrderQueuePage() {
   )
 
   const summary = useMemo(() => {
-    return groupedOrders.reduce(
-      (acc: { count: number, amount: number }, order: GroupedOrder) => {
-        acc.count += 1
+    // Dùng allGroupedOrders để cards thống kê luôn hiện đủ ngay cả khi đang filter
+    return allGroupedOrders.reduce(
+      (acc: { count: number; amount: number; byPaid: Record<number, { count: number; amount: number }> }, order: GroupedOrder) => {
         const totalAmount = order.amount + order.children.reduce((sum: number, child: PendingOrder) => sum + child.amount, 0)
+        acc.count += 1
         acc.amount += totalAmount
+        const paid = order.servicePaid
+        if (!acc.byPaid[paid]) acc.byPaid[paid] = { count: 0, amount: 0 }
+        acc.byPaid[paid].count += 1
+        acc.byPaid[paid].amount += totalAmount
         return acc
       },
-      { count: 0, amount: 0 },
+      { count: 0, amount: 0, byPaid: {} },
     )
-  }, [groupedOrders])
+  }, [allGroupedOrders])
 
   const allMainIds = groupedOrders.map((o: GroupedOrder) => o.serviceDetailId)
   const allSelected = allMainIds.length > 0 && selectedMainIds.size === allMainIds.length
@@ -307,7 +318,7 @@ export function OrderQueuePage() {
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => { setActiveTab(tab.key); setPaidFilter(null) }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -341,14 +352,21 @@ export function OrderQueuePage() {
 
       {activeTab === 'combo' ? (
         <>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <span className="stat-label">Combo chờ duyệt</span>
-              <strong className="stat-value">{comboOrders.length}</strong>
+          <div className="oq-summary">
+            {/* Card combo: tổng số */}
+            <div className="oq-summary__card">
+              <div className="oq-summary__total">
+                <span>Combo chờ duyệt</span>
+                <strong>{comboOrders.length}</strong>
+              </div>
             </div>
-            <div className="stat-card">
-              <span className="stat-label">Tổng tiền chờ thu</span>
-              <strong className="stat-value">{formatMoney(comboTotalAmount)}đ</strong>
+
+            {/* Card tiền: tổng tiền chờ thu */}
+            <div className="oq-summary__card">
+              <div className="oq-summary__total">
+                <span>Tổng tiền chờ thu</span>
+                <strong>{formatMoney(comboTotalAmount)}đ</strong>
+              </div>
             </div>
           </div>
 
@@ -449,19 +467,64 @@ export function OrderQueuePage() {
         </label>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <span className="stat-label">Tổng đơn chờ</span>
-          <strong className="stat-value">{summary.count}</strong>
+      <div className="oq-summary">
+        {/* Card 1: Tổng đơn chờ + breakdown theo hình thức thanh toán */}
+        <div className="oq-summary__card">
+          <button
+            type="button"
+            className="oq-summary__total"
+            onClick={() => setPaidFilter(null)}
+            style={{ cursor: 'pointer' }}
+          >
+            <span>Đơn chờ duyệt</span>
+            <strong>{summary.count}</strong>
+          </button>
+          <div className="oq-summary__breakdown">
+            {([
+              { paid: 0, label: 'Chưa thanh toán', dot: 'service' },
+              { paid: 4, label: 'Tiền mặt tại máy', dot: 'cash' },
+              { paid: 5, label: 'Cấn trừ số dư', dot: 'credit' },
+            ] as const).map(({ paid, label, dot }) => {
+              const count = summary.byPaid[paid]?.count ?? 0
+              const isActive = paidFilter === paid
+              return (
+                <button
+                  key={paid}
+                  type="button"
+                  className={`oq-summary__row${isActive ? ' is-active' : ''}`}
+                  onClick={() => setPaidFilter(isActive ? null : paid)}
+                  title={isActive ? 'Bỏ lọc' : `Lọc: ${label}`}
+                >
+                  <span className={`oq-summary__dot oq-summary__dot--${dot}`} aria-hidden="true" />
+                  <span className="oq-summary__label">{label}</span>
+                  <strong>{count}</strong>
+                </button>
+              )
+            })}
+          </div>
         </div>
-        <div className="stat-card">
-          <span className="stat-label">Tổng tiền</span>
-          <strong className="stat-value">{formatMoney(summary.amount)}đ</strong>
+
+        {/* Card 2: Tổng tiền */}
+        <div className="oq-summary__card">
+          <div className="oq-summary__total">
+            <span>Tổng tiền</span>
+            <strong>{formatMoney(summary.amount)}đ</strong>
+          </div>
+          {paidFilter !== null && (
+            <div className="oq-summary__breakdown">
+              <div className="oq-summary__row">
+                <span className="oq-summary__label" style={{ color: 'var(--color-text-muted, var(--text-muted))' }}>
+                  Đang lọc:
+                </span>
+                <strong>{formatMoney(summary.byPaid[paidFilter]?.amount ?? 0)}đ</strong>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
             <span style={{ fontSize: '1.25rem' }}>{allSelected ? '☑' : '☐'}</span>
             <span style={{ fontWeight: 500 }}>Chọn tất cả</span>
@@ -481,6 +544,29 @@ export function OrderQueuePage() {
           >
             {bulkCancelMutation.isPending ? 'Đang hủy...' : `Hủy hàng loạt (${selectedMainIds.size})`}
           </button>
+          {paidFilter !== null && (
+            <button
+              type="button"
+              onClick={() => setPaidFilter(null)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.3rem 0.75rem',
+                borderRadius: '999px',
+                border: '1px solid var(--primary)',
+                background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+                color: 'var(--primary)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+              title="Xóa bộ lọc"
+            >
+              {paidFilter === 0 ? 'Chưa thanh toán' : paidFilter === 4 ? 'Tiền mặt tại máy' : 'Cấn trừ số dư'}
+              {' '}({groupedOrders.length}) ✕
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)' }}>
