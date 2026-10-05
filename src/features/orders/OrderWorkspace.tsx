@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CheckCircle, CurrencyCircleDollar, HandCoins, MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import { ApiError, RbacDeniedError } from '../../api/client'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
 import {
@@ -27,6 +28,7 @@ import {
   ListPagination,
   PageHeader,
   PollingStatus,
+  Select,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
@@ -79,6 +81,8 @@ import {
 import './orders.css'
 
 const PAGE_SIZE = 20
+// Parity ds-button__icon (design-system/components/Button.tsx actionIconProps) — icon hành động.
+const actionIconProps = { size: 18, weight: 'bold' as const, 'aria-hidden': true as const }
 
 type QueueEntry =
   | { kind: 'qr'; key: string; group: QrGroup }
@@ -139,6 +143,12 @@ function matchesHost(hostName: string | null | undefined, filter: string) {
   return (hostName ?? '').toLocaleLowerCase('vi').includes(filter.toLocaleLowerCase('vi'))
 }
 
+/** userId là key nội bộ, không bắt nhân viên gõ số — lọc theo tên khách (parity `matchesHost`). */
+function matchesCustomer(userName: string | null | undefined, filter: string) {
+  if (!filter) return true
+  return (userName ?? '').toLocaleLowerCase('vi').includes(filter.toLocaleLowerCase('vi'))
+}
+
 export function OrderWorkspace() {
   const queryClient = useQueryClient()
   const connected = useWsStatusStore((state) => state.connected)
@@ -148,11 +158,14 @@ export function OrderWorkspace() {
   const cancelTitle = canCancel ? undefined : `Thiếu quyền hủy đơn (${ORDER_RIGHTS.DELETE_ORDER})`
   // service-payrequest-core: chỉ Cấn trừ cần 9224 (Thanh toán tiền mặt thì không — parity Qt). Chỉ là UX.
   const canDeduct = useAuthStore((state) => state.hasRight(SERVICE_EXCEPT_RIGHT))
-  const selectedUserId = useOrderQueueStore((state) => state.selectedUserId)
+  const customerNameFilter = useOrderQueueStore((state) => state.customerNameFilter)
   const hostName = useOrderQueueStore((state) => state.hostName)
-  const setSelectedUserId = useOrderQueueStore((state) => state.setSelectedUserId)
+  const setCustomerNameFilter = useOrderQueueStore((state) => state.setCustomerNameFilter)
   const setHostName = useOrderQueueStore((state) => state.setHostName)
-  const [activeTab, setActiveTab] = useState<'service' | 'combo'>('service')
+  // 'all' (= tile "Đơn chờ") hiện cả 3 nhóm cùng lúc; 3 giá trị còn lại lọc đúng 1 nhóm.
+  const [activeView, setActiveView] = useState<'all' | 'service' | 'paid' | 'combo'>('all')
+  // Gộp 2 ô lọc cũ thành 1 thanh search (parity /logs/system): dropdown chọn trường, 1 ô nhập.
+  const [searchField, setSearchField] = useState<'customer' | 'host'>('customer')
   const [servicePage, setServicePage] = useState(0)
   const [comboPage, setComboPage] = useState(0)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
@@ -179,8 +192,9 @@ export function OrderWorkspace() {
 
   const servicesQuery = useQuery({
     // Khóa riêng 'with-paid': trang /orders/legacy dùng dạng response cũ (không includePaid).
-    queryKey: ['pending-orders', selectedUserId, 'with-paid'],
-    queryFn: () => getPendingOrders(selectedUserId || undefined, { includePaid: true }),
+    // Luôn tải hết mọi khách (không round-trip theo userId) — lọc theo tên khách ở client, parity hostName.
+    queryKey: ['pending-orders', 'with-paid'],
+    queryFn: () => getPendingOrders(undefined, { includePaid: true }),
     refetchInterval: connected ? 30_000 : 5_000,
   })
   const comboQuery = useQuery({
@@ -208,12 +222,18 @@ export function OrderWorkspace() {
   }
 
   const groupedOrders = useMemo(
-    () => groupOrders(servicesQuery.data ?? []).filter((order) => matchesHost(order.hostName, hostName)),
-    [hostName, servicesQuery.data],
+    () =>
+      groupOrders(servicesQuery.data ?? []).filter(
+        (order) => matchesHost(order.hostName, hostName) && matchesCustomer(order.userName, customerNameFilter),
+      ),
+    [hostName, customerNameFilter, servicesQuery.data],
   )
   const qrGroups = useMemo(
-    () => groupQrOrders(servicesQuery.data ?? []).filter((group) => matchesHost(group.hostName, hostName)),
-    [hostName, servicesQuery.data],
+    () =>
+      groupQrOrders(servicesQuery.data ?? []).filter(
+        (group) => matchesHost(group.hostName, hostName) && matchesCustomer(group.userName, customerNameFilter),
+      ),
+    [hostName, customerNameFilter, servicesQuery.data],
   )
   // Đơn QR (khách đã trả tiền, đang chờ món) xếp TRÊN CÙNG, không lẫn vào đơn thường.
   const serviceEntries = useMemo<QueueEntry[]>(
@@ -223,19 +243,30 @@ export function OrderWorkspace() {
     ],
     [groupedOrders, qrGroups],
   )
+  // activeView lọc đúng 1 loại dòng; 'all' (tile "Đơn chờ") giữ nguyên cả hai lẫn nhau như cũ.
+  const visibleEntryKind = activeView === 'service' ? 'service' : activeView === 'paid' ? 'qr' : null
+  const filteredServiceEntries = useMemo(
+    () => (visibleEntryKind ? serviceEntries.filter((entry) => entry.kind === visibleEntryKind) : serviceEntries),
+    [serviceEntries, visibleEntryKind],
+  )
+  const showServicePanel = activeView !== 'combo'
+  const showComboPanel = activeView === 'all' || activeView === 'combo'
   const comboOrders = useMemo(
     () =>
       (comboQuery.data ?? [])
-        .filter((order) => matchesHost(order.hostName, hostName))
+        .filter(
+          (order) =>
+            matchesHost(order.hostName, hostName) && matchesCustomer(order.ownerName, customerNameFilter),
+        )
         .sort(
           (left, right) =>
             parseComboCreatedAt(left.createdAt) - parseComboCreatedAt(right.createdAt),
         ),
-    [comboQuery.data, hostName],
+    [comboQuery.data, hostName, customerNameFilter],
   )
-  const serviceTotalPages = Math.max(1, Math.ceil(serviceEntries.length / PAGE_SIZE))
+  const serviceTotalPages = Math.max(1, Math.ceil(filteredServiceEntries.length / PAGE_SIZE))
   const comboTotalPages = Math.max(1, Math.ceil(comboOrders.length / PAGE_SIZE))
-  const visibleServiceEntries = serviceEntries.slice(
+  const visibleServiceEntries = filteredServiceEntries.slice(
     servicePage * PAGE_SIZE,
     (servicePage + 1) * PAGE_SIZE,
   )
@@ -248,7 +279,7 @@ export function OrderWorkspace() {
     setServicePage(0)
     setComboPage(0)
     setSelectedKeys(new Set())
-  }, [hostName, selectedUserId])
+  }, [hostName, customerNameFilter, activeView])
 
   useEffect(() => {
     if (servicePage >= serviceTotalPages) setServicePage(serviceTotalPages - 1)
@@ -429,7 +460,8 @@ export function OrderWorkspace() {
     onSuccess: ({ response, request }, { order, method }) =>
       handlePayResponse(method, response, request, {
         hostName: order.hostName || '',
-        customerLabel: order.userName || `ID ${order.userId}`,
+        // userId là key nội bộ — không hiển thị ra UI, kể cả khi thiếu userName.
+        customerLabel: order.userName || 'Hội viên (chưa rõ tên)',
       }),
     onError: reportPayError,
   })
@@ -665,9 +697,6 @@ export function OrderWorkspace() {
         <div className="order-card__items">
           <div>
             <strong>{quantity} × {order.serviceName}</strong>
-            <span>
-              {formatMoney(lineAmount(order, qtyOverrides))} · {getServicePaidLabel(order.servicePaid)}
-            </span>
             {editable ? (
               <div className="order-qty" role="group" aria-label={`Số lượng ${order.serviceName}`}>
                 <button
@@ -701,6 +730,9 @@ export function OrderWorkspace() {
                 </button>
               </div>
             ) : null}
+            <span>
+              {formatMoney(lineAmount(order, qtyOverrides))} · {getServicePaidLabel(order.servicePaid)}
+            </span>
           </div>
           {order.children.map((child) => (
             <div key={child.serviceDetailId} className="order-card__topping">
@@ -716,16 +748,18 @@ export function OrderWorkspace() {
         <div className="order-card__actions">
           <Button
             type="button"
-            variant="primary"
+            variant="secondary"
+            icon={<CheckCircle {...actionIconProps} />}
             disabled={pendingMutation || !gates.accept.enabled}
             title={gates.accept.reason}
             onClick={() => serviceMutation.mutate(order)}
           >
-            Chấp nhận đơn
+            Chấp nhận
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="primary"
+            icon={<CurrencyCircleDollar {...actionIconProps} />}
             disabled={pendingMutation || !gates.cash.enabled}
             title={gates.cash.reason ?? 'Thu tiền mặt và chốt đơn ngay'}
             onClick={() => previewMutation.mutate({ order, method: 'cash' })}
@@ -735,6 +769,7 @@ export function OrderWorkspace() {
           <Button
             type="button"
             variant="secondary"
+            icon={<HandCoins {...actionIconProps} />}
             disabled={pendingMutation || !gates.deduct.enabled}
             title={gates.deduct.reason ?? 'Trừ vào tài khoản hội viên đang online'}
             onClick={() => previewMutation.mutate({ order, method: 'deduct' })}
@@ -743,7 +778,8 @@ export function OrderWorkspace() {
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant="danger-outline"
+            icon={<XCircle {...actionIconProps} />}
             disabled={pendingMutation || !canCancel}
             title={cancelTitle}
             onClick={() => setConfirmation({ type: 'cancel-service', order })}
@@ -760,7 +796,6 @@ export function OrderWorkspace() {
       <PageHeader
         eyebrow="Thu ngân"
         title="Hàng đợi gọi món"
-        description="Đơn khách đã trả QR xếp trên cùng; đơn chờ lâu xếp trước; món chính và topping luôn xử lý cùng nhau."
         actions={
           <PollingStatus
             connected={connected}
@@ -817,65 +852,102 @@ export function OrderWorkspace() {
         </InlineAlert>
       ))}
 
-      <div className="order-summary">
-        <button
-          type="button"
-          className={activeTab === 'service' ? 'is-active' : ''}
-          onClick={() => setActiveTab('service')}
-        >
-          <span>Dịch vụ chờ</span>
-          <strong>{groupedOrders.length}</strong>
-          <small>Cần thu {formatMoney(serviceTotal)}</small>
-        </button>
-        <button
-          type="button"
-          className={qrGroups.length > 0 ? 'order-summary__qr' : ''}
-          onClick={() => setActiveTab('service')}
-        >
-          <span>Đã trả QR chờ món</span>
-          <strong>{qrGroups.length}</strong>
-          <small>Đã thu {formatMoney(qrPaidTotal)}</small>
-        </button>
-        <button
-          type="button"
-          className={activeTab === 'combo' ? 'is-active' : ''}
-          onClick={() => setActiveTab('combo')}
-        >
-          <span>Combo chờ duyệt</span>
-          <strong>{comboOrders.length}</strong>
-          <small>{formatMoney(comboTotal)}</small>
-        </button>
+      <div className="order-summary" aria-label="Tổng quan đơn chờ">
+        <div className="order-summary__card">
+          <button
+            type="button"
+            className={`order-summary__total ${activeView === 'all' ? 'is-active' : ''}`}
+            onClick={() => setActiveView('all')}
+          >
+            <span>Đơn chờ</span>
+            <strong>{groupedOrders.length + qrGroups.length + comboOrders.length}</strong>
+          </button>
+          <div className="order-summary__breakdown">
+            <button
+              type="button"
+              className={`order-summary__row order-summary__service ${activeView === 'service' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('service')}
+            >
+              <span className="order-summary__dot order-summary__dot--service" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Dịch vụ</span>
+                <small className="order-summary__hint">Cần thu {formatMoney(serviceTotal)}</small>
+              </span>
+              <strong>{groupedOrders.length}</strong>
+            </button>
+            <button
+              type="button"
+              className={`order-summary__row order-summary__paid ${activeView === 'paid' ? 'is-active' : ''} ${qrGroups.length > 0 ? 'has-value' : ''}`}
+              onClick={() => setActiveView('paid')}
+            >
+              <span className="order-summary__dot order-summary__dot--paid" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Đã thanh toán</span>
+                <small className="order-summary__hint">Đã thu {formatMoney(qrPaidTotal)}</small>
+              </span>
+              <strong>{qrGroups.length}</strong>
+            </button>
+            <button
+              type="button"
+              className={`order-summary__row order-summary__combo ${activeView === 'combo' ? 'is-active' : ''}`}
+              onClick={() => setActiveView('combo')}
+            >
+              <span className="order-summary__dot order-summary__dot--combo" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Combo</span>
+                <small className="order-summary__hint">{formatMoney(comboTotal)}</small>
+              </span>
+              <strong>{comboOrders.length}</strong>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="order-filters">
-        <label className="ds-field">
-          <span className="ds-field__label">Tên máy</span>
-          <input
-            className="ds-input"
-            value={hostName}
-            placeholder="Để trống = tất cả máy"
-            onChange={(event) => setHostName(event.target.value)}
-          />
+        <label className="ds-field" style={{ flex: 1 }}>
+          <span className="ds-visually-hidden">Tìm kiếm</span>
+          <div className="ds-input-group ds-input-group--search">
+            <Select
+              value={searchField}
+              onChange={(event) => setSearchField(event.target.value as 'customer' | 'host')}
+            >
+              <option value="customer">Tài khoản</option>
+              <option value="host">Tên máy</option>
+            </Select>
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                placeholder={searchField === 'host' ? 'Nhập tên máy' : 'Nhập tên tài khoản'}
+                value={searchField === 'host' ? hostName : customerNameFilter}
+                onChange={(event) =>
+                  searchField === 'host'
+                    ? setHostName(event.target.value)
+                    : setCustomerNameFilter(event.target.value)
+                }
+              />
+              {(searchField === 'host' ? hostName : customerNameFilter) ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  title="Xóa từ khóa"
+                  onClick={() => (searchField === 'host' ? setHostName('') : setCustomerNameFilter(''))}
+                >
+                  <XCircle size={17} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Mã khách hàng</span>
-          <input
-            className="ds-input"
-            inputMode="numeric"
-            value={selectedUserId}
-            placeholder="Để trống = tất cả khách"
-            onChange={(event) =>
-              setSelectedUserId(event.target.value.replace(/\D/g, ''))
-            }
-          />
-        </label>
-        {hostName || selectedUserId ? (
+        {hostName || customerNameFilter ? (
           <Button
             type="button"
             variant="ghost"
             onClick={() => {
               setHostName('')
-              setSelectedUserId('')
+              setCustomerNameFilter('')
             }}
           >
             Xóa bộ lọc
@@ -883,8 +955,9 @@ export function OrderWorkspace() {
         ) : null}
       </div>
 
-      {activeTab === 'service' ? (
+      {showServicePanel ? (
         <div className="order-panel">
+          {activeView === 'all' ? <h3 className="order-panel__heading">Dịch vụ &amp; đã thanh toán</h3> : null}
           {selectedEntries.length > 0 ? (
             <div className="order-selection">
               <strong>{selectedEntries.length} đơn đã chọn</strong>
@@ -918,11 +991,15 @@ export function OrderWorkspace() {
               description={(servicesQuery.error as Error).message}
               action={<Button onClick={() => servicesQuery.refetch()}>Thử lại</Button>}
             />
-          ) : serviceEntries.length === 0 ? (
+          ) : filteredServiceEntries.length === 0 ? (
             <StateView
-              title="Không có đơn dịch vụ đang chờ"
+              title={
+                activeView === 'paid'
+                  ? 'Không có đơn đã thanh toán đang chờ món'
+                  : 'Không có đơn dịch vụ đang chờ'
+              }
               description={
-                hostName || selectedUserId
+                hostName || customerNameFilter
                   ? 'Không có đơn khớp bộ lọc hiện tại.'
                   : 'Đơn khách gọi từ máy trạm sẽ xuất hiện tại đây.'
               }
@@ -963,8 +1040,11 @@ export function OrderWorkspace() {
             </>
           )}
         </div>
-      ) : (
+      ) : null}
+
+      {showComboPanel ? (
         <div className="order-panel">
+          {activeView === 'all' ? <h3 className="order-panel__heading">Combo chờ duyệt</h3> : null}
           <InlineAlert tone="warning">
             Chỉ bấm “Đã thu tiền” sau khi đã nhận đủ tiền mặt. Giá combo được máy chủ đọc lại khi chốt.
           </InlineAlert>
@@ -1027,7 +1107,8 @@ export function OrderWorkspace() {
                       </Button>
                       <Button
                         type="button"
-                        variant="danger"
+                        variant="danger-outline"
+                        icon={<XCircle {...actionIconProps} />}
                         disabled={pendingMutation}
                         onClick={() => setConfirmation({ type: 'reject-combo', order })}
                       >
@@ -1042,7 +1123,7 @@ export function OrderWorkspace() {
             </>
           )}
         </div>
-      )}
+      ) : null}
 
       <ConfirmAction
         open={Boolean(confirmation)}

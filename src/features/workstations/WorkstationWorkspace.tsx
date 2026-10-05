@@ -268,7 +268,7 @@ export function WorkstationWorkspace() {
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const staffName = useAuthStore((state) => state.staffName)
   const setOrderHost = useOrderQueueStore((state) => state.setHostName)
-  const setOrderUser = useOrderQueueStore((state) => state.setSelectedUserId)
+  const setOrderCustomerName = useOrderQueueStore((state) => state.setCustomerNameFilter)
 
   const snapshotQuery = useQuery({
     queryKey: ['workstations'],
@@ -1309,7 +1309,7 @@ export function WorkstationWorkspace() {
                 block
                 onClick={() => {
                   setOrderHost(inspectedMachine.hostName)
-                  setOrderUser(inspectedMachine.userId ? String(inspectedMachine.userId) : '')
+                  setOrderCustomerName(inspectedMachine.userName ?? '')
                   navigate('/orders')
                 }}
               >
