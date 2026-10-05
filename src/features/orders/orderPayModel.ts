@@ -4,6 +4,7 @@ import type {
   PayRequestDryRunPayload,
   PayRequestPayload,
   PayRequestResponse,
+  ServicePayFullCorePayload,
 } from '../../api/payment.ts'
 import {
   SERVICE_PAID_QR,
@@ -305,8 +306,16 @@ export type DeductAlert = {
   code: string | undefined
   retryable: boolean
   /** Request gốc (CÙNG `idem`) để "Thử trừ ví lại" — tải lại trang thì mất, log serverlogtb là đường chính. */
-  request: PayRequestPayload
+  retry: DeductRetry
 }
+
+/**
+ * Gửi lại đúng endpoint gốc: đơn chưa duyệt đi `/service/payrequest`, đơn ĐÃ DUYỆT đi `/service/pay`
+ * (task service-pay-fullcore). Cả hai đều nhận ra phiếu đã ghi qua `idem` và chỉ chạy lại bước trừ ví.
+ */
+export type DeductRetry =
+  | { endpoint: 'payrequest'; request: PayRequestPayload }
+  | { endpoint: 'service-pay'; request: ServicePayFullCorePayload }
 
 export function upsertAlert(alerts: DeductAlert[], next: DeductAlert) {
   return [...alerts.filter((alert) => alert.paymentId !== next.paymentId), next]

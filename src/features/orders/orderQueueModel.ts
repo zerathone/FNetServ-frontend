@@ -103,12 +103,28 @@ export function paidAmountOf(order: PendingOrder) {
 }
 
 /**
- * Đơn ĐÃ DUYỆT (Accept=1) nhưng còn nợ tiền (ServicePaid IN 0,4,5) — gom theo phiếu (`voucherId`),
- * vì `/service/pay`/`/service/clearaccepted` nhận theo voucher (toàn bộ dòng cùng phiếu 1 lần),
- * không nhận theo từng dòng lẻ (handoff `HANDOFF_orders-accepted-unpaid-actions.md` §5.2).
+ * Hình thức khách đã chọn trên máy trạm khóa nút thanh toán của đơn đã duyệt (user chốt 2026-10-05,
+ * BE `/service/pay` fullCore kiểm lại): 4 = tiền mặt ⇒ chỉ Thanh toán; 5 = cấn trừ ⇒ chỉ Cấn trừ;
+ * 0 = chưa chọn ⇒ thu ngân chọn 1 trong 2. (Trùng giá trị `SERVICE_PAID_CASH/DEDUCT` ở orderPayModel —
+ * không import để tránh vòng lặp module.)
+ */
+export type AcceptedUnpaidLock = 'cash' | 'deduct' | null
+
+export function acceptedUnpaidLockOf(servicePaid: number): AcceptedUnpaidLock {
+  if (servicePaid === 4) return 'cash'
+  if (servicePaid === 5) return 'deduct'
+  return null
+}
+
+/**
+ * Đơn ĐÃ DUYỆT (Accept=1) nhưng còn nợ tiền (ServicePaid IN 0,4,5) — gom theo (`voucherId`,
+ * `servicePaid`): mỗi card chỉ có MỘT hình thức khách đã chọn ⇒ một phiếu lẫn 0/4/5 thành nhiều card.
+ * `/service/pay` nhận một phần `detailIds` của phiếu và tự tách phiếu nên không cần gì thêm.
  */
 export type AcceptedUnpaidGroup = {
   voucherId: number
+  servicePaid: number
+  lockedMethod: AcceptedUnpaidLock
   userId: number
   userName: string
   hostName: string | null
@@ -117,15 +133,18 @@ export type AcceptedUnpaidGroup = {
   total: number
 }
 
-/** Dòng thiếu voucherId bị bỏ qua — không đoán phiếu (parity `groupQrOrders`). */
+/** Dòng thiếu voucherId bị bỏ qua — không đoán phiếu (parity `groupQrOrders`); đếm bằng hàm dưới. */
 export function groupAcceptedUnpaidOrders(orders: PendingOrder[]): AcceptedUnpaidGroup[] {
-  const byVoucher = new Map<number, AcceptedUnpaidGroup>()
+  const byKey = new Map<string, AcceptedUnpaidGroup>()
   for (const order of orders) {
     if (!order.voucherId) continue
-    let group = byVoucher.get(order.voucherId)
+    const key = `${order.voucherId}:${order.servicePaid}`
+    let group = byKey.get(key)
     if (!group) {
       group = {
         voucherId: order.voucherId,
+        servicePaid: order.servicePaid,
+        lockedMethod: acceptedUnpaidLockOf(order.servicePaid),
         userId: order.userId,
         userName: order.userName,
         hostName: order.hostName ?? null,
@@ -133,20 +152,39 @@ export function groupAcceptedUnpaidOrders(orders: PendingOrder[]): AcceptedUnpai
         createdAtMs: parseCreatedAt(order.serviceDate, order.serviceTime),
         total: 0,
       }
-      byVoucher.set(order.voucherId, group)
+      byKey.set(key, group)
     }
     group.lines.push(order)
     group.total += paidAmountOf(order)
   }
-  return [...byVoucher.values()].sort((left, right) => {
+  return [...byKey.values()].sort((left, right) => {
     if (!left.createdAtMs) return 1
     if (!right.createdAtMs) return -1
     return left.createdAtMs - right.createdAtMs
   })
 }
 
+/** Số dòng bị `groupAcceptedUnpaidOrders` bỏ qua vì thiếu phiếu — hiện cho thu ngân biết, không im lặng. */
+export function countAcceptedUnpaidWithoutVoucher(orders: PendingOrder[]) {
+  return orders.filter((order) => !order.voucherId).length
+}
+
 export function acceptedUnpaidSelectKey(group: AcceptedUnpaidGroup) {
-  return `au:${group.voucherId}`
+  return `au:${group.voucherId}:${group.servicePaid}`
+}
+
+/**
+ * Payload `/service/clearaccepted` cho nhiều card: gộp các card cùng phiếu thành 1 entry (BE xử lý theo
+ * phiếu, 1 entry/phiếu cho dễ đọc kết quả).
+ */
+export function clearAcceptedVouchers(groups: AcceptedUnpaidGroup[]) {
+  const byVoucher = new Map<number, number[]>()
+  for (const group of groups) {
+    const ids = byVoucher.get(group.voucherId) ?? []
+    ids.push(...acceptedUnpaidDetailIds(group))
+    byVoucher.set(group.voucherId, ids)
+  }
+  return [...byVoucher.entries()].map(([voucherId, detailIds]) => ({ voucherId, detailIds }))
 }
 
 /** Payload chung `/service/pay` và `/service/clearaccepted`: cả 2 đều nhận theo voucher. */

@@ -209,7 +209,7 @@ test('upsertAlert / removeAlert: moi phieu mot banner; cap nhat thay the', () =>
     amount: 6000,
     code,
     retryable: code === 'deduct_failed',
-    request,
+    retry: { endpoint: 'payrequest', request },
   })
   let alerts: DeductAlert[] = []
   alerts = upsertAlert(alerts, alert(9, 'deduct_failed'))

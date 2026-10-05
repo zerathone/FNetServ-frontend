@@ -134,9 +134,41 @@ export async function servicePay(payload: ServicePayPayload) {
   >('/service/pay', payload)
 }
 
+/**
+ * task service-pay-fullcore: nhánh opt-in `fullCore` của `/service/pay` (đơn ĐÃ DUYỆT còn nợ). BE tự
+ * làm việc phụ như `/service/payrequest` fullCore: VAT + báo máy trạm (tiền mặt), FN2 + FFood + TRỪ VÍ
+ * thật (cấn trừ). Bắt buộc Bearer + `idem` ≤ 50 ký tự, ĐÚNG 1 phiếu. Response cùng shape
+ * `PayRequestResponse` ⇒ dùng chung `classifyPayResult`. Không gửi `fullCore` = đường cũ của Qt (KHÔNG trừ ví).
+ */
+export type ServicePayFullCorePayload = {
+  staffId: number
+  paymentMethod: 'cash' | 'deduct'
+  hostName: string
+  idem: string
+  vouchers: Array<{ voucherId: number; detailIds: number[] }>
+  fullCore: true
+}
+
+export async function servicePayFullCore(payload: ServicePayFullCorePayload) {
+  return apiPost<PayRequestResponse & { voucherId?: number }, ServicePayFullCorePayload>(
+    '/service/pay',
+    payload,
+  )
+}
+
+export type ServicePayDryRunPayload = Omit<ServicePayFullCorePayload, 'idem' | 'fullCore'>
+
+/** `dryRun` của nhánh trên — cùng quy ước `payRequestDryRun` (status=1 kể cả `ok:false`). */
+export function servicePayDryRun(payload: ServicePayDryRunPayload) {
+  const body = { ...payload, fullCore: true, dryRun: true }
+  return apiPost<PayRequestDryRunResponse, typeof body>('/service/pay', body)
+}
+
 export type ClearAcceptedPayload = {
   staffId: number
   vouchers: Array<{ voucherId: number; detailIds: number[] }>
+  /** task service-pay-fullcore: bắt buộc Bearer + quyền xóa đơn + BE báo máy trạm. Web luôn gửi true. */
+  fullCore?: boolean
 }
 
 /**
