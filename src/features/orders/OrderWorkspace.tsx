@@ -15,6 +15,7 @@ import {
   acceptComboOrder,
   acceptServiceOrder,
   cancelServiceOrder,
+  getAcceptedUnpaidSummary,
   getPendingComboOrders,
   getPendingOrders,
   getServicePaidLabel,
@@ -202,6 +203,15 @@ export function OrderWorkspace() {
     queryFn: getPendingComboOrders,
     refetchInterval: connected ? 30_000 : 5_000,
   })
+  // Đơn đã bấm "Chấp nhận" (Accept=1) nên không còn nằm trong servicesQuery (chỉ Accept=0), nhưng
+  // khách vẫn CHƯA thanh toán (ServicePaid=0) -- về nghiệp vụ vẫn "chờ giải quyết". Toàn hệ thống,
+  // không theo bộ lọc máy/khách đang gõ trên trang.
+  const acceptedUnpaidQuery = useQuery({
+    queryKey: ['orders-accepted-unpaid-summary'],
+    queryFn: getAcceptedUnpaidSummary,
+    refetchInterval: connected ? 30_000 : 5_000,
+  })
+  const acceptedUnpaid = acceptedUnpaidQuery.data ?? { count: 0, amount: 0 }
 
   // Dùng chung cache `['workstations']` với trang Máy trạm (cùng queryFn). Chỉ để bật/tắt nút theo
   // trạng thái máy / loại tài khoản (parity Qt) — lỗi hoặc chưa tải ⇒ KHÔNG chặn gì, backend vẫn kiểm.
@@ -899,6 +909,19 @@ export function OrderWorkspace() {
               </span>
               <strong>{comboOrders.length}</strong>
             </button>
+            {/* Đơn đã duyệt nhưng chưa thu tiền -- toàn hệ thống, không nằm trong 3 nhóm lọc ở trên
+                (activeView) nên chỉ hiển thị thông tin, không bấm được. */}
+            <div
+              className="order-summary__row order-summary__accepted-unpaid"
+              title={`Đơn đã bấm Chấp nhận nhưng khách chưa thanh toán -- vẫn đang chờ giải quyết (${formatMoney(acceptedUnpaid.amount)})`}
+            >
+              <span className="order-summary__dot order-summary__dot--accepted-unpaid" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Đã chấp nhận - chưa thanh toán</span>
+                <small className="order-summary__hint">{formatMoney(acceptedUnpaid.amount)}</small>
+              </span>
+              <strong>{acceptedUnpaid.count}</strong>
+            </div>
           </div>
         </div>
       </div>
