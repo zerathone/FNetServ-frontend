@@ -118,15 +118,6 @@
 .order-summary__dot--combo { background: var(--color-info); }
 .order-summary__dot--accepted-unpaid { background: var(--color-chart-2, #06b6d4); }
 
-/* Dòng thông tin (không phải button) -- không filter được nên không có hover/cursor giống các dòng trên. */
-.order-summary__accepted-unpaid {
-  cursor: default;
-}
-
-.order-summary__accepted-unpaid:hover {
-  background: transparent;
-}
-
 .order-summary__label,
 .order-summary__hint {
   overflow: hidden;
@@ -172,6 +163,11 @@
   background: color-mix(in srgb, var(--color-info) 12%, var(--color-surface-default));
 }
 
+.order-summary__accepted-unpaid.is-active {
+  color: var(--color-chart-2, #06b6d4);
+  background: color-mix(in srgb, var(--color-chart-2, #06b6d4) 12%, var(--color-surface-default));
+}
+
 .order-summary__row.is-active strong,
 .order-summary__row.is-active .order-summary__label,
 .order-summary__row.is-active .order-summary__hint {
@@ -186,6 +182,11 @@
 .order-card--qr {
   border-color: color-mix(in srgb, var(--color-status-success, var(--color-action-primary)) 45%, var(--color-border-default));
   background: color-mix(in srgb, var(--color-status-success, var(--color-action-primary)) 5%, var(--color-surface-default));
+}
+
+.order-card--accepted-unpaid {
+  border-color: color-mix(in srgb, var(--color-chart-2, #06b6d4) 45%, var(--color-border-default));
+  background: color-mix(in srgb, var(--color-chart-2, #06b6d4) 5%, var(--color-surface-default));
 }
 
 /* Dòng dịch vụ có ô số lượng: đổi sang cột dọc để số lượng LUÔN nằm dưới tên, không cùng hàng với

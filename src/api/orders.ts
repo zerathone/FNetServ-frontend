@@ -77,6 +77,18 @@ export function getPendingOrders(userId?: string, options: { includePaid?: boole
   return apiGet<PendingOrder[]>(`/orders/pending${query ? `?${query}` : ''}`)
 }
 
+/**
+ * Đơn ĐÃ bấm "Chấp nhận" (Accept=1) nhưng còn nợ tiền (ServicePaid IN 0,4,5) -- không còn nằm trong
+ * `/orders/pending` (chỉ trả Accept=0). Luôn kèm `voucherId`/`serviceAmount`/`unitPrice` (bắt buộc để
+ * gọi `/service/pay`/`/service/clearaccepted` -- xem `api/payment.ts`).
+ */
+export function getAcceptedUnpaidOrders(userId?: string) {
+  const params = new URLSearchParams()
+  if (userId) params.set('userId', userId)
+  const query = params.toString()
+  return apiGet<PendingOrder[]>(`/orders/accepted-unpaid${query ? `?${query}` : ''}`)
+}
+
 export function acceptServiceOrder(payload: {
   staffId: string;
   userId: number;

@@ -102,6 +102,58 @@ export function paidAmountOf(order: PendingOrder) {
   return order.serviceAmount ?? order.amount
 }
 
+/**
+ * Đơn ĐÃ DUYỆT (Accept=1) nhưng còn nợ tiền (ServicePaid IN 0,4,5) — gom theo phiếu (`voucherId`),
+ * vì `/service/pay`/`/service/clearaccepted` nhận theo voucher (toàn bộ dòng cùng phiếu 1 lần),
+ * không nhận theo từng dòng lẻ (handoff `HANDOFF_orders-accepted-unpaid-actions.md` §5.2).
+ */
+export type AcceptedUnpaidGroup = {
+  voucherId: number
+  userId: number
+  userName: string
+  hostName: string | null
+  lines: PendingOrder[]
+  createdAtMs: number
+  total: number
+}
+
+/** Dòng thiếu voucherId bị bỏ qua — không đoán phiếu (parity `groupQrOrders`). */
+export function groupAcceptedUnpaidOrders(orders: PendingOrder[]): AcceptedUnpaidGroup[] {
+  const byVoucher = new Map<number, AcceptedUnpaidGroup>()
+  for (const order of orders) {
+    if (!order.voucherId) continue
+    let group = byVoucher.get(order.voucherId)
+    if (!group) {
+      group = {
+        voucherId: order.voucherId,
+        userId: order.userId,
+        userName: order.userName,
+        hostName: order.hostName ?? null,
+        lines: [],
+        createdAtMs: parseCreatedAt(order.serviceDate, order.serviceTime),
+        total: 0,
+      }
+      byVoucher.set(order.voucherId, group)
+    }
+    group.lines.push(order)
+    group.total += paidAmountOf(order)
+  }
+  return [...byVoucher.values()].sort((left, right) => {
+    if (!left.createdAtMs) return 1
+    if (!right.createdAtMs) return -1
+    return left.createdAtMs - right.createdAtMs
+  })
+}
+
+export function acceptedUnpaidSelectKey(group: AcceptedUnpaidGroup) {
+  return `au:${group.voucherId}`
+}
+
+/** Payload chung `/service/pay` và `/service/clearaccepted`: cả 2 đều nhận theo voucher. */
+export function acceptedUnpaidDetailIds(group: AcceptedUnpaidGroup) {
+  return group.lines.map((line) => line.serviceDetailId)
+}
+
 /** Đơn giá snapshot lúc đặt (BE: ServiceAmount / ServiceQuantity). Fallback giá hiện tại. */
 export function unitPriceOf(order: PendingOrder) {
   return order.unitPrice ?? order.price

@@ -134,6 +134,30 @@ export async function servicePay(payload: ServicePayPayload) {
   >('/service/pay', payload)
 }
 
+export type ClearAcceptedPayload = {
+  staffId: number
+  vouchers: Array<{ voucherId: number; detailIds: number[] }>
+}
+
+/**
+ * Hủy món trên 1 phiếu ĐÃ DUYỆT (Accept=1) -- KHÁC `/service/cancel` (chỉ nhận đơn Accept=0 còn
+ * chờ duyệt). Tự tính lại tiền còn lại trên phiếu; hết tiền thì xoá luôn phiếu (`voucherDeleted`).
+ */
+export async function clearAcceptedService(payload: ClearAcceptedPayload) {
+  return apiPost<
+    {
+      processed: number
+      results: Array<{
+        voucherId: number
+        cancelledAmount: number
+        remain: number
+        voucherDeleted: boolean
+      }>
+    },
+    ClearAcceptedPayload
+  >('/service/clearaccepted', payload)
+}
+
 export type ComboSellQrStartPayload = {
   staffId: number
   orderName?: string
