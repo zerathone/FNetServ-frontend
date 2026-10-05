@@ -120,6 +120,17 @@ export function getServicePaidLabel(servicePaid: number) {
   }
 }
 
+export type AcceptedUnpaidSummary = { count: number; amount: number }
+
+/**
+ * Đơn đã bấm "Chấp nhận" (Accept=1) nên không còn nằm trong `/orders/pending` (chỉ trả Accept=0),
+ * nhưng vẫn CHƯA thu tiền (ServicePaid=0) — về nghiệp vụ vẫn "chờ giải quyết". Toàn hệ thống,
+ * không lọc theo userId đang filter trên trang.
+ */
+export function getAcceptedUnpaidSummary() {
+  return apiGet<AcceptedUnpaidSummary>('/orders/accepted-unpaid/summary')
+}
+
 // ===== task 2.24 (P2/P3) — tab "Combo chờ duyệt" =====
 export async function getPendingComboOrders() {
   const data = await apiGet<PendingComboResponse>('/orders/pending/combo')

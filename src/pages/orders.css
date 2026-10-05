@@ -110,6 +110,7 @@ button.oq-summary__row.is-active strong {
 .oq-summary__dot--credit    { background: var(--color-chart-4, #a855f7); }
 .oq-summary__dot--combo     { background: var(--color-info, #3b82f6); }
 .oq-summary__dot--money     { background: var(--color-success, #22c55e); }
+.oq-summary__dot--accepted  { background: var(--color-chart-2, #06b6d4); }
 
 .oq-summary__label {
   font-size: var(--font-size-sm, 0.875rem);
