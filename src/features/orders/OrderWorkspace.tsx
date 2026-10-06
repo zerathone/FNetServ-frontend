@@ -52,7 +52,6 @@ import {
   canChangeQuantity,
   clampQuantity,
   clearAcceptedVouchers,
-  countAcceptedUnpaidWithoutVoucher,
   describeInventoryWarnings,
   describeProcessedCount,
   groupAcceptedUnpaidOrders,
@@ -99,6 +98,9 @@ const actionIconProps = { size: 18, weight: 'bold' as const, 'aria-hidden': true
 type QueueEntry =
   | { kind: 'qr'; key: string; group: QrGroup }
   | { kind: 'service'; key: string; order: GroupedOrder }
+  // task orders-accepted-merge (2026-10-06): gộp vào CHUNG danh sách với 'service' -- cùng bảng
+  // ServiceDetailTb, chỉ khác Accept/ServicePaid nên khác nút hành động, không khác về hiển thị.
+  | { kind: 'accepted-unpaid'; key: string; group: AcceptedUnpaidGroup }
 
 // task orders-qr-qty P5: Chấp nhận / Xác nhận phục vụ KHÔNG còn hộp xác nhận (parity Qt — thu ngân
 // bấm liên tục; idem vẫn bắt buộc). Chỉ hủy/từ chối và combo tiền mặt còn hỏi lại.
@@ -188,9 +190,9 @@ export function OrderWorkspace() {
   const [activeView, setActiveView] = useState<'all' | 'service' | 'paid' | 'combo' | 'accepted-unpaid'>('all')
   // Gộp 2 ô lọc cũ thành 1 thanh search (parity /logs/system): dropdown chọn trường, 1 ô nhập.
   const [searchField, setSearchField] = useState<'customer' | 'host'>('customer')
+  // servicePage giờ phân trang CHUNG cho danh sách đã gộp (Dịch vụ + QR + Đã duyệt-chưa thanh toán).
   const [servicePage, setServicePage] = useState(0)
   const [comboPage, setComboPage] = useState(0)
-  const [acceptedUnpaidPage, setAcceptedUnpaidPage] = useState(0)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   // Khóa chọn riêng (acceptedUnpaidSelectKey) -- KHÔNG dùng chung `selectedKeys`/`cancelMutation` của
   // Dịch vụ: đó là `/service/cancel` (chỉ Accept=0), gọi nhầm cho Accept=1 sẽ hỏng dữ liệu (KNOWLEDGE.md §50).
@@ -245,16 +247,7 @@ export function OrderWorkspace() {
       ),
     [acceptedUnpaidQuery.data, hostName, customerNameFilter],
   )
-  const acceptedUnpaidWithoutVoucher = useMemo(
-    () => countAcceptedUnpaidWithoutVoucher(acceptedUnpaidQuery.data ?? []),
-    [acceptedUnpaidQuery.data],
-  )
   const acceptedUnpaidTotal = acceptedUnpaidGroups.reduce((sum, group) => sum + group.total, 0)
-  const acceptedUnpaidTotalPages = Math.max(1, Math.ceil(acceptedUnpaidGroups.length / PAGE_SIZE))
-  const visibleAcceptedUnpaidGroups = acceptedUnpaidGroups.slice(
-    acceptedUnpaidPage * PAGE_SIZE,
-    (acceptedUnpaidPage + 1) * PAGE_SIZE,
-  )
   const refreshAcceptedUnpaid = () => {
     void queryClient.invalidateQueries({ queryKey: ['orders-accepted-unpaid'] })
   }
@@ -292,23 +285,49 @@ export function OrderWorkspace() {
     [hostName, customerNameFilter, servicesQuery.data],
   )
   // Đơn QR (khách đã trả tiền, đang chờ món) xếp TRÊN CÙNG, không lẫn vào đơn thường.
-  const serviceEntries = useMemo<QueueEntry[]>(
-    () => [
-      ...qrGroups.map((group) => ({ kind: 'qr' as const, key: qrSelectKey(group), group })),
-      ...groupedOrders.map((order) => ({ kind: 'service' as const, key: serviceSelectKey(order), order })),
-    ],
-    [groupedOrders, qrGroups],
+  // task orders-accepted-merge (2026-10-06, user chốt): 'service' (Accept=0) + 'accepted-unpaid'
+  // (Accept=1, chưa thu tiền) gộp CHUNG 1 danh sách theo thời gian chờ -- cùng bảng ServiceDetailTb,
+  // chỉ khác NÚT hành động (renderServiceCard/renderAcceptedUnpaidCard tự chọn theo state của chính
+  // nó), không còn tách panel/heading riêng như trước.
+  const serviceAndAcceptedEntries = useMemo<QueueEntry[]>(
+    () =>
+      [
+        ...groupedOrders.map((order) => ({ kind: 'service' as const, key: serviceSelectKey(order), order })),
+        ...acceptedUnpaidGroups.map((group) => ({
+          kind: 'accepted-unpaid' as const,
+          key: acceptedUnpaidSelectKey(group),
+          group,
+        })),
+      ].sort((left, right) => {
+        const l = left.kind === 'service' ? left.order.createdAtMs : left.group.createdAtMs
+        const r = right.kind === 'service' ? right.order.createdAtMs : right.group.createdAtMs
+        if (!l) return 1
+        if (!r) return -1
+        return l - r
+      }),
+    [groupedOrders, acceptedUnpaidGroups],
   )
-  // activeView lọc đúng 1 loại dòng; 'all' (tile "Đơn chờ") giữ nguyên cả hai lẫn nhau như cũ.
-  const visibleEntryKind = activeView === 'service' ? 'service' : activeView === 'paid' ? 'qr' : null
+  const serviceEntries = useMemo<QueueEntry[]>(
+    () => [...qrGroups.map((group) => ({ kind: 'qr' as const, key: qrSelectKey(group), group })), ...serviceAndAcceptedEntries],
+    [qrGroups, serviceAndAcceptedEntries],
+  )
+  // activeView lọc đúng 1 loại dòng; 'all' (tile "Đơn chờ") giữ nguyên cả ba lẫn nhau như cũ.
+  const visibleEntryKind =
+    activeView === 'service'
+      ? 'service'
+      : activeView === 'paid'
+        ? 'qr'
+        : activeView === 'accepted-unpaid'
+          ? 'accepted-unpaid'
+          : null
   const filteredServiceEntries = useMemo(
     () => (visibleEntryKind ? serviceEntries.filter((entry) => entry.kind === visibleEntryKind) : serviceEntries),
     [serviceEntries, visibleEntryKind],
   )
-  const showServicePanel = activeView !== 'combo' && activeView !== 'accepted-unpaid'
+  // 'accepted-unpaid' giờ hiện CHUNG panel với Dịch vụ (không còn panel/heading riêng) -- chỉ 'combo'
+  // mới tách panel vì khác hẳn bảng dữ liệu (combo card, không phải ServiceDetailTb).
+  const showServicePanel = activeView !== 'combo'
   const showComboPanel = activeView === 'all' || activeView === 'combo'
-  // D3 (user chốt 2026-10-05): 'all' cũng hiện nhóm này ⇒ số trên tile "Đơn chờ" = những gì thấy.
-  const showAcceptedUnpaidPanel = activeView === 'all' || activeView === 'accepted-unpaid'
   const comboOrders = useMemo(
     () =>
       (comboQuery.data ?? [])
@@ -336,7 +355,6 @@ export function OrderWorkspace() {
   useEffect(() => {
     setServicePage(0)
     setComboPage(0)
-    setAcceptedUnpaidPage(0)
     setSelectedKeys(new Set())
     setSelectedAcceptedUnpaidKeys(new Set())
   }, [hostName, customerNameFilter, activeView])
@@ -348,10 +366,6 @@ export function OrderWorkspace() {
   useEffect(() => {
     if (comboPage >= comboTotalPages) setComboPage(comboTotalPages - 1)
   }, [comboPage, comboTotalPages])
-
-  useEffect(() => {
-    if (acceptedUnpaidPage >= acceptedUnpaidTotalPages) setAcceptedUnpaidPage(acceptedUnpaidTotalPages - 1)
-  }, [acceptedUnpaidPage, acceptedUnpaidTotalPages])
 
   const refreshServiceQueue = () => {
     void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
@@ -708,15 +722,21 @@ export function OrderWorkspace() {
     [serviceEntries],
   )
   const selectedEntries = serviceEntries.filter((entry) => selectedKeys.has(entry.key))
+  // "Chọn tất cả" của Dịch vụ chỉ gom key kiểu qr/service -- đơn đã duyệt dùng khoá/bulk action riêng
+  // (selectedAcceptedUnpaidKeys, xem ghi chú ở toggleAcceptedUnpaidSelection).
+  const cancellableVisibleEntries = visibleServiceEntries.filter((entry) => entry.kind !== 'accepted-unpaid')
   const allSelected =
-    visibleServiceEntries.length > 0 &&
-    visibleServiceEntries.every((entry) => selectedKeys.has(entry.key))
+    cancellableVisibleEntries.length > 0 &&
+    cancellableVisibleEntries.every((entry) => selectedKeys.has(entry.key))
   const selectedAcceptedUnpaidGroups = acceptedUnpaidGroups.filter((group) =>
     selectedAcceptedUnpaidKeys.has(acceptedUnpaidSelectKey(group)),
   )
+  const visibleAcceptedUnpaidEntries = visibleServiceEntries.filter(
+    (entry): entry is Extract<QueueEntry, { kind: 'accepted-unpaid' }> => entry.kind === 'accepted-unpaid',
+  )
   const allAcceptedUnpaidSelected =
-    visibleAcceptedUnpaidGroups.length > 0 &&
-    visibleAcceptedUnpaidGroups.every((group) => selectedAcceptedUnpaidKeys.has(acceptedUnpaidSelectKey(group)))
+    visibleAcceptedUnpaidEntries.length > 0 &&
+    visibleAcceptedUnpaidEntries.every((entry) => selectedAcceptedUnpaidKeys.has(entry.key))
   const serviceTotal = groupedOrders.reduce(
     (sum, order) => sum + orderAmount(order, qtyOverrides),
     0,
@@ -740,7 +760,7 @@ export function OrderWorkspace() {
   const cancelItemsForKeys = (keys: string[]) =>
     keys.flatMap((key) => {
       const entry = entryByKey.get(key)
-      if (!entry) return []
+      if (!entry || entry.kind === 'accepted-unpaid') return []
       return entry.kind === 'qr' ? qrCancelItems(entry.group) : serviceCancelItems(entry.order)
     })
   const selectionHasQr = (keys: string[]) => keys.some((key) => entryByKey.get(key)?.kind === 'qr')
@@ -1284,7 +1304,17 @@ export function OrderWorkspace() {
       </div>
 
       {showServicePanel ? (
-        <div className="order-panel">
+        <div
+          className={`order-panel ${
+            !servicesQuery.isLoading &&
+            !servicesQuery.isError &&
+            !acceptedUnpaidQuery.isLoading &&
+            !acceptedUnpaidQuery.isError &&
+            filteredServiceEntries.length === 0
+              ? 'order-panel--compact'
+              : ''
+          }`}
+        >
           {activeView === 'all' ? <h3 className="order-panel__heading">Dịch vụ &amp; đã thanh toán</h3> : null}
           {selectedEntries.length > 0 ? (
             <div className="order-selection">
@@ -1311,27 +1341,63 @@ export function OrderWorkspace() {
             </div>
           ) : null}
 
-          {servicesQuery.isLoading ? (
-            <StateView title="Đang tải đơn dịch vụ" />
+          {/* Đơn ĐÃ DUYỆT còn nợ tiền -- selection/endpoint hoàn toàn khác (Hủy = /service/clearaccepted,
+              không phải /service/cancel) nên giữ thanh chọn riêng dù giờ cùng 1 danh sách thẻ. */}
+          {selectedAcceptedUnpaidGroups.length > 0 ? (
+            <div className="order-selection">
+              <strong>{selectedAcceptedUnpaidGroups.length} phiếu đã chọn (đã duyệt)</strong>
+              <div>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={!canCancel}
+                  title={cancelTitle}
+                  onClick={() =>
+                    setConfirmation({
+                      type: 'au-clear-selected',
+                      keys: selectedAcceptedUnpaidGroups.map((group) => acceptedUnpaidSelectKey(group)),
+                    })
+                  }
+                >
+                  Hủy các phiếu đã chọn
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSelectedAcceptedUnpaidKeys(new Set())}
+                >
+                  Bỏ chọn
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {servicesQuery.isLoading || acceptedUnpaidQuery.isLoading ? (
+            <StateView title="Đang tải đơn chờ" />
           ) : servicesQuery.isError ? (
             <StateView
               title="Không tải được đơn dịch vụ"
               description={(servicesQuery.error as Error).message}
               action={<Button onClick={() => servicesQuery.refetch()}>Thử lại</Button>}
             />
-          ) : filteredServiceEntries.length === 0 ? (
+          ) : acceptedUnpaidQuery.isError ? (
             <StateView
-              title={
-                activeView === 'paid'
-                  ? 'Không có đơn đã thanh toán đang chờ món'
-                  : 'Không có đơn dịch vụ đang chờ'
-              }
-              description={
-                hostName || customerNameFilter
-                  ? 'Không có đơn khớp bộ lọc hiện tại.'
-                  : 'Đơn khách gọi từ máy trạm sẽ xuất hiện tại đây.'
-              }
+              title="Không tải được danh sách đơn đã duyệt"
+              description={(acceptedUnpaidQuery.error as Error).message}
+              action={<Button onClick={() => acceptedUnpaidQuery.refetch()}>Thử lại</Button>}
             />
+          ) : filteredServiceEntries.length === 0 ? (
+            // Rỗng là trạng thái phổ biến (hết việc) -- hiện 1 dòng ngắn, KHÔNG dùng StateView (ds-state
+            // cao 10rem, tốn diện tích trang khi phải nhìn liên tục).
+            <p className="order-empty-compact">
+              {activeView === 'paid'
+                ? 'Không có đơn đã thanh toán đang chờ món.'
+                : activeView === 'accepted-unpaid'
+                  ? 'Không có đơn đã duyệt nào còn nợ tiền.'
+                  : hostName || customerNameFilter
+                    ? 'Không có đơn khớp bộ lọc hiện tại.'
+                    : 'Không có đơn nào đang chờ xử lý.'}
+            </p>
           ) : (
             <>
               <ListPagination
@@ -1341,28 +1407,51 @@ export function OrderWorkspace() {
                 onPrevious={() => setServicePage((value) => Math.max(0, value - 1))}
                 onNext={() => setServicePage((value) => Math.min(serviceTotalPages - 1, value + 1))}
               />
-              <label className="order-select-all">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={() =>
-                    setSelectedKeys((current) => {
-                      const next = new Set(current)
-                      visibleServiceEntries.forEach((entry) => {
-                        if (allSelected) next.delete(entry.key)
-                        else next.add(entry.key)
+              {cancellableVisibleEntries.length > 0 ? (
+                <label className="order-select-all">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={() =>
+                      setSelectedKeys((current) => {
+                        const next = new Set(current)
+                        cancellableVisibleEntries.forEach((entry) => {
+                          if (allSelected) next.delete(entry.key)
+                          else next.add(entry.key)
+                        })
+                        return next
                       })
-                      return next
-                    })
-                  }
-                />
-                Chọn tất cả đơn đang hiển thị
-              </label>
+                    }
+                  />
+                  Chọn tất cả đơn dịch vụ đang hiển thị
+                </label>
+              ) : null}
+              {visibleAcceptedUnpaidEntries.length > 0 ? (
+                <label className="order-select-all">
+                  <input
+                    type="checkbox"
+                    checked={allAcceptedUnpaidSelected}
+                    onChange={() =>
+                      setSelectedAcceptedUnpaidKeys((current) => {
+                        const next = new Set(current)
+                        visibleAcceptedUnpaidEntries.forEach((entry) => {
+                          if (allAcceptedUnpaidSelected) next.delete(entry.key)
+                          else next.add(entry.key)
+                        })
+                        return next
+                      })
+                    }
+                  />
+                  Chọn tất cả đơn đã duyệt đang hiển thị
+                </label>
+              ) : null}
               <div className="order-list-region">
                 <div className="order-list">
-                  {visibleServiceEntries.map((entry) =>
-                    entry.kind === 'qr' ? renderQrCard(entry.group) : renderServiceCard(entry.order),
-                  )}
+                  {visibleServiceEntries.map((entry) => {
+                    if (entry.kind === 'qr') return renderQrCard(entry.group)
+                    if (entry.kind === 'service') return renderServiceCard(entry.order)
+                    return renderAcceptedUnpaidCard(entry.group)
+                  })}
                 </div>
               </div>
             </>
@@ -1445,91 +1534,6 @@ export function OrderWorkspace() {
                   </article>
                 )
               })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      ) : null}
-
-      {showAcceptedUnpaidPanel ? (
-        <div className="order-panel">
-          {selectedAcceptedUnpaidGroups.length > 0 ? (
-            <div className="order-selection">
-              <strong>{selectedAcceptedUnpaidGroups.length} phiếu đã chọn</strong>
-              <div>
-                <Button
-                  type="button"
-                  variant="danger"
-                  disabled={!canCancel}
-                  title={cancelTitle}
-                  onClick={() =>
-                    setConfirmation({
-                      type: 'au-clear-selected',
-                      keys: selectedAcceptedUnpaidGroups.map((group) => acceptedUnpaidSelectKey(group)),
-                    })
-                  }
-                >
-                  Hủy các phiếu đã chọn
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setSelectedAcceptedUnpaidKeys(new Set())}
-                >
-                  Bỏ chọn
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {acceptedUnpaidQuery.isLoading ? (
-            <StateView title="Đang tải đơn đã duyệt" />
-          ) : acceptedUnpaidQuery.isError ? (
-            <StateView
-              title="Không tải được danh sách"
-              description={(acceptedUnpaidQuery.error as Error).message}
-              action={<Button onClick={() => acceptedUnpaidQuery.refetch()}>Thử lại</Button>}
-            />
-          ) : acceptedUnpaidGroups.length === 0 ? (
-            <StateView
-              title="Không có đơn đã duyệt nào còn nợ tiền"
-              description={
-                hostName || customerNameFilter
-                  ? 'Không có đơn khớp bộ lọc hiện tại.'
-                  : 'Đơn sau khi bấm "Chấp nhận" ở nhóm Dịch vụ sẽ chuyển vào đây cho tới khi được thanh toán.'
-              }
-            />
-          ) : (
-            <>
-              <ListPagination
-                page={acceptedUnpaidPage}
-                totalPages={acceptedUnpaidTotalPages}
-                canNext={acceptedUnpaidPage < acceptedUnpaidTotalPages - 1}
-                onPrevious={() => setAcceptedUnpaidPage((value) => Math.max(0, value - 1))}
-                onNext={() => setAcceptedUnpaidPage((value) => Math.min(acceptedUnpaidTotalPages - 1, value + 1))}
-              />
-              <label className="order-select-all">
-                <input
-                  type="checkbox"
-                  checked={allAcceptedUnpaidSelected}
-                  onChange={() =>
-                    setSelectedAcceptedUnpaidKeys((current) => {
-                      const next = new Set(current)
-                      visibleAcceptedUnpaidGroups.forEach((group) => {
-                        const key = acceptedUnpaidSelectKey(group)
-                        if (allAcceptedUnpaidSelected) next.delete(key)
-                        else next.add(key)
-                      })
-                      return next
-                    })
-                  }
-                />
-                Chọn tất cả đơn đang hiển thị
-              </label>
-              <div className="order-list-region">
-                <div className="order-list">
-                  {visibleAcceptedUnpaidGroups.map((group) => renderAcceptedUnpaidCard(group))}
                 </div>
               </div>
             </>

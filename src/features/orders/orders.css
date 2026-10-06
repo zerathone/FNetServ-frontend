@@ -303,6 +303,19 @@
   gap: var(--space-3);
 }
 
+/* Hết việc là trạng thái bình thường (lặp lại liên tục trong ngày) -- không giữ min-height 20rem khi
+   chỉ hiện 1 dòng thông báo rỗng, tránh tốn diện tích trang. */
+.order-panel--compact {
+  min-height: 0;
+}
+
+.order-empty-compact {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 /* Hiển thị khi tile "Đơn chờ" (tất cả) đang chọn, gộp 2 panel service + combo cùng lúc. */
 .order-panel__heading {
   margin: 0;
