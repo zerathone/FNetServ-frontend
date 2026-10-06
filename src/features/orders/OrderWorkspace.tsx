@@ -141,11 +141,12 @@ function waitMinutes(createdAtMs: number, now: number) {
 
 function waitLabel(createdAtMs: number, now: number) {
   const minutes = waitMinutes(createdAtMs, now)
-  if (minutes === null) return 'Chưa có thời gian'
-  if (minutes < 1) return 'Vừa gọi'
-  if (minutes < 60) return `${minutes} phút`
-  const hours = Math.floor(minutes / 60)
-  return `${hours} giờ ${minutes % 60} phút`
+  if (minutes === null) return '–'
+  if (minutes < 1) return 'vừa gọi'
+  if (minutes < 60) return `${minutes}p`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}g` : `${h}g ${m}p`
 }
 
 function waitTone(createdAtMs: number, now: number): 'neutral' | 'info' | 'warning' | 'danger' {
@@ -833,11 +834,14 @@ export function OrderWorkspace() {
       </label>
       <div className="order-card__identity">
         <strong>{group.hostName || 'Chưa xác định máy'}</strong>
-        <span>{group.userName || 'Khách vãng lai'}</span>
-        <StatusBadge tone="success">Đã trả QR · Phiếu #{group.voucherId}</StatusBadge>
-        <StatusBadge tone={waitTone(group.createdAtMs, now)}>
-          Chờ {waitLabel(group.createdAtMs, now)}
-        </StatusBadge>
+        <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
+        <div className="order-card__meta-row">
+          <span className="order-card__voucher-id">#{group.voucherId}</span>
+          <StatusBadge tone={waitTone(group.createdAtMs, now)}>
+            Chờ {waitLabel(group.createdAtMs, now)}
+          </StatusBadge>
+          <StatusBadge tone="success">Đã trả QR</StatusBadge>
+        </div>
       </div>
       <div className="order-card__items">
         {group.lines.map((line) => (
@@ -905,16 +909,18 @@ export function OrderWorkspace() {
       </label>
       <div className="order-card__identity">
         <strong>{group.hostName || 'Chưa xác định máy'}</strong>
-        <span>{group.userName || 'Khách vãng lai'}</span>
-        <StatusBadge tone="warning">Đã duyệt · Phiếu #{group.voucherId}</StatusBadge>
-        {group.lockedMethod ? (
-          <StatusBadge tone="info">
-            {group.lockedMethod === 'cash' ? 'Khách chọn tiền mặt tại máy' : 'Khách chọn cấn trừ tại máy'}
+        <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
+        <div className="order-card__meta-row">
+          <span className="order-card__voucher-id">#{group.voucherId}</span>
+          <StatusBadge tone={waitTone(group.createdAtMs, now)}>
+            Chờ {waitLabel(group.createdAtMs, now)}
           </StatusBadge>
-        ) : null}
-        <StatusBadge tone={waitTone(group.createdAtMs, now)}>
-          Chờ {waitLabel(group.createdAtMs, now)}
-        </StatusBadge>
+          {group.lockedMethod ? (
+            <StatusBadge tone="info">
+              {group.lockedMethod === 'cash' ? 'Tiền mặt' : 'Cấn trừ'}
+            </StatusBadge>
+          ) : null}
+        </div>
       </div>
       <div className="order-card__items">
         {group.lines.map((line) => (
@@ -983,10 +989,12 @@ export function OrderWorkspace() {
         </label>
         <div className="order-card__identity">
           <strong>{order.hostName || 'Chưa xác định máy'}</strong>
-          <span>{order.userName || 'Khách vãng lai'}</span>
-          <StatusBadge tone={waitTone(order.createdAtMs, now)}>
-            Chờ {waitLabel(order.createdAtMs, now)}
-          </StatusBadge>
+          <span className="order-card__username">{order.userName || 'Khách vãng lai'}</span>
+          <div className="order-card__meta-row">
+            <StatusBadge tone={waitTone(order.createdAtMs, now)}>
+              Chờ {waitLabel(order.createdAtMs, now)}
+            </StatusBadge>
+          </div>
         </div>
         <div className="order-card__items">
           <div>
@@ -1156,7 +1164,12 @@ export function OrderWorkspace() {
             className={`order-summary__total ${activeView === 'all' ? 'is-active' : ''}`}
             onClick={() => setActiveView('all')}
           >
-            <span>Đơn chờ</span>
+            <div className="order-summary__total__text">
+              <span>Đơn chờ</span>
+              <small className="order-summary__hint order-summary__total-hint">
+                {formatMoney(serviceTotal + comboTotal + acceptedUnpaidTotal + qrPaidTotal)}
+              </small>
+            </div>
             <strong>{groupedOrders.length + qrGroups.length + comboOrders.length + acceptedUnpaidGroups.length}</strong>
           </button>
           <div className="order-summary__breakdown">
@@ -1168,21 +1181,9 @@ export function OrderWorkspace() {
               <span className="order-summary__dot order-summary__dot--service" aria-hidden="true" />
               <span className="order-summary__row-text">
                 <span className="order-summary__label">Dịch vụ</span>
-                <small className="order-summary__hint">Cần thu {formatMoney(serviceTotal)}</small>
+                <small className="order-summary__hint">{formatMoney(serviceTotal)}</small>
               </span>
               <strong>{groupedOrders.length}</strong>
-            </button>
-            <button
-              type="button"
-              className={`order-summary__row order-summary__paid ${activeView === 'paid' ? 'is-active' : ''} ${qrGroups.length > 0 ? 'has-value' : ''}`}
-              onClick={() => setActiveView('paid')}
-            >
-              <span className="order-summary__dot order-summary__dot--paid" aria-hidden="true" />
-              <span className="order-summary__row-text">
-                <span className="order-summary__label">Đã thanh toán</span>
-                <small className="order-summary__hint">Đã thu {formatMoney(qrPaidTotal)}</small>
-              </span>
-              <strong>{qrGroups.length}</strong>
             </button>
             <button
               type="button"
@@ -1206,17 +1207,32 @@ export function OrderWorkspace() {
             >
               <span className="order-summary__dot order-summary__dot--accepted-unpaid" aria-hidden="true" />
               <span className="order-summary__row-text">
-                <span className="order-summary__label">Đã chấp nhận - chưa thanh toán</span>
-                <small className="order-summary__hint">{formatMoney(acceptedUnpaidTotal)}</small>
+                <span className="order-summary__label">Đã chấp nhận</span>
+                <small className="order-summary__hint">
+                  {formatMoney(acceptedUnpaidTotal)}
+                  <span className="order-summary__hint--muted"> · chưa thu</span>
+                </small>
               </span>
               <strong>{acceptedUnpaidGroups.length}</strong>
+            </button>
+            <button
+              type="button"
+              className={`order-summary__row order-summary__paid ${activeView === 'paid' ? 'is-active' : ''} ${qrGroups.length > 0 ? 'has-value' : ''}`}
+              onClick={() => setActiveView('paid')}
+            >
+              <span className="order-summary__dot order-summary__dot--paid" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Đã thanh toán</span>
+                <small className="order-summary__hint">{formatMoney(qrPaidTotal)}</small>
+              </span>
+              <strong>{qrGroups.length}</strong>
             </button>
           </div>
         </div>
       </div>
 
       <div className="order-filters">
-        <label className="ds-field" style={{ flex: 1 }}>
+        <label className="ds-field order-search">
           <span className="ds-visually-hidden">Tìm kiếm</span>
           <div className="ds-input-group ds-input-group--search">
             <Select
@@ -1357,9 +1373,6 @@ export function OrderWorkspace() {
       {showComboPanel ? (
         <div className="order-panel">
           {activeView === 'all' ? <h3 className="order-panel__heading">Combo chờ duyệt</h3> : null}
-          <InlineAlert tone="warning">
-            Chỉ bấm “Đã thu tiền” sau khi đã nhận đủ tiền mặt. Giá combo được máy chủ đọc lại khi chốt.
-          </InlineAlert>
           {comboQuery.isLoading ? (
             <StateView title="Đang tải đơn combo" />
           ) : comboQuery.isError ? (
@@ -1392,10 +1405,12 @@ export function OrderWorkspace() {
                   <article key={order.comboCardId} className="order-card order-card--combo">
                     <div className="order-card__identity">
                       <strong>{order.hostName || 'Chưa xác định máy'}</strong>
-                      <span>{order.ownerName || 'Khách vãng lai'}</span>
-                      <StatusBadge tone={waitTone(createdAt, now)}>
-                        Chờ {waitLabel(createdAt, now)}
-                      </StatusBadge>
+                      <span className="order-card__username">{order.ownerName || 'Khách vãng lai'}</span>
+                      <div className="order-card__meta-row">
+                        <StatusBadge tone={waitTone(createdAt, now)}>
+                          Chờ {waitLabel(createdAt, now)}
+                        </StatusBadge>
+                      </div>
                     </div>
                     <div className="order-card__items">
                       <div>
@@ -1439,16 +1454,6 @@ export function OrderWorkspace() {
 
       {showAcceptedUnpaidPanel ? (
         <div className="order-panel">
-          <InlineAlert tone="warning">
-            Đã chấp nhận - chưa thanh toán: đơn đã bấm "Chấp nhận" nhưng khách CHƯA trả tiền. Nếu khách
-            đã chọn hình thức tại máy thì chỉ dùng được đúng hình thức đó.
-          </InlineAlert>
-          {acceptedUnpaidWithoutVoucher > 0 ? (
-            <InlineAlert tone="info">
-              {acceptedUnpaidWithoutVoucher} dòng đã duyệt không gắn phiếu nên không hiện ở đây — xử lý ở
-              màn hình Qt.
-            </InlineAlert>
-          ) : null}
           {selectedAcceptedUnpaidGroups.length > 0 ? (
             <div className="order-selection">
               <strong>{selectedAcceptedUnpaidGroups.length} phiếu đã chọn</strong>
