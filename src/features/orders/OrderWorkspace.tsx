@@ -136,6 +136,24 @@ function parseComboCreatedAt(value?: string) {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
+/** BE trả "YYYY-MM-DD HH:MM:SS" (date_to + time_to) -- đổi sang dd/mm/yyyy hh:mm cho card combo. */
+function formatExpireDate(value?: string) {
+  if (!value) return '--'
+  const parsed = new Date(value.trim().replace(' ', 'T'))
+  if (Number.isNaN(parsed.getTime())) return value
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(parsed.getDate())}/${pad(parsed.getMonth() + 1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
+
+/** zone = tên các nhóm máy nối bằng '|' (DAOCombo::get) -- đổi dấu nối sang "·" cho dễ đọc. */
+function formatZoneList(value: string) {
+  return value
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' · ')
+}
+
 function waitMinutes(createdAtMs: number, now: number) {
   if (!createdAtMs) return null
   return Math.max(0, Math.floor((now - createdAtMs) / 60_000))
@@ -1504,9 +1522,15 @@ export function OrderWorkspace() {
                     <div className="order-card__items">
                       <div>
                         <strong>{order.comboName}</strong>
-                        <span>Thẻ {order.comboUserName} · Hết hạn {order.expireDate}</span>
+                        <span>
+                          Hết hạn <strong className="order-card__expire-value">{formatExpireDate(order.expireDate)}</strong>
+                        </span>
                       </div>
-                      {order.zone ? <small>Khu vực: {order.zone}</small> : null}
+                      {order.zone ? (
+                        <small>
+                          Khu vực: <span className="order-card__zone-value">{formatZoneList(order.zone)}</span>
+                        </small>
+                      ) : null}
                     </div>
                     <div className="order-card__total">
                       <span>Tiền mặt cần thu</span>

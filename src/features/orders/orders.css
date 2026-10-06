@@ -416,6 +416,12 @@
   font-weight: 600 !important;
 }
 
+/* Combo: nhãn "Khu vực:" giữ màu muted mặc định, chỉ tên khu vực sáng hơn cho dễ đọc. */
+.order-card__zone-value {
+  color: var(--color-text-secondary) !important;
+  font-weight: 600 !important;
+}
+
 /* Dòng meta gộp: #số phiếu + badge thời gian chờ cùng 1 hàng */
 .order-card__meta-row {
   display: flex;
