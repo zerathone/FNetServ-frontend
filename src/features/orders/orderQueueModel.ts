@@ -1,6 +1,6 @@
 // task orders-qr-qty — logic thuần của hàng đợi gọi món (/orders). Tách khỏi OrderWorkspace để test
 // được bằng `node --test` (tests/order-queue-model.test.ts).
-import type { PendingOrder } from '../../api/orders'
+import type { CompletedPaymentMethod, PendingOrder } from '../../api/orders'
 
 /** R_DELETE_ORDER (define.h:61) — backend chặn `/service/cancel` bằng quyền này. */
 export const ORDER_RIGHTS = {
@@ -69,11 +69,11 @@ export function groupOrders(orders: PendingOrder[]): GroupedOrder[] {
     })
 }
 
-/** Đơn đã trả QR gom theo phiếu. Dòng thiếu voucherId (BE cũ) bị bỏ qua — không đoán phiếu. */
-export function groupQrOrders(orders: PendingOrder[]): QrGroup[] {
+/** Gom các dòng cùng `voucherId` thành 1 phiếu. Dòng thiếu voucherId bị bỏ qua — không đoán phiếu. */
+function groupLinesByVoucher(orders: PendingOrder[]): QrGroup[] {
   const byVoucher = new Map<number, QrGroup>()
   for (const order of orders) {
-    if (!isQrPaid(order) || !order.voucherId) continue
+    if (!order.voucherId) continue
     let group = byVoucher.get(order.voucherId)
     if (!group) {
       group = {
@@ -90,11 +90,59 @@ export function groupQrOrders(orders: PendingOrder[]): QrGroup[] {
     group.lines.push(order)
     group.paidTotal += paidAmountOf(order)
   }
-  return [...byVoucher.values()].sort((left, right) => {
+  return [...byVoucher.values()]
+}
+
+/** Đơn đã trả QR gom theo phiếu, chờ lâu xếp trước (còn đang chờ xử lý). */
+export function groupQrOrders(orders: PendingOrder[]): QrGroup[] {
+  return groupLinesByVoucher(orders.filter(isQrPaid)).sort((left, right) => {
     if (!left.createdAtMs) return 1
     if (!right.createdAtMs) return -1
     return left.createdAtMs - right.createdAtMs
   })
+}
+
+/** Nhãn hiển thị — viết đầy đủ, không viết tắt. */
+export const COMPLETED_METHOD_LABEL: Record<CompletedPaymentMethod, string> = {
+  cash: 'Tiền mặt',
+  qr: 'QR',
+  deduct: 'Cấn trừ',
+  online: 'Chuyển khoản',
+  transfer: 'Nợ chuyển máy',
+}
+
+/** Một phiếu đã thu xong: thêm hình thức + thời điểm THU TIỀN (khác `createdAtMs` = lúc gọi món). */
+export type CompletedGroup = QrGroup & {
+  paymentMethod: CompletedPaymentMethod | null
+  paidTime: string
+  paidAtMs: number
+}
+
+/**
+ * Đơn dịch vụ ĐÃ THU TIỀN XONG, gom theo phiếu (`/orders/completed-today` đã lọc Accept=1 AND
+ * ServicePaid=1 ở BE nên không lọc lại ở đây). Thu tiền gần nhất xếp trước — theo `paidAtMs`, KHÔNG
+ * theo giờ gọi món (đơn gọi từ chiều, tối mới thanh toán phải nằm trên cùng). Một phiếu chỉ có một
+ * hình thức/thời điểm thu nên lấy từ dòng đầu.
+ */
+export function groupCompletedOrders(orders: PendingOrder[]): CompletedGroup[] {
+  return groupLinesByVoucher(orders)
+    .map((group) => {
+      const head = group.lines[0]
+      return {
+        ...group,
+        paymentMethod: head?.paymentMethod ?? null,
+        paidTime: head?.paidTime ?? '',
+        paidAtMs: parseCreatedAt(head?.paidDate, head?.paidTime),
+      }
+    })
+    .sort((left, right) => {
+      if (left.paidAtMs !== right.paidAtMs) {
+        if (!left.paidAtMs) return 1
+        if (!right.paidAtMs) return -1
+        return right.paidAtMs - left.paidAtMs
+      }
+      return right.voucherId - left.voucherId
+    })
 }
 
 /** Số đã thu của 1 dòng QR = ServiceAmount (BE trả ở `amount`/`serviceAmount` khi includePaid=1). */

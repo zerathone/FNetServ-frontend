@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, CurrencyCircleDollar, HandCoins, MagnifyingGlass, XCircle } from '@phosphor-icons/react'
+import {
+  ArrowsLeftRight,
+  Bank,
+  CheckCircle,
+  CurrencyCircleDollar,
+  HandCoins,
+  Hourglass,
+  MagnifyingGlass,
+  QrCode,
+  XCircle,
+} from '@phosphor-icons/react'
 import { ApiError, RbacDeniedError } from '../../api/client'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
 import {
@@ -20,10 +30,13 @@ import {
   acceptServiceOrder,
   cancelServiceOrder,
   getAcceptedUnpaidOrders,
+  getCompletedOrderStats,
+  getCompletedTodayOrders,
   getPendingComboOrders,
   getPendingOrders,
   getServicePaidLabel,
   rejectComboOrder,
+  type CompletedPaymentMethod,
   type PendingComboOrder,
 } from '../../api/orders'
 import {
@@ -44,6 +57,7 @@ import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { useWsStatusStore } from '../../store/wsStatus'
 import {
+  COMPLETED_METHOD_LABEL,
   ORDER_RIGHTS,
   QTY_MAX,
   QTY_MIN,
@@ -55,9 +69,9 @@ import {
   describeInventoryWarnings,
   describeProcessedCount,
   groupAcceptedUnpaidOrders,
+  groupCompletedOrders,
   groupOrders,
   groupQrOrders,
-  lineAmount,
   orderAmount,
   qrAcceptItems,
   qrCancelItems,
@@ -66,8 +80,10 @@ import {
   serviceCancelItems,
   serviceItems,
   serviceSelectKey,
+  unitPriceOf,
   type AcceptedUnpaidGroup,
   type CancelItem,
+  type CompletedGroup,
   type GroupedOrder,
   type QrGroup,
   type QtyOverrides,
@@ -177,6 +193,25 @@ function waitTone(createdAtMs: number, now: number): 'neutral' | 'info' | 'warni
   return 'info'
 }
 
+// Đồng bộ màu với chấm ở nút thống kê "Hoàn thành" (.order-summary__dot--*, orders.css).
+const COMPLETED_METHOD_TONE: Record<CompletedPaymentMethod, 'neutral' | 'success' | 'warning' | 'info'> = {
+  cash: 'success',
+  qr: 'warning',
+  deduct: 'info',
+  online: 'success',
+  transfer: 'neutral',
+}
+
+// Icon thay cho chấm màu ở nút thống kê "Hoàn thành" -- cùng icon với action tương ứng trong trang
+// (CurrencyCircleDollar/HandCoins đã dùng cho nút Thanh toán/Cấn trừ ở thẻ đơn).
+const COMPLETED_METHOD_ICON: Record<CompletedPaymentMethod, typeof CheckCircle> = {
+  cash: CurrencyCircleDollar,
+  qr: QrCode,
+  deduct: HandCoins,
+  online: Bank,
+  transfer: ArrowsLeftRight,
+}
+
 function matchesHost(hostName: string | null | undefined, filter: string) {
   if (!filter) return true
   return (hostName ?? '').toLocaleLowerCase('vi').includes(filter.toLocaleLowerCase('vi'))
@@ -205,7 +240,13 @@ export function OrderWorkspace() {
   // chờ" trên Web UI — Qt giữ cách cũ, không hiện); các giá trị còn lại lọc đúng 1 nhóm.
   // 'accepted-unpaid' không dùng chung selectedKeys/bulk-cancel vì endpoint xử lý khác hẳn
   // (xem renderAcceptedUnpaidCard).
-  const [activeView, setActiveView] = useState<'all' | 'service' | 'paid' | 'combo' | 'accepted-unpaid'>('all')
+  // 'completed' (tile "Đơn hoàn thành") NẰM NGOÀI "Đơn chờ" -- đơn đã đóng, không còn "chờ giải
+  // quyết" gì nữa, nên không gộp vào view 'all'.
+  const [activeView, setActiveView] = useState<
+    'all' | 'service' | 'paid' | 'combo' | 'accepted-unpaid' | 'completed'
+  >('all')
+  // Lọc thêm trong view 'completed' theo hình thức thu (bấm dòng breakdown của tile); null = tất cả.
+  const [completedMethod, setCompletedMethod] = useState<CompletedPaymentMethod | null>(null)
   // Gộp 2 ô lọc cũ thành 1 thanh search (parity /logs/system): dropdown chọn trường, 1 ô nhập.
   const [searchField, setSearchField] = useState<'customer' | 'host'>('customer')
   // servicePage giờ phân trang CHUNG cho danh sách đã gộp (Dịch vụ + QR + Đã duyệt-chưa thanh toán).
@@ -266,8 +307,43 @@ export function OrderWorkspace() {
     [acceptedUnpaidQuery.data, hostName, customerNameFilter],
   )
   const acceptedUnpaidTotal = acceptedUnpaidGroups.reduce((sum, group) => sum + group.total, 0)
+  // Thanh toán/hủy ở trang này đổi luôn "Đơn hoàn thành" -- làm mới chung prefix ['orders-completed'].
+  const refreshCompleted = () => {
+    void queryClient.invalidateQueries({ queryKey: ['orders-completed'] })
+  }
   const refreshAcceptedUnpaid = () => {
     void queryClient.invalidateQueries({ queryKey: ['orders-accepted-unpaid'] })
+    refreshCompleted()
+  }
+
+  // Đơn dịch vụ đã thu tiền XONG hôm nay -- bấm vào card xem danh sách từng phiếu (giống Đã thanh
+  // toán QR/Đã chấp nhận), lọc theo máy/khách đang gõ trên trang giống các nhóm khác.
+  const completedTodayQuery = useQuery({
+    queryKey: ['orders-completed', 'list'],
+    queryFn: getCompletedTodayOrders,
+    refetchInterval: connected ? 30_000 : 5_000,
+  })
+  // Số trên tile lấy từ BE (toàn quán, không theo ô tìm kiếm): cùng tập dòng với danh sách nên tổng
+  // khớp nhau, và có số hủy mà danh sách không có.
+  const completedStatsQuery = useQuery({
+    queryKey: ['orders-completed', 'stats'],
+    queryFn: getCompletedOrderStats,
+    refetchInterval: connected ? 30_000 : 5_000,
+  })
+  const completedStats = completedStatsQuery.data
+  const completedGroups = useMemo(
+    () =>
+      groupCompletedOrders(completedTodayQuery.data ?? []).filter(
+        (group) =>
+          (!completedMethod || group.paymentMethod === completedMethod) &&
+          matchesHost(group.hostName, hostName) &&
+          matchesCustomer(group.userName, customerNameFilter),
+      ),
+    [completedTodayQuery.data, completedMethod, hostName, customerNameFilter],
+  )
+  const showCompleted = (method: CompletedPaymentMethod | null) => {
+    setActiveView('completed')
+    setCompletedMethod(method)
   }
 
   // Dùng chung cache `['workstations']` với trang Máy trạm (cùng queryFn). Chỉ để bật/tắt nút theo
@@ -342,10 +418,12 @@ export function OrderWorkspace() {
     () => (visibleEntryKind ? serviceEntries.filter((entry) => entry.kind === visibleEntryKind) : serviceEntries),
     [serviceEntries, visibleEntryKind],
   )
-  // 'accepted-unpaid' giờ hiện CHUNG panel với Dịch vụ (không còn panel/heading riêng) -- chỉ 'combo'
-  // mới tách panel vì khác hẳn bảng dữ liệu (combo card, không phải ServiceDetailTb).
-  const showServicePanel = activeView !== 'combo'
+  // 'accepted-unpaid' giờ hiện CHUNG panel với Dịch vụ (không còn panel/heading riêng) -- 'combo' và
+  // 'completed' mới tách panel riêng (combo khác bảng dữ liệu; completed là đơn ĐÃ ĐÓNG, chỉ xem,
+  // không chọn/hủy nên không hợp logic chung của panel chính).
+  const showServicePanel = activeView !== 'combo' && activeView !== 'completed'
   const showComboPanel = activeView === 'all' || activeView === 'combo'
+  const showCompletedPanel = activeView === 'completed'
   const comboOrders = useMemo(
     () =>
       (comboQuery.data ?? [])
@@ -387,6 +465,7 @@ export function OrderWorkspace() {
 
   const refreshServiceQueue = () => {
     void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+    refreshCompleted()
   }
 
   const clearOverrides = (ids: number[]) =>
@@ -883,9 +962,14 @@ export function OrderWorkspace() {
       </div>
       <div className="order-card__items">
         {group.lines.map((line) => (
-          <div key={line.serviceDetailId}>
-            <strong>{line.quantity} × {line.serviceName}</strong>
-            <span>{formatMoney(line.serviceAmount ?? line.amount)}</span>
+          <div key={line.serviceDetailId} className="order-card__line">
+            <div className="order-card__line-main">
+              <strong>{line.serviceName}</strong>
+              <span>{formatMoney(unitPriceOf(line))}</span>
+            </div>
+            <div className="order-card__line-qty">
+              <span className="order-card__line-qty-value">× {line.quantity}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -911,6 +995,42 @@ export function OrderWorkspace() {
         >
           Hủy
         </Button>
+      </div>
+    </article>
+  )
+
+  // Đơn ĐÃ THU TIỀN XONG -- chỉ xem, không checkbox/không actions (đã đóng, không còn thao tác gì).
+  const renderCompletedCard = (group: CompletedGroup) => (
+    <article key={`done:${group.voucherId}`} className="order-card order-card--completed">
+      <div className="order-card__identity">
+        <strong>{group.hostName || 'Chưa xác định máy'}</strong>
+        <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
+        <div className="order-card__meta-row">
+          <span className="order-card__voucher-id">#{group.voucherId}</span>
+          <StatusBadge tone={group.paymentMethod ? COMPLETED_METHOD_TONE[group.paymentMethod] : 'success'}>
+            {group.paymentMethod ? COMPLETED_METHOD_LABEL[group.paymentMethod] : 'Hoàn thành'}
+          </StatusBadge>
+        </div>
+        {group.paidTime ? (
+          <small className="order-card__paid-time">Thu lúc {group.paidTime.slice(0, 5)}</small>
+        ) : null}
+      </div>
+      <div className="order-card__items">
+        {group.lines.map((line) => (
+          <div key={line.serviceDetailId} className="order-card__line">
+            <div className="order-card__line-main">
+              <strong>{line.serviceName}</strong>
+              <span>{formatMoney(unitPriceOf(line))}</span>
+            </div>
+            <div className="order-card__line-qty">
+              <span className="order-card__line-qty-value">× {line.quantity}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="order-card__total">
+        <span>Đã thu</span>
+        <strong>{formatMoney(group.paidTotal)}</strong>
       </div>
     </article>
   )
@@ -962,14 +1082,19 @@ export function OrderWorkspace() {
       </div>
       <div className="order-card__items">
         {group.lines.map((line) => (
-          <div key={line.serviceDetailId}>
-            <strong>{line.quantity} × {line.serviceName}</strong>
-            <span>{formatMoney(line.serviceAmount ?? line.amount)}</span>
+          <div key={line.serviceDetailId} className="order-card__line">
+            <div className="order-card__line-main">
+              <strong>{line.serviceName}</strong>
+              <span>{formatMoney(unitPriceOf(line))}</span>
+            </div>
+            <div className="order-card__line-qty">
+              <span className="order-card__line-qty-value">× {line.quantity}</span>
+            </div>
           </div>
         ))}
       </div>
       <div className="order-card__total">
-        <span>Còn nợ</span>
+        <span>Chưa thu</span>
         <strong>{formatMoney(group.total)}</strong>
       </div>
       <div className="order-card__actions">
@@ -1035,49 +1160,59 @@ export function OrderWorkspace() {
           </div>
         </div>
         <div className="order-card__items">
-          <div>
-            <strong>{quantity} × {order.serviceName}</strong>
-            {editable ? (
-              <div className="order-qty" role="group" aria-label={`Số lượng ${order.serviceName}`}>
-                <button
-                  type="button"
-                  className="order-qty__btn"
-                  disabled={pendingMutation || quantity <= QTY_MIN}
-                  aria-label="Giảm số lượng"
-                  onClick={() => setQuantity(order, quantity - 1)}
-                >
-                  −
-                </button>
-                <input
-                  className="order-qty__input"
-                  inputMode="numeric"
-                  value={quantity}
-                  aria-label="Số lượng"
-                  disabled={pendingMutation}
-                  onChange={(event) => {
-                    const digits = event.target.value.replace(/\D/g, '')
-                    if (digits) setQuantity(order, Number(digits))
-                  }}
-                />
-                <button
-                  type="button"
-                  className="order-qty__btn"
-                  disabled={pendingMutation || quantity >= QTY_MAX}
-                  aria-label="Tăng số lượng"
-                  onClick={() => setQuantity(order, quantity + 1)}
-                >
-                  +
-                </button>
-              </div>
-            ) : null}
-            <span>
-              {formatMoney(lineAmount(order, qtyOverrides))} · {getServicePaidLabel(order.servicePaid)}
-            </span>
+          <div className="order-card__line">
+            <div className="order-card__line-main">
+              <strong>{order.serviceName}</strong>
+              <span>{formatMoney(unitPriceOf(order))}</span>
+            </div>
+            <div className="order-card__line-qty">
+              {editable ? (
+                <div className="order-qty" role="group" aria-label={`Số lượng ${order.serviceName}`}>
+                  <button
+                    type="button"
+                    className="order-qty__btn"
+                    disabled={pendingMutation || quantity <= QTY_MIN}
+                    aria-label="Giảm số lượng"
+                    onClick={() => setQuantity(order, quantity - 1)}
+                  >
+                    −
+                  </button>
+                  <input
+                    className="order-qty__input"
+                    inputMode="numeric"
+                    value={quantity}
+                    aria-label="Số lượng"
+                    disabled={pendingMutation}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/\D/g, '')
+                      if (digits) setQuantity(order, Number(digits))
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="order-qty__btn"
+                    disabled={pendingMutation || quantity >= QTY_MAX}
+                    aria-label="Tăng số lượng"
+                    onClick={() => setQuantity(order, quantity + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              ) : (
+                <span className="order-card__line-qty-value">× {quantity}</span>
+              )}
+              <span>{getServicePaidLabel(order.servicePaid)}</span>
+            </div>
           </div>
           {order.children.map((child) => (
-            <div key={child.serviceDetailId} className="order-card__topping">
-              <strong>+ {child.quantity} × {child.serviceName}</strong>
-              <span>{formatMoney(lineAmount(child, qtyOverrides))}</span>
+            <div key={child.serviceDetailId} className="order-card__topping order-card__line">
+              <div className="order-card__line-main">
+                <strong>+ {child.serviceName}</strong>
+                <span>{formatMoney(unitPriceOf(child))}</span>
+              </div>
+              <div className="order-card__line-qty">
+                <span className="order-card__line-qty-value">× {child.quantity}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -1135,7 +1270,7 @@ export function OrderWorkspace() {
     <section className="order-workspace">
       <PageHeader
         eyebrow="Thu ngân"
-        title="Hàng đợi gọi món"
+        title="Đơn dịch vụ"
         actions={
           <PollingStatus
             connected={connected}
@@ -1196,12 +1331,82 @@ export function OrderWorkspace() {
       ))}
 
       <div className="order-summary" aria-label="Tổng quan đơn chờ">
+        {/* Đơn dịch vụ đã thu tiền XONG hôm nay -- bấm xem danh sách từng phiếu. Nằm NGOÀI "Đơn chờ"
+            (khác scope: đây là đơn đã đóng, không còn "chờ giải quyết" gì nữa). Xếp TRÊN "Đơn chờ". */}
+        <div className="order-summary__card order-summary__card--completed">
+          <button
+            type="button"
+            className={`order-summary__total order-summary__total--completed ${activeView === 'completed' && !completedMethod ? 'is-active' : ''}`}
+            title="Đơn dịch vụ đã thu tiền xong hôm nay, toàn quán (không gồm nạp giờ / bán thẻ / combo). Số đếm là số phiếu."
+            onClick={() => showCompleted(null)}
+          >
+            <CheckCircle className="order-summary__total-icon" size={28} weight="fill" aria-hidden="true" />
+            <div className="order-summary__total-completed-text">
+              <span className="order-summary__total-label">Hoàn thành</span>
+              <strong className="order-summary__total-amount">
+                {completedStats ? formatMoney(completedStats.completed.amount) : '—'}
+              </strong>
+              <small className="order-summary__total-count">
+                {completedStats ? completedStats.completed.count : '—'} đơn
+              </small>
+            </div>
+          </button>
+          {completedStats ? (
+            <div className="order-summary__breakdown">
+              {/* cash/qr/deduct luôn hiện; chuyển khoản / nợ chuyển máy chỉ hiện khi có phiếu. */}
+              {completedStats.completed.byType
+                .filter((row) => row.count > 0 || row.key === 'cash' || row.key === 'qr' || row.key === 'deduct')
+                .map((row) => {
+                  const MethodIcon = COMPLETED_METHOD_ICON[row.key]
+                  return (
+                    <button
+                      key={row.key}
+                      type="button"
+                      className={`order-summary__row order-summary__completed-method ${activeView === 'completed' && completedMethod === row.key ? 'is-active' : ''}`}
+                      onClick={() => showCompleted(row.key)}
+                    >
+                      <span className="order-summary__row-label-line">
+                        <span className="order-summary__label">{COMPLETED_METHOD_LABEL[row.key]}</span>
+                      </span>
+                      <strong className="order-summary__row-amount">{formatMoney(row.amount)}</strong>
+                      <small className="order-summary__row-count">{row.count} đơn</small>
+                      <MethodIcon
+                        className={`order-summary__row-icon-bg order-summary__row-icon-bg--${row.key}`}
+                        size={30}
+                        weight="fill"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )
+                })}
+              {/* Tách cụm "Đã hủy" khỏi các nút hình thức thu -- khác loại số liệu (số đơn hủy, không phải tiền thu được). */}
+              <span className="order-summary__breakdown-divider" aria-hidden="true">
+                |
+              </span>
+              {/* Không có danh sách đơn hủy để mở -> chỉ hiển thị, không bấm được. */}
+              <div
+                className="order-summary__row order-summary__row--static order-summary__completed-method"
+                title="Số đơn bị hủy hôm nay qua trang này (hủy combo hoặc hủy từ phần mềm cũ không được đếm)"
+              >
+                <span className="order-summary__row-label-line">
+                  <span className="order-summary__dot order-summary__dot--cancelled" aria-hidden="true" />
+                  <span className="order-summary__label">Đã hủy</span>
+                </span>
+                <strong className="order-summary__row-amount order-summary__row-amount--neutral">
+                  {completedStats.cancelled.count} đơn
+                </strong>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         <div className="order-summary__card">
           <button
             type="button"
             className={`order-summary__total ${activeView === 'all' ? 'is-active' : ''}`}
             onClick={() => setActiveView('all')}
           >
+            <Hourglass className="order-summary__total-icon--pending" size={28} weight="fill" aria-hidden="true" />
             <div className="order-summary__total__text">
               <span>Đơn chờ</span>
               <small className="order-summary__hint order-summary__total-hint">
@@ -1489,12 +1694,11 @@ export function OrderWorkspace() {
               action={<Button onClick={() => comboQuery.refetch()}>Thử lại</Button>}
             />
           ) : comboOrders.length === 0 ? (
-            <StateView
-              title="Không có combo chờ duyệt"
-              description={
-                hostName ? 'Không có đơn combo khớp máy đang lọc.' : 'Đơn combo tiền mặt sẽ xuất hiện tại đây.'
-              }
-            />
+            // Rỗng là trạng thái phổ biến (hết việc) -- hiện 1 dòng ngắn như panel Dịch vụ & đã thanh
+            // toán, KHÔNG dùng StateView (cao 10rem, tốn diện tích trang khi phải nhìn liên tục).
+            <p className="order-empty-compact">
+              {hostName ? 'Không có đơn combo khớp máy đang lọc.' : 'Không có combo chờ duyệt.'}
+            </p>
           ) : (
             <>
               <ListPagination
@@ -1561,6 +1765,36 @@ export function OrderWorkspace() {
                 </div>
               </div>
             </>
+          )}
+        </div>
+      ) : null}
+
+      {showCompletedPanel ? (
+        <div className="order-panel">
+          <h3 className="order-panel__heading">
+            Đơn hoàn thành hôm nay{completedMethod ? ` · ${COMPLETED_METHOD_LABEL[completedMethod]}` : ''}
+          </h3>
+          {completedTodayQuery.isLoading ? (
+            <StateView title="Đang tải đơn hoàn thành" />
+          ) : completedTodayQuery.isError ? (
+            <StateView
+              title="Không tải được đơn hoàn thành"
+              description={(completedTodayQuery.error as Error).message}
+              action={<Button onClick={() => completedTodayQuery.refetch()}>Thử lại</Button>}
+            />
+          ) : completedGroups.length === 0 ? (
+            <StateView
+              title="Chưa có đơn hoàn thành hôm nay"
+              description={
+                hostName || customerNameFilter || completedMethod
+                  ? 'Không có đơn khớp bộ lọc hiện tại.'
+                  : 'Đơn dịch vụ sau khi thu tiền xong sẽ xuất hiện tại đây.'
+              }
+            />
+          ) : (
+            <div className="order-list-region">
+              <div className="order-list">{completedGroups.map((group) => renderCompletedCard(group))}</div>
+            </div>
           )}
         </div>
       ) : null}

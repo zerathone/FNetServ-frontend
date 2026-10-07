@@ -27,6 +27,33 @@ export type PendingOrder = {
   voucherId?: number
   serviceAmount?: number
   unitPrice?: number
+
+  // task web-orders-completed-stat — CHỈ có ở `/orders/completed-today` (join PaymentTb).
+  //  paidDate/paidTime: lúc THU TIỀN (VoucherDate/Time) — khác serviceDate/serviceTime = lúc khách gọi món
+  paymentType?: number
+  paymentMethod?: CompletedPaymentMethod
+  paidDate?: string
+  paidTime?: string
+}
+
+/**
+ * Hình thức của phiếu dịch vụ đã thu (BE map từ PaymentType): cash = tiền mặt tại quầy (gồm khách không
+ * dùng máy), deduct = cấn trừ, qr = QR, online = chuyển khoản, transfer = nợ dịch vụ chuyển từ máy khác
+ * rồi người nhận trả.
+ */
+export type CompletedPaymentMethod = 'cash' | 'qr' | 'deduct' | 'online' | 'transfer'
+
+export type CompletedOrderStats = {
+  date: string
+  completed: {
+    /** Số PHIẾU (một phiếu gồm nhiều món), không phải số món. */
+    count: number
+    amount: number
+    /** Luôn đủ 5 khóa theo thứ tự cash, qr, deduct, online, transfer (nhóm rỗng count=0). */
+    byType: { key: CompletedPaymentMethod; count: number; amount: number }[]
+  }
+  /** Số MÓN bị hủy trong ngày qua `/service/cancel` (hủy combo / hủy từ Qt-MFC không ghi log nên không đếm). */
+  cancelled: { count: number }
 }
 
 // task 2.24 (P2) — một đơn combo khách mua từ máy trạm đang chờ thu ngân xác nhận (Accept=0).
@@ -141,6 +168,21 @@ export type AcceptedUnpaidSummary = { count: number; amount: number }
  */
 export function getAcceptedUnpaidSummary() {
   return apiGet<AcceptedUnpaidSummary>('/orders/accepted-unpaid/summary')
+}
+
+/**
+ * Đơn dịch vụ đã THU TIỀN XONG hôm nay (Accept=1, ServicePaid=1, phiếu thu trong ngày thuộc 6 loại
+ * phiếu dịch vụ — không gồm nạp giờ/thẻ/combo). Cùng shape `/orders/pending`, LUÔN kèm
+ * voucherId/serviceAmount/unitPrice + paymentMethod/paidDate/paidTime — gom theo voucherId ở FE
+ * (xem `groupCompletedOrders`).
+ */
+export function getCompletedTodayOrders() {
+  return apiGet<PendingOrder[]>('/orders/completed-today')
+}
+
+/** Tổng hợp tile "Đơn hoàn thành" — CÙNG tập dòng với `getCompletedTodayOrders`, toàn quán. */
+export function getCompletedOrderStats() {
+  return apiGet<CompletedOrderStats>('/orders/completed/stats')
 }
 
 // ===== task 2.24 (P2/P3) — tab "Combo chờ duyệt" =====

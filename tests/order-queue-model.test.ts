@@ -9,6 +9,7 @@ import {
   countAcceptedUnpaidWithoutVoucher,
   customerInfoOf,
   groupAcceptedUnpaidOrders,
+  groupCompletedOrders,
   describeInventoryWarnings,
   describeProcessedCount,
   groupOrders,
@@ -42,6 +43,38 @@ function line(partial: Partial<PendingOrder>): PendingOrder {
     ...partial,
   }
 }
+
+test('completed: gom theo phieu, sap theo gio THU TIEN (khong theo gio goi mon), lay hinh thuc tu dong dau', () => {
+  const rows = [
+    // phieu 70: goi som (08:00) nhung thu muon nhat (20:00) -> phai len dau
+    line({ serviceDetailId: 1, voucherId: 70, serviceTime: '08:00:00', paidDate: '2026-10-07', paidTime: '20:00:00', paymentMethod: 'cash', serviceAmount: 3000 }),
+    line({ serviceDetailId: 2, voucherId: 70, serviceTime: '08:00:00', paidDate: '2026-10-07', paidTime: '20:00:00', paymentMethod: 'cash', serviceAmount: 2000 }),
+    // phieu 71: goi muon (19:00), thu 19:30
+    line({ serviceDetailId: 3, voucherId: 71, serviceTime: '19:00:00', paidDate: '2026-10-07', paidTime: '19:30:00', paymentMethod: 'qr', serviceAmount: 7000 }),
+    // phieu 72/73 cung gio thu -> phieu sau (id lon) truoc
+    line({ serviceDetailId: 4, voucherId: 72, paidDate: '2026-10-07', paidTime: '10:00:00', paymentMethod: 'deduct' }),
+    line({ serviceDetailId: 5, voucherId: 73, paidDate: '2026-10-07', paidTime: '10:00:00', paymentMethod: 'transfer' }),
+    // thieu voucherId -> bo qua (khong doan phieu)
+    line({ serviceDetailId: 6, voucherId: 0, paidDate: '2026-10-07', paidTime: '23:00:00', paymentMethod: 'cash' }),
+  ]
+  const groups = groupCompletedOrders(rows)
+  assert.deepEqual(groups.map((g) => g.voucherId), [70, 71, 73, 72])
+  assert.equal(groups[0].paidTotal, 5000)
+  assert.equal(groups[0].paymentMethod, 'cash')
+  assert.equal(groups[0].paidTime, '20:00:00')
+  assert.equal(groups[1].paymentMethod, 'qr')
+  assert.equal(groups[2].paymentMethod, 'transfer')
+})
+
+test('completed: BE cu chua tra paidTime -> paymentMethod null, xep cuoi, khong vo', () => {
+  const groups = groupCompletedOrders([
+    line({ serviceDetailId: 1, voucherId: 80 }),
+    line({ serviceDetailId: 2, voucherId: 81, paidDate: '2026-10-07', paidTime: '09:00:00', paymentMethod: 'online' }),
+  ])
+  assert.deepEqual(groups.map((g) => g.voucherId), [81, 80])
+  assert.equal(groups[1].paymentMethod, null)
+  assert.equal(groups[1].paidAtMs, 0)
+})
 
 test('accepted-unpaid: gom theo (phieu, hinh thuc khach chon); 4 => chi tien mat, 5 => chi can tru', () => {
   const rows = [

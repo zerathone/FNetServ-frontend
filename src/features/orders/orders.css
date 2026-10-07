@@ -4,16 +4,16 @@
   gap: var(--space-4);
 }
 
-/* Parity .ws-summary (WorkstationWorkspace): 1 card "tổng + breakdown theo dot màu". */
+/* Parity .ws-summary (WorkstationWorkspace): 1 card "tổng + breakdown theo dot màu".
+   "Hoàn thành" và "Đơn chờ" luôn xuống 2 dòng riêng (không wrap theo bề rộng màn hình). */
 .order-summary {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
 .order-summary__card {
   display: flex;
-  flex: 1 1 28rem;
   align-items: stretch;
   gap: var(--space-3);
   border: 1px solid var(--color-border-default);
@@ -104,6 +104,73 @@
   opacity: 0.75;
 }
 
+.order-summary__total-icon--pending {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.order-summary__total.is-active .order-summary__total-icon--pending {
+  color: inherit;
+}
+
+/* Tile "Đơn hoàn thành": icon bên trái + cột text xếp dọc (label -> số tiền sáng nhất -> số đơn). */
+.order-summary__total--completed {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.order-summary__total-completed-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.order-summary__total-icon {
+  flex-shrink: 0;
+  color: var(--color-success);
+}
+
+.order-summary__total--completed.is-active .order-summary__total-icon {
+  color: inherit;
+}
+
+.order-summary__total--completed .order-summary__total-amount {
+  margin-left: 0;
+  padding-left: 0;
+  align-self: auto;
+  color: var(--color-success);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.order-summary__total--completed.is-active .order-summary__total-amount {
+  color: inherit;
+}
+
+.order-summary__total-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.order-summary__total-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
+.order-summary__total--completed.is-active .order-summary__total-count {
+  color: inherit;
+  opacity: 0.75;
+}
+
 .order-summary__row {
   display: flex;
   align-items: center;
@@ -141,6 +208,28 @@
 .order-summary__dot--paid { background: var(--color-success); }
 .order-summary__dot--combo { background: var(--color-info); }
 .order-summary__dot--accepted-unpaid { background: var(--color-warning); }
+/* Tile "Hoàn thành": chấm xám riêng cho "Đã hủy" -- các hình thức thu dùng icon nền, xem order-summary__row-icon-bg--*. */
+.order-summary__dot--cancelled { background: var(--color-danger, var(--color-text-muted)); }
+
+/* Icon hình thức thu nằm cố định góc phải dưới, làm nền mờ phía sau label/số tiền/số đơn. */
+.order-summary__row-icon-bg {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.order-summary__row-icon-bg--cash { color: var(--color-success); }
+.order-summary__row-icon-bg--qr { color: var(--color-warning); }
+.order-summary__row-icon-bg--deduct { color: var(--color-info); }
+.order-summary__row-icon-bg--online { color: color-mix(in srgb, var(--color-info) 50%, var(--color-success)); }
+.order-summary__row-icon-bg--transfer { color: var(--color-text-secondary); }
+
+.order-summary__completed-method.is-active .order-summary__row-icon-bg {
+  color: inherit;
+  opacity: 0.4;
+}
 
 .order-summary__label,
 .order-summary__hint {
@@ -194,6 +283,77 @@
   background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface-default));
 }
 
+.order-summary__completed-method.is-active {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface-default));
+}
+
+/* Các nút con trong "Hoàn thành" (cash/qr/deduct/...): cùng thứ tự với tile tổng --
+   label trước, số tiền to/sáng nhất ở giữa, số phiếu nhỏ nhất ở dưới cùng. */
+.order-summary__completed-method {
+  position: relative;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 7rem;
+}
+
+.order-summary__row-label-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.order-summary__completed-method .order-summary__row-amount {
+  margin-left: 0;
+  padding-left: 0;
+  align-self: auto;
+  color: var(--color-success);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.order-summary__completed-method.is-active .order-summary__row-amount {
+  color: inherit;
+}
+
+.order-summary__row-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
+.order-summary__completed-method.is-active .order-summary__row-count {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* Dòng "Đã hủy" dùng chung layout label->giá trị nhưng không phải tiền thu được -> màu trung tính. */
+.order-summary__completed-method.order-summary__row--static .order-summary__row-amount--neutral {
+  color: var(--color-text-primary);
+}
+
+/* Dấu "|" tách cụm "Đã hủy" khỏi các nút hình thức thu. */
+.order-summary__breakdown-divider {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  color: var(--color-border-default);
+  font-weight: 400;
+}
+
+/* Dòng chỉ hiển thị (vd "Đã hủy"): cùng dáng .order-summary__row nhưng không phải nút. */
+.order-summary__row--static {
+  cursor: default;
+}
+
+.order-summary__row--static:hover {
+  background: transparent;
+}
+
 .order-summary__row.is-active strong,
 .order-summary__row.is-active .order-summary__label,
 .order-summary__row.is-active .order-summary__hint {
@@ -221,15 +381,38 @@
   background: color-mix(in srgb, var(--color-status-success, var(--color-action-primary)) 5%, var(--color-surface-default));
 }
 
-/* Dòng dịch vụ có ô số lượng: đổi sang cột dọc để số lượng LUÔN nằm dưới tên, không cùng hàng với
-   giá — mẹo "flex-basis:100% để ép xuống dòng" (cách cũ) xung đột với `max-width` cố định bên dưới
-   (trình duyệt tính kích thước "có vừa 1 hàng" dựa trên giá trị đã bị max-width kẹp, nên lại vừa 1
-   hàng, không xuống dòng), nên đổi hẳn sang flex-direction: column thay vì dựa vào mẹo đó. */
-.order-card__items > div:has(.order-qty) {
+/* Mỗi dòng món: tên trên/đơn giá dưới bên trái, số lượng (tĩnh hoặc ô ±) bên phải -- 2 cột tự thân
+   nên không còn tranh chỗ ngang như cách cũ (ô ± từng phải ép cả dòng xuống cột dọc để không đụng
+   tên món). Căn giữa theo chiều dọc vì cột phải thường chỉ có 1 dòng, ngắn hơn cột trái (tên+giá). */
+.order-card__line {
+  align-items: center;
+}
+
+.order-card__line-main {
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: var(--space-1);
+  gap: 1px;
+  min-width: 0;
+}
+
+.order-card__line-qty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* Không còn thành tiền ngay dưới -- số lượng là nội dung chính của cột này nên cho to/đậm hơn mức
+   chữ thường, không còn kiểu "chữ nhỏ phụ trợ" như khi còn cặp với dòng tiền bên dưới. */
+.order-card__line-qty-value {
+  color: var(--color-text-primary) !important;
+  /* !important: thắng `.order-card__items span { font-size: var(--font-size-xs) }` -- rule đó có
+     specificity cao hơn (class+element) nên trước đây luôn đè mất cỡ chữ to đã đặt ở đây. */
+  font-size: var(--font-size-lg) !important;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Parity .card-sale-quantity (CardSalePanel /card-sale): 1 khối liền, chia 3 cột bằng border-inline. */
@@ -380,6 +563,17 @@
   grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) 10rem;
 }
 
+/* Đơn hoàn thành -- chỉ xem, không checkbox/không actions (đã đóng, không còn thao tác gì). */
+.order-card--completed {
+  grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr);
+}
+
+.order-card__paid-time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
 .order-card__identity,
 .order-card__items,
 .order-card__total,
@@ -505,7 +699,8 @@
     grid-template-columns: 2rem minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
-  .order-card--combo {
+  .order-card--combo,
+  .order-card--completed {
     grid-template-columns: minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
@@ -543,7 +738,8 @@
     grid-template-columns: 2rem minmax(0, 1fr);
   }
 
-  .order-card--combo {
+  .order-card--combo,
+  .order-card--completed {
     grid-template-columns: 1fr;
   }
 
@@ -555,7 +751,9 @@
 
   .order-card--combo .order-card__items,
   .order-card--combo .order-card__total,
-  .order-card--combo .order-card__actions {
+  .order-card--combo .order-card__actions,
+  .order-card--completed .order-card__items,
+  .order-card--completed .order-card__total {
     grid-column: 1;
   }
 
