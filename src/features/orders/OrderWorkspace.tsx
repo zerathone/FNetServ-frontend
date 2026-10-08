@@ -6,11 +6,11 @@ import {
   CheckCircle,
   CurrencyCircleDollar,
   HandCoins,
-  Hourglass,
   MagnifyingGlass,
   Plus,
   Printer,
   QrCode,
+  Stack,
   XCircle,
 } from '@phosphor-icons/react'
 import { ApiError, RbacDeniedError } from '../../api/client'
@@ -441,10 +441,13 @@ export function OrderWorkspace() {
           (order) =>
             matchesHost(order.hostName, hostName) && matchesCustomer(order.ownerName, customerNameFilter),
         )
-        .sort(
-          (left, right) =>
-            parseComboCreatedAt(left.createdAt) - parseComboCreatedAt(right.createdAt),
-        ),
+        .sort((left, right) => {
+            // Hết hạn sớm nhất lên đầu; nếu bằng nhau thì đơn cũ hơn lên trước.
+            const expL = parseComboCreatedAt(left.expireDate)
+            const expR = parseComboCreatedAt(right.expireDate)
+            if (expL !== expR) return expL - expR
+            return parseComboCreatedAt(left.createdAt) - parseComboCreatedAt(right.createdAt)
+          }),
     [comboQuery.data, hostName, customerNameFilter],
   )
   const serviceTotalPages = Math.max(1, Math.ceil(filteredServiceEntries.length / PAGE_SIZE))
@@ -1499,7 +1502,7 @@ export function OrderWorkspace() {
             className={`order-summary__total ${activeView === 'all' ? 'is-active' : ''}`}
             onClick={() => setActiveView('all')}
           >
-            <Hourglass className="order-summary__total-icon--pending" size={28} weight="fill" aria-hidden="true" />
+            <Stack className="order-summary__total-icon--pending" size={28} weight="fill" aria-hidden="true" />
             <div className="order-summary__total__text">
               <span>Đơn chờ</span>
               <small className="order-summary__hint order-summary__total-hint">
@@ -1819,9 +1822,6 @@ export function OrderWorkspace() {
                     <div className="order-card__items">
                       <div>
                         <strong>{order.comboName}</strong>
-                        <span>
-                          Hết hạn <strong className="order-card__expire-value">{formatExpireDate(order.expireDate)}</strong>
-                        </span>
                       </div>
                       {order.zone ? (
                         <small>
@@ -1832,6 +1832,10 @@ export function OrderWorkspace() {
                     <div className="order-card__total">
                       <span>Tiền mặt cần thu</span>
                       <strong>{formatMoney(order.price)}</strong>
+                    </div>
+                    <div className="order-card__expire-row">
+                      <span>Hết hạn</span>
+                      <strong className="order-card__expire-value">{formatExpireDate(order.expireDate)}</strong>
                     </div>
                     <div className="order-card__actions">
                       <Button
