@@ -589,24 +589,6 @@
   grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) 10rem;
 }
 
-/* Hàng ngày hết hạn -- trải full chiều ngang card (dưới actions), chữ nhỏ muted + giá trị nổi bật. */
-.order-card__expire-row {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-top: var(--space-1);
-  border-top: 1px solid var(--color-border-default);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.order-card__expire-value {
-  color: var(--color-text-primary);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
 /* Đơn hoàn thành -- chỉ xem, không checkbox/không actions (đã đóng, không còn thao tác gì). */
 .order-card--completed {
   grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr);
@@ -796,7 +778,6 @@
   .order-card--combo .order-card__items,
   .order-card--combo .order-card__total,
   .order-card--combo .order-card__actions,
-  .order-card--combo .order-card__expire-row,
   .order-card--completed .order-card__items,
   .order-card--completed .order-card__total {
     grid-column: 1;

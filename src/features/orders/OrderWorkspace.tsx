@@ -1823,6 +1823,8 @@ export function OrderWorkspace() {
                       <div>
                         <strong>{order.comboName}</strong>
                       </div>
+                      <span>Hết hạn</span>
+                      <span className="order-card__expire-value">{formatExpireDate(order.expireDate)}</span>
                       {order.zone ? (
                         <small>
                           Khu vực: <span className="order-card__zone-value">{formatZoneList(order.zone)}</span>
@@ -1832,10 +1834,6 @@ export function OrderWorkspace() {
                     <div className="order-card__total">
                       <span>Tiền mặt cần thu</span>
                       <strong>{formatMoney(order.price)}</strong>
-                    </div>
-                    <div className="order-card__expire-row">
-                      <span>Hết hạn</span>
-                      <strong className="order-card__expire-value">{formatExpireDate(order.expireDate)}</strong>
                     </div>
                     <div className="order-card__actions">
                       <Button
