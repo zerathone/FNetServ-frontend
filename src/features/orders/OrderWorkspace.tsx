@@ -1819,17 +1819,19 @@ export function OrderWorkspace() {
                         </StatusBadge>
                       </div>
                     </div>
-                    <div className="order-card__items">
-                      <div>
+                    <div className="order-card__items order-card__items--combo">
+                      <div className="order-card__items-left">
                         <strong>{order.comboName}</strong>
+                        {order.zone ? (
+                          <small>
+                            Khu vực: <span className="order-card__zone-value">{formatZoneList(order.zone)}</span>
+                          </small>
+                        ) : null}
                       </div>
-                      <span>Hết hạn</span>
-                      <span className="order-card__expire-value">{formatExpireDate(order.expireDate)}</span>
-                      {order.zone ? (
-                        <small>
-                          Khu vực: <span className="order-card__zone-value">{formatZoneList(order.zone)}</span>
-                        </small>
-                      ) : null}
+                      <div className="order-card__items-right">
+                        <span>Hết hạn</span>
+                        <span className="order-card__expire-value">{formatExpireDate(order.expireDate)}</span>
+                      </div>
                     </div>
                     <div className="order-card__total">
                       <span>Tiền mặt cần thu</span>
