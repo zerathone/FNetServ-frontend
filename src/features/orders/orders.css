@@ -590,7 +590,7 @@
 }
 
 /* Bên trong items combo: trái = tên + khu vực, phải = hết hạn 2 dòng. */
-.order-card__items--combo {
+.order-card--combo .order-card__items {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
