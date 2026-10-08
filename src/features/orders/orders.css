@@ -595,19 +595,6 @@
   align-items: start;
 }
 
-.order-card__items-left {
-  display: grid;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.order-card__items-right {
-  display: grid;
-  text-align: right;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
 .order-card__expire-value {
   font-variant-numeric: tabular-nums;
   font-weight: 700;

@@ -1819,8 +1819,8 @@ export function OrderWorkspace() {
                         </StatusBadge>
                       </div>
                     </div>
-                    <div className="order-card__items order-card__items--combo">
-                      <div className="order-card__items-left">
+                    <div className="order-card__items" style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start' }}>
+                      <div style={{ display: 'grid', minWidth: 0, overflow: 'hidden' }}>
                         <strong>{order.comboName}</strong>
                         {order.zone ? (
                           <small>
@@ -1828,7 +1828,7 @@ export function OrderWorkspace() {
                           </small>
                         ) : null}
                       </div>
-                      <div className="order-card__items-right">
+                      <div style={{ display: 'grid', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <span>Hết hạn</span>
                         <span className="order-card__expire-value">{formatExpireDate(order.expireDate)}</span>
                       </div>
