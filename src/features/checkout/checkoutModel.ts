@@ -1,4 +1,5 @@
 import type { PendingOrder } from '../../api/orders.ts'
+import { isCounterGuest } from '../orders/counterGuest.ts'
 
 export type CheckoutOrder = PendingOrder & {
   children: PendingOrder[]
@@ -56,10 +57,10 @@ export function checkoutAmount(order: CheckoutOrder) {
   return checkoutItems(order).reduce((sum, item) => sum + item.amount, 0)
 }
 
+// task staff-service-order: dòng Accept=0 của khách vãng lai chưa có phiếu ⇒ BE trả hostName/userName
+// = `KHACHVANGLAI` (không phải `KHACH_TAI_QUAY`) ⇒ nhận diện cả hai, nếu không sẽ thu nhầm kênh `cash`.
 export function checkoutPaymentMethod(order: CheckoutOrder): 'cash' | 'guest' {
-  return order.hostName?.trim().toLocaleUpperCase('vi') === 'KHACH_TAI_QUAY'
-    ? 'guest'
-    : 'cash'
+  return isCounterGuest(order) ? 'guest' : 'cash'
 }
 
 export function matchesCheckoutOrder(order: CheckoutOrder, search: string) {

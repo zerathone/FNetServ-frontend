@@ -7,6 +7,12 @@ export type ServiceItem = {
   unit: string
   inventory: number
   inventoryManagement: number
+  // task staff-service-order (BE-3): chỉ THÊM field, server KHÔNG lọc Active (trang quản lý danh mục
+  // cần thấy món đã ngừng) ⇒ nơi nào chỉ muốn món đang bán phải tự lọc `active !== 0`. Server cũ
+  // chưa có field này ⇒ `undefined` (coi như đang bán, chưa có nhóm).
+  active?: number
+  groupId?: number
+  groupName?: string
 }
 
 export function getServices() {

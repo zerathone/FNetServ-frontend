@@ -70,3 +70,14 @@ test('walk-in counter orders use the guest revenue channel from the Qt machine m
   assert.equal(checkoutPaymentMethod(guest), 'guest')
   assert.equal(checkoutPaymentMethod(member), 'cash')
 })
+
+test('walk-in line not yet paid (hostName/userName = KHACHVANGLAI, no voucher) still uses the guest channel', () => {
+  // BE /orders/pending: dòng Accept=0 vãng lai chưa có phiếu => không có MachineName để fallback.
+  const [byUserName] = groupCheckoutOrders([order({ hostName: null, userName: 'KHACHVANGLAI' })])
+  const [byHostName] = groupCheckoutOrders([order({ hostName: 'KHACHVANGLAI', userName: 'KHACHVANGLAI' })])
+  const [seatedAnonymous] = groupCheckoutOrders([order({ hostName: 'PC-07', userName: 'PC-07' })])
+
+  assert.equal(checkoutPaymentMethod(byUserName), 'guest')
+  assert.equal(checkoutPaymentMethod(byHostName), 'guest')
+  assert.equal(checkoutPaymentMethod(seatedAnonymous), 'cash')
+})

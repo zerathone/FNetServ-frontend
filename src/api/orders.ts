@@ -123,6 +123,8 @@ export function acceptServiceOrder(payload: {
   hostName: string;
   idem: string;
   items: Array<{ detailId: number; quantity: number; amount: number; alreadyPaid: boolean }>;
+  /** task staff-service-order: opt-in của WebUI — BE báo máy trạm sau khi duyệt (Qt không gửi). */
+  fullCore?: boolean;
 }) {
   return apiPost<ApproveOrderResponse, typeof payload>('/service/accept', payload);
 }
@@ -204,4 +206,89 @@ export function rejectComboOrder(payload: { comboCardId: number; idem: string })
     '/orders/combo/reject',
     payload,
   )
+}
+
+// ===== task staff-service-order — nhân viên gọi món hộ khách =====
+
+export type StaffOrderPayload = {
+  /** Hội viên/khách đang ngồi máy: userId > 0. Khách vãng lai tại quầy: 0 + `anonymous:true`. */
+  userId: number
+  anonymous: boolean
+  /** Vãng lai: server ép "KHACH_TAI_QUAY" (bỏ qua giá trị gửi). Tối đa 100 ký tự. */
+  hostName: string
+  /** ≤ 50 ký tự (`paymenttb.zOid`) — xem `lib/idempotency.ts`. */
+  idem: string
+  /** Server KHÔNG nhận giá/số tiền từ client — chỉ serviceId + số lượng 1..99, tối đa 50 dòng. */
+  items: Array<{ serviceId: number; quantity: number }>
+}
+
+export type StaffOrderLine = { detailId: number; serviceId: number; quantity: number; amount: number }
+
+/** Tạo dòng `Accept=0, ServicePaid=0` — CHƯA có phiếu, CHƯA trừ kho. `detailId` đi tiếp bước 2. */
+export type StaffOrderResponse = {
+  userId: number
+  /** Vãng lai: luôn "KHACH_TAI_QUAY" (server ép) — gửi lại đúng chuỗi này ở bước 2. */
+  hostName: string
+  anonymous: boolean
+  items: StaffOrderLine[]
+  /** Tổng BE tính lại = Σ số lượng × giá hiện hành (không giảm giá/voucher). */
+  amount: number
+  /** Cảnh báo DỰ KIẾN (kho chưa trừ ở bước này) — toast cảnh báo của bước 2 thay vì bước này. */
+  inventoryWarnings: InventoryWarning[]
+  /** true = trả lại từ cache idem (retry), KHÔNG tạo dòng mới. */
+  duplicated?: boolean
+}
+
+export function createStaffOrder(payload: StaffOrderPayload) {
+  return apiPost<StaffOrderResponse, StaffOrderPayload>('/service/staff-order', payload)
+}
+
+/** Đúng 1 trong 2. Web luôn gửi `detailIds` (≤ 200, cùng 1 khách) — vãng lai dùng chung userId nên không gửi theo nhóm. */
+export type PrintTargetsRequest = { voucherId: number } | { detailIds: number[] }
+
+export type PrintTargetItem = {
+  detailId: number
+  serviceName: string
+  quantity: number
+  unit: string
+  amount: number
+}
+
+export type PrintTargetPrinter = {
+  printerId: number
+  name: string
+  /**
+   * `printertb.Type` = khổ giấy: 1 = POS80 (576 dot), 2 = POS58 (384 dot), 0 = không phải máy in nhiệt.
+   * ⚠️ Dùng `type` để chọn khổ — KHÔNG dùng `paperWidth` của BE-2 (đang đảo 384/576, xem handoff
+   * "Kết quả thực hiện" mục FE).
+   */
+  type: number
+  paperWidth: number
+  hasIp: boolean
+  /** BE: có khổ nhiệt VÀ có IP ⇒ WebUI in được qua `/printer/print`. */
+  printable: boolean
+  items: PrintTargetItem[]
+}
+
+export type PrintTargetsResponse = {
+  header: {
+    hostName: string
+    userId: number
+    userName: string
+    voucherId: number
+    staffId: number
+    staffName: string
+    paidDate: string
+    paidTime: string
+    orderDate: string
+    orderTime: string
+  }
+  printers: PrintTargetPrinter[]
+  /** Món không map máy in Active nào (Qt cũng im lặng không in những món này). */
+  unrouted: PrintTargetItem[]
+  notFound: number[]
+}
+
+export function getPrintTargets(request: PrintTargetsRequest) {
+  return apiPost<PrintTargetsResponse, PrintTargetsRequest>('/orders/print-targets', request)
 }

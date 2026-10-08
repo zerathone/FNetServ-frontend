@@ -296,7 +296,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-width: 7rem;
+  /* Cụm này cố định (5 hình thức + "Đã hủy") nên cho rộng hẳn, số tiền lớn không làm lệch hàng. */
+  min-width: 10rem;
 }
 
 .order-summary__row-label-line {
@@ -348,6 +349,15 @@
 /* Dòng chỉ hiển thị (vd "Đã hủy"): cùng dáng .order-summary__row nhưng không phải nút. */
 .order-summary__row--static {
   cursor: default;
+}
+
+/* "Đã hủy" khác loại số liệu (số đơn hủy, không phải tiền thu được) -- tách khỏi các nút hình thức thu bằng
+   border-left cao hết hàng, cùng kiểu .order-summary__breakdown (khối "Hoàn thành" với tile tổng). */
+.order-summary__completed-method.order-summary__row--static {
+  align-self: stretch;
+  border-left: 1px solid var(--color-border-default);
+  border-radius: 0;
+  padding-left: var(--space-3);
 }
 
 .order-summary__row--static:hover {

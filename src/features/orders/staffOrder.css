@@ -1,0 +1,437 @@
+/* task staff-service-order — hộp thoại "Gọi món hộ" + "In phiếu". Chỉ dùng token sẵn có; tái dùng
+   .order-qty / .order-confirm-* của orders.css (import sau orders.css trong OrderWorkspace). */
+
+.staff-order {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.staff-order__section {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.staff-order__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.staff-order__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* ---- chọn máy ---- */
+.staff-order__search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.staff-order__search-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.staff-order__machine-count {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.staff-order__machine-count strong {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Khách đã chọn hiển thị như tag (có nút x) ngay trong ô tìm kiếm. */
+.staff-order__tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 16rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  padding: 1px var(--space-1) 1px var(--space-3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.staff-order__tag strong {
+  min-width: 0;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-order__tag .staff-order__machine-host {
+  min-width: 0;
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-order__tag-close {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.staff-order__tag-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.ds-input-group--search .ds-search-input:has(.staff-order__tag) .ds-input {
+  min-width: 4rem;
+}
+
+/* Kết quả tìm máy: chỉ hiện khi có từ khóa, danh sách dọc gọn (tối đa 8 dòng). */
+.staff-order__machines {
+  max-height: 7rem;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: 1px;
+}
+
+.staff-order__machines > .staff-order__hint {
+  flex-basis: 100%;
+}
+
+.staff-order__machine {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Kết quả tìm máy dạng chip gọn, mỗi chip có max-width để tên dài không làm vỡ hàng. */
+.staff-order__machines .staff-order__machine {
+  max-width: 16rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 999px;
+}
+
+.staff-order__machines .staff-order__machine strong {
+  min-width: 0;
+  max-width: 9rem;
+}
+
+.staff-order__machines .staff-order__machine .staff-order__machine-host {
+  min-width: 0;
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-order__machine:hover {
+  background: var(--color-surface-hover);
+}
+
+.staff-order__machine.is-active {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 10%, var(--color-surface-default));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-action-primary) 35%, transparent);
+}
+
+.staff-order__machine strong,
+.staff-order__machine span,
+.staff-order__machine small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-order__machine small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Tên máy: nhỏ + mờ (thông tin phụ); tên hội viên: đậm + sáng (thông tin chính). */
+.staff-order__machine-host {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order__machine strong {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+/* ---- danh mục ---- */
+.staff-order__chips {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.staff-order__chip {
+  flex-shrink: 0;
+  min-height: var(--control-height-compact);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.staff-order__chip.is-active {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 12%, var(--color-surface-default));
+  color: var(--color-action-primary);
+  font-weight: 650;
+}
+
+.staff-order__services {
+  max-height: 22rem;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  padding-right: 2px;
+}
+
+.staff-order__group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.staff-order__group-title {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.staff-order__service {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.staff-order__service:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.staff-order__service:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.staff-order__service-main {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.staff-order__service-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-order__service-main small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- giỏ ---- */
+.staff-order__cart {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised, var(--color-surface-default));
+}
+
+.staff-order__cart-title {
+  margin: 0;
+  font-size: var(--font-size-md, 1rem);
+}
+
+.staff-order__cart-title small {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.staff-order__cart-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.staff-order__cart-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.staff-order__remove {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.staff-order__remove:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.staff-order__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order__total strong {
+  font-size: var(--font-size-lg);
+}
+
+/* ---- in phiếu ---- */
+.staff-order__printers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.staff-order__printer {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+}
+
+.staff-order__printer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.staff-order__printer-head small,
+.staff-order__printer-items {
+  color: var(--color-text-muted);
+}
+
+.staff-order__printer-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Danh sách món trong hộp xác nhận / kết quả: tên món + số lượng, mỗi món 1 dòng. */
+.staff-order__summary-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.staff-order__summary-items li {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.staff-order__summary-items li span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-order__summary-items li span:last-child {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order__plain-list {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.1rem;
+}
+
+/* Đơn đã hoàn thành chưa có cột hành động -- thêm 1 cột hẹp cho nút "In phiếu". */
+.order-card--completed.order-card--printable {
+  grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) auto;
+}
+
+@media (max-width: 720px) {
+  .staff-order__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

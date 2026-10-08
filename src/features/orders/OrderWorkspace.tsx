@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowsLeftRight,
@@ -8,6 +8,8 @@ import {
   HandCoins,
   Hourglass,
   MagnifyingGlass,
+  Plus,
+  Printer,
   QrCode,
   XCircle,
 } from '@phosphor-icons/react'
@@ -38,6 +40,7 @@ import {
   rejectComboOrder,
   type CompletedPaymentMethod,
   type PendingComboOrder,
+  type PendingOrder,
 } from '../../api/orders'
 import {
   Button,
@@ -105,7 +108,10 @@ import {
   type MachineLookup,
   type PayMethod,
 } from './orderPayModel'
+import { PrintTicketDialog } from './PrintTicketDialog'
+import { StaffOrderDialog } from './StaffOrderDialog'
 import './orders.css'
+import './staffOrder.css'
 
 const PAGE_SIZE = 20
 // Parity ds-button__icon (design-system/components/Button.tsx actionIconProps) — icon hành động.
@@ -257,6 +263,10 @@ export function OrderWorkspace() {
   // Dịch vụ: đó là `/service/cancel` (chỉ Accept=0), gọi nhầm cho Accept=1 sẽ hỏng dữ liệu (KNOWLEDGE.md §50).
   const [selectedAcceptedUnpaidKeys, setSelectedAcceptedUnpaidKeys] = useState<Set<string>>(new Set())
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
+  // task staff-service-order: "Gọi món hộ" (FE-1) + "In phiếu" theo đơn (FE-2). `printDetailIds` != null ⇒
+  // hộp thoại in đang mở; hộp thoại Gọi món hộ tạm ẩn (không xếp chồng 2 modal) nhưng GIỮ state.
+  const [staffOrderOpen, setStaffOrderOpen] = useState(false)
+  const [printDetailIds, setPrintDetailIds] = useState<number[] | null>(null)
   const [qrCancelAck, setQrCancelAck] = useState(false)
   const [qtyOverrides, setQtyOverrides] = useState<QtyOverrides>({})
   const [now, setNow] = useState(() => Date.now())
@@ -861,6 +871,36 @@ export function OrderWorkspace() {
       return entry.kind === 'qr' ? qrCancelItems(entry.group) : serviceCancelItems(entry.order)
     })
   const selectionHasQr = (keys: string[]) => keys.some((key) => entryByKey.get(key)?.kind === 'qr')
+  // Danh sách món (tên × SL) hiện trong các hộp xác nhận hủy/từ chối đơn dịch vụ; combo thì null (đã có tên combo).
+  const cancelLines = (() => {
+    if (!confirmation) return null
+    const ofLine = (line: PendingOrder, name = line.serviceName) => ({
+      key: line.serviceDetailId,
+      name,
+      quantity: line.quantity,
+    })
+    switch (confirmation.type) {
+      case 'cancel-service':
+        return [confirmation.order, ...confirmation.order.children].map((line) =>
+          ofLine(line, line === confirmation.order ? line.serviceName : `+ ${line.serviceName}`),
+        )
+      case 'cancel-qr':
+      case 'au-clear':
+        return confirmation.group.lines.map((line) => ofLine(line))
+      case 'cancel-selected':
+        return cancelItemsForKeys(confirmation.keys).map((item) => ({
+          key: item.id,
+          name: item.serviceName,
+          quantity: item.quantity,
+        }))
+      case 'au-clear-selected':
+        return acceptedUnpaidGroups
+          .filter((group) => confirmation.keys.includes(acceptedUnpaidSelectKey(group)))
+          .flatMap((group) => group.lines.map((line) => ofLine(line)))
+      default:
+        return null
+    }
+  })()
   const confirmNeedsQrAck =
     confirmation?.type === 'cancel-qr' ||
     (confirmation?.type === 'cancel-selected' && selectionHasQr(confirmation.keys))
@@ -939,6 +979,38 @@ export function OrderWorkspace() {
       return next
     })
 
+  // task staff-service-order (FE-2): in theo ĐÚNG các dòng của thẻ (không theo nhóm userId — khách vãng
+  // lai dùng chung 1 userId). Chỉ in khi bấm; Qt đã tự in sau accept/pay nên hộp thoại có cảnh báo in trùng.
+  const renderPrintButton = (detailIds: number[]) => (
+    <Button
+      type="button"
+      variant="ghost"
+      icon={<Printer {...actionIconProps} />}
+      disabled={pendingMutation}
+      title="In phiếu dịch vụ ra máy in bếp/quầy"
+      onClick={() => setPrintDetailIds(detailIds)}
+    >
+      In phiếu
+    </Button>
+  )
+
+  // Hộp xác nhận: luôn liệt kê TÊN từng món × số lượng (không ghi chung chung "N dòng").
+  const renderConfirmItems = (lines: Array<{ key: number; name: string; quantity: number }>) => (
+    <div className="order-confirm-summary__items">
+      <dt>Món</dt>
+      <dd>
+        <ul className="staff-order__summary-items">
+          {lines.map((line) => (
+            <li key={line.key}>
+              <span>{line.name}</span>
+              <span>× {line.quantity}</span>
+            </li>
+          ))}
+        </ul>
+      </dd>
+    </div>
+  )
+
   const renderQrCard = (group: QrGroup) => (
     <article key={qrSelectKey(group)} className="order-card order-card--qr">
       <label className="order-card__check">
@@ -995,13 +1067,14 @@ export function OrderWorkspace() {
         >
           Hủy
         </Button>
+        {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
       </div>
     </article>
   )
 
   // Đơn ĐÃ THU TIỀN XONG -- chỉ xem, không checkbox/không actions (đã đóng, không còn thao tác gì).
   const renderCompletedCard = (group: CompletedGroup) => (
-    <article key={`done:${group.voucherId}`} className="order-card order-card--completed">
+    <article key={`done:${group.voucherId}`} className="order-card order-card--completed order-card--printable">
       <div className="order-card__identity">
         <strong>{group.hostName || 'Chưa xác định máy'}</strong>
         <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
@@ -1031,6 +1104,9 @@ export function OrderWorkspace() {
       <div className="order-card__total">
         <span>Đã thu</span>
         <strong>{formatMoney(group.paidTotal)}</strong>
+      </div>
+      <div className="order-card__actions">
+        {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
       </div>
     </article>
   )
@@ -1128,6 +1204,7 @@ export function OrderWorkspace() {
         >
           Hủy
         </Button>
+        {renderPrintButton(acceptedUnpaidDetailIds(group))}
       </div>
     </article>
     )
@@ -1166,6 +1243,7 @@ export function OrderWorkspace() {
               <span>{formatMoney(unitPriceOf(order))}</span>
             </div>
             <div className="order-card__line-qty">
+              {editable ? <span>Số lượng</span> : null}
               {editable ? (
                 <div className="order-qty" role="group" aria-label={`Số lượng ${order.serviceName}`}>
                   <button
@@ -1201,7 +1279,7 @@ export function OrderWorkspace() {
               ) : (
                 <span className="order-card__line-qty-value">× {quantity}</span>
               )}
-              <span>{getServicePaidLabel(order.servicePaid)}</span>
+              {editable ? null : <span>{getServicePaidLabel(order.servicePaid)}</span>}
             </div>
           </div>
           {order.children.map((child) => (
@@ -1261,6 +1339,7 @@ export function OrderWorkspace() {
           >
             Từ chối
           </Button>
+          {renderPrintButton([order.serviceDetailId, ...order.children.map((child) => child.serviceDetailId)])}
         </div>
       </article>
     )
@@ -1272,6 +1351,16 @@ export function OrderWorkspace() {
         eyebrow="Thu ngân"
         title="Đơn dịch vụ"
         actions={
+          <>
+          <Button
+            type="button"
+            variant="primary"
+            icon={<Plus {...actionIconProps} />}
+            onClick={() => setStaffOrderOpen(true)}
+            title="Nhân viên chọn món thay khách đang ngồi máy hoặc khách vãng lai tại quầy"
+          >
+            Tạo đơn
+          </Button>
           <PollingStatus
             connected={connected}
             // Lỗi của danh sách đơn đã duyệt (vd Server cũ chưa có /orders/accepted-unpaid) chỉ báo ở
@@ -1291,6 +1380,7 @@ export function OrderWorkspace() {
               void acceptedUnpaidQuery.refetch()
             }}
           />
+          </>
         }
       />
 
@@ -1356,11 +1446,17 @@ export function OrderWorkspace() {
               {/* cash/qr/deduct luôn hiện; chuyển khoản / nợ chuyển máy chỉ hiện khi có phiếu. */}
               {completedStats.completed.byType
                 .filter((row) => row.count > 0 || row.key === 'cash' || row.key === 'qr' || row.key === 'deduct')
-                .map((row) => {
+                .map((row, index) => {
                   const MethodIcon = COMPLETED_METHOD_ICON[row.key]
                   return (
+                    <Fragment key={row.key}>
+                    {/* Dấu "|" phân cách giữa các nút hình thức thu (giống dấu trước cụm "Đã hủy"). */}
+                    {index > 0 ? (
+                      <span className="order-summary__breakdown-divider" aria-hidden="true">
+                        |
+                      </span>
+                    ) : null}
                     <button
-                      key={row.key}
                       type="button"
                       className={`order-summary__row order-summary__completed-method ${activeView === 'completed' && completedMethod === row.key ? 'is-active' : ''}`}
                       onClick={() => showCompleted(row.key)}
@@ -1377,12 +1473,9 @@ export function OrderWorkspace() {
                         aria-hidden="true"
                       />
                     </button>
+                    </Fragment>
                   )
                 })}
-              {/* Tách cụm "Đã hủy" khỏi các nút hình thức thu -- khác loại số liệu (số đơn hủy, không phải tiền thu được). */}
-              <span className="order-summary__breakdown-divider" aria-hidden="true">
-                |
-              </span>
               {/* Không có danh sách đơn hủy để mở -> chỉ hiển thị, không bấm được. */}
               <div
                 className="order-summary__row order-summary__row--static order-summary__completed-method"
@@ -1878,7 +1971,7 @@ export function OrderWorkspace() {
               </InlineAlert>
             ) : confirmation.type === 'pay-cash' ? (
               <InlineAlert tone="warning">
-                Chỉ xác nhận sau khi đã nhận đủ tiền mặt. Số tiền do máy chủ tính lại từ dữ liệu đơn.
+                Chỉ xác nhận sau khi đã nhận đủ tiền mặt.
               </InlineAlert>
             ) : (
               <InlineAlert tone="warning">
@@ -1886,7 +1979,13 @@ export function OrderWorkspace() {
               </InlineAlert>
             )}
             <dl className="order-confirm-summary">
-              <div><dt>Món</dt><dd>{1 + confirmation.order.children.length} dòng</dd></div>
+              {renderConfirmItems(
+                [confirmation.order, ...confirmation.order.children].map((line) => ({
+                  key: line.serviceDetailId,
+                  name: line === confirmation.order ? line.serviceName : `+ ${line.serviceName}`,
+                  quantity: quantityOf(line, qtyOverrides),
+                })),
+              )}
               <div>
                 <dt>{confirmation.type === 'pay-cash' ? 'Cần thu' : 'Tổng phí cấn trừ'}</dt>
                 <dd>
@@ -1931,13 +2030,19 @@ export function OrderWorkspace() {
             ) : (
               <InlineAlert tone="warning">
                 {confirmation.type === 'au-pay-cash'
-                  ? 'Chỉ xác nhận sau khi đã nhận đủ tiền mặt. Số tiền do máy chủ tính lại từ dữ liệu phiếu.'
+                  ? 'Chỉ xác nhận sau khi đã nhận đủ tiền mặt.'
                   : 'Trừ trực tiếp vào tài khoản chính của hội viên đang online tại máy này. Không hoàn tác được từ trang này.'}
               </InlineAlert>
             )}
             <dl className="order-confirm-summary">
               <div><dt>Phiếu</dt><dd>#{confirmation.group.voucherId}</dd></div>
-              <div><dt>Món</dt><dd>{confirmation.group.lines.length} dòng</dd></div>
+              {renderConfirmItems(
+                confirmation.group.lines.map((line) => ({
+                  key: line.serviceDetailId,
+                  name: line.serviceName,
+                  quantity: line.quantity,
+                })),
+              )}
               <div>
                 <dt>{confirmation.type === 'au-pay-cash' ? 'Cần thu' : 'Tổng phí cấn trừ'}</dt>
                 <dd>
@@ -1967,6 +2072,7 @@ export function OrderWorkspace() {
           </div>
         ) : confirmNeedsQrAck ? (
           <div className="order-confirm-stack">
+            {cancelLines ? <dl className="order-confirm-summary">{renderConfirmItems(cancelLines)}</dl> : null}
             <InlineAlert tone="danger">{QR_CANCEL_WARNING}</InlineAlert>
             <label className="order-confirm-ack">
               <input
@@ -1978,11 +2084,21 @@ export function OrderWorkspace() {
             </label>
           </div>
         ) : (
-          <InlineAlert tone="warning">
-            Đơn bị hủy sẽ không sinh phiếu thu và khách không nhận món/combo này.
-          </InlineAlert>
+          <div className="order-confirm-stack">
+            {cancelLines ? <dl className="order-confirm-summary">{renderConfirmItems(cancelLines)}</dl> : null}
+            <InlineAlert tone="warning">
+              Đơn bị hủy sẽ không sinh phiếu thu và khách không nhận món/combo này.
+            </InlineAlert>
+          </div>
         )}
       </ConfirmAction>
+
+      <StaffOrderDialog
+        open={staffOrderOpen && printDetailIds === null}
+        onClose={() => setStaffOrderOpen(false)}
+        onPrint={(detailIds) => setPrintDetailIds(detailIds)}
+      />
+      <PrintTicketDialog detailIds={printDetailIds} onClose={() => setPrintDetailIds(null)} />
     </section>
   )
 }

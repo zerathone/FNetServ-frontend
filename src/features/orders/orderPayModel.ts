@@ -13,6 +13,7 @@ import {
   type GroupedOrder,
   type QtyOverrides,
 } from './orderQueueModel.ts'
+import { GUEST_HOST_NAME, isCounterGuest } from './counterGuest.ts'
 
 /** R_SERVICEMONEY_EXCEPT (9224) — backend chỉ bắt quyền này cho `deduct`, KHÔNG bắt cho tiền mặt. */
 export const SERVICE_EXCEPT_RIGHT = 9224
@@ -107,7 +108,7 @@ export function machineGate(machine: MachineLookup): ActionGate {
  * parity với `OnOffRequestFunction` (servicewaitingwidget.cpp:739-868).
  */
 export function payGates(
-  order: Pick<GroupedOrder, 'servicePaid' | 'userId' | 'hostName'>,
+  order: Pick<GroupedOrder, 'servicePaid' | 'userId' | 'hostName'> & Partial<Pick<GroupedOrder, 'userName'>>,
   machine: MachineLookup,
   hasDeductRight: boolean,
 ): PayGates {
@@ -116,6 +117,13 @@ export function payGates(
   if (order.servicePaid === SERVICE_PAID_QR) {
     const reason = 'Đơn đã trả QR — chỉ xác nhận phục vụ.'
     return { accept: blocked(reason), cash: blocked(reason), deduct: blocked(reason) }
+  }
+
+  // task staff-service-order: dòng treo của khách vãng lai tại quầy ("Gọi món hộ" lỗi giữa chừng) chỉ thu
+  // tiền mặt kênh `guest` — KHÔNG ghi tab lên user singleton KHACHVANGLAI, KHÔNG cấn trừ.
+  if (isCounterGuest(order)) {
+    const reason = 'Khách vãng lai tại quầy chỉ thu tiền mặt.'
+    return { accept: blocked(reason), cash: ENABLED, deduct: blocked(reason) }
   }
 
   const noCustomer = order.userId === 0
@@ -179,11 +187,13 @@ export function dryRunPayload(
   staffId: number,
   overrides: QtyOverrides = {},
 ): PayRequestDryRunPayload {
+  // Khách vãng lai tại quầy: kênh `guest` (PY_GUESS_SERVICE) + máy `KHACH_TAI_QUAY`, không phải `cash`.
+  const guest = method === 'cash' && isCounterGuest(order)
   return {
     staffId,
     userId: order.userId,
-    hostName: order.hostName || '',
-    paymentMethod: method,
+    hostName: guest ? GUEST_HOST_NAME : order.hostName || '',
+    paymentMethod: guest ? 'guest' : method,
     items: payItems(order, overrides),
   }
 }

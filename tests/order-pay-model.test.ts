@@ -227,3 +227,22 @@ test('describeAlertReason: moi code mot huong dan, khong rong', () => {
   assert.match(describeAlertReason('member_offline'), /không còn online/)
   assert.match(describeAlertReason('deduct_failed'), /Thử trừ ví lại/)
 })
+
+test('khach vang lai tai quay (dong treo cua "Goi mon ho"): chi thu tien mat kenh guest, khong tab/can tru', () => {
+  const guestOrder = orderOf({ userId: 99, userName: 'KHACHVANGLAI', hostName: 'KHACHVANGLAI' })
+  const gates = payGates(guestOrder, undefined, true)
+  assert.equal(gates.cash.enabled, true)
+  assert.equal(gates.accept.enabled, false)
+  assert.equal(gates.deduct.enabled, false)
+
+  const cash = dryRunPayload('cash', guestOrder, 5)
+  assert.equal(cash.paymentMethod, 'guest')
+  assert.equal(cash.hostName, 'KHACH_TAI_QUAY')
+  assert.equal(payPayload('cash', guestOrder, 5, 'k').paymentMethod, 'guest')
+
+  // may vang lai ngoi may (userName = ten may) va hoi vien van la cash nhu cu
+  const seated = orderOf({ userId: 4, userName: 'PC-07', hostName: 'PC-07' })
+  assert.equal(dryRunPayload('cash', seated, 5).paymentMethod, 'cash')
+  assert.equal(dryRunPayload('cash', seated, 5).hostName, 'PC-07')
+  assert.equal(dryRunPayload('cash', orderOf(), 5).paymentMethod, 'cash')
+})
