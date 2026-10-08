@@ -597,6 +597,10 @@
   gap: var(--space-2);
 }
 
+.order-card__items-left {
+  display: grid;
+}
+
 .order-card__items-right {
   display: grid;
   text-align: right;
