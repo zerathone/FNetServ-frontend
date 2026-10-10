@@ -8,6 +8,7 @@ export const MONEY_QUERY_ROOTS = [
   ['payment-wait'],
   ['logs', 'voucher'],
   ['revenue-summary'],
+  ['combo-sales-stats'],
   ['dynamic-report'],
 ] as const
 

@@ -128,7 +128,7 @@ const workspaces: readonly Workspace[] = [
         icon: <Users size={24} weight="duotone" />,
       },
       { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <CallBell size={24} weight="duotone" /> },
-      { to: '/payments', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
+      { to: '/combo_sale', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/card-sale', label: 'Bán thẻ nạp', shortLabel: 'Thẻ nạp', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/logs/voucher', label: 'Giao dịch', shortLabel: 'GD', icon: <ArrowsLeftRight size={24} weight="duotone" /> },
       { to: '/logs/system', label: 'Nhật ký hệ thống', shortLabel: 'Log', icon: <TerminalWindow size={24} weight="duotone" /> },

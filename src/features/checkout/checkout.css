@@ -387,3 +387,88 @@
   .combo-credentials,.combo-credentials * { visibility: visible; }
   .combo-credentials { position: fixed; inset: 0; padding: 1cm; background: white; color: black; }
 }
+
+/* Ô thống kê bán COMBO: dùng giao diện order-summary của /orders nhưng chưa có danh sách để mở khi bấm
+   nên không phải nút -- bỏ con trỏ tay và nền hover. */
+.combo-sales-summary__method {
+  display: contents;
+}
+
+.combo-sales-summary .order-summary__total,
+.combo-sales-summary .order-summary__completed-method {
+  cursor: default;
+}
+
+.combo-sales-summary .order-summary__total:hover,
+.combo-sales-summary .order-summary__row:hover {
+  background: transparent;
+}
+
+/* Thanh lọc nhóm máy (trái) + nút "Combo chờ duyệt" (phải, tách riêng bằng vạch ngăn). */
+.combo-zone-bar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+/* Nút nằm ngay sau nút lọc cuối cùng (không đẩy ra mép phải); danh sách nhóm máy dài thì cuộn, nút vẫn thấy. */
+.combo-zone-bar .combo-zone-filter { flex: 0 1 auto; }
+
+/* Cùng dáng viên thuốc / cỡ chữ / chiều cao với .combo-zone-filter button để hai cụm cân nhau. */
+.combo-pending-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: .5rem .9rem .5rem 1rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  position: relative;
+}
+/* Vạch ngăn mảnh: báo đây là mục khác loại với các nút lọc nhóm máy. */
+.combo-pending-toggle::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-3) / 2 - 1px);
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: var(--color-border-default);
+}
+.combo-pending-toggle:hover { border-color: var(--color-action-primary); color: var(--color-action-primary); }
+.combo-pending-toggle__count {
+  min-width: 1.5rem;
+  padding: 0 .4rem;
+  border-radius: 999px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5rem;
+  text-align: center;
+}
+.combo-pending-toggle__amount { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.combo-pending-toggle.has-pending { border-color: var(--color-warning); }
+.combo-pending-toggle.has-pending .combo-pending-toggle__count {
+  background: var(--color-warning);
+  color: var(--color-text-inverse);
+}
+.combo-pending-toggle.is-active {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-text-inverse);
+  box-shadow: 0 0 0 2px var(--color-surface-default), 0 0 0 3px var(--color-action-primary);
+  font-weight: 750;
+}
+.combo-pending-toggle.is-active .combo-pending-toggle__count { background: var(--color-text-inverse); color: var(--color-action-primary); }
+.combo-pending-toggle.is-active .combo-pending-toggle__amount { color: inherit; opacity: .85; }
+
+@media (max-width: 640px) {
+  .combo-pending-toggle__amount { display: none; }
+}

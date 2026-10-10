@@ -28,18 +28,14 @@ import {
 } from '../../api/payment'
 import { getWorkstationsRuntime } from '../../api/workstations'
 import {
-  acceptComboOrder,
   acceptServiceOrder,
   cancelServiceOrder,
   getAcceptedUnpaidOrders,
   getCompletedOrderStats,
   getCompletedTodayOrders,
-  getPendingComboOrders,
   getPendingOrders,
   getServicePaidLabel,
-  rejectComboOrder,
   type CompletedPaymentMethod,
-  type PendingComboOrder,
   type PendingOrder,
 } from '../../api/orders'
 import {
@@ -58,6 +54,7 @@ import { useAuthStore } from '../../store/auth'
 import { useOrderQueueStore } from '../../store/orderQueue'
 import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
+import { formatShiftStart } from '../../lib/shiftTime'
 import { useWsStatusStore } from '../../store/wsStatus'
 import {
   COMPLETED_METHOD_LABEL,
@@ -108,6 +105,7 @@ import {
   type MachineLookup,
   type PayMethod,
 } from './orderPayModel'
+import { waitLabel, waitTone } from './orderWaitTime'
 import { PrintTicketDialog } from './PrintTicketDialog'
 import { StaffOrderDialog } from './StaffOrderDialog'
 import './orders.css'
@@ -134,8 +132,6 @@ type Confirmation =
   | { type: 'cancel-service'; order: GroupedOrder }
   | { type: 'cancel-qr'; group: QrGroup }
   | { type: 'cancel-selected'; keys: string[] }
-  | { type: 'accept-combo'; order: PendingComboOrder }
-  | { type: 'reject-combo'; order: PendingComboOrder }
   // Đơn ĐÃ DUYỆT còn nợ tiền — `/service/pay` nhánh `fullCore` (task service-pay-fullcore): cũng
   // đi qua `dryRun` trước, `preview` là số BE tính lại (+ số dư ví khi cấn trừ).
   | { type: 'au-pay-cash'; group: AcceptedUnpaidGroup; preview: PayRequestDryRunResponse }
@@ -151,53 +147,9 @@ function formatMoney(value: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
 }
 
-function parseComboCreatedAt(value?: string) {
-  if (!value) return 0
-  const normalized = value.trim().replace(' ', 'T')
-  const parsed = new Date(normalized).getTime()
-  return Number.isNaN(parsed) ? 0 : parsed
-}
-
-/** BE trả "YYYY-MM-DD HH:MM:SS" (date_to + time_to) -- đổi sang dd/mm/yyyy hh:mm cho card combo. */
-function formatExpireDate(value?: string) {
-  if (!value) return '--'
-  const parsed = new Date(value.trim().replace(' ', 'T'))
-  if (Number.isNaN(parsed.getTime())) return value
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(parsed.getDate())}/${pad(parsed.getMonth() + 1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
-}
-
-/** zone = tên các nhóm máy nối bằng '|' (DAOCombo::get) -- đổi dấu nối sang "·" cho dễ đọc. */
-function formatZoneList(value: string) {
-  return value
-    .split('|')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(' · ')
-}
-
-function waitMinutes(createdAtMs: number, now: number) {
-  if (!createdAtMs) return null
-  return Math.max(0, Math.floor((now - createdAtMs) / 60_000))
-}
-
-function waitLabel(createdAtMs: number, now: number) {
-  const minutes = waitMinutes(createdAtMs, now)
-  if (minutes === null) return '–'
-  if (minutes < 1) return 'vừa gọi'
-  if (minutes < 60) return `${minutes}p`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m === 0 ? `${h}g` : `${h}g ${m}p`
-}
-
-function waitTone(createdAtMs: number, now: number): 'neutral' | 'info' | 'warning' | 'danger' {
-  const minutes = waitMinutes(createdAtMs, now)
-  if (minutes === null) return 'neutral'
-  if (minutes >= 20) return 'danger'
-  if (minutes >= 10) return 'warning'
-  return 'info'
-}
+// Combo chờ duyệt (formatExpireDate / formatZoneList / parseComboCreatedAt + danh sách + Đã thu tiền / Từ chối)
+// đã chuyển sang trang /combo_sale (features/checkout/ComboPendingPanel) -- user chốt 2026-10-10.
+// waitLabel/waitTone dùng chung -> ./orderWaitTime.
 
 // Đồng bộ màu với chấm ở nút thống kê "Hoàn thành" (.order-summary__dot--*, orders.css).
 const COMPLETED_METHOD_TONE: Record<CompletedPaymentMethod, 'neutral' | 'success' | 'warning' | 'info'> = {
@@ -249,7 +201,7 @@ export function OrderWorkspace() {
   // 'completed' (tile "Đơn hoàn thành") NẰM NGOÀI "Đơn chờ" -- đơn đã đóng, không còn "chờ giải
   // quyết" gì nữa, nên không gộp vào view 'all'.
   const [activeView, setActiveView] = useState<
-    'all' | 'service' | 'paid' | 'combo' | 'accepted-unpaid' | 'completed'
+    'all' | 'service' | 'paid' | 'accepted-unpaid' | 'completed'
   >('all')
   // Lọc thêm trong view 'completed' theo hình thức thu (bấm dòng breakdown của tile); null = tất cả.
   const [completedMethod, setCompletedMethod] = useState<CompletedPaymentMethod | null>(null)
@@ -257,7 +209,6 @@ export function OrderWorkspace() {
   const [searchField, setSearchField] = useState<'customer' | 'host'>('customer')
   // servicePage giờ phân trang CHUNG cho danh sách đã gộp (Dịch vụ + QR + Đã duyệt-chưa thanh toán).
   const [servicePage, setServicePage] = useState(0)
-  const [comboPage, setComboPage] = useState(0)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   // Khóa chọn riêng (acceptedUnpaidSelectKey) -- KHÔNG dùng chung `selectedKeys`/`cancelMutation` của
   // Dịch vụ: đó là `/service/cancel` (chỉ Accept=0), gọi nhầm cho Accept=1 sẽ hỏng dữ liệu (KNOWLEDGE.md §50).
@@ -272,8 +223,6 @@ export function OrderWorkspace() {
   const [now, setNow] = useState(() => Date.now())
   const serviceIntent = useIdempotentIntent('order-svc')
   const qrIntent = useIdempotentIntent('order-qr')
-  const comboAcceptIntent = useIdempotentIntent('order-cb-acc')
-  const comboRejectIntent = useIdempotentIntent('order-cb-rej')
   const payIntent = useIdempotentIntent('order-pay')
   const acceptedUnpaidPayIntent = useIdempotentIntent('order-au-pay')
   // Banner cố định "đã ghi phiếu cấn trừ nhưng chưa trừ ví" — KHÔNG phải toast tự tắt (KNOWLEDGE §47).
@@ -293,11 +242,6 @@ export function OrderWorkspace() {
     // Luôn tải hết mọi khách (không round-trip theo userId) — lọc theo tên khách ở client, parity hostName.
     queryKey: ['pending-orders', 'with-paid'],
     queryFn: () => getPendingOrders(undefined, { includePaid: true }),
-    refetchInterval: connected ? 30_000 : 5_000,
-  })
-  const comboQuery = useQuery({
-    queryKey: ['pending-orders-combo'],
-    queryFn: getPendingComboOrders,
     refetchInterval: connected ? 30_000 : 5_000,
   })
   // Đơn đã bấm "Chấp nhận" (Accept=1) nên không còn nằm trong servicesQuery (chỉ Accept=0), nhưng
@@ -428,42 +372,19 @@ export function OrderWorkspace() {
     () => (visibleEntryKind ? serviceEntries.filter((entry) => entry.kind === visibleEntryKind) : serviceEntries),
     [serviceEntries, visibleEntryKind],
   )
-  // 'accepted-unpaid' giờ hiện CHUNG panel với Dịch vụ (không còn panel/heading riêng) -- 'combo' và
-  // 'completed' mới tách panel riêng (combo khác bảng dữ liệu; completed là đơn ĐÃ ĐÓNG, chỉ xem,
-  // không chọn/hủy nên không hợp logic chung của panel chính).
-  const showServicePanel = activeView !== 'combo' && activeView !== 'completed'
-  const showComboPanel = activeView === 'all' || activeView === 'combo'
+  // 'accepted-unpaid' giờ hiện CHUNG panel với Dịch vụ (không còn panel/heading riêng) -- 'completed'
+  // tách panel riêng (đơn ĐÃ ĐÓNG, chỉ xem, không chọn/hủy nên không hợp logic chung của panel chính).
+  // Combo chờ duyệt đã chuyển sang /combo_sale (user chốt 2026-10-10).
+  const showServicePanel = activeView !== 'completed'
   const showCompletedPanel = activeView === 'completed'
-  const comboOrders = useMemo(
-    () =>
-      (comboQuery.data ?? [])
-        .filter(
-          (order) =>
-            matchesHost(order.hostName, hostName) && matchesCustomer(order.ownerName, customerNameFilter),
-        )
-        .sort((left, right) => {
-            // Hết hạn sớm nhất lên đầu; nếu bằng nhau thì đơn cũ hơn lên trước.
-            const expL = parseComboCreatedAt(left.expireDate)
-            const expR = parseComboCreatedAt(right.expireDate)
-            if (expL !== expR) return expL - expR
-            return parseComboCreatedAt(left.createdAt) - parseComboCreatedAt(right.createdAt)
-          }),
-    [comboQuery.data, hostName, customerNameFilter],
-  )
   const serviceTotalPages = Math.max(1, Math.ceil(filteredServiceEntries.length / PAGE_SIZE))
-  const comboTotalPages = Math.max(1, Math.ceil(comboOrders.length / PAGE_SIZE))
   const visibleServiceEntries = filteredServiceEntries.slice(
     servicePage * PAGE_SIZE,
     (servicePage + 1) * PAGE_SIZE,
   )
-  const visibleComboOrders = comboOrders.slice(
-    comboPage * PAGE_SIZE,
-    (comboPage + 1) * PAGE_SIZE,
-  )
 
   useEffect(() => {
     setServicePage(0)
-    setComboPage(0)
     setSelectedKeys(new Set())
     setSelectedAcceptedUnpaidKeys(new Set())
   }, [hostName, customerNameFilter, activeView])
@@ -471,10 +392,6 @@ export function OrderWorkspace() {
   useEffect(() => {
     if (servicePage >= serviceTotalPages) setServicePage(serviceTotalPages - 1)
   }, [servicePage, serviceTotalPages])
-
-  useEffect(() => {
-    if (comboPage >= comboTotalPages) setComboPage(comboTotalPages - 1)
-  }, [comboPage, comboTotalPages])
 
   const refreshServiceQueue = () => {
     void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
@@ -777,56 +694,6 @@ export function OrderWorkspace() {
     },
   })
 
-  const comboAcceptMutation = useMutation({
-    mutationFn: (order: PendingComboOrder) =>
-      acceptComboOrder({
-        comboCardId: order.comboCardId,
-        hostName: order.hostName ?? '',
-        idem: comboAcceptIntent.getKey(
-          fingerprintIntent({
-            comboCardId: order.comboCardId,
-            hostName: order.hostName ?? '',
-            price: order.price,
-          }),
-        ),
-      }),
-    onSuccess: (response) => {
-      comboAcceptIntent.clearKey()
-      setConfirmation(null)
-      pushToast(
-        response.duplicated
-          ? 'Đơn combo đã được xác nhận trước đó; không thu tiền lần hai.'
-          : `Đã xác nhận thu tiền · Phiếu #${response.paymentId}.`,
-        response.duplicated ? 'info' : 'success',
-      )
-      void queryClient.invalidateQueries({ queryKey: ['pending-orders-combo'] })
-      void invalidateMoneyQueries(queryClient)
-    },
-    onError: (error) => pushToast(error.message, 'error'),
-  })
-
-  const comboRejectMutation = useMutation({
-    mutationFn: (order: PendingComboOrder) =>
-      rejectComboOrder({
-        comboCardId: order.comboCardId,
-        idem: comboRejectIntent.getKey(
-          fingerprintIntent({ comboCardId: order.comboCardId }),
-        ),
-      }),
-    onSuccess: (response) => {
-      comboRejectIntent.clearKey()
-      setConfirmation(null)
-      pushToast(
-        response.duplicated
-          ? 'Đơn combo đã được xử lý trước đó.'
-          : 'Đã từ chối đơn combo.',
-        response.duplicated ? 'info' : 'success',
-      )
-      void queryClient.invalidateQueries({ queryKey: ['pending-orders-combo'] })
-    },
-    onError: (error) => pushToast(error.message, 'error'),
-  })
-
   const entryByKey = useMemo(
     () => new Map(serviceEntries.map((entry) => [entry.key, entry])),
     [serviceEntries],
@@ -852,7 +719,6 @@ export function OrderWorkspace() {
     0,
   )
   const qrPaidTotal = qrGroups.reduce((sum, group) => sum + group.paidTotal, 0)
-  const comboTotal = comboOrders.reduce((sum, order) => sum + order.price, 0)
   const pendingMutation =
     serviceMutation.isPending ||
     qrAcceptMutation.isPending ||
@@ -860,8 +726,6 @@ export function OrderWorkspace() {
     payMutation.isPending ||
     retryDeductMutation.isPending ||
     cancelMutation.isPending ||
-    comboAcceptMutation.isPending ||
-    comboRejectMutation.isPending ||
     acceptedUnpaidPreviewMutation.isPending ||
     acceptedUnpaidPayMutation.isPending ||
     acceptedUnpaidClearMutation.isPending ||
@@ -920,8 +784,6 @@ export function OrderWorkspace() {
 
   const closeConfirmation = () => {
     if (pendingMutation) return
-    if (confirmation?.type === 'accept-combo') comboAcceptIntent.clearKey()
-    if (confirmation?.type === 'reject-combo') comboRejectIntent.clearKey()
     if (confirmation?.type === 'au-pay-cash' || confirmation?.type === 'au-pay-deduct')
       acceptedUnpaidPayIntent.clearKey()
     setConfirmation(null)
@@ -944,12 +806,6 @@ export function OrderWorkspace() {
         break
       case 'cancel-selected':
         cancelMutation.mutate(cancelItemsForKeys(confirmation.keys))
-        break
-      case 'accept-combo':
-        comboAcceptMutation.mutate(confirmation.order)
-        break
-      case 'reject-combo':
-        comboRejectMutation.mutate(confirmation.order)
         break
       case 'au-pay-cash':
         acceptedUnpaidPayMutation.mutate({ group: confirmation.group, method: 'cash' })
@@ -1368,18 +1224,13 @@ export function OrderWorkspace() {
             connected={connected}
             // Lỗi của danh sách đơn đã duyệt (vd Server cũ chưa có /orders/accepted-unpaid) chỉ báo ở
             // panel của nó — không làm cả trang báo lỗi.
-            isError={servicesQuery.isError || comboQuery.isError}
-            isFetching={servicesQuery.isFetching || comboQuery.isFetching || acceptedUnpaidQuery.isFetching}
+            isError={servicesQuery.isError}
+            isFetching={servicesQuery.isFetching || acceptedUnpaidQuery.isFetching}
             dataUpdatedAt={servicesQuery.dataUpdatedAt}
             intervalMs={connected ? 30_000 : 5_000}
-            errorDetail={
-              servicesQuery.error || comboQuery.error
-                ? describeApiErrorCode(servicesQuery.error ?? comboQuery.error)
-                : undefined
-            }
+            errorDetail={servicesQuery.error ? describeApiErrorCode(servicesQuery.error) : undefined}
             onRefresh={() => {
               void servicesQuery.refetch()
-              void comboQuery.refetch()
               void acceptedUnpaidQuery.refetch()
             }}
           />
@@ -1435,13 +1286,18 @@ export function OrderWorkspace() {
           >
             <CheckCircle className="order-summary__total-icon" size={28} weight="fill" aria-hidden="true" />
             <div className="order-summary__total-completed-text">
-              <span className="order-summary__total-label">Hoàn thành</span>
+              <span className="order-summary__total-label">Doanh thu</span>
               <strong className="order-summary__total-amount">
                 {completedStats ? formatMoney(completedStats.completed.amount) : '—'}
               </strong>
               <small className="order-summary__total-count">
                 {completedStats ? completedStats.completed.count : '—'} đơn
               </small>
+              {formatShiftStart(completedStats?.shiftStart) ? (
+                <small className="order-summary__total-count" title="Thời điểm bắt đầu tính thống kê này (giờ máy chủ).">
+                  Ca từ {formatShiftStart(completedStats?.shiftStart)}
+                </small>
+              ) : null}
             </div>
           </button>
           {completedStats ? (
@@ -1506,10 +1362,10 @@ export function OrderWorkspace() {
             <div className="order-summary__total__text">
               <span>Đơn chờ</span>
               <small className="order-summary__hint order-summary__total-hint">
-                {formatMoney(serviceTotal + comboTotal + acceptedUnpaidTotal + qrPaidTotal)}
+                {formatMoney(serviceTotal + acceptedUnpaidTotal + qrPaidTotal)}
               </small>
             </div>
-            <strong>{groupedOrders.length + qrGroups.length + comboOrders.length + acceptedUnpaidGroups.length}</strong>
+            <strong>{groupedOrders.length + qrGroups.length + acceptedUnpaidGroups.length}</strong>
           </button>
           <div className="order-summary__breakdown">
             <button
@@ -1523,18 +1379,6 @@ export function OrderWorkspace() {
                 <small className="order-summary__hint">{formatMoney(serviceTotal)}</small>
               </span>
               <strong>{groupedOrders.length}</strong>
-            </button>
-            <button
-              type="button"
-              className={`order-summary__row order-summary__combo ${activeView === 'combo' ? 'is-active' : ''}`}
-              onClick={() => setActiveView('combo')}
-            >
-              <span className="order-summary__dot order-summary__dot--combo" aria-hidden="true" />
-              <span className="order-summary__row-text">
-                <span className="order-summary__label">Combo</span>
-                <small className="order-summary__hint">{formatMoney(comboTotal)}</small>
-              </span>
-              <strong>{comboOrders.length}</strong>
             </button>
             {/* Đơn ĐÃ DUYỆT nhưng còn nợ tiền -- CÓ nằm trong tổng "Đơn chờ" và view "Tất cả" (user chốt
                 2026-10-05, chỉ Web UI; Qt không hiện). Bấm vào lọc đúng view này. */}
@@ -1778,94 +1622,6 @@ export function OrderWorkspace() {
         </div>
       ) : null}
 
-      {showComboPanel ? (
-        <div className="order-panel">
-          {activeView === 'all' ? <h3 className="order-panel__heading">Combo chờ duyệt</h3> : null}
-          {comboQuery.isLoading ? (
-            <StateView title="Đang tải đơn combo" />
-          ) : comboQuery.isError ? (
-            <StateView
-              title="Không tải được đơn combo"
-              description={(comboQuery.error as Error).message}
-              action={<Button onClick={() => comboQuery.refetch()}>Thử lại</Button>}
-            />
-          ) : comboOrders.length === 0 ? (
-            // Rỗng là trạng thái phổ biến (hết việc) -- hiện 1 dòng ngắn như panel Dịch vụ & đã thanh
-            // toán, KHÔNG dùng StateView (cao 10rem, tốn diện tích trang khi phải nhìn liên tục).
-            <p className="order-empty-compact">
-              {hostName ? 'Không có đơn combo khớp máy đang lọc.' : 'Không có combo chờ duyệt.'}
-            </p>
-          ) : (
-            <>
-              <ListPagination
-                page={comboPage}
-                totalPages={comboTotalPages}
-                canNext={comboPage < comboTotalPages - 1}
-                onPrevious={() => setComboPage((value) => Math.max(0, value - 1))}
-                onNext={() => setComboPage((value) => Math.min(comboTotalPages - 1, value + 1))}
-              />
-              <div className="order-list-region">
-                <div className="order-list">
-              {visibleComboOrders.map((order) => {
-                const createdAt = parseComboCreatedAt(order.createdAt)
-                return (
-                  <article key={order.comboCardId} className="order-card order-card--combo">
-                    <div className="order-card__identity">
-                      <strong>{order.hostName || 'Chưa xác định máy'}</strong>
-                      <span className="order-card__username">{order.ownerName || 'Khách vãng lai'}</span>
-                      <div className="order-card__meta-row">
-                        <StatusBadge tone={waitTone(createdAt, now)}>
-                          Chờ {waitLabel(createdAt, now)}
-                        </StatusBadge>
-                      </div>
-                    </div>
-                    <div className="order-card__items" style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start' }}>
-                      <div style={{ display: 'grid', minWidth: 0, overflow: 'hidden' }}>
-                        <strong>{order.comboName}</strong>
-                        {order.zone ? (
-                          <small>
-                            Khu vực: <span className="order-card__zone-value">{formatZoneList(order.zone)}</span>
-                          </small>
-                        ) : null}
-                      </div>
-                      <div style={{ display: 'grid', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <span>Hết hạn</span>
-                        <span className="order-card__expire-value">{formatExpireDate(order.expireDate)}</span>
-                      </div>
-                    </div>
-                    <div className="order-card__total">
-                      <span>Tiền mặt cần thu</span>
-                      <strong>{formatMoney(order.price)}</strong>
-                    </div>
-                    <div className="order-card__actions">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        disabled={pendingMutation}
-                        onClick={() => setConfirmation({ type: 'accept-combo', order })}
-                      >
-                        Đã thu tiền
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="danger-outline"
-                        icon={<XCircle {...actionIconProps} />}
-                        disabled={pendingMutation}
-                        onClick={() => setConfirmation({ type: 'reject-combo', order })}
-                      >
-                        Từ chối
-                      </Button>
-                    </div>
-                  </article>
-                )
-              })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      ) : null}
-
       {showCompletedPanel ? (
         <div className="order-panel">
           <h3 className="order-panel__heading">
@@ -1905,21 +1661,17 @@ export function OrderWorkspace() {
               ? 'Cấn trừ vào tài khoản hội viên?'
               : confirmation?.type === 'cancel-qr'
             ? `Hủy đơn đã trả QR #${confirmation.group.voucherId}?`
-            : confirmation?.type === 'accept-combo'
-              ? 'Xác nhận đã thu tiền combo?'
-              : confirmation?.type === 'reject-combo'
-                ? 'Từ chối đơn combo?'
-                : confirmation?.type === 'cancel-selected'
-                  ? `Hủy ${confirmation.keys.length} đơn đã chọn?`
-                  : confirmation?.type === 'au-pay-cash'
-                    ? 'Xác nhận đã thu tiền mặt?'
-                    : confirmation?.type === 'au-pay-deduct'
-                      ? 'Cấn trừ vào tài khoản hội viên?'
-                      : confirmation?.type === 'au-clear'
-                        ? `Hủy phiếu #${confirmation.group.voucherId}?`
-                        : confirmation?.type === 'au-clear-selected'
-                          ? `Hủy ${confirmation.keys.length} phiếu đã chọn?`
-                          : 'Từ chối đơn dịch vụ?'
+            : confirmation?.type === 'cancel-selected'
+              ? `Hủy ${confirmation.keys.length} đơn đã chọn?`
+              : confirmation?.type === 'au-pay-cash'
+                ? 'Xác nhận đã thu tiền mặt?'
+                : confirmation?.type === 'au-pay-deduct'
+                  ? 'Cấn trừ vào tài khoản hội viên?'
+                  : confirmation?.type === 'au-clear'
+                    ? `Hủy phiếu #${confirmation.group.voucherId}?`
+                    : confirmation?.type === 'au-clear-selected'
+                      ? `Hủy ${confirmation.keys.length} phiếu đã chọn?`
+                      : 'Từ chối đơn dịch vụ?'
         }
         description={
           confirmation?.type === 'cancel-service' ||
@@ -1928,29 +1680,23 @@ export function OrderWorkspace() {
             ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.userName || 'Khách vãng lai'}`
             : confirmation?.type === 'cancel-qr'
               ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
-              : confirmation?.type === 'accept-combo' ||
-                  confirmation?.type === 'reject-combo'
-                ? `${confirmation.order.hostName || 'Chưa xác định máy'} · ${confirmation.order.comboName}`
-                : confirmation?.type === 'au-pay-cash' ||
-                    confirmation?.type === 'au-pay-deduct' ||
-                    confirmation?.type === 'au-clear'
-                  ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
-                  : undefined
+              : confirmation?.type === 'au-pay-cash' ||
+                  confirmation?.type === 'au-pay-deduct' ||
+                  confirmation?.type === 'au-clear'
+                ? `${confirmation.group.hostName || 'Chưa xác định máy'} · ${confirmation.group.userName || 'Khách vãng lai'}`
+                : undefined
         }
         confirmLabel={
-          confirmation?.type === 'accept-combo'
-            ? 'Xác nhận đã thu tiền'
-            : confirmation?.type === 'pay-cash' || confirmation?.type === 'au-pay-cash'
-              ? 'Đã thu tiền mặt'
-              : confirmation?.type === 'pay-deduct' || confirmation?.type === 'au-pay-deduct'
-                ? 'Cấn trừ'
-                : 'Xác nhận hủy'
+          confirmation?.type === 'pay-cash' || confirmation?.type === 'au-pay-cash'
+            ? 'Đã thu tiền mặt'
+            : confirmation?.type === 'pay-deduct' || confirmation?.type === 'au-pay-deduct'
+              ? 'Cấn trừ'
+              : 'Xác nhận hủy'
         }
         danger={
           confirmation?.type === 'cancel-service' ||
           confirmation?.type === 'cancel-qr' ||
           confirmation?.type === 'cancel-selected' ||
-          confirmation?.type === 'reject-combo' ||
           confirmation?.type === 'au-clear' ||
           confirmation?.type === 'au-clear-selected'
         }
@@ -2013,15 +1759,6 @@ export function OrderWorkspace() {
                 </>
               ) : null}
               <div><dt>Khách chọn trên máy</dt><dd>{getServicePaidLabel(confirmation.order.servicePaid)}</dd></div>
-            </dl>
-          </div>
-        ) : confirmation?.type === 'accept-combo' ? (
-          <div className="order-confirm-stack">
-            <InlineAlert tone="warning">Xác nhận này có nghĩa là quầy đã nhận đủ tiền mặt.</InlineAlert>
-            <dl className="order-confirm-summary">
-              <div><dt>Combo</dt><dd>{confirmation.order.comboName}</dd></div>
-              <div><dt>Số tiền</dt><dd>{formatMoney(confirmation.order.price)}</dd></div>
-              <div><dt>Thẻ combo</dt><dd>{confirmation.order.comboUserName}</dd></div>
             </dl>
           </div>
         ) : confirmation?.type === 'au-pay-cash' || confirmation?.type === 'au-pay-deduct' ? (

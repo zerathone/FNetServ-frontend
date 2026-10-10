@@ -266,7 +266,7 @@ button.ws-summary__row:hover {
   height: 2.75rem;
 }
 
-.ws-group-usage__donut svg {
+.ws-group-usage__donut > svg {
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
@@ -424,6 +424,14 @@ button.ws-summary__row:hover {
     0 0 3px var(--color-surface-default);
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* Tu 50% tro len: chu nam giua track nam tren phan fill dac mau (--color-info)
+   chu khong con tren nen track nhat -- halo trang cua rule tren bi "choi mat"
+   tren nen dac mau, doi sang chu trang khong halo cho doc sach. */
+.ws-group-usage__trackLabel--full {
+  color: var(--color-text-inverse);
+  text-shadow: none;
 }
 
 .ws-toolbar {

@@ -88,6 +88,33 @@ export type ComboQrStatusResult = {
   results?: ComboSaleResult[]
 }
 
+/**
+ * Hình thức thu của thẻ COMBO đã bán (BE map từ PaymentType 17/25/23/24 — xem
+ * handoff/HANDOFF_combo-sales-stats.md): cash = tiền mặt, qr = QR, online = chuyển khoản, deduct = cấn trừ
+ * (cấn trừ chỉ phát sinh khi khách mua từ máy trạm, không bán được ở trang này).
+ */
+export type ComboSaleMethod = 'cash' | 'qr' | 'online' | 'deduct'
+
+export type ComboSalesStats = {
+  date: string
+  /** Mốc BẮT ĐẦU ca = đầu khung thống kê, "YYYY-MM-DD HH:MM:SS" giờ máy chủ. Optional: BE cũ chưa trả. */
+  shiftStart?: string
+  /** '24h' = 24h trượt tính lùi từ lúc gọi (cùng khung với /orders), 'day' = trọn ngày được hỏi. */
+  window: '24h' | 'day'
+  completed: {
+    /** Số THẺ COMBO (1 thẻ = 1 phiếu thu), không phải số lần bán. */
+    count: number
+    amount: number
+    /** Luôn đủ 4 khóa theo thứ tự cash, qr, online, deduct (nhóm rỗng count=0). */
+    byType: { key: ComboSaleMethod; count: number; amount: number }[]
+  }
+}
+
+/** Toàn quán, chỉ đọc. Cùng khung thời gian với `/orders/completed/stats`. */
+export function getComboSalesStats() {
+  return apiGet<ComboSalesStats>('/combo/sales/stats')
+}
+
 export async function getComboCatalog(status: 'active' | 'all' = 'active') {
   const result = await apiGet<{ serverTimeMs: number; items: Combo[] }>(`/combos?status=${status}`)
   return { ...result, receivedAtMs: Date.now() } satisfies ComboCatalog

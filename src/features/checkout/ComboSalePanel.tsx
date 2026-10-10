@@ -20,6 +20,8 @@ import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { comboUsagePresentation } from './comboUsageModel'
+import { ComboPendingPanel } from './ComboPendingPanel'
+import { ComboPendingToggle } from './ComboPendingToggle'
 
 type CartLine = { combo: Combo; quantity: number }
 
@@ -65,7 +67,13 @@ function formatUsageTime(combo: Combo) {
   return [...schedules][0]
 }
 
-export function ComboSalePanel() {
+type ComboSalePanelProps = {
+  /** Đang xem danh sách "Combo chờ duyệt" -- phần bán được ẩn đi (không unmount). */
+  pendingOpen: boolean
+  onTogglePending: () => void
+}
+
+export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelProps) {
   // Backend giới hạn idem COMBO ở 46 ký tự vì còn nối hậu tố #<n>.
   const { getKey, clearKey } = useIdempotentIntent('cs')
   const queryClient = useQueryClient()
@@ -237,6 +245,47 @@ export function ComboSalePanel() {
 
   return (
     <section className="checkout-panel combo-pos" aria-label="Bán COMBO">
+      {/* Thanh lọc nhóm máy + nút "Chờ xác nhận" (tách riêng bằng vạch ngăn, nằm sau nút lọc cuối). Thanh này
+          LUÔN hiện để nút còn bấm được khi danh mục đang tải / lỗi / trống / đang xem danh sách chờ xác nhận. */}
+      <div className="combo-zone-bar">
+        {catalog.length > 0 ? (
+          // Thanh lọc giữ nguyên khi đang xem danh sách chờ xác nhận; bấm 1 nhóm máy thì quay về danh mục bán
+          // với nhóm đó, và không nút lọc nào sáng khi đang xem danh sách chờ xác nhận.
+          <div className="combo-zone-filter" role="group" aria-label="Lọc COMBO theo nhóm máy">
+            <button
+              type="button"
+              className={!pendingOpen && machineGroupFilter === null ? 'is-active' : ''}
+              aria-pressed={!pendingOpen && machineGroupFilter === null}
+              onClick={() => {
+                setMachineGroupFilter(null)
+                if (pendingOpen) onTogglePending()
+              }}
+            >
+              Tất cả
+            </button>
+            {machineGroups.map((group) => (
+              <button
+                type="button"
+                key={group.id}
+                className={!pendingOpen && machineGroupFilter === group.id ? 'is-active' : ''}
+                aria-pressed={!pendingOpen && machineGroupFilter === group.id}
+                onClick={() => {
+                  setMachineGroupFilter(group.id)
+                  if (pendingOpen) onTogglePending()
+                }}
+              >
+                {group.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+        <ComboPendingToggle open={pendingOpen} onToggle={onTogglePending} />
+      </div>
+      {/* Khi xem danh sách chờ duyệt chỉ ẨN (không unmount) phần bán: giữ giỏ hàng đang chọn và hộp thoại QR
+          đang chờ thanh toán / đang thăm dò trạng thái. */}
+      <div hidden={pendingOpen}>
       {comboQuery.isLoading ? (
         <StateView title="Đang tải danh mục COMBO…" />
       ) : comboQuery.isError ? (
@@ -250,27 +299,6 @@ export function ComboSalePanel() {
       ) : (
         <div className={`combo-pos__layout ${cart.length ? 'has-context' : ''}`}>
           <div className="combo-pos__catalog-area">
-            <div className="combo-zone-filter" role="group" aria-label="Lọc COMBO theo nhóm máy">
-              <button
-                type="button"
-                className={machineGroupFilter === null ? 'is-active' : ''}
-                aria-pressed={machineGroupFilter === null}
-                onClick={() => setMachineGroupFilter(null)}
-              >
-                Tất cả
-              </button>
-              {machineGroups.map((group) => (
-                <button
-                  type="button"
-                  key={group.id}
-                  className={machineGroupFilter === group.id ? 'is-active' : ''}
-                  aria-pressed={machineGroupFilter === group.id}
-                  onClick={() => setMachineGroupFilter(group.id)}
-                >
-                  {group.name}
-                </button>
-              ))}
-            </div>
             <div className="combo-pos__catalog">
             {visibleCatalog.map((combo) => {
               const selected = cartIds.has(combo.comboId)
@@ -440,6 +468,10 @@ export function ComboSalePanel() {
           ) : null}
         </div>
       )}
+      </div>
+      {/* Danh sách chờ xác nhận thay chỗ danh mục bán NGAY TRONG thẻ này (cùng vị trí, cùng khung) --
+          đặt ngoài thẻ sẽ để lại thẻ trống cao 22rem phía trên. */}
+      {pendingOpen ? <ComboPendingPanel /> : null}
 
       <Dialog
         open={Boolean(qr)}

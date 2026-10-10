@@ -140,7 +140,8 @@ function ProtectedRoutes() {
           <Route path="/" element={<Navigate to="/workstations" replace />} />
           <Route path="/workstations" element={<WorkstationsPage />} />
           <Route path="/orders" element={<OrderQueuePage />} />
-          <Route path="/payments" element={<PaymentPage />} />
+          <Route path="/combo_sale" element={<PaymentPage />} />
+          <Route path="/payments" element={<Navigate to="/combo_sale" replace />} />
           <Route path="/card-sale" element={<CardSalePage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/logs/voucher" element={<VoucherLogPage />} />

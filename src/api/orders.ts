@@ -45,6 +45,8 @@ export type CompletedPaymentMethod = 'cash' | 'qr' | 'deduct' | 'online' | 'tran
 
 export type CompletedOrderStats = {
   date: string
+  /** Mốc BẮT ĐẦU ca = đầu khung thống kê, "YYYY-MM-DD HH:MM:SS" giờ máy chủ. Optional: BE cũ chưa trả. */
+  shiftStart?: string
   completed: {
     /** Số PHIẾU (một phiếu gồm nhiều món), không phải số món. */
     count: number

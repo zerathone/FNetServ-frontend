@@ -1,6 +1,6 @@
 import {  useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CaretLeft, CaretRight, ChartBarHorizontal, ChartDonut, MagnifyingGlass, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
+import { CaretLeft, CaretRight, Check, ChartBarHorizontal, ChartDonut, MagnifyingGlass, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
@@ -1198,7 +1198,13 @@ export function WorkstationWorkspace() {
                               strokeDasharray={dashArray}
                             />
                           </svg>
-                          <span className="ws-group-usage__donutLabel">{group.percent}%</span>
+                          <span className="ws-group-usage__donutLabel">
+                            {group.percent >= 100 ? (
+                              <Check size={11} weight="bold" aria-hidden="true" />
+                            ) : (
+                              `${group.percent}%`
+                            )}
+                          </span>
                         </div>
                         <span className="ws-group-usage__donutName" title={group.name}>
                           {group.name}
@@ -1233,7 +1239,11 @@ export function WorkstationWorkspace() {
                         aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
                       >
                         <div className="ws-group-usage__fill" style={{ width: `${group.percent}%` }} />
-                        <span className="ws-group-usage__trackLabel">{group.percent}%</span>
+                        <span
+                          className={`ws-group-usage__trackLabel ${group.percent >= 50 ? 'ws-group-usage__trackLabel--full' : ''}`}
+                        >
+                          {group.percent >= 100 ? 'Đầy' : `${group.percent}%`}
+                        </span>
                       </div>
                     </button>
                   ))}
