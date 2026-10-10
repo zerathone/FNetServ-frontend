@@ -58,6 +58,10 @@
   background: var(--color-surface-hover);
 }
 
+.ws-summary__total--static:hover {
+  background: transparent;
+}
+
 .ws-summary__total.is-active {
   color: var(--color-action-primary);
   background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-surface-default));
@@ -149,17 +153,205 @@ button.ws-summary__row:hover {
   color: inherit;
 }
 
+.ws-group-usage__scrollWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 28rem;
+  border-left: 1px solid var(--color-border-default);
+  padding-left: var(--space-3);
+}
+
 .ws-group-usage__breakdown {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ws-group-usage__breakdown::-webkit-scrollbar {
+  display: none;
+}
+
+/* .ws-summary__card button { border:0; background:transparent } co specificity
+   (0,1,1) cao hon 1 class don (0,1,0) nen se de len neu khong neo them class cha
+   -- day la ly do nut chi "hien" luc :hover (0,2,0) thang duoc cascade. */
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+}
+
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn--left {
+  left: var(--space-2);
+  transform: translateY(-50%);
+}
+
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn--right {
+  right: var(--space-2);
+  transform: translateY(-50%);
+}
+
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn:active {
+  border-color: var(--color-action-primary-pressed);
+  color: var(--color-action-primary-pressed);
+}
+
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn--left:active {
+  transform: translateY(-50%) translateX(-1px);
+}
+
+.ws-group-usage__scrollWrap .ws-group-usage__scrollBtn--right:active {
+  transform: translateY(-50%) translateX(1px);
+}
+
+.ws-group-usage__donutCount {
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.ws-group-usage__donutItem {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 3.5rem;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: background var(--motion-fast) ease;
+}
+
+.ws-group-usage__donutItem.is-active {
+  background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-surface-default));
+}
+
+.ws-group-usage__donutItem.is-active .ws-group-usage__donutName,
+.ws-group-usage__donutItem.is-active .ws-group-usage__donutCount {
+  color: var(--color-action-primary);
+}
+
+.ws-group-usage__donutItem.is-active .ws-group-usage__donutFill {
+  stroke: var(--color-action-primary);
+}
+
+.ws-group-usage__donut {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.ws-group-usage__donut svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ws-group-usage__donutTrack {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-info) 16%, var(--color-surface-hover));
+  stroke-width: 3.6;
+}
+
+.ws-group-usage__donutFill {
+  fill: none;
+  stroke: var(--color-info);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--motion-normal) ease;
+}
+
+.ws-group-usage__donutLabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-group-usage__donutName {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-align: center;
+}
+
+.ws-group-usage__orientation {
+  display: flex;
+  align-self: flex-start;
+  width: fit-content;
+  gap: 2px;
+  margin-top: 2px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  background: var(--color-surface-hover);
+}
+
+.ws-group-usage__orientationBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.ws-group-usage__orientationBtn:hover {
+  color: var(--color-text-secondary);
+}
+
+.ws-group-usage__orientationBtn.is-active {
+  color: var(--color-action-primary);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.ws-group-usage__breakdown--row {
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(3, auto);
   align-content: center;
+  align-items: center;
   gap: 2px var(--space-3);
-  min-width: 0;
-  max-width: 28rem;
-  overflow-x: auto;
-  border-left: 1px solid var(--color-border-default);
-  padding-left: var(--space-3);
 }
 
 .ws-group-usage__row {
@@ -167,6 +359,17 @@ button.ws-summary__row:hover {
   align-items: center;
   gap: var(--space-2);
   padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--motion-fast) ease;
+}
+
+.ws-group-usage__row.is-active {
+  background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-surface-default));
+}
+
+.ws-group-usage__row.is-active .ws-group-usage__name,
+.ws-group-usage__row.is-active .ws-group-usage__count {
+  color: var(--color-action-primary);
 }
 
 .ws-group-usage__dot {
@@ -191,7 +394,7 @@ button.ws-summary__row:hover {
 
 .ws-group-usage__track {
   position: relative;
-  height: 0.5rem;
+  height: 1rem;
   width: 6rem;
   flex: 0 0 auto;
   border-radius: var(--radius-pill);
@@ -206,13 +409,21 @@ button.ws-summary__row:hover {
   transition: width var(--motion-normal) ease;
 }
 
-.ws-group-usage__percent {
-  min-width: 2.25rem;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+.ws-group-usage__trackLabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  color: var(--color-text-primary);
+  text-shadow:
+    0 0 3px var(--color-surface-default),
+    0 0 3px var(--color-surface-default);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .ws-toolbar {
@@ -516,20 +727,29 @@ button.ws-summary__row:hover {
 
 .ws-inspector {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
+/* Moi group la 1 "the" rieng (border + bg) thay vi chi gach ngang -- de mat nhin
+   tach bach duoc cac nhom thong tin lien quan, thay vi 1 cot dai lien tuc. */
 .ws-inspector__section {
   display: grid;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border-default);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
 }
 
+/* Label cua group PHAI nho + mo (eyebrow), de gia tri (dd) la thu sang ro duy
+   nhat trong the -- dao nguoc uu tien so voi h3 to/dam truoc day. */
 .ws-inspector__section h3 {
   margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .ws-detail-list {
@@ -561,6 +781,37 @@ button.ws-summary__row:hover {
   font-weight: 650;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Trong drawer chi tiet may: doi dl thanh luoi 2 cot, moi o la 1 "stat" (nhan
+   nho+mo tren, gia tri sang+ro duoi) thay vi hang ngang label-trai/value-phai --
+   dung dac ta cao hon selector dung chung ".ws-detail-list > div" o tren. */
+.ws-inspector .ws-detail-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-5);
+}
+
+.ws-inspector .ws-detail-list > div {
+  display: grid;
+  gap: 0.125rem;
+  align-items: start;
+  justify-content: unset;
+}
+
+.ws-inspector .ws-detail-list dt {
+  font-size: var(--font-size-xs);
+}
+
+.ws-inspector .ws-detail-list dd {
+  font-size: var(--font-size-lg);
+  text-align: left;
+}
+
+/* Nut hanh dong gan lien voi group chua no (cung 1 the) -- vach mo tach voi
+   phan du lieu phia tren de doc ra la "nut cua group nay", khong phai khoi roi. */
+.ws-inspector__section .ws-action-grid {
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border-default);
 }
 
 .ws-action-grid > * {
@@ -779,6 +1030,14 @@ button.ws-summary__row:hover {
   }
 }
 
+@media (max-width: 420px) {
+  /* Man rat hep (drawer full-width tren dien thoai nho): 2 cot stat qua chat,
+     tra lai 1 cot de nhan/gia tri khong bi vo dong giua chung. */
+  .ws-inspector .ws-detail-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .ws-summary__card {
     flex-direction: column;
@@ -786,7 +1045,7 @@ button.ws-summary__row:hover {
   }
 
   .ws-summary__breakdown,
-  .ws-group-usage__breakdown {
+  .ws-group-usage__scrollWrap {
     border-left: 0;
     border-top: 1px solid var(--color-border-default);
     padding-left: 0;
@@ -798,12 +1057,14 @@ button.ws-summary__row:hover {
     flex-wrap: wrap;
   }
 
-  .ws-group-usage__breakdown {
+  .ws-group-usage__scrollWrap {
+    max-width: none;
+  }
+
+  .ws-group-usage__breakdown--row {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    max-width: none;
-    overflow-x: visible;
   }
 
   .ws-group-usage__name {

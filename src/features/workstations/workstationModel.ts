@@ -12,6 +12,19 @@ export const WORKSTATION_STATUS = {
   WARNING: 4,
 } as const
 
+// Mirror enum LOGIN_TYPE (FNetProtocol.h:175-185) -- gia tri KHONG tuan tu don gian
+// 0/1, tung bi nham loginType===0 la "vang lai" (that ra 0 la LOGIN_TYPE_INVALID).
+export const LOGIN_TYPE = {
+  INVALID: 0,
+  ADMIN: 1,
+  MEMBER: 2,
+  ANONYM_PREPAID: 3,
+  ANONYM_PAY_LATER: 4,
+  COMBO_CARD: 5,
+  COMBO_BOOK: 6,
+  MEMBER_USE_COMBO: 7,
+} as const
+
 export const WORKSTATION_FLAGS = {
   USER_UNDER18: 0x00000001,
   SERVICE_ORDER: 0x00000002,
@@ -209,6 +222,20 @@ export function formatStartedAt(value: string | null | undefined, precision: 'se
 
 export function sessionLabel(session: WorkstationRuntimeSession | null) {
   if (!session) return 'Không có phiên'
+  if (session.loginType === LOGIN_TYPE.MEMBER_USE_COMBO) return 'Hội viên (combo)'
   if (session.prepaid) return 'Trả trước'
-  return session.loginType === 0 ? 'Vãng lai trả sau' : 'Hội viên'
+  switch (session.loginType) {
+    case LOGIN_TYPE.MEMBER:
+      return 'Hội viên'
+    case LOGIN_TYPE.ANONYM_PAY_LATER:
+      return 'Vãng lai trả sau'
+    case LOGIN_TYPE.COMBO_CARD:
+      return 'Thẻ combo'
+    case LOGIN_TYPE.COMBO_BOOK:
+      return 'Combo đặt trước'
+    case LOGIN_TYPE.ADMIN:
+      return 'ADMIN'
+    default:
+      return 'Không xác định'
+  }
 }

@@ -41,6 +41,8 @@ export type WorkstationRuntimeSession = {
   /** chi MEMBER moi co so du; ANONYM = null */
   remainingMoney: number | null
   comboName: string | null
+  /** AnonymousTb.Id da gan CCCD cho phien nay -- null khi khong phai ANONYM hoac chua gan */
+  anonymId: number | null
 }
 
 // Ban quyen Windows may tram. `null` ca nhanh = CHUA CO du lieu (client cu, co `hwm`

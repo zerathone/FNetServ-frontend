@@ -392,8 +392,8 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
           ariaLabel="Đối tượng gọi món hộ"
           value={mode}
           options={[
-            { value: 'machine', label: 'Máy đang có khách' },
-            { value: 'guest', label: 'Khách vãng lai tại quầy' },
+            { value: 'machine', label: 'Máy online' },
+            { value: 'guest', label: 'Tại quầy' },
           ]}
           onChange={(next) => {
             setMode(next)
@@ -402,7 +402,7 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
         />
         {mode === 'guest' ? (
           <p className="staff-order__hint">
-            Khách không dùng máy, thu tiền mặt ngay tại quầy (phiếu ghi là khách vãng lai).
+            Khách không dùng máy, thu tiền mặt ngay tại quầy (đơn ghi khách vãng lai).
           </p>
         ) : (
           <>
@@ -527,7 +527,7 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
                 <input
                   className="ds-input"
                   type="search"
-                  placeholder="Tìm món (gõ không dấu cũng được)"
+                  placeholder="Tìm món"
                   value={catalogSearch}
                   onChange={(event) => setCatalogSearch(event.target.value)}
                 />
@@ -725,25 +725,37 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
     quantity: line.quantity,
   }))
 
-  const renderSummary = () => (
-    <dl className="order-confirm-summary">
-      <div><dt>Khách</dt><dd>{orderLabel}</dd></div>
-      <div className="order-confirm-summary__items">
-        <dt>Món</dt>
-        <dd>
-          <ul className="staff-order__summary-items">
-            {summaryLines.map((line) => (
-              <li key={line.key}>
-                <span>{line.name}</span>
-                <span>× {line.quantity}</span>
-              </li>
-            ))}
-          </ul>
-        </dd>
-      </div>
-      <div><dt>{created ? 'Số tiền' : 'Tạm tính'}</dt><dd>{amountLabel}</dd></div>
-    </dl>
-  )
+  const renderSummary = () => {
+    const isGuest = activeTarget?.kind === 'guest'
+    const customerName = activeTarget?.kind === 'member'
+      ? (activeTarget.userName || 'Tài khoản đang đăng nhập')
+      : 'Tại quầy'
+    const hostName = activeTarget?.kind === 'member'
+      ? activeTarget.hostName
+      : 'Tại quầy'
+
+    return (
+      <dl className="order-confirm-summary">
+        <div><dt>Khách</dt><dd>{customerName}</dd></div>
+        {!isGuest && <div><dt>Máy</dt><dd>{hostName}</dd></div>}
+        {isGuest && <div><dt>Hình thức</dt><dd>Tại quầy — thu tiền mặt</dd></div>}
+        <div className="order-confirm-summary__items">
+          <dt>Món</dt>
+          <dd>
+            <ul className="staff-order__summary-items">
+              {summaryLines.map((line) => (
+                <li key={line.key}>
+                  <span>{line.name}</span>
+                  <span>× {line.quantity}</span>
+                </li>
+              ))}
+            </ul>
+          </dd>
+        </div>
+        <div><dt>{created ? 'Số tiền' : 'Tạm tính'}</dt><dd>{amountLabel}</dd></div>
+      </dl>
+    )
+  }
 
   const renderConfirm = (method: Exclude<SettleMethod, 'tab'>) => (
     <div className="order-confirm-stack">
@@ -951,7 +963,7 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
     <Dialog
       open={open}
       title="Đơn hàng"
-      size="lg"
+      size={view.name === 'compose' ? 'lg' : 'md'}
       onClose={close}
       footer={renderFooter()}
     >

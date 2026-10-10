@@ -14,6 +14,12 @@
   align-content: start;
 }
 
+/* Section chọn khách (segment + tìm máy / hint): giữ chiều cao cố định để không
+   giật khi chuyển mode "Máy online" ↔ "Tại quầy". */
+.staff-order__section:first-child {
+  min-height: 7.5rem;
+}
+
 .staff-order__hint {
   margin: 0;
   color: var(--color-text-muted);

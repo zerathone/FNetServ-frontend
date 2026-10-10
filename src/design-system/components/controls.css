@@ -1,4 +1,4 @@
-.ds-button {
+﻿.ds-button {
   position: relative;
   height: var(--control-height-compact);
   display: inline-flex;
@@ -59,7 +59,20 @@
   border-color: var(--color-border-default);
 }
 
-.ds-button--secondary:hover:not(:disabled),
+/* Vien + chu doi sang mau chinh (primary) khi hover/active -- tham khao Ant Design
+   Default button: tuong phan ro, khong phai chi doi nen nhat nhu truoc (kho thay). */
+.ds-button--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.ds-button--secondary:active:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-action-primary-pressed);
+  color: var(--color-action-primary-pressed);
+}
+
 .ds-button--ghost:hover:not(:disabled) {
   background: var(--color-surface-hover);
   border-color: var(--color-border-strong);
@@ -1173,6 +1186,7 @@ input[type="radio"]:disabled {
 
 .ds-dialog--lg {
   width: min(100%, 56rem);
+  height: min(90vh, 48rem); /* cố định = max-height → không giật khi nội dung đổi */
 }
 
 .ds-dialog__header,
@@ -1400,6 +1414,7 @@ input[type="radio"]:disabled {
 
 .ds-segmented {
   display: inline-flex;
+  justify-self: start; /* grid: chặn kéo giãn ngang */
   padding: 2px;
   gap: 2px;
   border: 1px solid var(--color-border-default);
@@ -1408,6 +1423,7 @@ input[type="radio"]:disabled {
 }
 
 .ds-segmented__item {
+  flex: none;
   min-height: 2rem;
   padding: 0.25rem 0.875rem;
   border: 0;

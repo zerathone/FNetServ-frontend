@@ -1,11 +1,13 @@
-import {  useEffect, useMemo, useState } from 'react'
+import {  useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
+import { CaretLeft, CaretRight, ChartBarHorizontal, ChartDonut, MagnifyingGlass, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
 import { getPaymentWaitLogs, type PaymentWaitLog } from '../../api/logs'
 import { getUsers, usersApi, type UserAccount } from '../../api/users'
+import { anonymsApi, type AnonymousDetailPayload } from '../../api/anonyms'
+import { maskIdCard, validateAnonymousDetail } from '../anonyms/anonymModel'
 import {
   adminLoginWorkstations,
   bulkChangeWorkstationGroup,
@@ -129,6 +131,7 @@ type CommandDefinition = {
   danger?: boolean
   availableOnly?: boolean
   offlineOnly?: boolean
+  blockAnonymPayLater?: boolean
 }
 
 const COMMANDS: Record<CommandKind, CommandDefinition> = {
@@ -137,6 +140,10 @@ const COMMANDS: Record<CommandKind, CommandDefinition> = {
     confirmLabel: 'Đăng xuất máy',
     description: 'Kết thúc phiên đăng nhập trên các máy đã chọn.',
     danger: true,
+    // Parity CWorkstationList::OnMenuWorkstation -- IDR_LOGOUT chi duoc enable cho
+    // ANONYM+prepaid hoac Member/Staff/Admin (xem WorkstationList.cpp:1901-1937).
+    // Vang lai tra sau PHAI Tinh tien / Cho tinh tien, khong duoc dang xuat thang.
+    blockAnonymPayLater: true,
   },
   restart: {
     label: 'Khởi động lại',
@@ -243,6 +250,15 @@ function commandDisabledReason(
   ) {
     return 'Chỉ áp dụng cho máy đang tắt/mất kết nối'
   }
+  if (
+    definition.blockAnonymPayLater &&
+    machines.some(
+      (machine) =>
+        machine.userGroupType === USER_GROUP_TYPE.anonym && machine.session && !machine.session.prepaid,
+    )
+  ) {
+    return 'Khách vãng lai trả sau: hãy Tính tiền hoặc đưa vào Chờ tính tiền thay vì đăng xuất'
+  }
   return ''
 }
 
@@ -259,6 +275,20 @@ function resultMessage(results: WsControlResult[]) {
   const succeeded = results.filter((item) => item.ok).length
   return `${succeeded}/${results.length} máy nhận lệnh thành công`
 }
+
+const GROUP_CHART_ORIENTATION_STORAGE_KEY = 'fnet.workstations.group-chart-orientation.v2'
+
+function getInitialGroupChartOrientation(): 'donut' | 'row' {
+  try {
+    const stored = window.localStorage.getItem(GROUP_CHART_ORIENTATION_STORAGE_KEY)
+    return stored === 'donut' ? 'donut' : 'row'
+  } catch {
+    return 'row'
+  }
+}
+
+const DONUT_RADIUS = 15.9155
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
 
 export function WorkstationWorkspace() {
   const navigate = useNavigate()
@@ -297,6 +327,9 @@ export function WorkstationWorkspace() {
   const [search, setSearch] = useState('')
   const [groupId, setGroupId] = useState(0)
   const [optionalColumns, setOptionalColumns] = useState(getInitialOptionalColumns)
+  const [groupChartOrientation, setGroupChartOrientation] = useState<'donut' | 'row'>(getInitialGroupChartOrientation)
+  const groupScrollRef = useRef<HTMLDivElement | null>(null)
+  const [groupScrollState, setGroupScrollState] = useState({ canLeft: false, canRight: false })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [inspectorHost, setInspectorHost] = useState<string | null>(null)
   const [pendingCommand, setPendingCommand] = useState<CommandKind | null>(null)
@@ -332,6 +365,10 @@ export function WorkstationWorkspace() {
   const [appsDialogOpen, setAppsDialogOpen] = useState(false)
   const [appsList, setAppsList] = useState<WorkstationApp[] | null>(null)
   const [appsError, setAppsError] = useState<string | null>(null)
+  const [anonymInfoOpen, setAnonymInfoOpen] = useState(false)
+  const [anonymDraft, setAnonymDraft] = useState<AnonymousDetailPayload>({ name: '', idCard: '', address: '' })
+  const [anonymDraftError, setAnonymDraftError] = useState<string | null>(null)
+  const [anonymSearch, setAnonymSearch] = useState('')
   const moneyIntent = useIdempotentIntent('workstation-workspace-money')
   const paymentWaitPayoutIntent = useIdempotentIntent('payment-wait-payout')
   const paymentWaitContinueIntent = useIdempotentIntent('payment-wait-continue')
@@ -346,6 +383,10 @@ export function WorkstationWorkspace() {
   useEffect(() => {
     window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify([...optionalColumns]))
   }, [optionalColumns])
+
+  useEffect(() => {
+    window.localStorage.setItem(GROUP_CHART_ORIENTATION_STORAGE_KEY, groupChartOrientation)
+  }, [groupChartOrientation])
 
   const toggleColumn = (id: ColumnId) => {
     setOptionalColumns((current) => {
@@ -399,6 +440,17 @@ export function WorkstationWorkspace() {
     enabled: Boolean(inspectedMachine?.userId && inspectedMachine?.userName),
   })
   const exactUser = getExactUser(userQuery.data?.items, inspectedMachine)
+  const assignedAnonymId = inspectedMachine?.session?.anonymId ?? null
+  const assignedAnonymQuery = useQuery({
+    queryKey: ['anonym-detail', assignedAnonymId],
+    queryFn: () => anonymsApi.getById(assignedAnonymId as number),
+    enabled: Boolean(assignedAnonymId),
+  })
+  const anonymSearchQuery = useQuery({
+    queryKey: ['anonyms', 'search', anonymSearch],
+    queryFn: () => anonymsApi.getList(anonymSearch || undefined),
+    enabled: anonymInfoOpen && !assignedAnonymId,
+  })
   const availableMachines = useMemo(
     () =>
       allMachines.filter(
@@ -592,9 +644,9 @@ export function WorkstationWorkspace() {
             idem,
           })
         case 'giveFree':
-          if (!exactUser || !moneyAmount) throw new Error('Số tiền tặng không hợp lệ')
+          if (!moneyAmount) throw new Error('Số tiền tặng không hợp lệ')
           return usersApi.giveFree({
-            userId: exactUser.userId,
+            userId: inspectedMachine.userId,
             giveMoney: moneyAmount,
             idem,
           })
@@ -722,6 +774,78 @@ export function WorkstationWorkspace() {
     onError: (error) => pushToast(error.message, 'error'),
   })
 
+  // Sua thong tin CCCD/ten/dia chi cua ban ghi AnonymousTb DANG GAN cho phien nay
+  // (parity CAnonyInfoDlg::OnBnClickedBtnUpdate khi m_ulAnonymId > 0).
+  const anonymUpdateMutation = useMutation({
+    mutationFn: () => {
+      const validation = validateAnonymousDetail(anonymDraft)
+      if (validation) throw new Error(validation)
+      if (!assignedAnonymId) throw new Error('Không xác định được hồ sơ cần sửa')
+      return anonymsApi.update({
+        id: assignedAnonymId,
+        name: anonymDraft.name.trim(),
+        idCard: anonymDraft.idCard.trim(),
+        address: anonymDraft.address.trim(),
+      })
+    },
+    onSuccess: () => {
+      pushToast('Đã cập nhật thông tin khách vãng lai.', 'success')
+      setAnonymInfoOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['anonym-detail', assignedAnonymId] })
+      void queryClient.invalidateQueries({ queryKey: ['anonyms'] })
+    },
+    onError: (error: Error) => setAnonymDraftError(error.message),
+  })
+
+  // Gan 1 ho so da co san vao phien dang mo (parity CAnonyInfoDlg chon tu danh sach).
+  const anonymAssignMutation = useMutation({
+    mutationFn: (anonymId: number) => {
+      if (!inspectedMachine) throw new Error('Chưa chọn máy')
+      return anonymsApi.assignSession({ hostName: inspectedMachine.hostName, anonymId })
+    },
+    onSuccess: () => {
+      pushToast('Đã gán thông tin khách vãng lai.', 'success')
+      setAnonymInfoOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['workstations'] })
+    },
+    onError: (error: Error) => pushToast(error.message, 'error'),
+  })
+
+  // Tao moi ho so roi gan luon (parity CAnonyInfoDlg khi CCCD chua ton tai trong AnonymousTb).
+  const anonymCreateAssignMutation = useMutation({
+    mutationFn: async () => {
+      const validation = validateAnonymousDetail(anonymDraft)
+      if (validation) throw new Error(validation)
+      if (!inspectedMachine) throw new Error('Chưa chọn máy')
+      const created = await anonymsApi.create({
+        name: anonymDraft.name.trim(),
+        idCard: anonymDraft.idCard.trim(),
+        address: anonymDraft.address.trim(),
+      })
+      return anonymsApi.assignSession({ hostName: inspectedMachine.hostName, anonymId: created.id })
+    },
+    onSuccess: () => {
+      pushToast('Đã tạo và gán thông tin khách vãng lai.', 'success')
+      setAnonymInfoOpen(false)
+      setAnonymDraft({ name: '', idCard: '', address: '' })
+      void queryClient.invalidateQueries({ queryKey: ['workstations'] })
+      void queryClient.invalidateQueries({ queryKey: ['anonyms'] })
+    },
+    onError: (error: Error) => setAnonymDraftError(error.message),
+  })
+
+  const openAnonymInfo = () => {
+    setAnonymDraftError(null)
+    setAnonymSearch('')
+    const current = assignedAnonymQuery.data
+    setAnonymDraft(
+      current
+        ? { id: current.id, name: current.name, idCard: current.idCard, address: current.address }
+        : { name: '', idCard: '', address: '' },
+    )
+    setAnonymInfoOpen(true)
+  }
+
   const openInspector = (machine: WorkstationRuntime) => {
     setInspectorHost(machine.hostName)
   }
@@ -838,6 +962,41 @@ export function WorkstationWorkspace() {
   const overallTotal = registeredReady ? registeredMachines.length : allMachines.length
   const overallInUse = allMachines.filter(isCountedOnline).length
   const overallUsagePercent = overallTotal > 0 ? Math.round((overallInUse / overallTotal) * 100) : 0
+
+  const updateGroupScrollState = useCallback(() => {
+    const el = groupScrollRef.current
+    if (!el) {
+      setGroupScrollState({ canLeft: false, canRight: false })
+      return
+    }
+    const maxScroll = el.scrollWidth - el.clientWidth
+    setGroupScrollState({
+      canLeft: el.scrollLeft > 1,
+      canRight: el.scrollLeft < maxScroll - 1,
+    })
+  }, [])
+
+  useEffect(() => {
+    const el = groupScrollRef.current
+    if (!el) return
+    updateGroupScrollState()
+    const handleChange = () => updateGroupScrollState()
+    el.addEventListener('scroll', handleChange, { passive: true })
+    const resizeObserver = new ResizeObserver(handleChange)
+    resizeObserver.observe(el)
+    window.addEventListener('resize', handleChange)
+    return () => {
+      el.removeEventListener('scroll', handleChange)
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', handleChange)
+    }
+  }, [groupChartOrientation, groupUsage.length, updateGroupScrollState])
+
+  const scrollGroupUsage = (direction: 1 | -1) => {
+    const el = groupScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: direction * Math.max(el.clientWidth * 0.8, 96), behavior: 'smooth' })
+  }
 
   // Danh sach may "chua bat" -- parity CWSWakeupDlg::RefreshPCList: khong co trong
   // RAM, hoac co nhung Status la DISCONNECT/WARNING.
@@ -976,32 +1135,120 @@ export function WorkstationWorkspace() {
 
         {groupUsage.length > 0 ? (
           <div className="ws-summary__card">
-            <div className="ws-summary__total">
+            <div className="ws-summary__total ws-summary__total--static">
               <span>Khu vực</span>
               <strong>{overallUsagePercent}%</strong>
+              <div className="ws-group-usage__orientation" role="group" aria-label="Kiểu biểu đồ khu vực">
+                <button
+                  type="button"
+                  className={`ws-group-usage__orientationBtn ${groupChartOrientation === 'row' ? 'is-active' : ''}`}
+                  aria-pressed={groupChartOrientation === 'row'}
+                  title="Biểu đồ thanh ngang"
+                  onClick={() => setGroupChartOrientation('row')}
+                >
+                  <ChartBarHorizontal size={18} weight="bold" />
+                </button>
+                <button
+                  type="button"
+                  className={`ws-group-usage__orientationBtn ${groupChartOrientation === 'donut' ? 'is-active' : ''}`}
+                  aria-pressed={groupChartOrientation === 'donut'}
+                  title="Biểu đồ donut"
+                  onClick={() => setGroupChartOrientation('donut')}
+                >
+                  <ChartDonut size={18} weight="bold" />
+                </button>
+              </div>
             </div>
-            <div className="ws-group-usage__breakdown">
-              {groupUsage.map((group) => (
-                <div key={group.id} className="ws-group-usage__row">
-                  <span
-                    className="ws-summary__dot ws-group-usage__dot"
-                    style={{ opacity: 0.16 + (group.percent / 100) * 0.84 }}
-                    aria-hidden="true"
-                  />
-                  <span className="ws-summary__label ws-group-usage__name" title={group.name}>
-                    {group.name}
-                  </span>
-                  <strong className="ws-group-usage__count">{group.inUse}/{group.total}</strong>
-                  <div
-                    className="ws-group-usage__track"
-                    role="img"
-                    aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
-                  >
-                    <div className="ws-group-usage__fill" style={{ width: `${group.percent}%` }} />
-                  </div>
-                  <span className="ws-group-usage__percent">{group.percent}%</span>
+            <div className="ws-group-usage__scrollWrap">
+              {groupScrollState.canLeft ? (
+                <button
+                  type="button"
+                  className="ws-group-usage__scrollBtn ws-group-usage__scrollBtn--left"
+                  aria-label="Cuộn sang trái"
+                  onClick={() => scrollGroupUsage(-1)}
+                >
+                  <CaretLeft size={16} weight="bold" />
+                </button>
+              ) : null}
+              {groupChartOrientation === 'donut' ? (
+                <div className="ws-group-usage__breakdown" ref={groupScrollRef}>
+                  {groupUsage.map((group) => {
+                    const dashArray = `${(group.percent / 100) * DONUT_CIRCUMFERENCE} ${DONUT_CIRCUMFERENCE}`
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        className={`ws-group-usage__donutItem ${groupId === group.id ? 'is-active' : ''}`}
+                        aria-pressed={groupId === group.id}
+                        aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
+                        title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
+                        onClick={() => setGroupId((current) => (current === group.id ? 0 : group.id))}
+                      >
+                        <span className="ws-group-usage__donutCount">
+                          {group.inUse}/{group.total}
+                        </span>
+                        <div className="ws-group-usage__donut">
+                          <svg viewBox="0 0 36 36">
+                            <circle className="ws-group-usage__donutTrack" cx="18" cy="18" r={DONUT_RADIUS} />
+                            <circle
+                              className="ws-group-usage__donutFill"
+                              cx="18"
+                              cy="18"
+                              r={DONUT_RADIUS}
+                              strokeDasharray={dashArray}
+                            />
+                          </svg>
+                          <span className="ws-group-usage__donutLabel">{group.percent}%</span>
+                        </div>
+                        <span className="ws-group-usage__donutName" title={group.name}>
+                          {group.name}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
-              ))}
+              ) : (
+                <div className="ws-group-usage__breakdown ws-group-usage__breakdown--row" ref={groupScrollRef}>
+                  {groupUsage.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      className={`ws-group-usage__row ${groupId === group.id ? 'is-active' : ''}`}
+                      aria-pressed={groupId === group.id}
+                      title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
+                      onClick={() => setGroupId((current) => (current === group.id ? 0 : group.id))}
+                    >
+                      <span
+                        className="ws-summary__dot ws-group-usage__dot"
+                        style={{ opacity: 0.16 + (group.percent / 100) * 0.84 }}
+                        aria-hidden="true"
+                      />
+                      <span className="ws-summary__label ws-group-usage__name" title={group.name}>
+                        {group.name}
+                      </span>
+                      <strong className="ws-group-usage__count">{group.inUse}/{group.total}</strong>
+                      <div
+                        className="ws-group-usage__track"
+                        role="img"
+                        aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
+                      >
+                        <div className="ws-group-usage__fill" style={{ width: `${group.percent}%` }} />
+                        <span className="ws-group-usage__trackLabel">{group.percent}%</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {groupScrollState.canRight ? (
+                <button
+                  type="button"
+                  className="ws-group-usage__scrollBtn ws-group-usage__scrollBtn--right"
+                  aria-label="Cuộn sang phải"
+                  onClick={() => scrollGroupUsage(1)}
+                >
+                  <CaretRight size={16} weight="bold" />
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -1060,7 +1307,13 @@ export function WorkstationWorkspace() {
         <div className="ws-selection-bar">
           <strong>{selectedMachines.length} máy đã chọn</strong>
           <div>
-            <Button type="button" variant="secondary" onClick={() => openCommand('logout')}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={Boolean(commandDisabledReason(COMMANDS.logout, selectedMachines, hasRight, isAdmin))}
+              title={commandDisabledReason(COMMANDS.logout, selectedMachines, hasRight, isAdmin) || undefined}
+              onClick={() => openCommand('logout')}
+            >
               Đăng xuất
             </Button>
             <Button
@@ -1201,9 +1454,9 @@ export function WorkstationWorkspace() {
               <dl className="ws-detail-list">
                 <div><dt>Khách hàng</dt><dd>{inspectedMachine.userName || '—'}</dd></div>
                 <div><dt>Loại phiên</dt><dd>{sessionLabel(inspectedMachine.session)}</dd></div>
-                <div><dt>Bắt đầu</dt><dd>{formatStartedAt(inspectedMachine.session?.startedAt)}</dd></div>
-                <div><dt>Đã dùng</dt><dd>{formatDuration(clock.used)}</dd></div>
-                <div><dt>Còn lại</dt><dd>{formatDuration(clock.remaining)}</dd></div>
+                <div><dt>Bắt đầu</dt><dd>{formatStartedAt(inspectedMachine.session?.startedAt, 'minutes')}</dd></div>
+                <div><dt>Đã dùng</dt><dd>{formatDuration(clock.used, 'minutes')}</dd></div>
+                <div><dt>Còn lại</dt><dd>{formatDuration(clock.remaining, 'minutes')}</dd></div>
                 <div><dt>Phí tạm tính</dt><dd>{formatMoney(inspectedMachine.session?.totalAmount)}</dd></div>
                 <div><dt>Số dư</dt><dd>{formatMoney(inspectedMachine.session?.remainingMoney)}</dd></div>
                 <div><dt>Combo</dt><dd>{inspectedMachine.session?.comboName || '—'}</dd></div>
@@ -1211,14 +1464,14 @@ export function WorkstationWorkspace() {
               {inspectedMachine.session ? (
                 <div className="ws-action-grid">
                   <Button type="button" variant="primary" onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
-                    Thu tiền
+                    Tính tiền
                   </Button>
                   {hasDebt(inspectedMachine) && inspectedMachine.userId > 0 ? (
                     <Button type="button" variant="secondary" onClick={() => setMoneyAction('payDebit')}>
                       Thanh toán phí chuyển
                     </Button>
                   ) : null}
-                  {!inspectedMachine.session.prepaid && inspectedMachine.userId === 0 ? (
+                  {!inspectedMachine.session.prepaid && inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
                     <Button
                       type="button"
                       variant="secondary"
@@ -1241,7 +1494,7 @@ export function WorkstationWorkspace() {
                     Chuyển máy
                   </Button>
                   {!inspectedMachine.session.prepaid &&
-                  inspectedMachine.userId === 0 &&
+                  inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym &&
                   inspectedMachine.status === WORKSTATION_STATUS.ONLINE ? (
                     <Button
                       type="button"
@@ -1261,28 +1514,22 @@ export function WorkstationWorkspace() {
             {inspectedMachine.userId > 0 ? (
               <section className="ws-inspector__section">
                 <h3>Khách hàng</h3>
-                {userQuery.isLoading ? <p className="ws-muted">Đang tải số dư…</p> : null}
-                {exactUser ? (
+                {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
                   <>
-                    <dl className="ws-detail-list">
-                      <div><dt>Tài khoản</dt><dd>{exactUser.userName}</dd></div>
-                      <div><dt>Số dư chính</dt><dd>{formatMoney(exactUser.moneyMain)}</dd></div>
-                      <div><dt>Tiền tặng</dt><dd>{formatMoney(exactUser.moneySub)}</dd></div>
-                    </dl>
+                    {assignedAnonymQuery.isLoading ? (
+                      <p className="ws-muted">Đang tải thông tin khách vãng lai…</p>
+                    ) : assignedAnonymQuery.data ? (
+                      <dl className="ws-detail-list">
+                        <div><dt>Họ tên</dt><dd>{assignedAnonymQuery.data.name}</dd></div>
+                        <div><dt>CCCD</dt><dd>{maskIdCard(assignedAnonymQuery.data.idCard)}</dd></div>
+                        <div><dt>Địa chỉ</dt><dd>{assignedAnonymQuery.data.address || '—'}</dd></div>
+                      </dl>
+                    ) : (
+                      <InlineAlert tone="info">Chưa gán thông tin khách vãng lai (CCCD) cho phiên này.</InlineAlert>
+                    )}
                     <div className="ws-action-grid">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        disabled={!hasRight(RIGHTS.MODIFY_MONEY)}
-                        title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
-                        onClick={() => {
-                          setMoneyAmount(null)
-                          setDepositMethod('cash')
-                          setDepositQrActive(false)
-                          setMoneyAction('deposit')
-                        }}
-                      >
-                        Nạp tiền
+                      <Button type="button" variant="secondary" onClick={openAnonymInfo}>
+                        {assignedAnonymId ? 'Sửa thông tin khách vãng lai' : 'Gán thông tin khách vãng lai'}
                       </Button>
                       <Button
                         type="button"
@@ -1295,9 +1542,47 @@ export function WorkstationWorkspace() {
                       </Button>
                     </div>
                   </>
-                ) : userQuery.isError ? (
-                  <InlineAlert tone="warning">Không tải được hồ sơ hội viên; có thể mở trang Khách hàng để xử lý.</InlineAlert>
-                ) : null}
+                ) : (
+                  <>
+                    {userQuery.isLoading ? <p className="ws-muted">Đang tải số dư…</p> : null}
+                    {exactUser ? (
+                      <>
+                        <dl className="ws-detail-list">
+                          <div><dt>Tài khoản</dt><dd>{exactUser.userName}</dd></div>
+                          <div><dt>Số dư chính</dt><dd>{formatMoney(exactUser.moneyMain)}</dd></div>
+                          <div><dt>Tiền tặng</dt><dd>{formatMoney(exactUser.moneySub)}</dd></div>
+                        </dl>
+                        <div className="ws-action-grid">
+                          <Button
+                            type="button"
+                            variant="primary"
+                            disabled={!hasRight(RIGHTS.MODIFY_MONEY)}
+                            title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                            onClick={() => {
+                              setMoneyAmount(null)
+                              setDepositMethod('cash')
+                              setDepositQrActive(false)
+                              setMoneyAction('deposit')
+                            }}
+                          >
+                            Nạp tiền
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={!hasRight(RIGHTS.MODIFY_MONEY)}
+                            title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                            onClick={() => { setMoneyAmount(10_000); setMoneyAction('giveFree') }}
+                          >
+                            Tặng tiền
+                          </Button>
+                        </div>
+                      </>
+                    ) : userQuery.isError ? (
+                      <InlineAlert tone="warning">Không tải được hồ sơ hội viên; có thể mở trang Khách hàng để xử lý.</InlineAlert>
+                    ) : null}
+                  </>
+                )}
               </section>
             ) : null}
 
@@ -1320,7 +1605,15 @@ export function WorkstationWorkspace() {
             <section className="ws-inspector__section">
               <h3>Điều khiển phiên</h3>
               <div className="ws-action-grid">
-                <Button type="button" variant="secondary" onClick={() => openCommand('logout', [inspectedMachine])}>Đăng xuất</Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={Boolean(commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin))}
+                  title={commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin) || undefined}
+                  onClick={() => openCommand('logout', [inspectedMachine])}
+                >
+                  Đăng xuất
+                </Button>
                 <Button
                   type="button"
                   variant="secondary"
@@ -1420,9 +1713,9 @@ export function WorkstationWorkspace() {
                     <StatusBadge tone="warning">Chờ thu</StatusBadge>
                   </header>
                   <dl className="ws-detail-list">
-                    <div><dt>Bắt đầu</dt><dd>{log.beginTime || '—'}</dd></div>
-                    <div><dt>Kết thúc</dt><dd>{log.endTime || '—'}</dd></div>
-                    <div><dt>Thời gian dùng</dt><dd>{formatDuration(log.totalTimeUsed)}</dd></div>
+                    <div><dt>Bắt đầu</dt><dd>{formatStartedAt(log.beginTime, 'minutes')}</dd></div>
+                    <div><dt>Kết thúc</dt><dd>{formatStartedAt(log.endTime, 'minutes')}</dd></div>
+                    <div><dt>Thời gian dùng</dt><dd>{formatDuration(log.totalTimeUsed, 'minutes')}</dd></div>
                     <div><dt>Phí thời gian</dt><dd>{formatMoney(log.totalTimeFee)}</dd></div>
                     <div><dt>Ghi chú</dt><dd>{log.note || '—'}</dd></div>
                   </dl>
@@ -1433,7 +1726,7 @@ export function WorkstationWorkspace() {
                       disabled={paymentWaitPayoutMutation.isPending}
                       onClick={() => setPayoutWaitLog(log)}
                     >
-                      Thu tiền
+                      Tính tiền
                     </Button>
                     <Button
                       type="button"
@@ -1593,9 +1886,9 @@ export function WorkstationWorkspace() {
 
       <ConfirmAction
         open={Boolean(payoutWaitLog)}
-        title="Thu tiền phiên chờ"
+        title="Tính tiền phiên chờ"
         description={payoutWaitLog ? `${payoutWaitLog.machineName} · Phiên #${payoutWaitLog.id}` : undefined}
-        confirmLabel="Thu tiền"
+        confirmLabel="Tính tiền"
         pending={paymentWaitPayoutMutation.isPending}
         onCancel={() => {
           paymentWaitPayoutIntent.clearKey()
@@ -1750,10 +2043,10 @@ export function WorkstationWorkspace() {
         open={Boolean(moneyAction)}
         title={
           moneyAction === 'deposit' ? 'Nạp tiền hội viên'
-            : moneyAction === 'giveFree' ? 'Tặng tiền hội viên'
+            : moneyAction === 'giveFree' ? 'Tặng tiền'
               : moneyAction === 'suspend' ? 'Đưa phiên vào chờ tính tiền'
                 : moneyAction === 'payDebit' ? 'Thanh toán phí chuyển đến'
-                  : 'Thu tiền phiên máy'
+                  : 'Tính tiền phiên máy'
         }
         description={inspectedMachine ? `${inspectedMachine.hostName} · ${inspectedMachine.userName || 'Khách vãng lai'}` : undefined}
         size="sm"
@@ -1799,76 +2092,77 @@ export function WorkstationWorkspace() {
         }
       >
         <div className="ws-dialog-stack">
-          {(moneyAction === 'deposit' || moneyAction === 'giveFree') && exactUser ? (
+          {moneyAction === 'deposit' && exactUser ? (
             <>
               <dl className="ws-detail-list">
                 <div><dt>Người nhận</dt><dd>{exactUser.userName}</dd></div>
-                <div><dt>Số dư trước</dt><dd>{formatMoney(moneyAction === 'deposit' ? exactUser.moneyMain : exactUser.moneySub)}</dd></div>
+                <div><dt>Số dư trước</dt><dd>{formatMoney(exactUser.moneyMain)}</dd></div>
               </dl>
-              {moneyAction === 'deposit' ? (
-                <DepositAmountPanel
-                  value={moneyAmount}
-                  disabled={moneyMutation.isPending || depositQrActive}
-                  allowNegative={hasRight(RIGHTS.INPUT_NEGATIVE_MONEY)}
-                  onIntentChange={moneyIntent.clearKey}
-                  onChange={setMoneyAmount}
+              <DepositAmountPanel
+                value={moneyAmount}
+                disabled={moneyMutation.isPending || depositQrActive}
+                allowNegative={hasRight(RIGHTS.INPUT_NEGATIVE_MONEY)}
+                onIntentChange={moneyIntent.clearKey}
+                onChange={setMoneyAmount}
+              />
+              <DepositMethodSelector
+                value={depositMethod}
+                disabled={moneyMutation.isPending || depositQrActive}
+                onChange={(method) => {
+                  moneyIntent.clearKey()
+                  setDepositMethod(method)
+                }}
+              />
+              {depositMethod === 'cash' ? (
+                <InlineAlert tone="info">
+                  {moneyAmount && moneyAmount < 0
+                    ? 'Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.'
+                    : 'Tiền mặt dùng contract hiện tại và được ghi nhận ngay sau khi xác nhận.'}
+                </InlineAlert>
+              ) : depositMethod === 'qr' ? (
+                <DepositQrFlow
+                  userId={exactUser.userId}
+                  amount={moneyAmount}
+                  disabled={moneyMutation.isPending}
+                  onActiveChange={setDepositQrActive}
                 />
               ) : (
-                <MoneyInput
-                  label="Số tiền"
-                  value={moneyAmount}
-                  min={1_000}
-                  onChange={(value) => {
-                    moneyIntent.clearKey()
-                    setMoneyAmount(value)
-                  }}
-                />
+                <InlineAlert tone="info">
+                  {moneyAmount && moneyAmount < 0
+                    ? 'Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.'
+                    : 'Chỉ xác nhận sau khi đã đối soát khoản chuyển. Giao dịch được ghi đúng loại Chuyển khoản trên máy chủ.'}
+                </InlineAlert>
               )}
-              {moneyAction === 'deposit' ? (
-                <>
-                  <DepositMethodSelector
-                    value={depositMethod}
-                    disabled={moneyMutation.isPending || depositQrActive}
-                    onChange={(method) => {
-                      moneyIntent.clearKey()
-                      setDepositMethod(method)
-                    }}
-                  />
-                  {depositMethod === 'cash' ? (
-                    <InlineAlert tone="info">
-                      {moneyAmount && moneyAmount < 0
-                        ? 'Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.'
-                        : 'Tiền mặt dùng contract hiện tại và được ghi nhận ngay sau khi xác nhận.'}
-                    </InlineAlert>
-                  ) : depositMethod === 'qr' ? (
-                    <DepositQrFlow
-                      userId={exactUser.userId}
-                      amount={moneyAmount}
-                      disabled={moneyMutation.isPending}
-                      onActiveChange={setDepositQrActive}
-                    />
-                  ) : (
-                    <InlineAlert tone="info">
-                      {moneyAmount && moneyAmount < 0
-                        ? 'Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.'
-                        : 'Chỉ xác nhận sau khi đã đối soát khoản chuyển. Giao dịch được ghi đúng loại Chuyển khoản trên máy chủ.'}
-                    </InlineAlert>
-                  )}
-                </>
-              ) : null}
               <div className="ws-money-preview">
                 <span>Số dư dự kiến sau giao dịch</span>
-                <strong>
-                  {formatMoney(
-                    (moneyAction === 'deposit' ? exactUser.moneyMain : exactUser.moneySub) +
-                    (moneyAmount ?? 0),
-                  )}
-                </strong>
+                <strong>{formatMoney(exactUser.moneyMain + (moneyAmount ?? 0))}</strong>
               </div>
-              {moneyAction === 'deposit' ? (
-                <div className="ws-operator">
-                  <span>Phương thức</span>
-                  <strong>{getDepositMethodOption(depositMethod).label}</strong>
+              <div className="ws-operator">
+                <span>Phương thức</span>
+                <strong>{getDepositMethodOption(depositMethod).label}</strong>
+              </div>
+            </>
+          ) : moneyAction === 'giveFree' ? (
+            <>
+              <dl className="ws-detail-list">
+                <div><dt>Người nhận</dt><dd>{exactUser?.userName ?? inspectedMachine?.userName ?? '—'}</dd></div>
+                {exactUser ? (
+                  <div><dt>Số dư tặng trước</dt><dd>{formatMoney(exactUser.moneySub)}</dd></div>
+                ) : null}
+              </dl>
+              <MoneyInput
+                label="Số tiền"
+                value={moneyAmount}
+                min={1_000}
+                onChange={(value) => {
+                  moneyIntent.clearKey()
+                  setMoneyAmount(value)
+                }}
+              />
+              {exactUser ? (
+                <div className="ws-money-preview">
+                  <span>Số dư dự kiến sau giao dịch</span>
+                  <strong>{formatMoney(exactUser.moneySub + (moneyAmount ?? 0))}</strong>
                 </div>
               ) : null}
             </>
@@ -1890,6 +2184,120 @@ export function WorkstationWorkspace() {
             <span>Người thao tác</span>
             <strong>{staffName || '—'}</strong>
           </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={anonymInfoOpen}
+        title="Thông tin khách vãng lai"
+        description={inspectedMachine ? inspectedMachine.hostName : undefined}
+        size="sm"
+        onClose={() => {
+          if (anonymUpdateMutation.isPending || anonymAssignMutation.isPending || anonymCreateAssignMutation.isPending) return
+          setAnonymInfoOpen(false)
+        }}
+        footer={
+          assignedAnonymId ? (
+            <>
+              <Button type="button" variant="secondary" disabled={anonymUpdateMutation.isPending} onClick={() => setAnonymInfoOpen(false)}>
+                Hủy
+              </Button>
+              <Button type="button" variant="primary" loading={anonymUpdateMutation.isPending} onClick={() => anonymUpdateMutation.mutate()}>
+                Lưu
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button type="button" variant="secondary" disabled={anonymCreateAssignMutation.isPending} onClick={() => setAnonymInfoOpen(false)}>
+                Hủy
+              </Button>
+              <Button type="button" variant="primary" loading={anonymCreateAssignMutation.isPending} onClick={() => anonymCreateAssignMutation.mutate()}>
+                Tạo &amp; gán
+              </Button>
+            </>
+          )
+        }
+      >
+        <div className="ws-dialog-stack">
+          {anonymDraftError ? <InlineAlert tone="danger">{anonymDraftError}</InlineAlert> : null}
+
+          {!assignedAnonymId ? (
+            <>
+              <label className="ds-field">
+                <span className="ds-field__label">Tìm khách đã có hồ sơ</span>
+                <div className="ds-input-group ds-input-group--search">
+                  <div className="ds-search-input">
+                    <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+                    <input
+                      className="ds-input"
+                      type="search"
+                      value={anonymSearch}
+                      placeholder="Nhập họ tên cần tìm..."
+                      onChange={(event) => setAnonymSearch(event.target.value)}
+                    />
+                  </div>
+                </div>
+              </label>
+              {anonymSearchQuery.isLoading ? (
+                <p className="ws-muted">Đang tìm…</p>
+              ) : (anonymSearchQuery.data ?? []).length === 0 ? (
+                <p className="ws-muted">Không tìm thấy hồ sơ phù hợp.</p>
+              ) : (
+                <div className="ws-wait-list">
+                  {(anonymSearchQuery.data ?? []).map((customer) => (
+                    <article key={customer.id} className="ws-wait-card">
+                      <header>
+                        <div>
+                          <strong>{customer.name}</strong>
+                          <span>CCCD {maskIdCard(customer.idCard)}</span>
+                        </div>
+                      </header>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={anonymAssignMutation.isPending}
+                        onClick={() => anonymAssignMutation.mutate(customer.id)}
+                      >
+                        Chọn
+                      </Button>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <InlineAlert tone="info">Hoặc tạo hồ sơ mới rồi gán cho máy này:</InlineAlert>
+            </>
+          ) : null}
+
+          <label className="ds-field">
+            <span className="ds-field__label">Họ tên</span>
+            <input
+              className="ds-input"
+              type="text"
+              maxLength={255}
+              value={anonymDraft.name}
+              onChange={(event) => setAnonymDraft((current) => ({ ...current, name: event.target.value }))}
+            />
+          </label>
+          <label className="ds-field">
+            <span className="ds-field__label">Số CCCD</span>
+            <input
+              className="ds-input"
+              type="text"
+              inputMode="numeric"
+              maxLength={255}
+              value={anonymDraft.idCard}
+              onChange={(event) => setAnonymDraft((current) => ({ ...current, idCard: event.target.value }))}
+            />
+          </label>
+          <label className="ds-field">
+            <span className="ds-field__label">Địa chỉ</span>
+            <textarea
+              className="ds-input ws-note-input"
+              maxLength={255}
+              value={anonymDraft.address}
+              onChange={(event) => setAnonymDraft((current) => ({ ...current, address: event.target.value }))}
+            />
+          </label>
         </div>
       </Dialog>
 

@@ -32,6 +32,11 @@ export const anonymsApi = {
       `/anonym/list${name ? `?name=${encodeURIComponent(name)}` : ''}`,
     ),
 
+  getById: async (id: number) => {
+    const items = await apiGet<AnonymousCustomer[]>(`/anonym/list?id=${id}`)
+    return items[0] ?? null
+  },
+
   create: (data: AnonymousDetailPayload) =>
     apiPost<{ id: number }, AnonymousDetailPayload>('/anonym/detail', data),
 
