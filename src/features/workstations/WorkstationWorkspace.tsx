@@ -1,6 +1,6 @@
 import {  useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CaretLeft, CaretRight, Check, ChartBarHorizontal, ChartDonut, MagnifyingGlass, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
+import { CaretDown, CaretLeft, CaretRight, CaretUp, Check, ChartBarHorizontal, ChartDonut, MagnifyingGlass, PencilSimple, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
@@ -17,7 +17,8 @@ import {
   changeWorkstationPc,
   deactivateWorkstations,
   getRegisteredWorkstations,
-  hibernateWorkstations,
+  loginWorkstationPayLater,
+  loginWorkstationPrepaid,
   logoutWorkstations,
   payoutPrepaidWorkstation,
   payoutPaymentWait,
@@ -45,6 +46,7 @@ import { Select,
   ConfirmAction,
   Dialog,
   Drawer,
+  IconButton,
   InlineAlert,
   MoneyInput,
   PageHeader,
@@ -75,6 +77,7 @@ import {
   type ColumnId,
 } from './WorkstationVirtualList'
 import {
+  WORKSTATION_FLAGS,
   WORKSTATION_STATUS,
   formatDuration,
   formatMoney,
@@ -98,6 +101,12 @@ const RIGHTS = {
   INPUT_NEGATIVE_MONEY: 26,
   CHANGE_GROUP: 9414,
   SUSPEND_MACHINE: 94311,
+  // RBAC shadow o backend (INT_RBAC_ENFORCE=0, PaymentHandlers.cpp:6366/6553) -- khong chan
+  // cung tren may chu, giu de hien thi "Thieu quyen" nhat quan voi cac nut khac.
+  POSTPAID_LOGIN: 101,
+  PREPAID_LOGIN: 102,
+  // R_DEBIT_MONEY_ALLOW_DEBIT (define.h:50) -- RBAC shadow cho /user/credit (PaymentHandlers.cpp:3724).
+  CREDIT_MONEY: 242,
 } as const
 
 // UserGroupTypeCode (api/user-groups.ts): 1=anonym 2=member 3=admin 4=staff 5=combo
@@ -111,7 +120,6 @@ type CommandKind =
   | 'logout'
   | 'restart'
   | 'shutdown'
-  | 'hibernate'
   | 'closeApp'
   | 'adminLogin'
   | 'update'
@@ -132,6 +140,7 @@ type CommandDefinition = {
   availableOnly?: boolean
   offlineOnly?: boolean
   blockAnonymPayLater?: boolean
+  requiresVerNew?: boolean
 }
 
 const COMMANDS: Record<CommandKind, CommandDefinition> = {
@@ -159,12 +168,6 @@ const COMMANDS: Record<CommandKind, CommandDefinition> = {
     right: RIGHTS.SHUTDOWN_ALL,
     danger: true,
   },
-  hibernate: {
-    label: 'Ngủ đông',
-    confirmLabel: 'Cho máy ngủ đông',
-    description: 'Gửi lệnh ngủ đông. Chức năng này chỉ dành cho quản trị viên.',
-    adminOnly: true,
-  },
   closeApp: {
     label: 'Đóng ứng dụng',
     confirmLabel: 'Đóng ứng dụng',
@@ -180,10 +183,11 @@ const COMMANDS: Record<CommandKind, CommandDefinition> = {
     availableOnly: true,
   },
   update: {
-    label: 'Cập nhật client',
-    confirmLabel: 'Gửi lệnh cập nhật',
+    label: 'Nâng cấp',
+    confirmLabel: 'Gửi lệnh nâng cấp',
     description: 'Yêu cầu client trên các máy đã chọn cập nhật phiên bản.',
     adminOnly: true,
+    requiresVerNew: true,
   },
   wakeup: {
     label: 'Bật máy từ xa',
@@ -201,6 +205,7 @@ type MoneyAction =
   | 'suspend'
   | 'deposit'
   | 'giveFree'
+  | 'credit'
 
 type ChangePcMode = 'change' | 'swap'
 
@@ -212,8 +217,6 @@ function executeCommand({ kind, hostNames }: CommandRequest) {
       return restartWorkstations({ hostNames })
     case 'shutdown':
       return shutdownWorkstations({ hostNames })
-    case 'hibernate':
-      return hibernateWorkstations({ hostNames })
     case 'closeApp':
       return closeAppWorkstations({ hostNames })
     case 'adminLogin':
@@ -258,6 +261,9 @@ function commandDisabledReason(
     )
   ) {
     return 'Khách vãng lai trả sau: hãy Tính tiền hoặc đưa vào Chờ tính tiền thay vì đăng xuất'
+  }
+  if (definition.requiresVerNew && machines.some((machine) => !machine.verNew)) {
+    return 'Máy trạm đã ở phiên bản mới nhất'
   }
   return ''
 }
@@ -332,8 +338,8 @@ export function WorkstationWorkspace() {
   const [groupScrollState, setGroupScrollState] = useState({ canLeft: false, canRight: false })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [inspectorHost, setInspectorHost] = useState<string | null>(null)
+  const [noteExpanded, setNoteExpanded] = useState(false)
   const [pendingCommand, setPendingCommand] = useState<CommandKind | null>(null)
-  const [commandResults, setCommandResults] = useState<WsControlResult[]>([])
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [targetGroupId, setTargetGroupId] = useState(0)
   const [noteDialogOpen, setNoteDialogOpen] = useState(false)
@@ -359,8 +365,13 @@ export function WorkstationWorkspace() {
   const [changePcTarget, setChangePcTarget] = useState('')
   const [prepaidOpen, setPrepaidOpen] = useState(false)
   const [prepaidAmount, setPrepaidAmount] = useState<number | null>(20_000)
+  const [anonymLoginOpen, setAnonymLoginOpen] = useState<'prepaid' | 'payLater' | null>(null)
+  const [loginPriceId, setLoginPriceId] = useState<number | ''>('')
+  const [loginPriceAppRentId, setLoginPriceAppRentId] = useState<number | ''>('')
+  const [loginChargeMoney, setLoginChargeMoney] = useState<number | null>(20_000)
   const [messageDialogOpen, setMessageDialogOpen] = useState(false)
   const [messageTargets, setMessageTargets] = useState<string[]>([])
+  const [noteTargets, setNoteTargets] = useState<string[]>([])
   const [messageText, setMessageText] = useState('')
   const [appsDialogOpen, setAppsDialogOpen] = useState(false)
   const [appsList, setAppsList] = useState<WorkstationApp[] | null>(null)
@@ -374,6 +385,7 @@ export function WorkstationWorkspace() {
   const paymentWaitContinueIntent = useIdempotentIntent('payment-wait-continue')
   const changePcIntent = useIdempotentIntent('workstation-change-pc')
   const prepaidIntent = useIdempotentIntent('workstation-change-prepaid')
+  const anonymLoginIntent = useIdempotentIntent('workstation-anonym-login')
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000)
@@ -430,9 +442,26 @@ export function WorkstationWorkspace() {
     allMachines.find((machine) => machine.hostName === inspectorHost) ?? null
   const status = inspectedMachine ? getWorkstationStatus(inspectedMachine) : null
   const flags = inspectedMachine ? getWorkstationFlags(inspectedMachine) : []
+  // ADMIN login dung userId=0 (WorkstationHandlers.cpp:657) -- khong phai khach hang
+  // tra tien, nen khong co Tinh tien/Chuyen may/Dich vu (parity WorkstationList.cpp
+  // EnableMenuItem IDR_PAYOUT/IDR_CHANGE_WS/IDR_SERVICE_ORDER chi cho session khach that).
+  const isAdminSession = Boolean(
+    inspectedMachine &&
+      inspectedMachine.status === WORKSTATION_STATUS.ONLINE &&
+      inspectedMachine.userId === 0,
+  )
   const clock = inspectedMachine
     ? interpolateSession(inspectedMachine, elapsedSeconds)
     : { used: null, remaining: null }
+  // "Tam dung" (badge flags.ts:147) -- khi client pause, khoa toan bo thao tac tren may
+  // nay tru Bat may tu xa (thao tac duy nhat hop ly khi khong ro trang thai client that).
+  const isPaused = Boolean(
+    inspectedMachine && (inspectedMachine.flagMask & WORKSTATION_FLAGS.CLIENT_PAUSE) !== 0,
+  )
+
+  useEffect(() => {
+    setNoteExpanded(false)
+  }, [inspectorHost])
 
   const userQuery = useQuery({
     queryKey: ['workstation-user', inspectedMachine?.userId, inspectedMachine?.userName],
@@ -451,6 +480,16 @@ export function WorkstationWorkspace() {
     queryFn: () => anonymsApi.getList(anonymSearch || undefined),
     enabled: anonymInfoOpen && !assignedAnonymId,
   })
+  const loginOptionsQuery = useQuery({
+    queryKey: ['anonym-payafter-options', inspectedMachine?.machineGroupId, loginPriceId || undefined],
+    queryFn: () => anonymsApi.getPayAfterOptions(inspectedMachine!.machineGroupId, loginPriceId || undefined),
+    enabled: Boolean(inspectedMachine) && anonymLoginOpen !== null,
+  })
+  useEffect(() => {
+    if (anonymLoginOpen && loginPriceId === '' && loginOptionsQuery.data) {
+      setLoginPriceId(loginOptionsQuery.data.selectedPriceId)
+    }
+  }, [anonymLoginOpen, loginPriceId, loginOptionsQuery.data])
   const availableMachines = useMemo(
     () =>
       allMachines.filter(
@@ -474,7 +513,6 @@ export function WorkstationWorkspace() {
       return response.results
     },
     onSuccess: (results) => {
-      setCommandResults(results)
       pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
       setPendingCommand(null)
       void queryClient.invalidateQueries({ queryKey: ['workstations'] })
@@ -519,7 +557,6 @@ export function WorkstationWorkspace() {
         machineGroupId: targetGroupId,
       }),
     onSuccess: ({ results }) => {
-      setCommandResults(results)
       setGroupDialogOpen(false)
       pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
       void queryClient.invalidateQueries({ queryKey: ['workstations'] })
@@ -530,13 +567,12 @@ export function WorkstationWorkspace() {
   const noteMutation = useMutation({
     mutationFn: () =>
       updateWorkstationNote({
-        hostNames: selectedMachines.map((machine) => machine.hostName),
+        hostNames: noteTargets,
         note: note.trim(),
         lockLogin,
         showLockScreen,
       }),
     onSuccess: ({ results, fn1 }) => {
-      setCommandResults(results)
       setNoteDialogOpen(false)
       if (!fn1 && (lockLogin || showLockScreen)) {
         pushToast('Ghi chú đã lưu; khóa màn hình không bật vì máy chủ chưa có FN1.', 'info')
@@ -551,7 +587,6 @@ export function WorkstationWorkspace() {
   const messageMutation = useMutation({
     mutationFn: () => sendWorkstationMessage({ hostNames: messageTargets, message: messageText.trim() }),
     onSuccess: ({ results }) => {
-      setCommandResults(results)
       setMessageDialogOpen(false)
       setMessageText('')
       pushToast(resultMessage(results), results.every((item) => item.ok) ? 'success' : 'info')
@@ -606,7 +641,7 @@ export function WorkstationWorkspace() {
           })
         case 'payoutPrepaid':
           return payoutPrepaidWorkstation({
-            machine: inspectedMachine.hostName,
+            userId: inspectedMachine.userId,
             note: moneyNote.trim() || undefined,
             idem,
           })
@@ -648,6 +683,13 @@ export function WorkstationWorkspace() {
           return usersApi.giveFree({
             userId: inspectedMachine.userId,
             giveMoney: moneyAmount,
+            idem,
+          })
+        case 'credit':
+          if (!moneyAmount || moneyAmount <= 0) throw new Error('Số tiền cho mượn không hợp lệ')
+          return usersApi.credit({
+            userId: inspectedMachine.userId,
+            borrowMoney: moneyAmount,
             idem,
           })
       }
@@ -774,6 +816,49 @@ export function WorkstationWorkspace() {
     onError: (error) => pushToast(error.message, 'error'),
   })
 
+  const anonymLoginMutation = useMutation({
+    mutationFn: () => {
+      if (!inspectedMachine) throw new Error('Chưa chọn máy')
+      if (!loginPriceId) throw new Error('Chưa chọn nhóm giá')
+      const priceAppRentId = loginPriceAppRentId || undefined
+      if (anonymLoginOpen === 'prepaid') {
+        if (!loginChargeMoney || loginChargeMoney <= 0) throw new Error('Số tiền trả trước không hợp lệ')
+        return loginWorkstationPrepaid({
+          hostName: inspectedMachine.hostName,
+          priceId: loginPriceId,
+          priceAppRentId,
+          chargeMoney: loginChargeMoney,
+          idem: anonymLoginIntent.getKey(
+            fingerprintIntent({
+              hostName: inspectedMachine.hostName,
+              priceId: loginPriceId,
+              priceAppRentId,
+              chargeMoney: loginChargeMoney,
+            }),
+          ),
+        })
+      }
+      return loginWorkstationPayLater({
+        hostName: inspectedMachine.hostName,
+        priceId: loginPriceId,
+        priceAppRentId,
+        idem: anonymLoginIntent.getKey(
+          fingerprintIntent({ hostName: inspectedMachine.hostName, priceId: loginPriceId, priceAppRentId }),
+        ),
+      })
+    },
+    onSuccess: () => {
+      anonymLoginIntent.clearKey()
+      pushToast(
+        anonymLoginOpen === 'prepaid' ? 'Đã đăng nhập khách trả tiền trước.' : 'Đã đăng nhập khách trả tiền sau.',
+        'success',
+      )
+      setAnonymLoginOpen(null)
+      void queryClient.invalidateQueries({ queryKey: ['workstations'] })
+    },
+    onError: (error) => pushToast(error.message, 'error'),
+  })
+
   // Sua thong tin CCCD/ten/dia chi cua ban ghi AnonymousTb DANG GAN cho phien nay
   // (parity CAnonyInfoDlg::OnBnClickedBtnUpdate khi m_ulAnonymId > 0).
   const anonymUpdateMutation = useMutation({
@@ -854,6 +939,22 @@ export function WorkstationWorkspace() {
     setMessageTargets(hostNames)
     setMessageText('')
     setMessageDialogOpen(true)
+  }
+
+  const openAnonymLoginDialog = (mode: 'prepaid' | 'payLater') => {
+    anonymLoginIntent.clearKey()
+    setLoginPriceId('')
+    setLoginPriceAppRentId('')
+    setLoginChargeMoney(20_000)
+    setAnonymLoginOpen(mode)
+  }
+
+  const openNoteDialog = (hostNames: string[], prefill?: WorkstationRuntime) => {
+    setNoteTargets(hostNames)
+    setNote(prefill?.note ?? '')
+    setLockLogin(prefill?.lockLogin ?? false)
+    setShowLockScreen(false)
+    setNoteDialogOpen(true)
   }
 
   const openAppsDialog = (machine: WorkstationRuntime) => {
@@ -1338,7 +1439,11 @@ export function WorkstationWorkspace() {
             >
               Đổi nhóm
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setNoteDialogOpen(true)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => openNoteDialog(selectedMachines.map((machine) => machine.hostName))}
+            >
               Ghi chú / giữ máy
             </Button>
             <Button
@@ -1386,25 +1491,6 @@ export function WorkstationWorkspace() {
               Bỏ chọn
             </Button>
           </div>
-        </div>
-      ) : null}
-
-      {commandResults.length > 0 ? (
-        <div className="ws-results">
-          <InlineAlert tone={commandResults.every((item) => item.ok) ? 'success' : 'warning'}>
-            {resultMessage(commandResults)}. Xem kết quả từng máy bên dưới.
-          </InlineAlert>
-          <details>
-            <summary>Kết quả lệnh gần nhất</summary>
-            <ul>
-              {commandResults.map((result) => (
-                <li key={result.hostName} className={result.ok ? 'is-success' : 'is-failed'}>
-                  <strong>{result.hostName}</strong>
-                  <span>{result.ok ? 'Thành công' : result.reason || 'Không thực hiện được'}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
         </div>
       ) : null}
 
@@ -1471,13 +1557,49 @@ export function WorkstationWorkspace() {
                 <div><dt>Số dư</dt><dd>{formatMoney(inspectedMachine.session?.remainingMoney)}</dd></div>
                 <div><dt>Combo</dt><dd>{inspectedMachine.session?.comboName || '—'}</dd></div>
               </dl>
-              {inspectedMachine.session ? (
+              {inspectedMachine.status !== WORKSTATION_STATUS.AVAILABLE ? (
                 <div className="ws-action-grid">
-                  <Button type="button" variant="primary" onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
-                    Tính tiền
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isPaused}
+                    onClick={() => openMessageDialog([inspectedMachine.hostName])}
+                  >
+                    Nhắn tin
                   </Button>
+                </div>
+              ) : null}
+              {inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
+                <div className="ws-action-grid">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
+                    title={!hasRight(RIGHTS.PREPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.PREPAID_LOGIN}` : undefined}
+                    onClick={() => openAnonymLoginDialog('prepaid')}
+                  >
+                    Đăng nhập (trả tiền trước)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isPaused || !hasRight(RIGHTS.POSTPAID_LOGIN)}
+                    title={!hasRight(RIGHTS.POSTPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.POSTPAID_LOGIN}` : undefined}
+                    onClick={() => openAnonymLoginDialog('payLater')}
+                  >
+                    Đăng nhập (trả tiền sau)
+                  </Button>
+                </div>
+              ) : null}
+              {inspectedMachine.session && !isAdminSession ? (
+                <div className="ws-action-grid">
+                  {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
+                    <Button type="button" variant="primary" disabled={isPaused} onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
+                      Tính tiền
+                    </Button>
+                  ) : null}
                   {hasDebt(inspectedMachine) && inspectedMachine.userId > 0 ? (
-                    <Button type="button" variant="secondary" onClick={() => setMoneyAction('payDebit')}>
+                    <Button type="button" variant="secondary" disabled={isPaused} onClick={() => setMoneyAction('payDebit')}>
                       Thanh toán phí chuyển
                     </Button>
                   ) : null}
@@ -1485,7 +1607,7 @@ export function WorkstationWorkspace() {
                     <Button
                       type="button"
                       variant="secondary"
-                      disabled={!hasRight(RIGHTS.SUSPEND_MACHINE)}
+                      disabled={isPaused || !hasRight(RIGHTS.SUSPEND_MACHINE)}
                       title={!hasRight(RIGHTS.SUSPEND_MACHINE) ? `Thiếu quyền ${RIGHTS.SUSPEND_MACHINE}` : undefined}
                       onClick={() => setMoneyAction('suspend')}
                     >
@@ -1495,6 +1617,7 @@ export function WorkstationWorkspace() {
                   <Button
                     type="button"
                     variant="secondary"
+                    disabled={isPaused}
                     onClick={() => {
                       setChangePcMode('change')
                       setChangePcTarget('')
@@ -1509,6 +1632,7 @@ export function WorkstationWorkspace() {
                     <Button
                       type="button"
                       variant="secondary"
+                      disabled={isPaused}
                       onClick={() => {
                         setPrepaidAmount(20_000)
                         setPrepaidOpen(true)
@@ -1519,6 +1643,26 @@ export function WorkstationWorkspace() {
                   ) : null}
                 </div>
               ) : null}
+              <div className="ws-action-grid">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin))}
+                  title={commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin) || undefined}
+                  onClick={() => openCommand('logout', [inspectedMachine])}
+                >
+                  Khóa máy
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin))}
+                  title={commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin) || undefined}
+                  onClick={() => openCommand('adminLogin', [inspectedMachine])}
+                >
+                  Đăng nhập ADMIN
+                </Button>
+              </div>
             </section>
 
             {inspectedMachine.userId > 0 ? (
@@ -1534,17 +1678,15 @@ export function WorkstationWorkspace() {
                         <div><dt>CCCD</dt><dd>{maskIdCard(assignedAnonymQuery.data.idCard)}</dd></div>
                         <div><dt>Địa chỉ</dt><dd>{assignedAnonymQuery.data.address || '—'}</dd></div>
                       </dl>
-                    ) : (
-                      <InlineAlert tone="info">Chưa gán thông tin khách vãng lai (CCCD) cho phiên này.</InlineAlert>
-                    )}
+                    ) : null}
                     <div className="ws-action-grid">
-                      <Button type="button" variant="secondary" onClick={openAnonymInfo}>
-                        {assignedAnonymId ? 'Sửa thông tin khách vãng lai' : 'Gán thông tin khách vãng lai'}
+                      <Button type="button" variant="secondary" disabled={isPaused || Boolean(assignedAnonymId)} onClick={openAnonymInfo}>
+                        {assignedAnonymId ? 'Đã gán thông tin khách vãng lai' : 'Gán thông tin khách vãng lai'}
                       </Button>
                       <Button
                         type="button"
                         variant="secondary"
-                        disabled={!hasRight(RIGHTS.MODIFY_MONEY)}
+                        disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
                         title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
                         onClick={() => { setMoneyAmount(10_000); setMoneyAction('giveFree') }}
                       >
@@ -1566,7 +1708,7 @@ export function WorkstationWorkspace() {
                           <Button
                             type="button"
                             variant="primary"
-                            disabled={!hasRight(RIGHTS.MODIFY_MONEY)}
+                            disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
                             title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
                             onClick={() => {
                               setMoneyAmount(null)
@@ -1580,11 +1722,20 @@ export function WorkstationWorkspace() {
                           <Button
                             type="button"
                             variant="secondary"
-                            disabled={!hasRight(RIGHTS.MODIFY_MONEY)}
+                            disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
                             title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
                             onClick={() => { setMoneyAmount(10_000); setMoneyAction('giveFree') }}
                           >
                             Tặng tiền
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={isPaused || !hasRight(RIGHTS.CREDIT_MONEY)}
+                            title={!hasRight(RIGHTS.CREDIT_MONEY) ? `Thiếu quyền ${RIGHTS.CREDIT_MONEY}` : undefined}
+                            onClick={() => { setMoneyAmount(10_000); setMoneyAction('credit') }}
+                          >
+                            Cho mượn tiền
                           </Button>
                         </div>
                       </>
@@ -1596,50 +1747,29 @@ export function WorkstationWorkspace() {
               </section>
             ) : null}
 
-            <section className="ws-inspector__section">
-              <h3>Dịch vụ tại máy</h3>
-              <Button
-                type="button"
-                variant="secondary"
-                block
-                onClick={() => {
-                  setOrderHost(inspectedMachine.hostName)
-                  setOrderCustomerName(inspectedMachine.userName ?? '')
-                  navigate('/orders')
-                }}
-              >
-                Mở hàng đợi gọi món
-              </Button>
-            </section>
-
-            <section className="ws-inspector__section">
-              <h3>Điều khiển phiên</h3>
-              <div className="ws-action-grid">
+            {inspectedMachine.session && !isAdminSession ? (
+              <section className="ws-inspector__section">
+                <h3>Dịch vụ tại máy</h3>
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={Boolean(commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin))}
-                  title={commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin) || undefined}
-                  onClick={() => openCommand('logout', [inspectedMachine])}
+                  block
+                  disabled={isPaused}
+                  onClick={() => {
+                    setOrderHost(inspectedMachine.hostName)
+                    setOrderCustomerName(inspectedMachine.userName ?? '')
+                    navigate('/orders')
+                  }}
                 >
-                  Đăng xuất
+                  Mở hàng đợi gọi món
                 </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={Boolean(commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin))}
-                  title={commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin) || undefined}
-                  onClick={() => openCommand('adminLogin', [inspectedMachine])}
-                >
-                  Đăng nhập ADMIN
-                </Button>
-              </div>
-            </section>
+              </section>
+            ) : null}
 
             <section className="ws-inspector__section">
               <h3>Điều khiển hệ thống</h3>
               <div className="ws-action-grid">
-                {(['wakeup', 'restart', 'closeApp', 'shutdown', 'hibernate', 'update'] as CommandKind[]).map((kind) => {
+                {(['wakeup', 'restart', 'closeApp', 'shutdown'] as CommandKind[]).map((kind) => {
                   const definition = COMMANDS[kind]
                   const reason = commandDisabledReason(definition, [inspectedMachine], hasRight, isAdmin)
                   return (
@@ -1647,7 +1777,7 @@ export function WorkstationWorkspace() {
                       key={kind}
                       type="button"
                       variant={kind === 'shutdown' ? 'danger' : 'secondary'}
-                      disabled={Boolean(reason)}
+                      disabled={kind === 'wakeup' ? Boolean(reason) : isPaused || Boolean(reason)}
                       title={reason || undefined}
                       onClick={() => openCommand(kind, [inspectedMachine])}
                     >
@@ -1658,13 +1788,7 @@ export function WorkstationWorkspace() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => openMessageDialog([inspectedMachine.hostName])}
-                >
-                  Nhắn tin
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
+                  disabled={isPaused}
                   onClick={() => openAppsDialog(inspectedMachine)}
                 >
                   Ứng dụng đang chạy
@@ -1678,9 +1802,49 @@ export function WorkstationWorkspace() {
             <section className="ws-inspector__section">
               <h3>Thông tin kỹ thuật</h3>
               <dl className="ws-detail-list">
-                <div><dt>Phiên bản</dt><dd>{inspectedMachine.version || '—'}</dd></div>
-                <div><dt>Ghi chú</dt><dd>{inspectedMachine.note || '—'}</dd></div>
-                <div><dt>Cập nhật snapshot</dt><dd>{new Date(inspectedMachine.updatedAtMs).toLocaleTimeString('vi-VN')}</dd></div>
+                <div>
+                  <dt>Phiên bản</dt>
+                  <dd>
+                    <div className="ws-detail-value-row">
+                      <span>{inspectedMachine.version || '—'}</span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin))}
+                        title={commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) || undefined}
+                        onClick={() => openCommand('update', [inspectedMachine])}
+                      >
+                        {COMMANDS.update.label}
+                      </Button>
+                    </div>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Ghi chú</dt>
+                  <dd>
+                    <div className="ws-note-cell">
+                      <span className={noteExpanded ? 'ws-note-text' : 'ws-note-text ws-note-text--collapsed'}>
+                        {inspectedMachine.note || '—'}
+                      </span>
+                      <span className="ws-note-controls">
+                        {inspectedMachine.note ? (
+                          <IconButton
+                            label={noteExpanded ? 'Thu gọn ghi chú' : 'Xem đầy đủ ghi chú'}
+                            icon={noteExpanded ? <CaretUp size={14} weight="bold" /> : <CaretDown size={14} weight="bold" />}
+                            onClick={() => setNoteExpanded((value) => !value)}
+                          />
+                        ) : null}
+                        <IconButton
+                          label="Sửa ghi chú"
+                          icon={<PencilSimple size={14} weight="bold" />}
+                          variant="secondary"
+                          disabled={isPaused}
+                          onClick={() => openNoteDialog([inspectedMachine.hostName], inspectedMachine)}
+                        />
+                      </span>
+                    </div>
+                  </dd>
+                </div>
               </dl>
             </section>
           </div>
@@ -2028,7 +2192,7 @@ export function WorkstationWorkspace() {
       <Dialog
         open={noteDialogOpen}
         title="Ghi chú và giữ máy"
-        description={`Áp dụng cho ${selectedMachines.length} máy đã chọn.`}
+        description={`Áp dụng cho ${noteTargets.length} máy: ${noteTargets.join(', ')}`}
         size="sm"
         onClose={() => setNoteDialogOpen(false)}
         footer={
@@ -2045,7 +2209,6 @@ export function WorkstationWorkspace() {
           </label>
           <label className="ws-check"><input type="checkbox" checked={lockLogin} onChange={(event) => setLockLogin(event.target.checked)} /> Giữ máy, không cho khách đăng nhập</label>
           <label className="ws-check"><input type="checkbox" checked={showLockScreen} onChange={(event) => setShowLockScreen(event.target.checked)} /> Hiện ghi chú trên màn hình khóa</label>
-          <InlineAlert tone="info">Tùy chọn giữ/hiện màn hình chỉ có hiệu lực khi máy chủ bật tính năng FN1.</InlineAlert>
         </div>
       </Dialog>
 
@@ -2054,9 +2217,10 @@ export function WorkstationWorkspace() {
         title={
           moneyAction === 'deposit' ? 'Nạp tiền hội viên'
             : moneyAction === 'giveFree' ? 'Tặng tiền'
-              : moneyAction === 'suspend' ? 'Đưa phiên vào chờ tính tiền'
-                : moneyAction === 'payDebit' ? 'Thanh toán phí chuyển đến'
-                  : 'Tính tiền phiên máy'
+              : moneyAction === 'credit' ? 'Cho mượn tiền'
+                : moneyAction === 'suspend' ? 'Đưa phiên vào chờ tính tiền'
+                  : moneyAction === 'payDebit' ? 'Thanh toán phí chuyển đến'
+                    : 'Tính tiền phiên máy'
         }
         description={inspectedMachine ? `${inspectedMachine.hostName} · ${inspectedMachine.userName || 'Khách vãng lai'}` : undefined}
         size="sm"
@@ -2083,7 +2247,8 @@ export function WorkstationWorkspace() {
                       moneyAmount,
                       hasRight(RIGHTS.INPUT_NEGATIVE_MONEY),
                     )) ||
-                  (moneyAction === 'giveFree' && (!moneyAmount || moneyAmount <= 0))
+                  (moneyAction === 'giveFree' && (!moneyAmount || moneyAmount <= 0)) ||
+                  (moneyAction === 'credit' && (!moneyAmount || moneyAmount <= 0))
                 }
                 onClick={() => moneyMutation.mutate()}
               >
@@ -2176,14 +2341,37 @@ export function WorkstationWorkspace() {
                 </div>
               ) : null}
             </>
-          ) : (
-            <InlineAlert tone={moneyAction === 'suspend' ? 'warning' : 'info'}>
-              {moneyAction === 'suspend'
-                ? 'Phiên trả sau sẽ rời máy hiện tại và xuất hiện trong danh sách Chờ tính tiền.'
-                : 'Số tiền thanh toán được máy chủ tính lại từ dữ liệu phiên. Frontend không tự chốt hoặc sửa số tiền.'}
+          ) : moneyAction === 'credit' ? (
+            <>
+              <dl className="ws-detail-list">
+                <div><dt>Người mượn</dt><dd>{exactUser?.userName ?? inspectedMachine?.userName ?? '—'}</dd></div>
+                {exactUser ? (
+                  <div><dt>Nợ hiện tại</dt><dd>{formatMoney(exactUser.debit)}</dd></div>
+                ) : null}
+              </dl>
+              <MoneyInput
+                label="Số tiền cho mượn"
+                value={moneyAmount}
+                min={1_000}
+                onChange={(value) => {
+                  moneyIntent.clearKey()
+                  setMoneyAmount(value)
+                }}
+                hint="Máy chủ kiểm tra hạn mức tín dụng (CreditLimit) trước khi ghi nợ."
+              />
+              {exactUser ? (
+                <div className="ws-money-preview">
+                  <span>Nợ dự kiến sau giao dịch</span>
+                  <strong>{formatMoney(exactUser.debit + (moneyAmount ?? 0))}</strong>
+                </div>
+              ) : null}
+            </>
+          ) : moneyAction === 'suspend' ? (
+            <InlineAlert tone="warning">
+              Phiên trả sau sẽ rời máy hiện tại và xuất hiện trong danh sách Chờ tính tiền.
             </InlineAlert>
-          )}
-          {moneyAction !== 'giveFree' &&
+          ) : null}
+          {moneyAction !== 'giveFree' && moneyAction !== 'credit' &&
           !(moneyAction === 'deposit' && depositMethod === 'qr') ? (
             <label className="ds-field">
               <span className="ds-field__label">Ghi chú (không bắt buộc)</span>
@@ -2463,9 +2651,98 @@ export function WorkstationWorkspace() {
             }}
             hint="Máy chủ quy đổi số tiền thành thời gian theo bảng giá hiện hành."
           />
-          <InlineAlert tone="warning">
-            Thao tác sẽ chuyển voucher của phiên hiện tại; không tạo một giao dịch thanh toán giả ở frontend.
-          </InlineAlert>
+          <div className="ws-operator">
+            <span>Người thao tác</span>
+            <strong>{staffName || '—'}</strong>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={anonymLoginOpen !== null}
+        title={anonymLoginOpen === 'prepaid' ? 'Đăng nhập khách (trả tiền trước)' : 'Đăng nhập khách (trả tiền sau)'}
+        description={inspectedMachine ? `${inspectedMachine.hostName} · Khách vãng lai` : undefined}
+        size="sm"
+        onClose={() => {
+          if (anonymLoginMutation.isPending) return
+          anonymLoginIntent.clearKey()
+          setAnonymLoginOpen(null)
+        }}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={anonymLoginMutation.isPending}
+              onClick={() => {
+                anonymLoginIntent.clearKey()
+                setAnonymLoginOpen(null)
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={anonymLoginMutation.isPending}
+              disabled={
+                !loginPriceId ||
+                (anonymLoginOpen === 'prepaid' && (!loginChargeMoney || loginChargeMoney <= 0))
+              }
+              onClick={() => anonymLoginMutation.mutate()}
+            >
+              {anonymLoginOpen === 'prepaid' ? 'Đăng nhập trả trước' : 'Đăng nhập trả sau'}
+            </Button>
+          </>
+        }
+      >
+        <div className="ws-dialog-stack">
+          <label className="ds-field">
+            <span className="ds-field__label">Nhóm giá</span>
+            <Select
+              className="ds-select"
+              value={loginPriceId}
+              onChange={(event) => {
+                setLoginPriceId(event.target.value ? Number(event.target.value) : '')
+                setLoginPriceAppRentId('')
+              }}
+            >
+              <option value="">Chọn nhóm giá</option>
+              {(loginOptionsQuery.data?.prices ?? []).map((price) => (
+                <option key={price.priceId} value={price.priceId}>
+                  {price.priceType} · {formatMoney(price.price)}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {(loginOptionsQuery.data?.priceAppRents.length ?? 0) > 0 ? (
+            <label className="ds-field">
+              <span className="ds-field__label">Gói ứng dụng thuê</span>
+              <Select
+                className="ds-select"
+                value={loginPriceAppRentId}
+                onChange={(event) =>
+                  setLoginPriceAppRentId(event.target.value ? Number(event.target.value) : '')
+                }
+              >
+                <option value="">Không áp dụng</option>
+                {loginOptionsQuery.data?.priceAppRents.map((rent) => (
+                  <option key={rent.id} value={rent.id}>
+                    {rent.name} · {formatMoney(rent.price)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ) : null}
+          {anonymLoginOpen === 'prepaid' ? (
+            <MoneyInput
+              label="Số tiền trả trước"
+              value={loginChargeMoney}
+              min={1_000}
+              onChange={setLoginChargeMoney}
+              hint="Máy chủ quy đổi số tiền thành thời gian theo bảng giá hiện hành."
+            />
+          ) : null}
           <div className="ws-operator">
             <span>Người thao tác</span>
             <strong>{staffName || '—'}</strong>

@@ -65,6 +65,8 @@ export type WorkstationRuntime = {
   status: number
   flagMask: number
   version: string
+  /** server co ban client moi hon ban dang chay tren may nay (tinh 1 lan luc client connect) */
+  verNew: boolean
   machineGroupId: number
   machineGroupName: string | null
   /** INVALID_ID -> 0 (giu convention /workstations) */
@@ -195,7 +197,7 @@ export function payoutWorkstation(payload: { machine: string, realAmount?: numbe
   return apiPost<any, typeof payload>('/workstation/payout', payload)
 }
 
-export function payoutPrepaidWorkstation(payload: { machine: string, note?: string, idem: string }) {
+export function payoutPrepaidWorkstation(payload: { userId: number, note?: string, idem: string }) {
   return apiPost<any, typeof payload>('/workstation/payout/prepaid', payload)
 }
 
@@ -209,6 +211,23 @@ export function changeWorkstationPc(payload: { oldMachine: string, newMachine: s
 
 export function changeSessionToPrepaid(payload: { machine: string, chargeTime?: number, chargeMoney?: number, idem: string }) {
   return apiPost<any, typeof payload>('/session/change-to-prepaid', payload)
+}
+
+// ---- 2.21b EP-A/EP-B: dang nhap khach vang lai tren may AVAILABLE ----
+
+export function loginWorkstationPayLater(payload: { hostName: string, priceId: number, priceAppRentId?: number, idem: string }) {
+  return apiPost<any, typeof payload>('/workstation/login/pay-later', payload)
+}
+
+export function loginWorkstationPrepaid(payload: {
+  hostName: string
+  priceId: number
+  priceAppRentId?: number
+  chargeTime?: number
+  chargeMoney?: number
+  idem: string
+}) {
+  return apiPost<any, typeof payload>('/workstation/login/prepaid', payload)
 }
 
 // ---- L5B Payment-wait ----

@@ -489,49 +489,6 @@ button.ws-summary__row:hover {
   background: var(--color-border-default);
 }
 
-.ws-results {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.ws-results details {
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-default);
-}
-
-.ws-results summary {
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  font-weight: 650;
-}
-
-.ws-results ul {
-  display: grid;
-  gap: var(--space-1);
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.ws-results li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-subtle);
-}
-
-.ws-results li.is-success span {
-  color: var(--color-success);
-}
-
-.ws-results li.is-failed span {
-  color: var(--color-danger-text);
-}
-
 .ws-content {
   min-height: min(36rem, calc(100vh - 24rem));
   overflow-x: auto;
@@ -804,6 +761,9 @@ button.ws-summary__row:hover {
   gap: 0.125rem;
   align-items: start;
   justify-content: unset;
+  /* grid item mac dinh min-width:auto -> content co nowrap (vd .ws-note-text--collapsed)
+     se day rong ca o nay va tran khoi cot ngoai, bat ke outer da co minmax(0,1fr). */
+  min-width: 0;
 }
 
 .ws-inspector .ws-detail-list dt {
@@ -813,6 +773,45 @@ button.ws-summary__row:hover {
 .ws-inspector .ws-detail-list dd {
   font-size: var(--font-size-lg);
   text-align: left;
+  min-width: 0;
+}
+
+.ws-detail-value-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Ghi chu: flexbox (KHONG dung float -- float + nowrap + text-overflow:ellipsis
+   tinh overflow theo chieu rong box goc, khong theo line-box bi float thu hep,
+   nen text tran het ra ngoai khung thay vi bi cat). Nut Sua/expand flex-shrink:0
+   luon hien du, text la flex item co min-width:0 nen tu co lai va cat "...". */
+.ws-note-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.ws-note-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.ws-note-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Thu gon: 1 dong, cat "..." vua khit phan con lai sau khi tru cho 2 nut.
+   JS do scrollWidth > clientWidth luc dang thu gon de biet co can nut expand. */
+.ws-note-text--collapsed {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Nut hanh dong gan lien voi group chua no (cung 1 the) -- vach mo tach voi
