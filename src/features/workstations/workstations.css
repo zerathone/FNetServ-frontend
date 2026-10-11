@@ -124,10 +124,24 @@ button.ws-summary__row:hover {
 .ws-summary__dot--playing { background: var(--color-info); }
 .ws-summary__dot--available { background: var(--color-success); }
 .ws-summary__dot--disconnected { background: var(--color-danger); }
-.ws-summary__dot--member { background: var(--color-chart-4); }
-.ws-summary__dot--anonym { background: var(--color-info); }
-.ws-summary__dot--combo { background: var(--color-success); }
-.ws-summary__dot--admin { background: var(--color-warning); }
+/* Mau theo loai tai khoan -- 1 nguon cho cham thong ke (.ws-summary__dot--*) va badge
+   o drawer chi tiet may (.ws-user-badge--*). */
+.ws-summary__dot--member, .ws-user-badge--member { --ws-user-kind: var(--color-info); }
+.ws-summary__dot--anonym, .ws-user-badge--anonym { --ws-user-kind: var(--color-cyan); }
+.ws-summary__dot--combo, .ws-user-badge--combo { --ws-user-kind: var(--color-success); }
+.ws-summary__dot--admin, .ws-user-badge--admin { --ws-user-kind: var(--color-warning); }
+
+.ws-summary__dot--member,
+.ws-summary__dot--anonym,
+.ws-summary__dot--combo,
+.ws-summary__dot--admin {
+  background: var(--ws-user-kind);
+}
+
+.ws-user-badge {
+  color: var(--ws-user-kind);
+  background: color-mix(in srgb, var(--ws-user-kind) 14%, transparent);
+}
 
 .ws-summary__label {
   font-size: var(--font-size-sm);
@@ -776,6 +790,183 @@ button.ws-summary__row:hover {
   min-width: 0;
 }
 
+/* Khoi phu trong nhom Thong tin ky thuat (ban quyen Windows / phan cung): moi dong 1 cot,
+   nhan trai - gia tri phai, chu vua phai vi ten CPU/GPU thuong dai. */
+.ws-inspector .ws-detail-list--wide {
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.ws-inspector .ws-detail-list--wide > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ws-inspector .ws-detail-list--wide dd {
+  font-size: var(--font-size-md);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Dong tom tat compact nhom Don hang: cham mau + SO ro + nhan mo (cung kieu the thong ke "Su dung"). */
+.ws-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ws-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.ws-count__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+/* Chấm và SỐ cùng một màu (biến --ws-count-color), chỉ nhãn là chữ mờ. */
+.ws-count--service { --ws-count-color: var(--color-success); }
+.ws-count--combo { --ws-count-color: var(--color-info); }
+.ws-count--waiting { --ws-count-color: var(--color-warning); }
+
+.ws-count__dot {
+  background: var(--ws-count-color);
+}
+
+.ws-count__num {
+  color: var(--ws-count-color);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-count__label {
+  color: var(--color-text-muted);
+}
+
+.ws-order-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ws-order-item__kind {
+  margin-right: 0.35rem;
+  vertical-align: -0.2em;
+  color: var(--color-info);
+}
+
+/* Danh sach mon da goi trong phien (nhom Don hang). */
+.ws-order-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ws-order-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.ws-order-item__main {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.ws-order-item__name {
+  color: var(--color-text-primary);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.ws-order-item__qty {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-order-item__topping,
+.ws-order-item__time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ws-order-item__side {
+  display: grid;
+  flex-shrink: 0;
+  justify-items: end;
+  gap: 0.25rem;
+}
+
+.ws-order-item__amount {
+  color: var(--color-text-primary);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thong tin dang NGANG "nhan  gia tri" tren cung 1 dong, xep 2 cot de tiet kiem dong (8 muc = 4 dong).
+   Man rat hep (<=420px) quy tac chung o cuoi file tra ve 1 cot. */
+.ws-inspector .ws-detail-list--inline {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-5);
+}
+
+.ws-inspector .ws-detail-list--inline > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ws-inspector .ws-detail-list--inline dt {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ws-inspector .ws-detail-list--inline dd {
+  font-size: var(--font-size-md);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.ws-tech-block {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border-default);
+}
+
+.ws-tech-block__title {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ws-tech-block__hint {
+  margin: 0 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
 .ws-detail-value-row {
   display: flex;
   align-items: center;
@@ -816,13 +1007,114 @@ button.ws-summary__row:hover {
 
 /* Nut hanh dong gan lien voi group chua no (cung 1 the) -- vach mo tach voi
    phan du lieu phia tren de doc ra la "nut cua group nay", khong phai khoi roi. */
-.ws-inspector__section .ws-action-grid {
+.ws-inspector__section .ws-action-grid,
+.ws-group__body .ws-action-grid {
   padding-top: var(--space-3);
   border-top: 1px dashed var(--color-border-default);
 }
 
+/* Hang nut dung DAU phan bung (vd Duyet dich vu / Duyet combo): vach ngan nam DUOI hang nut, khong phai tren. */
+.ws-group__body .ws-action-grid--top {
+  padding-top: 0;
+  padding-bottom: var(--space-3);
+  border-top: 0;
+  border-bottom: 1px dashed var(--color-border-default);
+}
+
+/* Nhom trong drawer chi tiet may (InspectorGroup): hang compact kieu danh sach
+   thiet bi -- [icon] tieu de + 1 dong tom tat, [nut chinh], [mui ten expand]. */
+.ws-group {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+
+.ws-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  min-height: 4rem;
+}
+
+.ws-group__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.ws-group__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.125rem;
+}
+
+.ws-group__text--clickable {
+  cursor: pointer;
+}
+
+.ws-group__titleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ws-group__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.ws-group__summary {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-group__action {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+.ws-group__body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
 .ws-action-grid > * {
   flex: 1 1 10rem;
+}
+
+/* Cac nut cung nhom (vd Khoi dong lai / Tat may) luon tren 1 dong, chia deu. Man rat
+   hep thi cho xuong dong de nut khong bi cat chu. */
+.ws-action-grid--nowrap {
+  flex-wrap: nowrap;
+}
+
+.ws-action-grid--nowrap > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  .ws-action-grid--nowrap {
+    flex-wrap: wrap;
+  }
+
+  .ws-action-grid--nowrap > * {
+    flex: 1 1 8rem;
+  }
 }
 
 .ws-dialog-stack {

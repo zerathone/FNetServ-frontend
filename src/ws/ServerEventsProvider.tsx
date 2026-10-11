@@ -69,6 +69,8 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
         orderChangedTimerRef.current = null
         void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
         void queryClient.invalidateQueries({ queryKey: ['pending-orders-combo'] })
+        // Nhóm "Đơn hàng" ở drawer chi tiết máy (trang Máy trạm): GET /workstations/orders.
+        void queryClient.invalidateQueries({ queryKey: ['workstation-orders'] })
       }, ORDER_CHANGED_DEBOUNCE_MS)
     }
 

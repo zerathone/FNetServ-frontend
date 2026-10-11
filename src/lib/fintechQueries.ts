@@ -31,6 +31,7 @@ export function invalidateNotificationDomain(
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: ['pending-orders'] }),
         queryClient.invalidateQueries({ queryKey: ['pending-orders-combo'] }),
+        queryClient.invalidateQueries({ queryKey: ['workstation-orders'] }),
       ])
     case 'workstation':
       return Promise.all([

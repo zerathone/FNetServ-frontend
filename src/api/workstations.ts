@@ -93,6 +93,115 @@ export function getWorkstationsRuntime() {
   return apiGet<WorkstationsRuntimeSnapshot>('/workstations/runtime')
 }
 
+// ---- GET /workstations/hardware?hostName= -- du lieu phan cung hwm.exe da day len ----
+// Server chuan hoa tu JSON tho cua hwm.exe (WorkstationHandlers.cpp, WorkstationsHardwareRequestHandler).
+// Moi truong co the null (may khong co cam bien do). `hardware = null` ca nhanh = CHUA CO du lieu
+// (cho hwm tat / client cu / Server vua restart) -> UI hien "chua co du lieu", KHONG phai loi.
+// Don vi: loadPct %, tempC do C, powerW W, usedGB/availableGB GB, memoryMB MB.
+export type WorkstationHardware = {
+  /** epoch giay luc Server nhan du lieu lan gan nhat */
+  updatedAtSec: number | null
+  cpu: {
+    name: string | null
+    cores: number | null
+    threads: number | null
+    loadPct: number | null
+    tempC: number | null
+    powerW: number | null
+  }
+  gpu: {
+    name: string | null
+    loadPct: number | null
+    tempC: number | null
+    memoryMB: number | null
+    powerW: number | null
+  }
+  ram: {
+    name: string | null
+    usedGB: number | null
+    availableGB: number | null
+    loadPct: number | null
+  }
+  motherboard: string | null
+  network: { name: string | null; loadPct: number | null }
+  storage: { name: string | null; loadPct: number | null; tempC: number | null }
+}
+
+export type WorkstationHardwareResponse = {
+  hostName: string
+  hardware: WorkstationHardware | null
+}
+
+export function getWorkstationHardware(hostName: string) {
+  return apiGet<WorkstationHardwareResponse>(
+    `/workstations/hardware?hostName=${encodeURIComponent(hostName)}`,
+  )
+}
+
+// ---- GET /workstations/orders?hostName= -- mon khach goi trong PHIEN CHOI hien tai cua may ----
+// "Phien" = phien su dung may cua khach, KHONG phai ca lam viec cua thu ngan. Server tu loc theo
+// userId + gio bat dau phien (servicedetailtb khong co cot gan dong voi phien) va tra 3 nhom
+// trang thai: waiting (Accept=0, gom don khach da tra QR) / accepted (da duyet, con no) / paid.
+export type WorkstationOrderStatus = 'waiting' | 'accepted' | 'paid'
+
+export type WorkstationOrderItem = {
+  serviceDetailId: number
+  status: WorkstationOrderStatus
+  serviceName: string
+  quantity: number
+  unit: string
+  amount: number
+  /** luc KHACH GOI MON: "YYYY-MM-DD" + "HH:MM:SS" gio server */
+  serviceDate: string
+  serviceTime: string
+  voucherId: number
+  /** null = DB cua khach chua co schema topping (khong gom duoc), khac 0 = mon chinh */
+  parentId: number | null
+  topping: number | null
+}
+
+/**
+ * Combo khách MUA trong phiên (chủ combo = user đang ngồi máy). waiting = mua tiền mặt, chờ thu ngân
+ * duyệt; paid = đã chốt (trừ ví / QR / tiền mặt đã duyệt).
+ */
+export type WorkstationComboItem = {
+  comboCardId: number
+  comboName: string
+  price: number
+  status: 'waiting' | 'paid'
+  /** "YYYY-MM-DD HH:MM:SS" */
+  createdAt: string
+}
+
+export type WorkstationOrdersResponse = {
+  hostName: string
+  userId: number
+  /** false = may khong co phien khach (items rong) */
+  hasSession: boolean
+  /** "YYYY-MM-DD HH:MM:SS" */
+  sessionStartedAt: string | null
+  /** false = Server khong xac dinh duoc gio bat dau phien, dang lay tu 00:00 hom nay */
+  sessionStartKnown: boolean
+  items: WorkstationOrderItem[]
+  combos: WorkstationComboItem[]
+  summary: {
+    /** tong SO LUONG mon chinh da goi trong phien (topping khong tinh) */
+    orderedCount: number
+    /** so luong mon chinh con cho duyet (waiting) */
+    waitingCount: number
+    /** so combo da mua trong phien (ca cho duyet lan da chot) */
+    comboCount: number
+    /** so combo mua tien mat dang cho duyet */
+    comboWaitingCount: number
+  }
+}
+
+export function getWorkstationOrders(hostName: string) {
+  return apiGet<WorkstationOrdersResponse>(
+    `/workstations/orders?hostName=${encodeURIComponent(hostName)}`,
+  )
+}
+
 export function getOnlineWorkstations() {
   return apiGet<Workstation[]>('/workstations/online')
 }

@@ -3,7 +3,7 @@
 //   1) POST /service/staff-order  → tạo dòng Accept=0 (server tính giá + kiểm kho)
 //   2) POST /service/accept | /service/payrequest (fullCore) theo ĐÚNG `detailId` bước 1 trả về
 // Lỗi bước 2 KHÔNG tạo lại dòng; nút "Hủy đơn" bị khóa khi kết quả mơ hồ (xem `failureActions`).
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CurrencyCircleDollar,
@@ -76,6 +76,9 @@ import {
   type SettleMethod,
   type StaffOrderTarget,
 } from './staffOrderModel'
+// orders.css TRƯỚC staffOrder.css (staffOrder.css ghi đè .order-qty / .order-confirm-*): hộp thoại giờ cũng
+// mở từ trang Máy trạm, nơi OrderWorkspace (nơi vốn nạp orders.css) không được tải.
+import './orders.css'
 import './staffOrder.css'
 
 /** Chỉ liệt kê tối đa ngần này kết quả tìm máy (200-400 máy không thể hiện hết). */
@@ -85,6 +88,11 @@ const actionIconProps = { size: 18, weight: 'bold' as const, 'aria-hidden': true
 
 type Props = {
   open: boolean
+  /**
+   * Mở từ drawer chi tiết máy (trang Máy trạm): chọn SẴN máy này làm khách (chế độ "Máy online"), nhân
+   * viên chỉ việc chọn món. Không truyền = hành vi cũ (tự tìm khách). Chọn lại tay vẫn đổi được.
+   */
+  presetHostName?: string | null
   onClose: () => void
   /** Mở hộp thoại "In phiếu" cho các dòng vừa xử lý xong. */
   onPrint: (detailIds: number[]) => void
@@ -117,7 +125,7 @@ function errorMessage(error: unknown) {
   return error instanceof Error && error.message ? error.message : 'Không xử lý được đơn.'
 }
 
-export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
+export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Props) {
   const queryClient = useQueryClient()
   const staffId = useAuthStore((state) => state.staffId)
   const canDeduct = useAuthStore((state) => state.hasRight(SERVICE_EXCEPT_RIGHT))
@@ -140,6 +148,16 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
 
   const createIntent = useIdempotentIntent('staff-order')
   const settleIntent = useIdempotentIntent('staff-settle')
+
+  // Mỗi lần MỞ hộp thoại từ máy cụ thể: chọn sẵn máy đó. Chỉ chạy khi mở/đổi máy — không ghi đè lựa chọn
+  // tay của nhân viên trong lúc hộp thoại đang mở.
+  useEffect(() => {
+    if (!open || !presetHostName) return
+    setMode('machine')
+    setSelectedHost(presetHostName)
+    setMachineSearch('')
+    setComposeError(null)
+  }, [open, presetHostName])
 
   // Cùng query key với trang Danh mục / Combo: dùng chung cache. Danh mục đổi chậm ⇒ staleTime dài; tồn kho
   // được làm mới bằng `invalidate` sau mỗi lần xử lý xong.
@@ -194,6 +212,8 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
 
   const refreshAfterOrder = () => {
     void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+    // Danh sách món trong drawer chi tiết máy (trang Máy trạm) — GET /workstations/orders.
+    void queryClient.invalidateQueries({ queryKey: ['workstation-orders'] })
     void queryClient.invalidateQueries({ queryKey: ['orders-accepted-unpaid'] })
     void queryClient.invalidateQueries({ queryKey: ['orders-completed'] })
     void queryClient.invalidateQueries({ queryKey: ['services'] })
@@ -230,6 +250,7 @@ export function StaffOrderDialog({ open, onClose, onPrint }: Props) {
         setCreated(order)
         setOrderTarget(target)
         void queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+        void queryClient.invalidateQueries({ queryKey: ['workstation-orders'] })
       }
 
       const detailIds = order.items.map((line) => line.detailId)

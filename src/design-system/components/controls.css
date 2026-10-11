@@ -128,6 +128,18 @@
   background: color-mix(in srgb, var(--color-danger) 10%, transparent);
 }
 
+/* Chu dung warning pha them text-primary: #f5a524 (light/dark) tren nen trang/toi
+   khong du tuong phan de lam chu, chi dung duoc cho vien. */
+.ds-button--warning-outline {
+  color: color-mix(in srgb, var(--color-warning) 70%, var(--color-text-primary));
+  background: transparent;
+  border-color: var(--color-warning);
+}
+
+.ds-button--warning-outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+}
+
 .ds-button--block {
   width: 100%;
 }

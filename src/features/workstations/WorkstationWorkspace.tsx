@@ -1,6 +1,40 @@
-import {  useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {  useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CaretDown, CaretLeft, CaretRight, CaretUp, Check, ChartBarHorizontal, ChartDonut, MagnifyingGlass, PencilSimple, Power, Receipt, TrashSimple } from '@phosphor-icons/react'
+import {
+  AppWindow,
+  ArrowCircleUp,
+  ArrowsClockwise,
+  ArrowsLeftRight,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  CaretUp,
+  Check,
+  ChartBarHorizontal,
+  ChartDonut,
+  ChatCircleText,
+  Clock,
+  CurrencyCircleDollar,
+  Desktop,
+  ForkKnife,
+  Gift,
+  HandCoins,
+  HourglassMedium,
+  Info,
+  Lock,
+  MagnifyingGlass,
+  Money,
+  PencilSimple,
+  Power,
+  Receipt,
+  SignIn,
+  TrashSimple,
+  UserCircle,
+  UserGear,
+  UserPlus,
+  Wallet,
+  XCircle,
+} from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
@@ -83,6 +117,7 @@ import {
   formatMoney,
   formatStartedAt,
   getWorkstationFlags,
+  getWinLicenseView,
   getWorkstationStatus,
   hasDebt,
   interpolateSession,
@@ -90,6 +125,13 @@ import {
   sessionLabel,
   type WorkstationFilter,
 } from './workstationModel'
+import { PrintTicketDialog } from '../orders/PrintTicketDialog'
+import { StaffOrderDialog } from '../orders/StaffOrderDialog'
+import { CallBellIcon } from './CallBellIcon'
+import { InspectorGroup } from './InspectorGroup'
+import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
+import { machineOrdersWaitingTotal } from './machineOrdersModel'
+import { MachineTechExtras } from './MachineTechExtras'
 import './workstations.css'
 
 const RIGHTS = {
@@ -116,6 +158,26 @@ const USER_GROUP_TYPE = {
   combo: 5,
 } as const
 
+// Phan loai giong cac con so o the thong ke "Su dung" (counts.member/anonym/combo/admin):
+// ONLINE + userId===0 la admin, con lai theo userGroupType. Mau o .ws-user-badge--* dung
+// chung bien voi cham .ws-summary__dot--* (workstations.css).
+type UserKind = 'member' | 'anonym' | 'combo' | 'admin'
+
+const USER_KIND_LABEL: Record<UserKind, string> = {
+  member: 'Hội viên',
+  anonym: 'Vãng lai',
+  combo: 'Combo',
+  admin: 'Admin',
+}
+
+function getUserKind(machine: WorkstationRuntime): UserKind | null {
+  if (machine.status === WORKSTATION_STATUS.ONLINE && machine.userId === 0) return 'admin'
+  if (machine.userGroupType === USER_GROUP_TYPE.member) return 'member'
+  if (machine.userGroupType === USER_GROUP_TYPE.anonym) return 'anonym'
+  if (machine.userGroupType === USER_GROUP_TYPE.combo) return 'combo'
+  return null
+}
+
 type CommandKind =
   | 'logout'
   | 'restart'
@@ -124,6 +186,21 @@ type CommandKind =
   | 'adminLogin'
   | 'update'
   | 'wakeup'
+
+// Icon nut trong drawer chi tiet may. Truyen `icon` tuong minh vi Button suy icon
+// theo nhan (inferActionIcon) -- "Khoi dong lai" va "Tat may" deu ra cung 1 icon Power,
+// "Cap nhat" ra icon luu dia.
+const ICON = { size: 18, weight: 'bold' as const, 'aria-hidden': true }
+
+const COMMAND_ICONS: Record<CommandKind, ReactNode> = {
+  logout: <Lock {...ICON} />,
+  restart: <ArrowsClockwise {...ICON} />,
+  shutdown: <Power {...ICON} />,
+  closeApp: <XCircle {...ICON} />,
+  adminLogin: <UserGear {...ICON} />,
+  update: <ArrowCircleUp {...ICON} />,
+  wakeup: <Power {...ICON} />,
+}
 
 type CommandRequest = {
   kind: CommandKind
@@ -190,8 +267,8 @@ const COMMANDS: Record<CommandKind, CommandDefinition> = {
     requiresVerNew: true,
   },
   wakeup: {
-    label: 'Bật máy từ xa',
-    confirmLabel: 'Bật máy',
+    label: 'Mở máy trạm',
+    confirmLabel: 'Mở máy trạm',
     description: 'Gửi gói Wake-on-LAN đánh thức các máy đang tắt/mất kết nối. Chỉ dành cho quản trị viên.',
     adminOnly: true,
     offlineOnly: true,
@@ -377,6 +454,8 @@ export function WorkstationWorkspace() {
   const [appsList, setAppsList] = useState<WorkstationApp[] | null>(null)
   const [appsError, setAppsError] = useState<string | null>(null)
   const [anonymInfoOpen, setAnonymInfoOpen] = useState(false)
+  const [staffOrderOpen, setStaffOrderOpen] = useState(false)
+  const [printDetailIds, setPrintDetailIds] = useState<number[] | null>(null)
   const [anonymDraft, setAnonymDraft] = useState<AnonymousDetailPayload>({ name: '', idCard: '', address: '' })
   const [anonymDraftError, setAnonymDraftError] = useState<string | null>(null)
   const [anonymSearch, setAnonymSearch] = useState('')
@@ -442,6 +521,8 @@ export function WorkstationWorkspace() {
     allMachines.find((machine) => machine.hostName === inspectorHost) ?? null
   const status = inspectedMachine ? getWorkstationStatus(inspectedMachine) : null
   const flags = inspectedMachine ? getWorkstationFlags(inspectedMachine) : []
+  const userKind = inspectedMachine ? getUserKind(inspectedMachine) : null
+  const winLicenseView = inspectedMachine ? getWinLicenseView(inspectedMachine) : null
   // ADMIN login dung userId=0 (WorkstationHandlers.cpp:657) -- khong phai khach hang
   // tra tien, nen khong co Tinh tien/Chuyen may/Dich vu (parity WorkstationList.cpp
   // EnableMenuItem IDR_PAYOUT/IDR_CHANGE_WS/IDR_SERVICE_ORDER chi cho session khach that).
@@ -475,6 +556,15 @@ export function WorkstationWorkspace() {
     queryFn: () => anonymsApi.getById(assignedAnonymId as number),
     enabled: Boolean(assignedAnonymId),
   })
+  const {
+    view: machineOrders,
+    isLoading: machineOrdersLoading,
+    error: machineOrdersError,
+  } = useMachineOrders(
+    inspectedMachine?.hostName ?? null,
+    Boolean(inspectedMachine?.session) && !isAdminSession,
+    connected,
+  )
   const anonymSearchQuery = useQuery({
     queryKey: ['anonyms', 'search', anonymSearch],
     queryFn: () => anonymsApi.getList(anonymSearch || undefined),
@@ -1161,7 +1251,7 @@ export function WorkstationWorkspace() {
                 setWakeupOpen(true)
               }}
             >
-              Bật máy từ xa
+              Mở máy trạm
               <span className="ds-badge ds-badge--neutral ws-wakeup-badge">{offCandidates.length}</span>
             </Button>
             <PollingStatus
@@ -1461,7 +1551,7 @@ export function WorkstationWorkspace() {
               title={commandDisabledReason(COMMANDS.wakeup, selectedMachines, hasRight, isAdmin) || undefined}
               onClick={() => openCommand('wakeup')}
             >
-              Bật máy từ xa
+              Mở máy trạm
             </Button>
             <Button
               type="button"
@@ -1539,16 +1629,61 @@ export function WorkstationWorkspace() {
         onClose={() => setInspectorHost(null)}
       >
         {inspectedMachine && status ? (
-          <div className="ws-inspector">
-            <div className="ws-inspector__status">
-              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-              {flags.map((flag) => <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>)}
-            </div>
-
-            <section className="ws-inspector__section">
-              <h3>Phiên hiện tại</h3>
-              <dl className="ws-detail-list">
-                <div><dt>Khách hàng</dt><dd>{inspectedMachine.userName || '—'}</dd></div>
+          <div className="ws-inspector" key={inspectedMachine.hostName}>
+            <InspectorGroup
+              icon={<Clock size={22} weight="duotone" />}
+              title="Phiên hiện tại"
+              defaultExpanded
+              badges={
+                <>
+                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  {flags.map((flag) => <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>)}
+                </>
+              }
+              summary={
+                inspectedMachine.session
+                  ? `${inspectedMachine.userName || '—'} · ${sessionLabel(inspectedMachine.session)} · còn ${formatDuration(clock.remaining, 'minutes')}`
+                  : inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE
+                    ? 'Máy trống, sẵn sàng đăng nhập'
+                    : 'Không có phiên'
+              }
+              action={
+                inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
+                  <Button
+                    icon={<SignIn {...ICON} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
+                    title={!hasRight(RIGHTS.PREPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.PREPAID_LOGIN}` : undefined}
+                    onClick={() => openAnonymLoginDialog('prepaid')}
+                  >
+                    Đăng nhập
+                  </Button>
+                ) : inspectedMachine.session && !isAdminSession && inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
+                  <Button
+                    icon={<Receipt {...ICON} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused}
+                    onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}
+                  >
+                    Tính tiền
+                  </Button>
+                ) : inspectedMachine.status !== WORKSTATION_STATUS.AVAILABLE && inspectedMachine.session ? (
+                  <Button
+                    icon={<ChatCircleText {...ICON} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused}
+                    onClick={() => openMessageDialog([inspectedMachine.hostName])}
+                  >
+                    Nhắn tin
+                  </Button>
+                ) : null
+              }
+            >
+              <dl className="ws-detail-list ws-detail-list--inline">
+                <div><dt>Tài khoản</dt><dd>{inspectedMachine.userName || '—'}</dd></div>
                 <div><dt>Loại phiên</dt><dd>{sessionLabel(inspectedMachine.session)}</dd></div>
                 <div><dt>Bắt đầu</dt><dd>{formatStartedAt(inspectedMachine.session?.startedAt, 'minutes')}</dd></div>
                 <div><dt>Đã dùng</dt><dd>{formatDuration(clock.used, 'minutes')}</dd></div>
@@ -1560,8 +1695,9 @@ export function WorkstationWorkspace() {
               {inspectedMachine.status !== WORKSTATION_STATUS.AVAILABLE ? (
                 <div className="ws-action-grid">
                   <Button
+                    icon={<ChatCircleText {...ICON} />}
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     disabled={isPaused}
                     onClick={() => openMessageDialog([inspectedMachine.hostName])}
                   >
@@ -1572,6 +1708,7 @@ export function WorkstationWorkspace() {
               {inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
                 <div className="ws-action-grid">
                   <Button
+                    icon={<SignIn {...ICON} />}
                     type="button"
                     variant="primary"
                     disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
@@ -1581,6 +1718,7 @@ export function WorkstationWorkspace() {
                     Đăng nhập (trả tiền trước)
                   </Button>
                   <Button
+                    icon={<SignIn {...ICON} />}
                     type="button"
                     variant="secondary"
                     disabled={isPaused || !hasRight(RIGHTS.POSTPAID_LOGIN)}
@@ -1594,17 +1732,18 @@ export function WorkstationWorkspace() {
               {inspectedMachine.session && !isAdminSession ? (
                 <div className="ws-action-grid">
                   {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
-                    <Button type="button" variant="primary" disabled={isPaused} onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
+                    <Button icon={<Receipt {...ICON} />} type="button" variant="primary" disabled={isPaused} onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
                       Tính tiền
                     </Button>
                   ) : null}
                   {hasDebt(inspectedMachine) && inspectedMachine.userId > 0 ? (
-                    <Button type="button" variant="secondary" disabled={isPaused} onClick={() => setMoneyAction('payDebit')}>
+                    <Button icon={<Money {...ICON} />} type="button" variant="secondary" disabled={isPaused} onClick={() => setMoneyAction('payDebit')}>
                       Thanh toán phí chuyển
                     </Button>
                   ) : null}
                   {!inspectedMachine.session.prepaid && inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
                     <Button
+                      icon={<HourglassMedium {...ICON} />}
                       type="button"
                       variant="secondary"
                       disabled={isPaused || !hasRight(RIGHTS.SUSPEND_MACHINE)}
@@ -1615,6 +1754,7 @@ export function WorkstationWorkspace() {
                     </Button>
                   ) : null}
                   <Button
+                    icon={<ArrowsLeftRight {...ICON} />}
                     type="button"
                     variant="secondary"
                     disabled={isPaused}
@@ -1630,6 +1770,7 @@ export function WorkstationWorkspace() {
                   inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym &&
                   inspectedMachine.status === WORKSTATION_STATUS.ONLINE ? (
                     <Button
+                      icon={<Wallet {...ICON} />}
                       type="button"
                       variant="secondary"
                       disabled={isPaused}
@@ -1645,8 +1786,9 @@ export function WorkstationWorkspace() {
               ) : null}
               <div className="ws-action-grid">
                 <Button
+                  icon={<Lock {...ICON} />}
                   type="button"
-                  variant="secondary"
+                  variant="danger-outline"
                   disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin))}
                   title={commandDisabledReason(COMMANDS.logout, [inspectedMachine], hasRight, isAdmin) || undefined}
                   onClick={() => openCommand('logout', [inspectedMachine])}
@@ -1654,8 +1796,9 @@ export function WorkstationWorkspace() {
                   Khóa máy
                 </Button>
                 <Button
+                  icon={<UserGear {...ICON} />}
                   type="button"
-                  variant="secondary"
+                  variant="warning-outline"
                   disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin))}
                   title={commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin) || undefined}
                   onClick={() => openCommand('adminLogin', [inspectedMachine])}
@@ -1663,11 +1806,58 @@ export function WorkstationWorkspace() {
                   Đăng nhập ADMIN
                 </Button>
               </div>
-            </section>
+            </InspectorGroup>
 
             {inspectedMachine.userId > 0 ? (
-              <section className="ws-inspector__section">
-                <h3>Khách hàng</h3>
+              <InspectorGroup
+                icon={<UserCircle size={22} weight="duotone" />}
+                title="Tài khoản"
+                badges={
+                  userKind ? (
+                    <span
+                      className={`ds-badge ws-user-badge ws-user-badge--${userKind}`}
+                      title={USER_KIND_LABEL[userKind]}
+                      aria-label={`${USER_KIND_LABEL[userKind]}: ${inspectedMachine.userName || '—'}`}
+                    >
+                      {inspectedMachine.userName || '—'}
+                    </span>
+                  ) : (
+                    <span className="ds-badge ds-badge--neutral">{inspectedMachine.userName || '—'}</span>
+                  )
+                }
+                summary={
+                  inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym
+                    ? assignedAnonymQuery.data?.name || 'Chưa gán thông tin khách vãng lai'
+                    : exactUser
+                      ? `Số dư chính ${formatMoney(exactUser.moneyMain)}`
+                      : undefined
+                }
+                action={
+                  inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
+                    !assignedAnonymId ? (
+                      <Button icon={<UserPlus {...ICON} />} type="button" variant="secondary" disabled={isPaused} onClick={openAnonymInfo}>
+                        Gán thông tin
+                      </Button>
+                    ) : null
+                  ) : exactUser ? (
+                    <Button
+                      icon={<CurrencyCircleDollar {...ICON} />}
+                      type="button"
+                      variant="primary"
+                      disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
+                      title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                      onClick={() => {
+                        setMoneyAmount(null)
+                        setDepositMethod('cash')
+                        setDepositQrActive(false)
+                        setMoneyAction('deposit')
+                      }}
+                    >
+                      Nạp tiền
+                    </Button>
+                  ) : null
+                }
+              >
                 {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
                   <>
                     {assignedAnonymQuery.isLoading ? (
@@ -1680,10 +1870,11 @@ export function WorkstationWorkspace() {
                       </dl>
                     ) : null}
                     <div className="ws-action-grid">
-                      <Button type="button" variant="secondary" disabled={isPaused || Boolean(assignedAnonymId)} onClick={openAnonymInfo}>
+                      <Button icon={<UserPlus {...ICON} />} type="button" variant="secondary" disabled={isPaused || Boolean(assignedAnonymId)} onClick={openAnonymInfo}>
                         {assignedAnonymId ? 'Đã gán thông tin khách vãng lai' : 'Gán thông tin khách vãng lai'}
                       </Button>
                       <Button
+                        icon={<Gift {...ICON} />}
                         type="button"
                         variant="secondary"
                         disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
@@ -1700,12 +1891,12 @@ export function WorkstationWorkspace() {
                     {exactUser ? (
                       <>
                         <dl className="ws-detail-list">
-                          <div><dt>Tài khoản</dt><dd>{exactUser.userName}</dd></div>
                           <div><dt>Số dư chính</dt><dd>{formatMoney(exactUser.moneyMain)}</dd></div>
-                          <div><dt>Tiền tặng</dt><dd>{formatMoney(exactUser.moneySub)}</dd></div>
+                          <div><dt>Số dư phụ</dt><dd>{formatMoney(exactUser.moneySub)}</dd></div>
                         </dl>
                         <div className="ws-action-grid">
                           <Button
+                            icon={<CurrencyCircleDollar {...ICON} />}
                             type="button"
                             variant="primary"
                             disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
@@ -1720,6 +1911,7 @@ export function WorkstationWorkspace() {
                             Nạp tiền
                           </Button>
                           <Button
+                            icon={<Gift {...ICON} />}
                             type="button"
                             variant="secondary"
                             disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
@@ -1729,6 +1921,7 @@ export function WorkstationWorkspace() {
                             Tặng tiền
                           </Button>
                           <Button
+                            icon={<HandCoins {...ICON} />}
                             type="button"
                             variant="secondary"
                             disabled={isPaused || !hasRight(RIGHTS.CREDIT_MONEY)}
@@ -1744,63 +1937,146 @@ export function WorkstationWorkspace() {
                     ) : null}
                   </>
                 )}
-              </section>
+              </InspectorGroup>
             ) : null}
 
             {inspectedMachine.session && !isAdminSession ? (
-              <section className="ws-inspector__section">
-                <h3>Dịch vụ tại máy</h3>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  block
-                  disabled={isPaused}
-                  onClick={() => {
+              <InspectorGroup
+                icon={<ForkKnife size={22} weight="duotone" />}
+                title="Đơn hàng"
+                badges={
+                  // Đơn đang đợi thu ngân (món chờ + combo chờ) — thấy được cả khi nhóm đang thu gọn.
+                  machineOrdersWaitingTotal(machineOrders.summary) > 0 ? (
+                    <StatusBadge tone="warning">{`${machineOrdersWaitingTotal(machineOrders.summary)} chờ duyệt`}</StatusBadge>
+                  ) : null
+                }
+                summary={
+                  machineOrdersLoading
+                    ? 'Đang tải đơn hàng…'
+                    : machineOrdersError
+                      ? 'Không tải được danh sách đơn'
+                      : <MachineOrdersCounts summary={machineOrders.summary} />
+                }
+                action={
+                  // Tạo đơn = tạo đơn NGAY cho tài khoản đang ngồi máy này (hộp thoại "Gọi món hộ", máy
+                  // chọn sẵn). Duyệt dịch vụ / duyệt combo nằm ở phần bung (điều hướng sang trang duyệt).
+                  <Button
+                    icon={<CallBellIcon size={ICON.size} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused}
+                    onClick={() => setStaffOrderOpen(true)}
+                  >
+                    Tạo đơn
+                  </Button>
+                }
+              >
+                <MachineOrderList
+                  view={machineOrders}
+                  error={machineOrdersError}
+                  onReviewServices={() => {
                     setOrderHost(inspectedMachine.hostName)
                     setOrderCustomerName(inspectedMachine.userName ?? '')
                     navigate('/orders')
                   }}
-                >
-                  Mở hàng đợi gọi món
-                </Button>
-              </section>
+                  onReviewCombos={() => navigate('/combo_sale?pending=1')}
+                />
+              </InspectorGroup>
             ) : null}
 
-            <section className="ws-inspector__section">
-              <h3>Điều khiển hệ thống</h3>
-              <div className="ws-action-grid">
-                {(['wakeup', 'restart', 'closeApp', 'shutdown'] as CommandKind[]).map((kind) => {
+            <InspectorGroup
+              icon={<Desktop size={22} weight="duotone" />}
+              title="Điều khiển hệ thống"
+              summary="Mở máy trạm, khởi động lại, tắt máy, ứng dụng đang chạy"
+              action={
+                (() => {
+                  // Offline -> hanh dong hop ly nhat la Bat may; con lai la Khoi dong lai.
+                  const kind: CommandKind = commandDisabledReason(COMMANDS.wakeup, [inspectedMachine], hasRight, isAdmin)
+                    ? 'restart'
+                    : 'wakeup'
+                  const reason = commandDisabledReason(COMMANDS[kind], [inspectedMachine], hasRight, isAdmin)
+                  return (
+                    <Button
+                      type="button"
+                      variant={kind === 'restart' ? 'warning-outline' : 'secondary'}
+                      disabled={kind === 'wakeup' ? Boolean(reason) : isPaused || Boolean(reason)}
+                      title={reason || undefined}
+                      icon={COMMAND_ICONS[kind]}
+                      onClick={() => openCommand(kind, [inspectedMachine])}
+                    >
+                      {COMMANDS[kind].label}
+                    </Button>
+                  )
+                })()
+              }
+            >
+              {(() => {
+                const commandButton = (kind: CommandKind) => {
                   const definition = COMMANDS[kind]
                   const reason = commandDisabledReason(definition, [inspectedMachine], hasRight, isAdmin)
                   return (
                     <Button
                       key={kind}
                       type="button"
-                      variant={kind === 'shutdown' ? 'danger' : 'secondary'}
+                      variant={kind === 'shutdown' ? 'danger-outline' : kind === 'restart' ? 'warning-outline' : 'secondary'}
                       disabled={kind === 'wakeup' ? Boolean(reason) : isPaused || Boolean(reason)}
                       title={reason || undefined}
+                      icon={COMMAND_ICONS[kind]}
                       onClick={() => openCommand(kind, [inspectedMachine])}
                     >
                       {definition.label}
                     </Button>
                   )
-                })}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={isPaused}
-                  onClick={() => openAppsDialog(inspectedMachine)}
-                >
-                  Ứng dụng đang chạy
-                </Button>
-              </div>
+                }
+                return (
+                  <>
+                    <div className="ws-action-grid ws-action-grid--nowrap">
+                      {(['wakeup', 'restart', 'shutdown'] as CommandKind[]).map(commandButton)}
+                    </div>
+                    {/* Dong rieng: "Dong ung dung" va "Ung dung dang chay" cung lam viec tren app cua may. */}
+                    <div className="ws-action-grid">
+                      {commandButton('closeApp')}
+                      <Button
+                        icon={<AppWindow {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused}
+                        onClick={() => openAppsDialog(inspectedMachine)}
+                      >
+                        Ứng dụng đang chạy
+                      </Button>
+                    </div>
+                  </>
+                )
+              })()}
               <InlineAlert tone="info">
                 Âm lượng, xem màn hình và điều khiển từ xa đang chờ backend (2.22).
               </InlineAlert>
-            </section>
+            </InspectorGroup>
 
-            <section className="ws-inspector__section">
-              <h3>Thông tin kỹ thuật</h3>
+            <InspectorGroup
+              icon={<Info size={22} weight="duotone" />}
+              title="Thông tin kỹ thuật"
+              badges={
+                winLicenseView ? (
+                  <StatusBadge tone={winLicenseView.tone}>{`Windows: ${winLicenseView.label}`}</StatusBadge>
+                ) : null
+              }
+              summary={`Phiên bản ${inspectedMachine.version || '—'} · ${inspectedMachine.note || 'Không có ghi chú'}`}
+              action={
+                commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) ? null : (
+                  <Button
+                    icon={<ArrowCircleUp {...ICON} />}
+                    type="button"
+                    variant="secondary"
+                    disabled={isPaused}
+                    onClick={() => openCommand('update', [inspectedMachine])}
+                  >
+                    {COMMANDS.update.label}
+                  </Button>
+                )
+              }
+            >
               <dl className="ws-detail-list">
                 <div>
                   <dt>Phiên bản</dt>
@@ -1808,6 +2084,7 @@ export function WorkstationWorkspace() {
                     <div className="ws-detail-value-row">
                       <span>{inspectedMachine.version || '—'}</span>
                       <Button
+                        icon={<ArrowCircleUp {...ICON} />}
                         type="button"
                         variant="secondary"
                         disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin))}
@@ -1846,7 +2123,8 @@ export function WorkstationWorkspace() {
                   </dd>
                 </div>
               </dl>
-            </section>
+              <MachineTechExtras machine={inspectedMachine} />
+            </InspectorGroup>
           </div>
         ) : null}
       </Drawer>
@@ -1924,7 +2202,7 @@ export function WorkstationWorkspace() {
 
       <Drawer
         open={wakeupOpen}
-        title="Bật máy từ xa"
+        title="Mở máy trạm"
         description="Chức năng này chỉ hoạt động khi máy trạm có mainboard hổ trợ và hệ điều hành đã bật chức năng này."
         onClose={() => setWakeupOpen(false)}
         className="ws-wakeup-drawer"
@@ -1959,7 +2237,7 @@ export function WorkstationWorkspace() {
                   title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
                   onClick={() => wakeupDrawerMutation.mutate([...wakeupChecked])}
                 >
-                  Bật máy đã chọn ({wakeupChecked.size})
+                  Mở máy trạm đã chọn ({wakeupChecked.size})
                 </Button>
                 <Button
                   type="button"
@@ -2034,7 +2312,7 @@ export function WorkstationWorkspace() {
                         </header>
                         {lastResult ? (
                           <InlineAlert tone={lastResult.ok ? 'success' : 'warning'}>
-                            {lastResult.ok ? 'Đã gửi lệnh bật máy.' : `Lỗi: ${lastResult.reason}`}
+                            {lastResult.ok ? 'Đã gửi lệnh mở máy trạm.' : `Lỗi: ${lastResult.reason}`}
                           </InlineAlert>
                         ) : null}
                       </article>
@@ -2882,6 +3160,15 @@ export function WorkstationWorkspace() {
         </div>
       </Dialog>
 
+      {/* Gọi món hộ từ drawer chi tiết máy: máy đang xem được chọn sẵn. "In phiếu" ẩn hộp thoại gọi món
+          trong lúc in (không xếp chồng 2 modal) nhưng giữ state — cùng cách trang /orders làm. */}
+      <StaffOrderDialog
+        open={staffOrderOpen && printDetailIds === null}
+        presetHostName={inspectorHost}
+        onClose={() => setStaffOrderOpen(false)}
+        onPrint={(detailIds) => setPrintDetailIds(detailIds)}
+      />
+      <PrintTicketDialog detailIds={printDetailIds} onClose={() => setPrintDetailIds(null)} />
     </section>
   )
 }
