@@ -165,7 +165,7 @@ export function WorkstationVirtualList({
     if (column.id === 'status') {
       const status = getWorkstationStatus(machine)
       const flags = getWorkstationFlags(machine)
-      return <div className="ws-table__status" role="cell"><StatusBadge tone={status.tone}>{status.label}</StatusBadge>{flags.slice(0, 1).map((flag) => <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>)}{flags.length > 1 ? <span className="ws-table__more-flags">+{flags.length - 1}</span> : null}</div>
+      return <div className="ws-table__status" role="cell"><StatusBadge tone={status.tone}>{status.label}</StatusBadge>{flags.map((flag) => <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>)}</div>
     }
     if (column.id === 'user') return <div className="ws-table__user" role="cell"><strong>{machine.userName || '—'}</strong></div>
     if (column.id === 'combo') return <div className="ws-table__truncate" role="cell">{machine.session?.comboName || '—'}</div>

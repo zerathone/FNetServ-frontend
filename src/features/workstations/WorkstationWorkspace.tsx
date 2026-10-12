@@ -10,14 +10,18 @@ import {
   CaretRight,
   CaretUp,
   Check,
+  CheckCircle,
   ChartBarHorizontal,
+  Circuitry,
   ChartDonut,
   ChatCircleText,
   Clock,
+  Cpu,
   CurrencyCircleDollar,
   Desktop,
   ForkKnife,
   Gift,
+  GraphicsCard,
   HandCoins,
   HourglassMedium,
   Info,
@@ -28,6 +32,7 @@ import {
   Power,
   Receipt,
   SignIn,
+  Thermometer,
   TrashSimple,
   UserCircle,
   UserGear,
@@ -65,6 +70,7 @@ import {
   updateWorkstationNote,
   updateWorkstationsVersion,
   wakeupWorkstations,
+  getWorkstationHardware,
   getWorkstationsRuntime,
   type WorkstationRuntime,
   type WsControlResult,
@@ -87,6 +93,7 @@ import { Select,
   PollingStatus,
   StateView,
   StatusBadge,
+  type StatusTone,
 } from '../../design-system/components'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
@@ -131,7 +138,7 @@ import { CallBellIcon } from './CallBellIcon'
 import { InspectorGroup } from './InspectorGroup'
 import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
-import { MachineTechExtras } from './MachineTechExtras'
+import { HardwareBlock, num, tempTone, WinLicenseCell } from './MachineTechExtras'
 import './workstations.css'
 
 const RIGHTS = {
@@ -150,6 +157,16 @@ const RIGHTS = {
   // R_DEBIT_MONEY_ALLOW_DEBIT (define.h:50) -- RBAC shadow cho /user/credit (PaymentHandlers.cpp:3724).
   CREDIT_MONEY: 242,
 } as const
+
+// Mau chu khop voi mau badge (.ds-badge--*, controls.css) -- dung de to mau icon/gia tri
+// nhiet do o dong tom tat nhom "Phan cung" (khong boc badge vi can gon 1 dong, nhieu muc).
+const TONE_TEXT_COLOR: Record<StatusTone, string> = {
+  success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
+  danger: 'var(--color-danger-text)',
+  info: 'var(--color-info)',
+  neutral: 'var(--color-text-muted)',
+}
 
 // UserGroupTypeCode (api/user-groups.ts): 1=anonym 2=member 3=admin 4=staff 5=combo
 const USER_GROUP_TYPE = {
@@ -218,6 +235,9 @@ type CommandDefinition = {
   offlineOnly?: boolean
   blockAnonymPayLater?: boolean
   requiresVerNew?: boolean
+  /** Chan khi may dang Sap sang (chua co phien) -- parity WorkstationList.cpp:1804
+      (IDR_LOGOUT mac dinh GRAYED, chi nhanh ONLINE moi bat lai, nhanh AVAILABLE khong). */
+  blockAvailable?: boolean
 }
 
 const COMMANDS: Record<CommandKind, CommandDefinition> = {
@@ -230,6 +250,9 @@ const COMMANDS: Record<CommandKind, CommandDefinition> = {
     // ANONYM+prepaid hoac Member/Staff/Admin (xem WorkstationList.cpp:1901-1937).
     // Vang lai tra sau PHAI Tinh tien / Cho tinh tien, khong duoc dang xuat thang.
     blockAnonymPayLater: true,
+    // Parity WorkstationList.cpp:1804 -- may Sap sang (chua co phien) khong co gi de
+    // dang xuat, IDR_LOGOUT mac dinh GRAYED va khong duoc bat lai o nhanh AVAILABLE.
+    blockAvailable: true,
   },
   restart: {
     label: 'Khởi động lại',
@@ -329,6 +352,12 @@ function commandDisabledReason(
     )
   ) {
     return 'Chỉ áp dụng cho máy đang tắt/mất kết nối'
+  }
+  if (
+    definition.blockAvailable &&
+    machines.some((machine) => machine.status === WORKSTATION_STATUS.AVAILABLE)
+  ) {
+    return 'Máy đang Sẵn sàng, không có phiên để đăng xuất'
   }
   if (
     definition.blockAnonymPayLater &&
@@ -556,6 +585,16 @@ export function WorkstationWorkspace() {
     queryFn: () => anonymsApi.getById(assignedAnonymId as number),
     enabled: Boolean(assignedAnonymId),
   })
+  // Query tach khoi HardwareBlock (chi mount luc nhom "Phan cung" mo rong) -- can o day
+  // de hien tom tat nhiet do CPU/GPU ngay ca khi nhom dang thu gon. Cung queryKey nen
+  // React Query dung chung cache, khong goi API 2 lan.
+  const hardwareQuery = useQuery({
+    queryKey: ['workstation-hardware', inspectedMachine?.hostName],
+    queryFn: () => getWorkstationHardware(inspectedMachine!.hostName),
+    enabled: Boolean(inspectedMachine),
+    staleTime: 15_000,
+  })
+  const hw = hardwareQuery.data?.hardware ?? null
   const {
     view: machineOrders,
     isLoading: machineOrdersLoading,
@@ -1684,13 +1723,39 @@ export function WorkstationWorkspace() {
             >
               <dl className="ws-detail-list ws-detail-list--inline">
                 <div><dt>Tài khoản</dt><dd>{inspectedMachine.userName || '—'}</dd></div>
-                <div><dt>Loại phiên</dt><dd>{sessionLabel(inspectedMachine.session)}</dd></div>
+                <div><dt>Loại</dt><dd>{sessionLabel(inspectedMachine.session)}</dd></div>
                 <div><dt>Bắt đầu</dt><dd>{formatStartedAt(inspectedMachine.session?.startedAt, 'minutes')}</dd></div>
                 <div><dt>Đã dùng</dt><dd>{formatDuration(clock.used, 'minutes')}</dd></div>
                 <div><dt>Còn lại</dt><dd>{formatDuration(clock.remaining, 'minutes')}</dd></div>
                 <div><dt>Phí tạm tính</dt><dd>{formatMoney(inspectedMachine.session?.totalAmount)}</dd></div>
                 <div><dt>Số dư</dt><dd>{formatMoney(inspectedMachine.session?.remainingMoney)}</dd></div>
                 <div><dt>Combo</dt><dd>{inspectedMachine.session?.comboName || '—'}</dd></div>
+                <div className="ws-note-row">
+                  <dt>Ghi chú</dt>
+                  <dd>
+                    <div className="ws-note-cell">
+                      <span className={noteExpanded ? 'ws-note-text' : 'ws-note-text ws-note-text--collapsed'}>
+                        {inspectedMachine.note || '—'}
+                      </span>
+                      <span className="ws-note-controls">
+                        {inspectedMachine.note ? (
+                          <IconButton
+                            label={noteExpanded ? 'Thu gọn ghi chú' : 'Xem đầy đủ ghi chú'}
+                            icon={noteExpanded ? <CaretUp size={14} weight="bold" /> : <CaretDown size={14} weight="bold" />}
+                            onClick={() => setNoteExpanded((value) => !value)}
+                          />
+                        ) : null}
+                        <IconButton
+                          label="Sửa ghi chú"
+                          icon={<PencilSimple size={14} weight="bold" />}
+                          variant="secondary"
+                          disabled={isPaused}
+                          onClick={() => openNoteDialog([inspectedMachine.hostName], inspectedMachine)}
+                        />
+                      </span>
+                    </div>
+                  </dd>
+                </div>
               </dl>
               {inspectedMachine.status !== WORKSTATION_STATUS.AVAILABLE ? (
                 <div className="ws-action-grid">
@@ -1706,7 +1771,7 @@ export function WorkstationWorkspace() {
                 </div>
               ) : null}
               {inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
-                <div className="ws-action-grid">
+                <div className="ws-action-grid ws-action-grid--nowrap">
                   <Button
                     icon={<SignIn {...ICON} />}
                     type="button"
@@ -1753,19 +1818,24 @@ export function WorkstationWorkspace() {
                       Chờ tính tiền
                     </Button>
                   ) : null}
-                  <Button
-                    icon={<ArrowsLeftRight {...ICON} />}
-                    type="button"
-                    variant="secondary"
-                    disabled={isPaused}
-                    onClick={() => {
-                      setChangePcMode('change')
-                      setChangePcTarget('')
-                      setChangePcOpen(true)
-                    }}
-                  >
-                    Chuyển máy
-                  </Button>
+                  {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ||
+                  inspectedMachine.userGroupType === USER_GROUP_TYPE.member ? (
+                    // Parity WorkstationList.cpp:1939-1950/1965-1969 -- IDR_CHANGE_WS/IDR_SWAP_WS
+                    // chi bat cho ANONYM/MEMBER, COMBOCARD (the combo) khong duoc chuyen may.
+                    <Button
+                      icon={<ArrowsLeftRight {...ICON} />}
+                      type="button"
+                      variant="secondary"
+                      disabled={isPaused}
+                      onClick={() => {
+                        setChangePcMode('change')
+                        setChangePcTarget('')
+                        setChangePcOpen(true)
+                      }}
+                    >
+                      Chuyển máy
+                    </Button>
+                  ) : null}
                   {!inspectedMachine.session.prepaid &&
                   inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym &&
                   inspectedMachine.status === WORKSTATION_STATUS.ONLINE ? (
@@ -2062,13 +2132,19 @@ export function WorkstationWorkspace() {
                   <StatusBadge tone={winLicenseView.tone}>{`Windows: ${winLicenseView.label}`}</StatusBadge>
                 ) : null
               }
-              summary={`Phiên bản ${inspectedMachine.version || '—'} · ${inspectedMachine.note || 'Không có ghi chú'}`}
+              summary={`Phiên bản ${inspectedMachine.version || '—'}`}
               action={
-                commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) ? null : (
+                !inspectedMachine.verNew ? (
+                  <StatusBadge tone="success">
+                    <CheckCircle size={14} weight="bold" />
+                    Đã mới nhất
+                  </StatusBadge>
+                ) : commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) ? null : (
                   <Button
-                    icon={<ArrowCircleUp {...ICON} />}
+                    icon={<ArrowCircleUp size={13} weight="bold" aria-hidden />}
                     type="button"
                     variant="secondary"
+                    className="ws-btn-gradient"
                     disabled={isPaused}
                     onClick={() => openCommand('update', [inspectedMachine])}
                   >
@@ -2083,47 +2159,65 @@ export function WorkstationWorkspace() {
                   <dd>
                     <div className="ws-detail-value-row">
                       <span>{inspectedMachine.version || '—'}</span>
-                      <Button
-                        icon={<ArrowCircleUp {...ICON} />}
-                        type="button"
-                        variant="secondary"
-                        disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin))}
-                        title={commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) || undefined}
-                        onClick={() => openCommand('update', [inspectedMachine])}
-                      >
-                        {COMMANDS.update.label}
-                      </Button>
+                      {!inspectedMachine.verNew ? (
+                        <StatusBadge tone="success">
+                          <CheckCircle size={14} weight="bold" />
+                          Đã mới nhất
+                        </StatusBadge>
+                      ) : (
+                        <Button
+                          icon={<ArrowCircleUp size={13} weight="bold" aria-hidden />}
+                          type="button"
+                          variant="secondary"
+                          className="ws-btn-gradient"
+                          disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin))}
+                          title={commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) || undefined}
+                          onClick={() => openCommand('update', [inspectedMachine])}
+                        >
+                          {COMMANDS.update.label}
+                        </Button>
+                      )}
                     </div>
                   </dd>
                 </div>
                 <div>
-                  <dt>Ghi chú</dt>
-                  <dd>
-                    <div className="ws-note-cell">
-                      <span className={noteExpanded ? 'ws-note-text' : 'ws-note-text ws-note-text--collapsed'}>
-                        {inspectedMachine.note || '—'}
-                      </span>
-                      <span className="ws-note-controls">
-                        {inspectedMachine.note ? (
-                          <IconButton
-                            label={noteExpanded ? 'Thu gọn ghi chú' : 'Xem đầy đủ ghi chú'}
-                            icon={noteExpanded ? <CaretUp size={14} weight="bold" /> : <CaretDown size={14} weight="bold" />}
-                            onClick={() => setNoteExpanded((value) => !value)}
-                          />
-                        ) : null}
-                        <IconButton
-                          label="Sửa ghi chú"
-                          icon={<PencilSimple size={14} weight="bold" />}
-                          variant="secondary"
-                          disabled={isPaused}
-                          onClick={() => openNoteDialog([inspectedMachine.hostName], inspectedMachine)}
-                        />
-                      </span>
-                    </div>
-                  </dd>
+                  <dt>Bản quyền Windows</dt>
+                  <dd><WinLicenseCell machine={inspectedMachine} /></dd>
                 </div>
               </dl>
-              <MachineTechExtras machine={inspectedMachine} />
+            </InspectorGroup>
+
+            <InspectorGroup
+              icon={<Circuitry size={22} weight="duotone" />}
+              title="Phần cứng"
+              summary={
+                hw ? (
+                  <span className="ws-hw-summary">
+                    <span className="ws-hw-summary__item">
+                      <Cpu size={14} weight="bold" className="ws-hw-summary__icon" />
+                      <Thermometer size={14} weight="bold" style={{ color: TONE_TEXT_COLOR[tempTone(hw.cpu.tempC)] }} />
+                      <span style={{ color: TONE_TEXT_COLOR[tempTone(hw.cpu.tempC)] }}>{num(hw.cpu.tempC, '°C') ?? '—'}</span>
+                    </span>
+                    <span className="ws-hw-summary__item">
+                      <GraphicsCard size={14} weight="bold" className="ws-hw-summary__icon" />
+                      <Thermometer size={14} weight="bold" style={{ color: TONE_TEXT_COLOR[tempTone(hw.gpu.tempC)] }} />
+                      <span style={{ color: TONE_TEXT_COLOR[tempTone(hw.gpu.tempC)] }}>{num(hw.gpu.tempC, '°C') ?? '—'}</span>
+                    </span>
+                    {hw.updatedAtSec ? (
+                      <span className="ws-hw-summary__time">
+                        {new Date(hw.updatedAtSec * 1000).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false,
+                        })}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : undefined
+              }
+            >
+              <HardwareBlock hostName={inspectedMachine.hostName} />
             </InspectorGroup>
           </div>
         ) : null}

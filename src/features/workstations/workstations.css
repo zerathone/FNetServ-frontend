@@ -4,6 +4,29 @@
   gap: var(--space-4);
 }
 
+/* Nut "Nang cap" o dong Phien ban -- noi bat bang gradient thuong hieu thay vi outline
+   thuong, de phan biet voi cac nut thao tac khac trong cung nhom. ".ds-button" tang do
+   dac ta de thang chac .ds-button--secondary bat ke thu tu import CSS. */
+.ds-button.ws-btn-gradient {
+  height: 1.625rem;
+  padding: 0 var(--space-2);
+  gap: 0.25rem;
+  font-size: var(--font-size-xs);
+  color: #fff;
+  background: var(--gradient-brand);
+  border-color: transparent;
+}
+
+.ds-button.ws-btn-gradient:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: #fff;
+  border-color: transparent;
+}
+
+.ds-button.ws-btn-gradient:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
 .ws-page-actions,
 .ws-selection-bar > div,
 .ws-inspector__status,
@@ -657,20 +680,16 @@ button.ws-summary__row:hover {
 .ws-table__status {
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   gap: var(--space-1);
-  overflow: hidden;
 }
 
 .ws-table__status .ds-badge {
   max-width: 8rem;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.ws-table__more-flags {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
 }
 
 .ws-table__user {
@@ -944,6 +963,19 @@ button.ws-summary__row:hover {
   overflow-wrap: anywhere;
 }
 
+/* Ghi chu chuyen tu "Thong tin ky thuat" len "Phien hien tai" (2026-10) -- van bo tri
+   ngang dt-trai/dd-phai giong moi muc khac trong --inline, chi khac o cho chiem tron
+   hang (grid-column: 1/-1) va dd duoc gian ra het be rong con lai (flex:1) vi noi dung
+   dai hon (van ban + 2 nut) so voi cac gia tri ngan ben canh. */
+.ws-inspector .ws-detail-list--inline .ws-note-row {
+  grid-column: 1 / -1;
+}
+
+.ws-inspector .ws-detail-list--inline .ws-note-row dd {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .ws-tech-block {
   display: grid;
   gap: var(--space-2);
@@ -960,15 +992,110 @@ button.ws-summary__row:hover {
   letter-spacing: 0.06em;
 }
 
-.ws-tech-block__hint {
-  margin: 0 0 0 var(--space-2);
+.ws-winlic-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-md);
+}
+
+.ws-winlic-line .ds-badge {
+  padding: var(--space-1);
+}
+
+/* Badge nay da co icon rieng (Check/X/Warning/Question) lam vai tro chi bao --
+   cham tron ::before mac dinh cua .ds-badge (dung chung toan app) thanh thua. */
+.ws-winlic-line .ds-badge::before {
+  display: none;
+}
+
+.ws-hw-cluster {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Khung ngoai: don gian la 1 cot, xep chong cac con theo chieu doc (vd CPU/GPU: dong
+   .ws-hw-cluster__row roi dong .ws-hw-cluster__meta xuong duoi). Dung grid (khong phai
+   flex-wrap) vi flex-wrap quyet dinh xuong dong dua tren kich thuoc "hypothetical" cua
+   item (gan max-content cho text dai khong khoang trang nhu ten o cung), khong phai
+   kich thuoc sau khi co -- de tran ngang ca drawer du da co min-width:0. Grid 1 cot thi
+   moi con la 1 "track" rieng, luon full-width, khong co rui ro nay. */
+.ws-hw-cluster__item {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* RAM/O cung/Bo mach chu it thong tin hon CPU/GPU nen gon 1 dong: nhan | thong tin co
+   dinh (co giam duoc nho minmax(0,1fr)) | chip hoat dong. Cot 3 trong neu khong co chip
+   (vd Bo mach chu) -- khong sao, khong gay tran. */
+.ws-hw-cluster__item--flat {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-hw-cluster__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* CPU/GPU: dong nhan + chip hoat dong, nam tren dong thong tin co dinh (.ws-hw-cluster__meta,
+   sibling ngay sau trong .ws-hw-cluster__item dang grid 1 cot). Cot 2 minmax(0,1fr) de
+   nhom chip (.ws-hw-cluster__stats) co the co/tu xuong dong khi khong du cho. */
+.ws-hw-cluster__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-hw-cluster__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 1.5rem;
+}
+
+/* Cac chip nhiet/dien/tai da co icon rieng (Thermometer/Lightning/Speedometer) -- cham
+   tron ::before mac dinh cua .ds-badge thanh thua, giong ly do o .ws-winlic-line. */
+.ws-hw-cluster__stats .ds-badge::before,
+.ws-detail-value-row .ds-badge::before {
+  display: none;
+}
+
+.ws-hw-cluster__meta {
+  min-width: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.ws-winlic-sep {
+  color: var(--color-text-muted);
+}
+
+.ws-winlic-channel {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: 400;
 }
 
 .ws-detail-value-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
@@ -1071,12 +1198,41 @@ button.ws-summary__row:hover {
 
 .ws-group__summary {
   margin: 0;
+  min-width: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Tom tat nhiet do CPU/GPU o dang thu gon nhom "Phan cung" -- icon linh kien mo (muted),
+   icon nhiet + gia tri nhiet to mau theo nguong (tempTone), 2 cum tach biet bang gap. Dung
+   flex (khong phai inline-flex) + width 100% de chiem tron hang, cho gio cap nhat canh
+   duoc sang phai bang margin-left:auto. */
+.ws-hw-summary {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ws-hw-summary__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ws-hw-summary__icon {
+  color: var(--color-text-muted);
+}
+
+.ws-hw-summary__time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .ws-group__action {

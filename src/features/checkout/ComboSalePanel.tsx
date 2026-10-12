@@ -539,9 +539,6 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
             </article>
           ))}
         </div>
-        <InlineAlert tone="warning">
-          Sau khi đóng, WebUI không thể đọc lại mật khẩu từ máy chủ.
-        </InlineAlert>
       </Dialog>
     </section>
   )
