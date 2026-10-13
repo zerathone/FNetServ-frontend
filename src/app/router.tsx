@@ -118,6 +118,11 @@ const ComponentCatalogPage = lazy(() =>
     default: module.ComponentCatalogPage,
   })),
 )
+const HealthMonitorPage = lazy(() =>
+  import('../features/health-monitor/HealthMonitorPage').then((module) => ({
+    default: module.HealthMonitorPage,
+  })),
+)
 const CustomerQrDisplay = lazy(() =>
   import('../features/payments/CustomerQrDisplay').then((module) => ({
     default: module.CustomerQrDisplay,
@@ -139,6 +144,8 @@ function ProtectedRoutes() {
         <Routes>
           <Route path="/" element={<Navigate to="/workstations" replace />} />
           <Route path="/workstations" element={<WorkstationsPage />} />
+          {/* Theo dõi hoạt động: có cả ở Thu ngân lẫn Quản lý → NGOÀI AdminRoute (như /workstations). */}
+          <Route path="/health_monitor" element={<HealthMonitorPage />} />
           <Route path="/orders" element={<OrderQueuePage />} />
           <Route path="/combo_sale" element={<PaymentPage />} />
           <Route path="/payments" element={<Navigate to="/combo_sale" replace />} />

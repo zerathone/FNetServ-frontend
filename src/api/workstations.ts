@@ -123,13 +123,29 @@ export type WorkstationHardware = {
     loadPct: number | null
   }
   motherboard: string | null
-  network: { name: string | null; loadPct: number | null }
+  /** uploadGB/downloadGB = tong luu luong tich luy tu luc may bat (GB) */
+  network: {
+    name: string | null
+    loadPct: number | null
+    uploadGB: number | null
+    downloadGB: number | null
+  }
   storage: { name: string | null; loadPct: number | null; tempC: number | null }
 }
 
 export type WorkstationHardwareResponse = {
   hostName: string
   hardware: WorkstationHardware | null
+}
+
+// ---- GET /workstations/hardware/all -- phan cung cua TAT CA may co du lieu (trang Theo doi hoat dong) ----
+// Cung shape `hardware` voi endpoint 1 may. May chua co du lieu thi KHONG nam trong `items`.
+export type WorkstationHardwareAllResponse = {
+  items: Array<{ hostName: string; hardware: WorkstationHardware }>
+}
+
+export function getWorkstationsHardwareAll() {
+  return apiGet<WorkstationHardwareAllResponse>('/workstations/hardware/all')
 }
 
 export function getWorkstationHardware(hostName: string) {

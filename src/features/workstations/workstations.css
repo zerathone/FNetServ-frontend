@@ -723,8 +723,13 @@ button.ws-summary__row:hover {
   padding-right: var(--space-3);
 }
 
+/* Cot minmax(0,1fr) (khong phai `auto`/`1fr`): cot grid mac dinh co muc toi thieu = min-content
+   cua noi dung, nen 1 dong nowrap / chuoi dai khong khoang trang (ten CPU, GPU, o cung...) o
+   bat ky nhom con nao se nong ca cot vuot be rong drawer -> .ds-drawer__body hien scrollbar
+   ngang. minmax(0,...) ep cot luon bang be rong drawer, noi dung tu xuong dong/cat "...". */
 .ws-inspector {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
@@ -1012,7 +1017,7 @@ button.ws-summary__row:hover {
 
 .ws-hw-cluster {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
 }
@@ -1025,6 +1030,7 @@ button.ws-summary__row:hover {
    moi con la 1 "track" rieng, luon full-width, khong co rui ro nay. */
 .ws-hw-cluster__item {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   min-width: 0;
 }
@@ -1151,6 +1157,7 @@ button.ws-summary__row:hover {
 /* Nhom trong drawer chi tiet may (InspectorGroup): hang compact kieu danh sach
    thiet bi -- [icon] tieu de + 1 dong tom tat, [nut chinh], [mui ten expand]. */
 .ws-group {
+  min-width: 0;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-default);
@@ -1174,6 +1181,7 @@ button.ws-summary__row:hover {
   flex: 1 1 auto;
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.125rem;
 }
 
@@ -1235,6 +1243,25 @@ button.ws-summary__row:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Hang phu nhom "Thong tin ky thuat": "Phien ban x.y.z" + badge Windows (logo + icon trang thai)
+   cung 1 dong. Text phien ban co lai/cat "..." truoc, badge luon hien du (flex-shrink:0). */
+.ws-tech-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ws-tech-summary__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-tech-summary .ws-winlic-line {
+  flex-shrink: 0;
+}
+
 .ws-group__action {
   display: flex;
   flex-shrink: 0;
@@ -1243,6 +1270,7 @@ button.ws-summary__row:hover {
 
 .ws-group__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-4);
   border-top: 1px solid var(--color-border-default);

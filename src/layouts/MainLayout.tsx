@@ -22,7 +22,7 @@ import {
   Palette, SignOut, List, X, CaretRight, CaretLeft,
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
   CreditCard, Storefront,
-  CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook
+  CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook, Heartbeat
 } from '@phosphor-icons/react'
 import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
@@ -121,6 +121,7 @@ const workspaces: readonly Workspace[] = [
     landing: '/workstations',
     items: [
       { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" /> },
+      { to: '/health_monitor', label: 'Theo dõi hoạt động', shortLabel: 'Theo dõi', icon: <Heartbeat size={24} weight="duotone" /> },
       {
         to: '/users',
         label: 'Tài khoản',
@@ -153,6 +154,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/apps', label: 'Ứng dụng', shortLabel: 'App', icon: <AppWindow size={24} weight="duotone" /> },
       { to: '/webblock', label: 'Khống chế Web/App', shortLabel: 'Web', icon: <ShieldWarning size={24} weight="duotone" /> },
       { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" /> },
+      { to: '/health_monitor', label: 'Theo dõi hoạt động', shortLabel: 'Theo dõi', icon: <Heartbeat size={24} weight="duotone" /> },
       { to: '/logs/voucher', label: 'Nhật ký giao dịch', shortLabel: 'GD', icon: <FileText size={24} weight="duotone" /> },
       { to: '/logs/system', label: 'Nhật ký hệ thống', shortLabel: 'HT', icon: <TerminalWindow size={24} weight="duotone" /> },
       { to: '/logs/server', label: 'Nhật ký máy chủ', shortLabel: 'SV', icon: <TerminalWindow size={24} weight="duotone" /> },

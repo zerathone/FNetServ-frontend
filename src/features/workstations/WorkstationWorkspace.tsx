@@ -124,7 +124,6 @@ import {
   formatMoney,
   formatStartedAt,
   getWorkstationFlags,
-  getWinLicenseView,
   getWorkstationStatus,
   hasDebt,
   interpolateSession,
@@ -138,7 +137,7 @@ import { CallBellIcon } from './CallBellIcon'
 import { InspectorGroup } from './InspectorGroup'
 import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
-import { HardwareBlock, num, tempTone, WinLicenseCell } from './MachineTechExtras'
+import { HardwareBlock, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
 import './workstations.css'
 
 const RIGHTS = {
@@ -551,7 +550,6 @@ export function WorkstationWorkspace() {
   const status = inspectedMachine ? getWorkstationStatus(inspectedMachine) : null
   const flags = inspectedMachine ? getWorkstationFlags(inspectedMachine) : []
   const userKind = inspectedMachine ? getUserKind(inspectedMachine) : null
-  const winLicenseView = inspectedMachine ? getWinLicenseView(inspectedMachine) : null
   // ADMIN login dung userId=0 (WorkstationHandlers.cpp:657) -- khong phai khach hang
   // tra tien, nen khong co Tinh tien/Chuyen may/Dich vu (parity WorkstationList.cpp
   // EnableMenuItem IDR_PAYOUT/IDR_CHANGE_WS/IDR_SERVICE_ORDER chi cho session khach that).
@@ -2127,18 +2125,19 @@ export function WorkstationWorkspace() {
             <InspectorGroup
               icon={<Info size={22} weight="duotone" />}
               title="Thông tin kỹ thuật"
-              badges={
-                winLicenseView ? (
-                  <StatusBadge tone={winLicenseView.tone}>{`Windows: ${winLicenseView.label}`}</StatusBadge>
-                ) : null
+              summary={
+                <span className="ws-tech-summary">
+                  <span className="ws-tech-summary__text">Phiên bản {inspectedMachine.version || '—'}</span>
+                  <WinLicenseBadge machine={inspectedMachine} />
+                </span>
               }
-              summary={`Phiên bản ${inspectedMachine.version || '—'}`}
               action={
                 !inspectedMachine.verNew ? (
-                  <StatusBadge tone="success">
-                    <CheckCircle size={14} weight="bold" />
-                    Đã mới nhất
-                  </StatusBadge>
+                  <span className="ws-winlic-line">
+                    <StatusBadge tone="success" title="Đã mới nhất">
+                      <CheckCircle size={14} weight="bold" />
+                    </StatusBadge>
+                  </span>
                 ) : commandDisabledReason(COMMANDS.update, [inspectedMachine], hasRight, isAdmin) ? null : (
                   <Button
                     icon={<ArrowCircleUp size={13} weight="bold" aria-hidden />}

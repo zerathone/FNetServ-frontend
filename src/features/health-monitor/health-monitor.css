@@ -1,0 +1,410 @@
+/* Trang Theo doi hoat dong (/health_monitor). Khung ngoai (.ws-workspace/.ws-toolbar/.ws-content) va
+   .ws-table__header/.ws-table__empty dung chung tu workstations.css -- o day chi them phan luoi. */
+
+/* Cum "Lam moi": trang nay CHI polling thuan (khong badge "Tu dong" nhu PollingStatus dung chung) --
+   5 vach tien trinh dem toi han POLL_MS, day het thi chop sang roi reset ve 0. Bam ca cum = lam moi
+   thu cong (giong .ds-polling-status cua PollingStatus dung chung ve layout/kich thuoc). */
+.hm-poll {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.3rem var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease;
+}
+
+.hm-poll:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.hm-poll:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.hm-poll__label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+/* Wrapper rieng giu dong chieu cao cho ca 3 trang thai (vach / spinner / loi) -> doi qua lai khong
+   giat cum "Lam moi". KHONG dat min-height truc tiep len .hm-poll__steps (se de len height 0.5rem
+   that cua no, lam vach cao tro lai). */
+.hm-poll__status {
+  display: flex;
+  align-items: center;
+  min-height: 0.9rem;
+}
+
+.hm-poll__steps {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 0.5rem;
+}
+
+.hm-poll__step {
+  width: 0.3rem;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-border-default);
+  transition: background-color var(--motion-fast) ease;
+}
+
+.hm-poll__step.is-filled {
+  background: var(--color-action-primary);
+}
+
+.hm-poll--error {
+  --hm-poll-flash-color: var(--color-danger);
+}
+
+.hm-poll--error .hm-poll__step.is-filled {
+  background: var(--color-danger);
+}
+
+/* Chop sang luc query vua fetch xong (dataUpdatedAt doi) -- bao "vua lam moi" truoc khi vach tu reset ve 0. */
+@keyframes hm-poll-flash {
+  0%, 30% { background-color: var(--hm-poll-flash-color, var(--color-action-primary)); }
+  100%    { background-color: var(--color-border-default); }
+}
+
+.hm-poll__steps--flash .hm-poll__step {
+  animation: hm-poll-flash 700ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-poll__steps--flash .hm-poll__step {
+    animation: none;
+  }
+}
+
+/* Mat polling (dang goi lai REST) -- spinner + "Dang tai", giong het trang trang May tram luc mat WS. */
+.hm-poll__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Loi fetch -- chu do + thoi gian da loi, giong het trang May tram luc loi. */
+.hm-poll__error {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-danger-text, var(--color-danger));
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Thong ke canh bao (kieu the tong quan cua trang Don dich vu): moi linh kien 1 nhom = icon linh kien +
+   cac nut [icon chi so mau muc canh bao] [so may]. Bam de loc bang, bam lai de bo loc. */
+.hm-alerts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised, var(--color-surface-default));
+  box-shadow: var(--shadow-sm);
+}
+
+.hm-alerts__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hm-alerts__group + .hm-alerts__group {
+  border-left: 1px solid var(--color-border-default);
+  padding-left: var(--space-3);
+}
+
+.hm-alerts__device {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+}
+
+.hm-alerts__device-label {
+  font-size: var(--font-size-md);
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.hm-alerts__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--motion-fast) ease;
+}
+
+.hm-alerts__btn:hover {
+  background: var(--color-surface-hover);
+}
+
+.hm-alerts__btn strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Icon + so "tho": mo dan -> sang dan -> mo dan, lap vo han khong dung. 1 nhip day du (toi -> sang -> toi)
+   = 2.5s, doi nhip chi can doi `2.5s` o animation ben duoi. Muc toi 0.25 de so van doc duoc.
+   Nguoi dung bat "giam chuyen dong" (prefers-reduced-motion) thi dung yen. */
+@keyframes hm-pulse {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 1; }
+}
+
+.hm-alerts__btn svg,
+.hm-alerts__btn strong {
+  animation: hm-pulse 2.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-alerts__btn svg,
+  .hm-alerts__btn strong {
+    animation: none;
+  }
+}
+
+.hm-alerts__btn--danger svg {
+  color: var(--color-danger);
+}
+
+.hm-alerts__btn--warning svg {
+  color: var(--color-warning);
+}
+
+.hm-alerts__btn--danger.is-active {
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface-default));
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.hm-alerts__btn--warning.is-active {
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface-default));
+  box-shadow: inset 0 0 0 1px var(--color-warning);
+}
+
+/* Tag "dang loc" tren header cot CPU/GPU: cham mau muc canh bao + nhan + nut x bo loc. */
+.hm-filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border-radius: 999px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.5rem;
+  white-space: nowrap;
+}
+
+.hm-filter-tag--danger {
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface-default));
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.hm-filter-tag--warning {
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface-default));
+  box-shadow: inset 0 0 0 1px var(--color-warning);
+}
+
+.hm-filter-tag__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.hm-filter-tag__clear:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Bang rong (15 cot) nen co min-width; .ws-content cuon ngang, header va than cung nam trong 1 khoi
+   nen luon thang cot. Header co dinh, chi than cuon doc. */
+.hm-table {
+  min-width: 100rem;
+  height: min(48rem, calc(100vh - 16rem));
+  min-height: 26rem;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* Header 2 tang: nhom (CPU/GPU/RAM/O cung/Mang) o hang 1, cot con o hang 2. Cac o duoc dat vao luoi
+   bang gridColumn/gridRow (xem component Head). */
+.hm-head {
+  display: grid;
+  grid-template-columns: var(--hm-columns);
+  grid-template-rows: 2rem 2rem;
+  align-items: center;
+  column-gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-surface-hover);
+  /* Giu gutter bang voi .hm-body (co scrollbar doc) de header khong lech cot. */
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
+.hm-hc {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.hm-hc--start {
+  justify-content: flex-start;
+}
+
+.hm-hc--group {
+  height: 100%;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+/* Vien doc nhe ngan cach cac cum cot chinh (CPU/GPU/RAM/O cung/Mang/Cap nhat). Dat o canh trai
+   cua o dau cum, lap lai o ca 2 hang header + tung hang than bang -> nhin lien thanh 1 duong
+   doc xuyen suot bang. */
+.hm-hc--divider,
+.hm-cw--divider {
+  border-left: 1px solid var(--color-border-subtle);
+  padding-left: var(--space-2);
+}
+
+.hm-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.hm-row {
+  display: grid;
+  grid-template-columns: var(--hm-columns);
+  align-items: center;
+  column-gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-default);
+}
+
+.hm-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.hm-cw {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hm-cw--start {
+  justify-content: flex-start;
+}
+
+.hm-name {
+  color: var(--color-text-primary);
+}
+
+/* O canh bao (warning/danger): cham tron mau + chu IN DAM. Mau chu giu nguyen mau thuong, khong
+   to theo muc canh bao -- chi cham tron mang mau. */
+.hm-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hm-cell strong {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.hm-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.hm-dot--warning {
+  background: var(--color-warning);
+}
+
+.hm-dot--danger {
+  background: var(--color-danger);
+}
+
+.hm-empty,
+.hm-updated {
+  color: var(--color-text-muted);
+}
+
+/* Gia tri vua doi so voi lan cap nhat truoc: CHOP 2 lan mau sang + chu dam trong 3s roi tu mo dan
+   ve binh thuong -- chop (khong chi fade 1 chieu) de bat mat hon giua cac so lien tuc cap nhat.
+   Dat class nay truc tiep tren o chua text (khong phai o bao ngoai) de thang duoc mau chu dinh san
+   (vd .hm-cell strong). Day la chi so phan cung (nhiet/tai/dien...): tang = xau -> do; giam = tot
+   -> xanh la; khong ro huong = xanh duong. NGUOC voi quy uoc gia chung khoan. */
+@keyframes hm-flash-color {
+  0%, 16%  { color: var(--hm-flash-color, var(--color-action-primary)); font-weight: 700; }
+  28%      { color: inherit; font-weight: 400; }
+  40%, 56% { color: var(--hm-flash-color, var(--color-action-primary)); font-weight: 700; }
+  100%     { color: inherit; font-weight: 400; }
+}
+
+.hm-flash {
+  animation: hm-flash-color 3s ease-out;
+}
+
+.hm-flash--up {
+  --hm-flash-color: var(--color-danger);
+}
+
+.hm-flash--down {
+  --hm-flash-color: var(--color-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-flash {
+    animation: none;
+  }
+}

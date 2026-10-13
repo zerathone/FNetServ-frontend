@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Circuitry, Cpu, GraphicsCard, HardDrive, Lightning, Memory, Question, Speedometer, Thermometer, Warning, X } from '@phosphor-icons/react'
+import { ArrowDown, ArrowUp, Check, Circuitry, Cpu, GraphicsCard, HardDrive, Lightning, Memory, Network, Question, Speedometer, Thermometer, Warning, WindowsLogo, X } from '@phosphor-icons/react'
 import { getWorkstationHardware, type WorkstationHardware, type WorkstationRuntime } from '../../api/workstations'
 import { InlineAlert, StatusBadge, type StatusTone } from '../../design-system/components'
 import { getWinLicenseView } from './workstationModel'
@@ -23,6 +23,12 @@ function joinParts(parts: Array<string | null | undefined>) {
   return present.length > 0 ? present.join(' · ') : NO_DATA
 }
 
+/** Luu luong mang (GB) -> chuoi gon: duoi 1 GB doi sang MB cho de doc. */
+export function dataVolume(gb: number | null | undefined) {
+  if (gb === null || gb === undefined) return null
+  return gb < 1 ? `${Math.round(gb * 1024)} MB` : `${gb.toFixed(2)} GB`
+}
+
 function ramCapacity(ram: WorkstationHardware['ram']) {
   const total =
     ram.usedGB !== null && ram.availableGB !== null ? ram.usedGB + ram.availableGB : null
@@ -33,22 +39,29 @@ function ramCapacity(ram: WorkstationHardware['ram']) {
 // do >80°C la danger, >70°C warning. Con lai la "binh thuong" (success). Dien nang tieu
 // thu (W) khong co nguong chuan (TDP khac nhau tung CPU/GPU) -> giu tone info, khong suy
 // doan nguong.
-function loadTone(pct: number | null): StatusTone {
+// Cac moc nguong dung chung voi chu giai o trang Theo doi hoat dong (health-monitor) -- doi o day
+// la doi ca logic to mau lan chu giai.
+export const LOAD_WARN_PCT = 80
+export const LOAD_DANGER_PCT = 90
+export const TEMP_WARN_C = 70
+export const TEMP_DANGER_C = 80
+
+export function loadTone(pct: number | null): StatusTone {
   if (pct === null) return 'neutral'
-  if (pct > 90) return 'danger'
-  if (pct > 80) return 'warning'
+  if (pct > LOAD_DANGER_PCT) return 'danger'
+  if (pct > LOAD_WARN_PCT) return 'warning'
   return 'success'
 }
 
 export function tempTone(celsius: number | null): StatusTone {
   if (celsius === null) return 'neutral'
-  if (celsius > 80) return 'danger'
-  if (celsius > 70) return 'warning'
+  if (celsius > TEMP_DANGER_C) return 'danger'
+  if (celsius > TEMP_WARN_C) return 'warning'
   return 'success'
 }
 
 /** Chip so hoat dong (nhiet/dien/tai) -- icon rieng cho tung loai chi so + mau theo nguong. */
-function StatChip({
+export function StatChip({
   tone,
   icon: Icon,
   children,
@@ -72,6 +85,25 @@ const WIN_LICENSE_ICON: Record<StatusTone, typeof Check> = {
   warning: Warning,
   info: Question,
   neutral: Question,
+}
+
+/** Badge thu gon o header nhom "Thong tin ky thuat": logo Windows + icon trang thai ban quyen,
+    khong kem chu -- ten day du (va so ngay gia han) chi hien qua tooltip. Chua co du lieu -> null. */
+export function WinLicenseBadge({ machine }: { machine: WorkstationRuntime }) {
+  const lic = getWinLicenseView(machine)
+  if (!lic) return null
+  const Icon = WIN_LICENSE_ICON[lic.tone]
+  return (
+    <span className="ws-winlic-line">
+      <StatusBadge
+        tone={lic.tone}
+        title={`Windows: ${lic.label}${lic.graceText ? ` · ${lic.graceText}` : ''}`}
+      >
+        <WindowsLogo size={14} weight="fill" />
+        <Icon size={14} weight="bold" />
+      </StatusBadge>
+    </span>
+  )
 }
 
 /** Noi dung dong "Ban quyen Windows" -- dung nhu 1 <dd>, ghep chung dl voi "Phien ban"
@@ -166,6 +198,14 @@ export function HardwareBlock({ hostName }: { hostName: string }) {
               <span className="ws-hw-cluster__stats">
                 {hw.storage.tempC !== null ? <StatChip tone={tempTone(hw.storage.tempC)} icon={Thermometer}>{num(hw.storage.tempC, '°C')}</StatChip> : null}
                 {hw.storage.loadPct !== null ? <StatChip tone={loadTone(hw.storage.loadPct)} icon={Speedometer}>{num(hw.storage.loadPct, '%')}</StatChip> : null}
+              </span>
+            </div>
+            <div className="ws-hw-cluster__item ws-hw-cluster__item--flat">
+              <span className="ws-hw-cluster__label"><Network size={14} weight="bold" /> Mạng</span>
+              <span className="ws-hw-cluster__meta">{hw.network.name || NO_DATA}</span>
+              <span className="ws-hw-cluster__stats">
+                {hw.network.uploadGB !== null ? <StatChip tone="success" icon={ArrowUp}>{dataVolume(hw.network.uploadGB)}</StatChip> : null}
+                {hw.network.downloadGB !== null ? <StatChip tone="info" icon={ArrowDown}>{dataVolume(hw.network.downloadGB)}</StatChip> : null}
               </span>
             </div>
             <div className="ws-hw-cluster__item ws-hw-cluster__item--flat">
