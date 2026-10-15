@@ -1,0 +1,159 @@
+.pos-print-picker {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.pos-print-picker__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+/* Dạng gọn 1 dòng: [☐ In thông tin phòng máy] [Máy in POS | chọn máy] [nút in…]; hẹp thì tự xuống dòng. */
+.pos-print-picker--inline {
+  gap: var(--space-2);
+}
+
+.pos-print-picker__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.pos-print-picker__check {
+  white-space: nowrap;
+}
+
+.pos-print-picker__group {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.pos-print-picker__group .ds-select {
+  min-width: 10rem;
+}
+
+.pos-print-block {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.pos-print-block__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pos-print-block__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Khung gộp [☐ nhãn | máy in] kiểu ds-checkbox-input (form tìm kiếm nâng cao): ô chọn máy bỏ viền riêng, co theo nội dung. */
+.pos-print-picker__toggle {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.pos-print-picker__toggle .ds-custom-select-container {
+  width: auto;
+  flex: 1;
+  min-width: 10rem;
+}
+
+.pos-print-picker__toggle .ds-custom-select-trigger {
+  min-height: unset;
+  align-self: stretch;
+  border: none !important;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+/* Tuỳ chọn con (vd "In thông tin phòng máy") thụt vào dưới khung bật/tắt để thể hiện cha – con. */
+.pos-print-picker__row--child {
+  margin-left: var(--space-5, 1.5rem);
+}
+
+/* Ô ghi chú cố định của phiếu: rộng ra theo dòng, không co theo nội dung như ô chọn máy. */
+.pos-print-picker__note {
+  width: min(100%, 26rem);
+}
+
+/* Dòng cha "In phiếu nạp tiền"; các dòng con thụt vào, mờ khi tắt. */
+.pos-print-picker__parent {
+  font-weight: 600;
+}
+
+.pos-print-picker__children {
+  display: grid;
+  gap: var(--space-2);
+  margin-left: var(--space-5, 1.5rem);
+  transition: opacity 150ms ease-out;
+}
+
+.pos-print-picker__children.is-off {
+  opacity: 0.5;
+}
+
+/* Các dòng con sổ xuống khi tick "In phiếu nạp tiền" (tắt hiệu ứng nếu hệ thống giảm chuyển động). */
+.pos-print-picker__children {
+  animation: pos-print-children-in 160ms ease-out;
+}
+
+@keyframes pos-print-children-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pos-print-picker__children {
+    animation: none;
+  }
+}
+
+/* Dòng đầu: tick "In phiếu..." bên trái, nút thu gọn / mở rộng bên phải. */
+.pos-print-picker__head {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+.pos-print-picker__collapse {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.pos-print-picker__collapse:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong, var(--color-border-default));
+}
+
+/* Nhóm 3 control (máy in POS, in thông tin phòng máy, ghi chú) trong MỘT box; không thụt như trước. */
+.pos-print-picker__children {
+  margin-left: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}

@@ -24,6 +24,8 @@ type DepositQrFlowProps = {
   amount: number | null
   disabled?: boolean
   onActiveChange?: (active: boolean) => void
+  /** Gọi ĐÚNG MỘT LẦN khi cổng xác nhận đã nhận tiền (state → `done`, QR hiển thị tại quầy). Dùng để in phiếu. */
+  onDone?: (info: { amount: number }) => void
 }
 
 const TERMINAL_STATES = new Set<DepositQrState>([
@@ -65,8 +67,11 @@ export function DepositQrFlow({
   amount,
   disabled = false,
   onActiveChange,
+  onDone,
 }: DepositQrFlowProps) {
   const queryClient = useQueryClient()
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
   const { getKey, clearKey } = useIdempotentIntent('member-deposit-qr')
   const [intent, setIntent] = useState<DepositQrStartResult | null>(null)
   const [state, setState] = useState<DepositQrState | null>(null)
@@ -156,8 +161,9 @@ export function DepositQrFlow({
       clearKey()
       pushToast('Nạp tiền QR thành công.', 'success')
       void invalidateMoneyQueries(queryClient)
+      onDoneRef.current?.({ amount: intent?.value ?? amount ?? 0 })
     }
-  }, [clearKey, queryClient, state, statusQuery.data])
+  }, [amount, clearKey, intent?.value, queryClient, state, statusQuery.data])
 
   useEffect(() => {
     if (

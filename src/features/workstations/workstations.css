@@ -1022,6 +1022,12 @@ button.ws-summary__row:hover {
   min-width: 0;
 }
 
+/* Danh sach phan hwm.exe lay hong (hardware.errors) trong InlineAlert dau nhom "Phan cung". */
+.ws-hw-errors {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
 /* Khung ngoai: don gian la 1 cot, xep chong cac con theo chieu doc (vd CPU/GPU: dong
    .ws-hw-cluster__row roi dong .ws-hw-cluster__meta xuong duoi). Dung grid (khong phai
    flex-wrap) vi flex-wrap quyet dinh xuong dong dua tren kich thuoc "hypothetical" cua

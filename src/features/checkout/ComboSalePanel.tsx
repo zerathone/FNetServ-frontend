@@ -20,6 +20,7 @@ import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { comboUsagePresentation } from './comboUsageModel'
+import { ComboCardPrintPanel } from './ComboCardPrintPanel'
 import { ComboPendingPanel } from './ComboPendingPanel'
 import { ComboPendingToggle } from './ComboPendingToggle'
 
@@ -81,6 +82,7 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
   const [machineGroupFilter, setMachineGroupFilter] = useState<number | null>(null)
   const [method, setMethod] = useState<'cash' | 'online' | 'qr'>('cash')
   const [results, setResults] = useState<ComboSaleResult[]>([])
+  const [printing, setPrinting] = useState(false)
   const [qr, setQr] = useState<{
     orderId: string
     img: string
@@ -242,6 +244,12 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
     setResults([])
     setCart([])
   }
+
+  // Giỏ còn nguyên cho tới khi bàn giao — dùng để bù trường BE cũ chưa trả khi in thẻ.
+  const soldCombosById = useMemo(
+    () => new Map(cart.map((line) => [line.combo.comboId, line.combo] as const)),
+    [cart],
+  )
 
   return (
     <section className="checkout-panel combo-pos" aria-label="Bán COMBO">
@@ -453,6 +461,7 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
                 </dl>
                 <Button
                   variant="primary"
+                  className="combo-context__confirm"
                   block
                   loading={saleMutation.isPending}
                   disabled={!cart.length || cart.some((line) => line.quantity < 1 || line.quantity > 99)}
@@ -520,12 +529,13 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
         title="Thẻ COMBO đã phát hành"
         description="Mật khẩu chỉ được máy chủ trả về lần này. Hãy in hoặc bàn giao trước khi đóng."
         size="lg"
-        onClose={clearCompletedSale}
+        onClose={() => {
+          if (!printing) clearCompletedSale()
+        }}
         footer={
-          <>
-            <Button onClick={() => window.print()}>In thẻ</Button>
-            <Button variant="primary" onClick={clearCompletedSale}>Đã bàn giao</Button>
-          </>
+          <Button variant="primary" disabled={printing} onClick={clearCompletedSale}>
+            Đã bàn giao
+          </Button>
         }
       >
         <div className="combo-credentials">
@@ -539,6 +549,9 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
             </article>
           ))}
         </div>
+        {results.length > 0 ? (
+          <ComboCardPrintPanel results={results} combosById={soldCombosById} onBusyChange={setPrinting} />
+        ) : null}
       </Dialog>
     </section>
   )

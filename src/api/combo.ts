@@ -65,6 +65,21 @@ export type ComboSaleResult = {
   idem: string
   username: string
   password: string
+  // Dữ liệu in phiếu (task web-print-flows, BE-1): server trả đúng giá trị đã ghi vào ComboDetailTb. Tất cả
+  // OPTIONAL — BE cũ chưa trả thì phiếu bỏ dòng thiếu (giá/dịch vụ tặng kèm/nhóm máy lấy tạm từ danh mục).
+  comboName?: string
+  price?: number
+  zone?: string
+  fromDate?: string
+  fromTime?: string
+  toDate?: string
+  toTime?: string
+  comboType?: number
+  duration?: number
+  weekday?: number
+  donates?: Array<{ name: string; quantity: number }>
+  issuedAt?: string
+  staffName?: string
 }
 
 export type ComboSalePayload = {

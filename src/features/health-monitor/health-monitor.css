@@ -236,7 +236,14 @@
   box-shadow: inset 0 0 0 1px var(--color-warning);
 }
 
+.hm-filter-tag__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .hm-filter-tag__clear {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -254,19 +261,31 @@
   background: var(--color-surface-hover);
 }
 
-/* Bang rong (15 cot) nen co min-width; .ws-content cuon ngang, header va than cung nam trong 1 khoi
-   nen luon thang cot. Header co dinh, chi than cuon doc. */
+/* MOT khung cuon DUY NHAT cho ca 2 chieu (2026-10-14). Truoc day .hm-head co `overflow-y: hidden` =>
+   theo CSS truc x thanh `auto` => header tu thanh khung cuon ngang rieng (tong min cot > min-width bang)
+   -> hien thanh cuon kep giua header va du lieu, keo chi dich header; con thanh cuon doc cua than nam o
+   mep phai bang rong, man hep bi khuat. Nay: cuon ngang -> header + du lieu di cung nhau; cuon doc ->
+   header dung yen (sticky). */
 .hm-table {
-  min-width: 100rem;
   height: min(48rem, calc(100vh - 16rem));
   min-height: 26rem;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* Header va than la 2 luoi RIENG -> phai cung do rong de thang cot: ca hai rong 100% khung cuon nhung
+   khong duoi --hm-min-width (= tong min cac cot + khoang cach + padding, tinh trong HealthMonitorPage). */
+.hm-head,
+.hm-body {
+  min-width: var(--hm-min-width);
 }
 
 /* Header 2 tang: nhom (CPU/GPU/RAM/O cung/Mang) o hang 1, cot con o hang 2. Cac o duoc dat vao luoi
-   bang gridColumn/gridRow (xem component Head). */
+   bang gridColumn/gridRow (xem component Head). Sticky: dung yen khi cuon doc, nen lay tu .ws-table__header. */
 .hm-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: grid;
   grid-template-columns: var(--hm-columns);
   grid-template-rows: 2rem 2rem;
@@ -274,9 +293,6 @@
   column-gap: var(--space-2);
   padding: 0 var(--space-3);
   border-bottom: 1px solid var(--color-surface-hover);
-  /* Giu gutter bang voi .hm-body (co scrollbar doc) de header khong lech cot. */
-  overflow-y: hidden;
-  scrollbar-gutter: stable;
 }
 
 .hm-hc {
@@ -290,6 +306,20 @@
 
 .hm-hc--start {
   justify-content: flex-start;
+}
+
+/* Tieu de tren, tag loc duoi (cot hep chiem ca 2 hang header, vd "Ten may"): tag nam ngang se tran
+   de len cot ben canh. Can giua. Tag khong rong hon cot; thieu cho thi nhan cat "..." (tooltip van du chu). */
+.hm-hc--stack {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.hm-hc--stack .hm-filter-tag {
+  margin-left: 0;
+  max-width: 100%;
 }
 
 .hm-hc--group {
@@ -306,12 +336,6 @@
   padding-left: var(--space-2);
 }
 
-.hm-body {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
 
 .hm-row {
   display: grid;
@@ -346,6 +370,61 @@
   color: var(--color-text-primary);
 }
 
+/* O "Ten may": ten (+ icon canh bao) dong tren, phien ban FNet chu nho mo dong duoi (gop cot
+   "Phien ban" cu, 2026-10-14). */
+.hm-name-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+/* Rong het o -> .hm-updated (margin-left: auto) day sang mep phai. */
+.hm-name-line {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.hm-name-line .hm-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hm-version {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+/* Icon canh bao canh ten may: hwm.exe gui thieu du lieu (hardware.errors) -- do = loi cam bien
+   (mat so lieu phan cung), vang = thieu mot phan (vd ban quyen Windows). Chi tiet o tooltip. */
+.hm-hwerr {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding-left: var(--space-1); /* padding (khong margin) de measureNameColumn do duoc */
+  cursor: help;
+}
+
+.hm-hwerr--danger {
+  color: var(--color-danger-text);
+}
+
+.hm-hwerr--warning {
+  color: var(--color-warning);
+}
+
+/* May DISCONNECT (tat/mat ket noi): ten mo di de phan biet voi may dang hoat dong. */
+.hm-name--offline {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
 /* O canh bao (warning/danger): cham tron mau + chu IN DAM. Mau chu giu nguyen mau thuong, khong
    to theo muc canh bao -- chi cham tron mang mau. */
 .hm-cell {
@@ -374,9 +453,47 @@
   background: var(--color-danger);
 }
 
+/* Cham do tuoi du lieu o DAU dong (truoc ten may): xanh = gui deu (<= 10 phut), vang = lau hon,
+   xam mo = may da tat; khong co lop mau = o trong giu ten may thang hang. */
+.hm-fresh {
+  margin-right: var(--space-2);
+  cursor: help;
+}
+
+.hm-fresh:not([title]) {
+  cursor: default;
+}
+
+.hm-dot--success {
+  background: var(--color-success);
+}
+
+.hm-dot--off {
+  background: var(--color-text-muted);
+  opacity: 0.45;
+}
+
 .hm-empty,
+/* Thoi diem cap nhat: cung dong ten may, CAN PHAI o (thang hang giua cac dong), net manh nhat cung kieu
+   .hm-version. Cot ten may rong vua dong dai nhat (do bang JS, measureNameColumn) nen thoi gian nam sat
+   ten. min-width co dinh: nhan doi "vua xong" <-> "12 ph truoc" khong lam cot giat. Khoang cach voi ten la
+   PADDING (khong margin) de scrollWidth do duoc ca khoang cach. */
 .hm-updated {
+  flex-shrink: 0;
+  min-width: 5.25rem;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  text-align: right;
   color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+/* May DISCONNECT: thay nhan thoi gian cap nhat (vd "5 ph truoc") bang "Da tat" -- tranh hieu lam
+   la du lieu phan cung van con moi trong khi may da tat that su. */
+.hm-updated--offline {
+  font-style: italic;
 }
 
 /* Gia tri vua doi so voi lan cap nhat truoc: CHOP 2 lan mau sang + chu dam trong 3s roi tu mo dan

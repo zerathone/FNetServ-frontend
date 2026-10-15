@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowDown,
   ArrowUp,
   Cpu,
+  Fan,
   GraphicsCard,
   HardDrive,
   Lightning,
@@ -12,6 +13,7 @@ import {
   Network,
   Speedometer,
   Thermometer,
+  Warning,
   X,
 } from '@phosphor-icons/react'
 import {
@@ -22,6 +24,10 @@ import {
 import { Button, PageHeader, StateView, type StatusTone } from '../../design-system/components'
 import {
   dataVolume,
+  FAN_DANGER_PCT,
+  FAN_WARN_PCT,
+  fanTone,
+  hardwareErrorsTitle,
   LOAD_DANGER_PCT,
   LOAD_WARN_PCT,
   loadTone,
@@ -30,6 +36,7 @@ import {
   TEMP_WARN_C,
   tempTone,
 } from '../workstations/MachineTechExtras'
+import { WORKSTATION_STATUS } from '../workstations/workstationModel'
 // Dung chung khung/ban/toolbar cua trang May tram (.ws-workspace, .ws-toolbar, .ws-content, .ws-table__*).
 import '../workstations/workstations.css'
 import './health-monitor.css'
@@ -46,19 +53,54 @@ const FLASH_MS = 3_000
 const POLL_STEP_COUNT = 5
 const POLL_STEP_FLASH_MS = 700
 
-// 15 track: ten may | phien ban | CPU x3 | GPU x3 | RAM x2 | O cung x2 | Mang x2 | cap nhat
-const GRID_COLUMNS = [
-  'minmax(8.5rem, 1.15fr)',
-  '7rem',
-  ...Array(6).fill('minmax(5.5rem, 1fr)'),
-  'minmax(5.5rem, 1fr)',
-  '8.5rem',
-  ...Array(2).fill('minmax(5.5rem, 1fr)'),
-  ...Array(2).fill('minmax(6rem, 1fr)'),
-  '6.5rem',
-].join(' ')
+// 14 track: ten may (+ phien ban mo duoi ten, thoi diem cap nhat can phai) | CPU x3 | GPU x4
+// (nhiet/tai/cong suat/quat) | RAM x2 | O cung x2 | Mang x2. `min` (rem) = do rong toi thieu cua track --
+// dung de tinh min-width chung cho header + than (2 luoi rieng phai bang nhau moi thang cot), KHONG go tay.
+const flex = (min: number, fr = 1) => ({ min, track: `minmax(${min}rem, ${fr}fr)` })
+const fixed = (rem: number) => ({ min: rem, track: `${rem}rem` })
+// Cac cot SO LIEU (sau cot ten may).
+const DATA_TRACKS = [
+  ...Array.from({ length: 7 }, () => flex(5.5)),
+  flex(5.5),
+  fixed(8.5),
+  ...Array.from({ length: 2 }, () => flex(5.5)),
+  ...Array.from({ length: 2 }, () => flex(6)),
+]
+const GRID_GAP_REM = 0.5 // column-gap: var(--space-2)
+const GRID_PAD_REM = 0.75 // padding ngang .hm-head/.hm-row: var(--space-3) moi ben
+const DATA_MIN_REM = DATA_TRACKS.reduce((sum, t) => sum + t.min, 0) + GRID_GAP_REM * DATA_TRACKS.length + GRID_PAD_REM * 2
+// Cot ten may CO GIAN THEO NOI DUNG: rong dung bang dong dai nhat (cham + ten + canh bao + thoi gian can
+// phai) -- do bang DOM sau khi render (moi dong la 1 luoi rieng nen CSS khong tu dong bo duoc). Chua do
+// xong (render dau) -> tam NAME_FALLBACK_REM.
+const NAME_FALLBACK_REM = 11
 
-const gridStyle = { '--hm-columns': GRID_COLUMNS } as CSSProperties
+function gridStyleFor(nameColPx: number | null) {
+  const nameTrack = nameColPx ? `${nameColPx}px` : `${NAME_FALLBACK_REM}rem`
+  return {
+    '--hm-columns': [nameTrack, ...DATA_TRACKS.map((t) => t.track)].join(' '),
+    '--hm-min-width': `calc(${nameTrack} + ${DATA_MIN_REM}rem)`,
+  } as CSSProperties
+}
+
+/** Do rong tu nhien (khong bi cat) cua o ten may o tung dong -> lay lon nhat. Cong scrollWidth cua tung
+    phan tu con tren dong ten (ten / canh bao / thoi gian -- khoang cach giua chung la PADDING nen da nam
+    trong scrollWidth) + dong phien ban, cong o cham dau dong. */
+function measureNameColumn(table: HTMLElement): number {
+  let max = 0
+  table.querySelectorAll<HTMLElement>('.hm-row').forEach((row) => {
+    const dot = row.querySelector<HTMLElement>('.hm-fresh')
+    const line = row.querySelector<HTMLElement>('.hm-name-line')
+    const version = row.querySelector<HTMLElement>('.hm-version')
+    let lineW = 0
+    if (line) {
+      for (const child of Array.from(line.children) as HTMLElement[]) lineW += child.scrollWidth
+    }
+    const dotW = dot ? dot.offsetWidth + parseFloat(getComputedStyle(dot).marginRight || '0') : 0
+    max = Math.max(max, dotW + Math.max(lineW, version?.scrollWidth ?? 0))
+  })
+  // Chi theo noi dung cac dong; header "Ten may" khong tham gia (can giua, tag loc tu cat "..." neu chat).
+  return max > 0 ? Math.ceil(max) + 2 : 0
+}
 
 // ---- Thong ke canh bao (tren bang): moi nut = 1 chi so (nhiet/tai) cua 1 linh kien o 1 muc (danger/warning),
 // hien so may dang o muc do. Chi nut co so may > 0 moi hien; khong co nut nao -> an ca khoi. Bam = loc bang. ----
@@ -97,9 +139,45 @@ function tempMetric(read: (hw: WorkstationHardware) => number | null): AlertMetr
   }
 }
 
+// Quat GPU (% dieu khien): may khong bao quat (fanPct null/khong co) -> fanTone 'neutral' -> khong dem,
+// khong hien nut -- dung "khong co data thi thoi".
+const FAN_METRIC: AlertMetric = {
+  id: 'fan',
+  label: 'quạt',
+  icon: Fan,
+  toneOf: (hw) => fanTone(hw.gpu.fanPct ?? null),
+  levels: {
+    danger: `quay rất mạnh, trên ${FAN_DANGER_PCT}%`,
+    warning: `quay mạnh, trên ${FAN_WARN_PCT}%`,
+  },
+  tagLabel: { danger: 'Quạt rất mạnh', warning: 'Quạt mạnh' },
+}
+
+// hwm.exe bao phan lay hong (hardware.errors): hong 'hardware' = mat sach so lieu cam bien (vd crash
+// 0xE0434352 cua thu vien .NET, timeout) -> danger; chi hong phan khac (vd 'winlicense') -> warning.
+function hwErrorTone(hw: WorkstationHardware | null | undefined): StatusTone {
+  const errors = hw?.errors
+  if (!errors || errors.length === 0) return 'neutral'
+  return errors.some((e) => e.part === 'hardware') ? 'danger' : 'warning'
+}
+
+const HW_ERROR_METRIC: AlertMetric = {
+  id: 'error',
+  label: 'đọc dữ liệu',
+  icon: Warning,
+  toneOf: (hw) => hwErrorTone(hw),
+  levels: {
+    danger: 'lỗi, không đọc được cảm biến',
+    warning: 'thiếu một phần',
+  },
+  tagLabel: { danger: 'Lỗi cảm biến', warning: 'Thiếu dữ liệu' },
+}
+
 const ALERT_DEVICES: AlertDevice[] = [
-  { id: 'gpu', label: 'GPU', icon: GraphicsCard, metrics: [tempMetric((hw) => hw.gpu.tempC)] },
+  { id: 'gpu', label: 'GPU', icon: GraphicsCard, metrics: [tempMetric((hw) => hw.gpu.tempC), FAN_METRIC] },
   { id: 'cpu', label: 'CPU', icon: Cpu, metrics: [tempMetric((hw) => hw.cpu.tempC)] },
+  // Tag loc cua nhom nay gan o header cot "Ten may" (filterTag('hwm')).
+  { id: 'hwm', label: 'Máy trạm', icon: Warning, metrics: [HW_ERROR_METRIC] },
 ]
 
 const ALERT_TONES: AlertTone[] = ['danger', 'warning']
@@ -201,24 +279,73 @@ function LoadCell({ value }: { value: number | null | undefined }) {
   )
 }
 
+function FanCell({ value }: { value: number | null | undefined }) {
+  const tone = fanTone(value ?? null)
+  return (
+    <Cell
+      text={num(value, '%')}
+      value={value ?? null}
+      tone={tone}
+      tip={tone === 'danger' ? `Quạt quay rất mạnh: trên ${FAN_DANGER_PCT}%` : `Quạt quay mạnh: trên ${FAN_WARN_PCT}%`}
+    />
+  )
+}
+
+// hwm.exe gui moi ~3,5-4 phut (timer 213s cua Scheduler) -> trong 10 phut van co du lieu = gui deu.
+const DATA_FRESH_MS = 10 * 60_000
+
+/** Cham DO TUOI du lieu phan cung o DAU dong (truoc ten may): xanh = nhan du lieu trong 10 phut,
+    vang = lau hon, xam mo = may da tat. Chua tung co du lieu (hwm tat / Server vua khoi dong) ->
+    o trong cung kich thuoc (giu ten may thang hang). */
+function DataFreshDot({
+  hw,
+  offline,
+  nowMs,
+}: {
+  hw: WorkstationHardware | null
+  offline: boolean
+  nowMs: number
+}) {
+  let dot: 'success' | 'warning' | 'off' | null = null
+  let tip: string | undefined
+  if (offline) {
+    dot = 'off'
+    tip = 'Máy đã tắt / mất kết nối'
+  } else if (hw?.updatedAtSec) {
+    const fresh = nowMs - hw.updatedAtSec * 1000 <= DATA_FRESH_MS
+    const last = formatUpdated(hw.updatedAtSec, nowMs)
+    dot = fresh ? 'success' : 'warning'
+    tip = fresh
+      ? `Máy trạm gửi dữ liệu phần cứng đều đặn (lần gần nhất: ${last})`
+      : `Quá ${DATA_FRESH_MS / 60_000} phút chưa nhận dữ liệu phần cứng (lần gần nhất: ${last})`
+  }
+  return (
+    <span
+      className={`hm-dot hm-fresh${dot ? ` hm-dot--${dot}` : ''}`}
+      title={tip}
+      role={tip ? 'img' : undefined}
+      aria-label={tip}
+      aria-hidden={tip ? undefined : true}
+    />
+  )
+}
+
 function ramUsage(ram: WorkstationHardware['ram'] | undefined) {
   if (!ram || ram.usedGB === null || ram.availableGB === null) return null
   return `${ram.usedGB.toFixed(1)} / ${(ram.usedGB + ram.availableGB).toFixed(1)} GB`
 }
 
-/** "Vừa xong" / "1 phút trước" / "2 giờ trước"...; qua 24h thi hien ngay gio tuyet doi. */
-function formatUpdated(sec: number | null | undefined) {
+/** "Vừa xong" / "1 ph trước" / "2 giờ trước"...; qua 24h thi hien ngay gio tuyet doi. Dang thu gon
+    (vd "phút" -> "ph") cho vua cot hep -- Intl.RelativeTimeFormat 'vi' khong co dang ngan nay.
+    nowMs = gio SERVER uoc tinh (updatedAtSec la gio Server nhan du lieu; trinh duyet co the lech gio). */
+function formatUpdated(sec: number | null | undefined, nowMs: number) {
   if (!sec) return null
   const ms = sec * 1000
-  const diffMinutes = Math.round((ms - Date.now()) / 60_000)
+  const diffMinutes = Math.round((ms - nowMs) / 60_000)
   if (Math.abs(diffMinutes) < 1) return 'vừa xong'
-  if (Math.abs(diffMinutes) < 60) {
-    return new Intl.RelativeTimeFormat('vi', { numeric: 'auto' }).format(diffMinutes, 'minute')
-  }
+  if (Math.abs(diffMinutes) < 60) return `${Math.abs(diffMinutes)} ph trước`
   const diffHours = Math.round(diffMinutes / 60)
-  if (Math.abs(diffHours) < 24) {
-    return new Intl.RelativeTimeFormat('vi', { numeric: 'auto' }).format(diffHours, 'hour')
-  }
+  if (Math.abs(diffHours) < 24) return `${Math.abs(diffHours)} giờ trước`
   return new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -236,6 +363,7 @@ function Head({
   start,
   group,
   divider,
+  stack,
   children,
 }: {
   col: number
@@ -246,12 +374,15 @@ function Head({
   group?: boolean
   /** Vien doc nhe o canh trai o nay -- danh dau ranh gioi giua cac cum cot chinh (CPU/GPU/RAM...). */
   divider?: boolean
+  /** Xep doc (tieu de tren, tag loc duoi) -- cho cot hep chiem ca 2 hang header (vd "Ten may"),
+      tag nam ngang se tran sang cot ben canh. */
+  stack?: boolean
   children: ReactNode
 }) {
   return (
     <div
       role="columnheader"
-      className={`hm-hc${start ? ' hm-hc--start' : ''}${group ? ' hm-hc--group' : ''}${divider ? ' hm-hc--divider' : ''}`}
+      className={`hm-hc${start ? ' hm-hc--start' : ''}${group ? ' hm-hc--group' : ''}${divider ? ' hm-hc--divider' : ''}${stack ? ' hm-hc--stack' : ''}`}
       style={{
         gridColumn: span > 1 ? `${col} / span ${span}` : col,
         gridRow: row === 'both' ? '1 / span 2' : row,
@@ -440,6 +571,13 @@ export function HealthMonitorPage() {
 
   const [activeAlert, setActiveAlert] = useState<string | null>(null)
 
+  // Gio SERVER uoc tinh = gio trinh duyet + do lech do duoc o lan tai runtime gan nhat (serverTimeMs la
+  // gio Server luc tra ve, dataUpdatedAt la gio trinh duyet luc nhan). updatedAtSec cua phan cung la gio
+  // Server -> so voi gio Server, khong bi lech khi may xem web chay sai gio. Render lai moi 15s (forceTick).
+  const runtimeSnapshot = Array.isArray(runtimeQuery.data) ? null : runtimeQuery.data
+  const serverOffsetMs = runtimeSnapshot?.serverTimeMs ? runtimeSnapshot.serverTimeMs - runtimeQuery.dataUpdatedAt : 0
+  const nowServerMs = Date.now() + serverOffsetMs
+
   // Ghep danh sach may (runtime) voi phan cung theo hostName.
   const allRows = useMemo(() => {
     const snapshot = Array.isArray(runtimeQuery.data) ? null : runtimeQuery.data
@@ -498,7 +636,7 @@ export function HealthMonitorPage() {
         title={`Đang lọc: ${activeFilter.device.label} ${activeFilter.metric.label} ${activeFilter.metric.levels[activeFilter.tone]}`}
       >
         <span className={`hm-dot hm-dot--${activeFilter.tone}`} aria-hidden="true" />
-        {activeFilter.metric.tagLabel[activeFilter.tone]}
+        <span className="hm-filter-tag__label">{activeFilter.metric.tagLabel[activeFilter.tone]}</span>
         <button
           type="button"
           className="hm-filter-tag__clear"
@@ -529,6 +667,17 @@ export function HealthMonitorPage() {
       )
     })
   }, [allRows, search, effectiveAlert])
+  // Cot ten may rong theo dong dai nhat (xem measureNameColumn). Do lai khi danh sach dong doi (them/bot
+  // may, loc, ten/canh bao doi). Do rong do duoc KHONG phu thuoc do rong cot hien tai (scrollWidth = noi
+  // dung tu nhien, o thoi gian co min-width co dinh) nen khong lap vo han.
+  const tableRef = useRef<HTMLDivElement>(null)
+  const [nameColPx, setNameColPx] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (!tableRef.current) return
+    const width = measureNameColumn(tableRef.current)
+    if (width > 0) setNameColPx(width)
+  }, [rows])
+
   const totalMachines = allRows.length
 
   const withDataCount = rows.filter((row) => row.hw !== null).length
@@ -622,24 +771,32 @@ export function HealthMonitorPage() {
       </div>
 
       <div className="ws-content">
-        <div className="hm-table" role="table" aria-rowcount={rows.length + 2} style={gridStyle}>
+        <div
+          ref={tableRef}
+          className="hm-table"
+          role="table"
+          aria-rowcount={rows.length + 2}
+          style={gridStyleFor(nameColPx)}
+        >
           {/* Header LUON hien du cot, bat ke trang thai tai du lieu. */}
           <div className="hm-head ws-table__header" role="rowgroup">
-            <Head col={1} row="both" start>Tên máy</Head>
-            <Head col={2} row="both" start>Phiên bản</Head>
-            <Head col={3} span={3} row={1} icon={Cpu} group divider>CPU{filterTag('cpu')}</Head>
-            <Head col={6} span={3} row={1} icon={GraphicsCard} group divider>GPU{filterTag('gpu')}</Head>
+            <Head col={1} row="both" stack>
+              <span>Tên máy</span>
+              {filterTag('hwm')}
+            </Head>
+            <Head col={2} span={3} row={1} icon={Cpu} group divider>CPU{filterTag('cpu')}</Head>
+            <Head col={5} span={4} row={1} icon={GraphicsCard} group divider>GPU{filterTag('gpu')}</Head>
             <Head col={9} span={2} row={1} icon={Memory} group divider>RAM</Head>
             <Head col={11} span={2} row={1} icon={HardDrive} group divider>Ổ cứng</Head>
             <Head col={13} span={2} row={1} icon={Network} group divider>Mạng</Head>
-            <Head col={15} row="both" divider>Cập nhật</Head>
 
-            <Head col={3} row={2} icon={Thermometer} divider>Nhiệt độ</Head>
-            <Head col={4} row={2} icon={Speedometer}>Tải</Head>
-            <Head col={5} row={2} icon={Lightning}>Công suất</Head>
-            <Head col={6} row={2} icon={Thermometer} divider>Nhiệt độ</Head>
-            <Head col={7} row={2} icon={Speedometer}>Tải</Head>
-            <Head col={8} row={2} icon={Lightning}>Công suất</Head>
+            <Head col={2} row={2} icon={Thermometer} divider>Nhiệt độ</Head>
+            <Head col={3} row={2} icon={Speedometer}>Tải</Head>
+            <Head col={4} row={2} icon={Lightning}>Công suất</Head>
+            <Head col={5} row={2} icon={Thermometer} divider>Nhiệt độ</Head>
+            <Head col={6} row={2} icon={Speedometer}>Tải</Head>
+            <Head col={7} row={2} icon={Lightning}>Công suất</Head>
+            <Head col={8} row={2} icon={Fan}>Quạt</Head>
             <Head col={9} row={2} icon={Speedometer} divider>Tải</Head>
             <Head col={10} row={2}>Dùng / Tổng</Head>
             <Head col={11} row={2} icon={Thermometer} divider>Nhiệt độ</Head>
@@ -674,17 +831,50 @@ export function HealthMonitorPage() {
             </div>
           ) : (
             <div className="hm-body">
-              {rows.map(({ machine, hw }) => (
+              {rows.map(({ machine, hw }) => {
+                const offline = machine.status === WORKSTATION_STATUS.DISCONNECT
+                const errTone = hwErrorTone(hw)
+                const errTitle = hardwareErrorsTitle(hw?.errors)
+                return (
                 <div key={machine.hostName} className="hm-row" role="row">
                   <Body start>
-                    <strong className="hm-name">{machine.hostName}</strong>
-                  </Body>
-                  <Body start>
-                    <Cell
-                      text={machine.version || null}
-                      tone={machine.verNew ? 'warning' : 'neutral'}
-                      tip="Có bản FNet mới hơn"
-                    />
+                    <DataFreshDot hw={hw} offline={offline} nowMs={nowServerMs} />
+                    {/* Ten may (+ canh bao loi doc du lieu) o dong tren, phien ban FNet chu nho mo o duoi. */}
+                    <span className="hm-name-block">
+                      <span className="hm-name-line">
+                        <strong
+                          className={`hm-name${offline ? ' hm-name--offline' : ''}`}
+                          title={offline ? 'Máy đã tắt / mất kết nối' : undefined}
+                        >
+                          {machine.hostName}
+                        </strong>
+                        {errTitle ? (
+                          <span
+                            className={`hm-hwerr hm-hwerr--${errTone}`}
+                            title={`Máy trạm gửi thiếu dữ liệu:\n${errTitle}`}
+                            aria-label={`Máy trạm gửi thiếu dữ liệu: ${errTitle}`}
+                          >
+                            <Warning size={14} weight="fill" aria-hidden="true" />
+                          </span>
+                        ) : null}
+                        {/* Thoi diem nhan du lieu phan cung gan nhat -- ngay sau ten may (gop cot "Cap nhat" cu). */}
+                        {offline ? (
+                          <span className="hm-updated hm-updated--offline">Đã tắt</span>
+                        ) : (
+                          <span
+                            className="hm-updated"
+                            title={hw?.updatedAtSec ? new Date(hw.updatedAtSec * 1000).toLocaleString('vi-VN') : undefined}
+                          >
+                            {formatUpdated(hw?.updatedAtSec, nowServerMs) ?? NO_DATA}
+                          </span>
+                        )}
+                      </span>
+                      {machine.version ? (
+                        <span className="hm-version" title="Phiên bản FNet trên máy trạm">
+                          {machine.version}
+                        </span>
+                      ) : null}
+                    </span>
                   </Body>
                   <Body divider><TempCell value={hw?.cpu.tempC} /></Body>
                   <Body><LoadCell value={hw?.cpu.loadPct} /></Body>
@@ -692,22 +882,16 @@ export function HealthMonitorPage() {
                   <Body divider><TempCell value={hw?.gpu.tempC} /></Body>
                   <Body><LoadCell value={hw?.gpu.loadPct} /></Body>
                   <Body><Cell text={num(hw?.gpu.powerW, ' W')} value={hw?.gpu.powerW ?? null} /></Body>
+                  <Body><FanCell value={hw?.gpu.fanPct} /></Body>
                   <Body divider><LoadCell value={hw?.ram.loadPct} /></Body>
                   <Body><Cell text={ramUsage(hw?.ram)} value={hw?.ram.usedGB ?? null} /></Body>
                   <Body divider><TempCell value={hw?.storage.tempC} /></Body>
                   <Body><LoadCell value={hw?.storage.loadPct} /></Body>
                   <Body divider><Cell text={dataVolume(hw?.network.uploadGB)} value={hw?.network.uploadGB ?? null} /></Body>
                   <Body><Cell text={dataVolume(hw?.network.downloadGB)} value={hw?.network.downloadGB ?? null} /></Body>
-                  <Body divider>
-                    <span
-                      className="hm-updated"
-                      title={hw?.updatedAtSec ? new Date(hw.updatedAtSec * 1000).toLocaleString('vi-VN') : undefined}
-                    >
-                      {formatUpdated(hw?.updatedAtSec) ?? NO_DATA}
-                    </span>
-                  </Body>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

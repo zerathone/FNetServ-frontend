@@ -56,6 +56,11 @@ export function formatTicketMoney(value: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
 }
 
+/** Số tiền không kèm đơn vị (cột Giá / Tổng của danh sách món). */
+export function formatTicketNumber(value: number) {
+  return new Intl.NumberFormat('vi-VN').format(value)
+}
+
 /** "YYYY-MM-DD" → "dd/mm/yyyy"; giá trị lạ giữ nguyên. */
 export function formatTicketDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim())
@@ -96,18 +101,35 @@ export function buildServiceTicketHtml({ header, printerName, items, type }: Tic
     : `Gọi lúc: ${formatTicketDate(header.orderDate)} ${header.orderTime.slice(0, 5)}`
   const row = (label: string, value: string) =>
     `<tr><td style="width:32%;">${escapeHtml(label)}</td><td style="width:68%;text-align:right;font-weight:700;">${escapeHtml(value)}</td></tr>`
+  // Danh sách món 4 cột: Sản phẩm | SL | Giá | Tổng (giá/tổng canh phải, không kèm "đ" cho gọn cột).
+  // Khổ 58 hẹp hơn nên cột tên nhỏ lại và chữ số nhỏ hơn một chút; số không xuống dòng.
+  const narrow = type === 2
+  const cols = narrow ? [34, 10, 26, 30] : [40, 8, 24, 28]
+  const numberFont = narrow ? 12 : 14
+  const cell = (value: string, width: number, align: 'left' | 'right', extra = '') =>
+    `<td style="width:${width}%;text-align:${align};${align === 'right' ? 'white-space:nowrap;' : ''}${extra}">${escapeHtml(value)}</td>`
+  const head =
+    `<tr>${cell('Sản phẩm', cols[0], 'left', 'font-weight:700;')}` +
+    `${cell('SL', cols[1], 'right', 'font-weight:700;')}` +
+    `${cell('Giá', cols[2], 'right', 'font-weight:700;')}` +
+    `${cell('Tổng', cols[3], 'right', 'font-weight:700;')}</tr>`
   const lines = items
-    .map(
-      (item) => `
-      <tr><td colspan="2" style="font-weight:700;">${escapeHtml(item.serviceName)}</td></tr>
-      <tr><td>${escapeHtml(`${item.quantity}${item.unit ? ` ${item.unit}` : ''}`)}</td><td style="text-align:right;">${escapeHtml(formatTicketMoney(item.amount))}</td></tr>`,
-    )
+    .map((item) => {
+      const unitPrice = item.quantity > 0 ? Math.round(item.amount / item.quantity) : item.amount
+      return (
+        `<tr>${cell(item.serviceName, cols[0], 'left')}` +
+        `${cell(String(item.quantity), cols[1], 'right', `font-size:${numberFont}px;`)}` +
+        `${cell(formatTicketNumber(unitPrice), cols[2], 'right', `font-size:${numberFont}px;`)}` +
+        `${cell(formatTicketNumber(item.amount), cols[3], 'right', `font-size:${numberFont}px;`)}</tr>`
+      )
+    })
     .join('')
+  const totalFont = narrow ? 20 : 24
   return `
     <style>
       * { box-sizing: border-box; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      td { padding: 2px 0; font: 15px 'Segoe UI', Arial, sans-serif; overflow-wrap: break-word; }
+      td { padding: 2px 0; font: 15px 'Segoe UI', Arial, sans-serif; overflow-wrap: break-word; vertical-align: top; }
       .divider { text-align: center; white-space: pre; font-size: 13px; }
     </style>
     <table>
@@ -120,9 +142,12 @@ export function buildServiceTicketHtml({ header, printerName, items, type }: Tic
       <tr><td colspan="2">${escapeHtml(when)}</td></tr>
       ${header.staffName ? row('Nhân viên:', header.staffName) : ''}
       <tr><td colspan="2" class="divider">${dots}</td></tr>
-      ${lines}
+    </table>
+    <table>${head}${lines}</table>
+    <table>
       <tr><td colspan="2" class="divider">${dots}</td></tr>
-      <tr><td style="font-weight:700;">Cộng:</td><td style="text-align:right;font-weight:700;font-size:17px;">${escapeHtml(formatTicketMoney(ticketTotal(items)))}</td></tr>
+      <tr><td style="font-weight:700;font-size:${narrow ? 15 : 17}px;">Tổng thanh toán</td><td style="text-align:right;white-space:nowrap;font-weight:700;font-size:${totalFont}px;">${escapeHtml(formatTicketMoney(ticketTotal(items)))}</td></tr>
+      <tr><td colspan="2" style="height:${narrow ? 18 : 22}px;padding:0;"></td></tr>
     </table>`
 }
 

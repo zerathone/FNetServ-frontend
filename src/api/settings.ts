@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client'
+import { apiGet, apiPost, apiPut } from './client'
 
 export interface CafeInfo {
   cafeName: string
@@ -88,3 +88,15 @@ export const getSettingsOptions = (keys: string[] = []) => {
     : ''
   return apiGet<SettingsOptionsResult>(`/settings/options${query}`)
 }
+
+/**
+ * Ghi dòng "Ghi chú" cố định của phiếu nạp tiền vào option 139 (parity hộp thoại cấu hình in phiếu của MFC).
+ * Đã có cấu hình ⇒ chỉ đổi `note`. Chưa có ⇒ server tạo mới từ `printer` + `paperType` (bảng MFC: A4=0,
+ * POS58=1, POS80=2) + `cafeInfo`. Máy chủ giới hạn `note` ≤ 40 ký tự.
+ */
+export const saveDepositReceiptNote = (payload: {
+  note: string
+  printer?: string
+  paperType?: number
+  cafeInfo?: boolean
+}) => apiPut<void, typeof payload>('/settings/deposit-receipt-note', payload)

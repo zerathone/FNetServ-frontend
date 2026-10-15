@@ -76,6 +76,7 @@ import {
   type SettleMethod,
   type StaffOrderTarget,
 } from './staffOrderModel'
+import { useServiceAutoPrint } from './useServiceAutoPrint'
 // orders.css TRƯỚC staffOrder.css (staffOrder.css ghi đè .order-qty / .order-confirm-*): hộp thoại giờ cũng
 // mở từ trang Máy trạm, nơi OrderWorkspace (nơi vốn nạp orders.css) không được tải.
 import './orders.css'
@@ -93,6 +94,11 @@ type Props = {
    * viên chỉ việc chọn món. Không truyền = hành vi cũ (tự tìm khách). Chọn lại tay vẫn đổi được.
    */
   presetHostName?: string | null
+  /**
+   * Chế độ khách MẶC ĐỊNH mỗi lần mở khi không có `presetHostName`: trang Đơn hàng truyền `'guest'` (Tại quầy),
+   * trang Máy trạm để mặc định `'machine'` (chọn máy online). Chọn lại tay trong lúc mở vẫn đổi được.
+   */
+  defaultMode?: 'machine' | 'guest'
   onClose: () => void
   /** Mở hộp thoại "In phiếu" cho các dòng vừa xử lý xong. */
   onPrint: (detailIds: number[]) => void
@@ -110,7 +116,14 @@ type FailureInfo = { method: SettleMethod; kind: SettleFailureKind; message: str
 type DoneInfo = { method: SettleMethod; message: string; tone: 'success' | 'info' }
 
 type SettleResult =
-  | { ok: true; method: SettleMethod; message: string; tone: 'success' | 'info' }
+  | {
+      ok: true
+      method: SettleMethod
+      message: string
+      tone: 'success' | 'info'
+      /** Dòng vừa duyệt/thu THẬT (rỗng khi đã xử lý trước đó) — dùng cho "Tự in phiếu sau khi hoàn tất". */
+      printDetailIds: number[]
+    }
   | { ok: false; step: 1; error: unknown }
   | {
       ok: false
@@ -125,13 +138,14 @@ function errorMessage(error: unknown) {
   return error instanceof Error && error.message ? error.message : 'Không xử lý được đơn.'
 }
 
-export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Props) {
+export function StaffOrderDialog({ open, presetHostName, defaultMode = 'machine', onClose, onPrint }: Props) {
   const queryClient = useQueryClient()
+  const autoPrint = useServiceAutoPrint()
   const staffId = useAuthStore((state) => state.staffId)
   const canDeduct = useAuthStore((state) => state.hasRight(SERVICE_EXCEPT_RIGHT))
   const canCancel = useAuthStore((state) => state.hasRight(ORDER_RIGHTS.DELETE_ORDER))
 
-  const [mode, setMode] = useState<'machine' | 'guest'>('machine')
+  const [mode, setMode] = useState<'machine' | 'guest'>(defaultMode)
   const [machineSearch, setMachineSearch] = useState('')
   const [machineSearchField, setMachineSearchField] = useState<MachineSearchField>('customer')
   const [selectedHost, setSelectedHost] = useState<string | null>(null)
@@ -152,12 +166,17 @@ export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Pro
   // Mỗi lần MỞ hộp thoại từ máy cụ thể: chọn sẵn máy đó. Chỉ chạy khi mở/đổi máy — không ghi đè lựa chọn
   // tay của nhân viên trong lúc hộp thoại đang mở.
   useEffect(() => {
-    if (!open || !presetHostName) return
+    if (!open) return
+    setComposeError(null)
+    if (!presetHostName) {
+      // Không có máy chỉ định: về chế độ mặc định của nơi mở (Đơn hàng = Tại quầy, Máy trạm = Máy online).
+      setMode(defaultMode)
+      return
+    }
     setMode('machine')
     setSelectedHost(presetHostName)
     setMachineSearch('')
-    setComposeError(null)
-  }, [open, presetHostName])
+  }, [open, presetHostName, defaultMode])
 
   // Cùng query key với trang Danh mục / Combo: dùng chung cache. Danh mục đổi chậm ⇒ staleTime dài; tồn kho
   // được làm mới bằng `invalidate` sau mỗi lần xử lý xong.
@@ -271,6 +290,7 @@ export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Pro
               response.accepted > 0
                 ? describeSettled('tab', response.paymentId, response.amount ?? order.amount)
                 : result.message,
+            printDetailIds: response.accepted > 0 ? detailIds : [],
           }
         }
 
@@ -304,6 +324,7 @@ export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Pro
                   (method === 'deduct' ? response.amount : response.total) ?? response.total ?? order.amount,
                 )
               : outcome.message,
+          printDetailIds: outcome.kind === 'success' ? detailIds : [],
         }
       } catch (error) {
         const code = error instanceof ApiError ? error.code : undefined
@@ -324,6 +345,7 @@ export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Pro
         setView({ name: 'done' })
         pushToast(result.message, result.tone)
         refreshAfterOrder()
+        autoPrint.run(result.printDetailIds)
         return
       }
       if (result.step === 1) {
@@ -647,9 +669,9 @@ export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Pro
           </div>
         </section>
 
-        <section className="staff-order__section staff-order__cart" aria-label="Giỏ dịch vụ">
+        <section className="staff-order__section staff-order__cart" aria-label="Giỏ hàng">
           <h3 className="staff-order__cart-title">
-            Giỏ dịch vụ <small>({cart.length}/50 dòng)</small>
+            Giỏ hàng <small>({cart.length}/50 dòng)</small>
           </h3>
           {cart.length === 0 ? (
             <p className="staff-order__hint">Chưa có món nào. Bấm vào món bên trái để thêm.</p>
@@ -731,6 +753,7 @@ export function StaffOrderDialog({ open, presetHostName, onClose, onPrint }: Pro
                   </small>
                 ))
             : null}
+          <div className="staff-order__auto-print">{autoPrint.toggle}</div>
         </section>
       </div>
     </div>

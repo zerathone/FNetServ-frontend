@@ -229,7 +229,12 @@
 .combo-product-card__sell:hover:not(:disabled) { background: var(--color-action-primary-hover); }
 .combo-product-card__sell.is-selected { background: var(--color-success); opacity: 1; cursor: default; }
 .combo-product-card__sell:disabled:not(.is-selected) { opacity: .5; cursor: not-allowed; }
-.combo-context { position: sticky; top: var(--space-3); max-height: calc(100vh - 8rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-default); box-shadow: var(--shadow-md); }
+.combo-context { position: sticky; top: var(--space-3); max-height: calc(100vh - 8rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid var(--color-success); border-radius: var(--radius-lg); background: var(--color-surface-default); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 30%, transparent), 0 0 18px color-mix(in srgb, var(--color-success) 35%, transparent), var(--shadow-md); animation: combo-context-glow .9s ease-out 1; }
+/* Đã chọn COMBO -> viền phiếu bán sáng lên (xanh success), nháy mạnh 1 lần khi phiếu vừa hiện rồi giữ sáng nhẹ. */
+@keyframes combo-context-glow {
+  from { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-success) 55%, transparent), 0 0 32px color-mix(in srgb, var(--color-success) 65%, transparent), var(--shadow-md); }
+}
+@media (prefers-reduced-motion: reduce) { .combo-context { animation: none; } }
 .combo-context>header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-4); border-bottom: 1px solid var(--color-border-default); }
 .combo-context>header>div>span { color: var(--color-text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .06em; }
 .combo-context>header h3 { margin: var(--space-1) 0 0; }
@@ -257,6 +262,11 @@
 .combo-context__total { margin-top: var(--space-1); padding-top: var(--space-3); border-top: 1px solid var(--color-border-default); }
 .combo-context__total dd { font-size: var(--font-size-xl); }
 .combo-context__clear { justify-self: center; text-decoration: underline; }
+/* Nút xác nhận bán: màu success, khác nút primary thường để nhìn là biết đây là bước chốt tiền. */
+.ds-button.combo-context__confirm { background: var(--color-success); border-color: var(--color-success); color: var(--color-text-inverse); font-weight: 750; box-shadow: 0 2px 10px color-mix(in srgb, var(--color-success) 40%, transparent); }
+.ds-button.combo-context__confirm:hover:not(:disabled) { background: color-mix(in srgb, var(--color-success) 88%, black); border-color: color-mix(in srgb, var(--color-success) 88%, black); }
+.ds-button.combo-context__confirm:active:not(:disabled) { background: color-mix(in srgb, var(--color-success) 76%, black); }
+.ds-button.combo-context__confirm:disabled { box-shadow: none; }
 .combo-qr { display: grid; justify-items: center; gap: var(--space-2); }
 .combo-qr img { width: min(18rem, 100%); aspect-ratio: 1; object-fit: contain; }
 .combo-qr > strong { font-size: var(--font-size-2xl); }

@@ -115,6 +115,10 @@ export type WorkstationHardware = {
     tempC: number | null
     memoryMB: number | null
     powerW: number | null
+    /** % dieu khien quat GPU. Server cu khong co truong nay -> undefined. */
+    fanPct?: number | null
+    /** toc do quat GPU (vong/phut) -- chi co tu hwm.exe 2026-10-14 */
+    fanRpm?: number | null
   }
   ram: {
     name: string | null
@@ -131,6 +135,17 @@ export type WorkstationHardware = {
     downloadGB: number | null
   }
   storage: { name: string | null; loadPct: number | null; tempC: number | null }
+  /** Phan hwm.exe lay HONG o lan gui gan nhat (phan con lai van co so lieu). Rong = binh thuong.
+      Server cu / hwm cu khong co truong nay -> undefined, coi nhu rong. */
+  errors?: WorkstationHardwareError[]
+}
+
+/** part: 'hardware' (cam bien LibreHardwareMonitor) | 'winlicense' (WMI ban quyen Windows) | part khac
+    neu hwm.exe moi hon them vao. message: ly do ky thuat ASCII ("timeout 90s", "crash 0xC0000005",
+    "connect 0x80041003"...). */
+export type WorkstationHardwareError = {
+  part: string
+  message: string
 }
 
 export type WorkstationHardwareResponse = {

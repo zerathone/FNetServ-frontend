@@ -38,6 +38,7 @@ import {
   UserGear,
   UserPlus,
   Wallet,
+  Warning,
   XCircle,
 } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
@@ -104,6 +105,7 @@ import { useWsStatusStore } from '../../store/wsStatus'
 import { DepositMethodSelector } from '../payments/DepositMethodSelector'
 import { DepositAmountPanel } from '../payments/DepositAmountPanel'
 import { DepositQrFlow } from '../payments/DepositQrFlow'
+import { useDepositReceiptPrint } from '../payments/useDepositReceiptPrint'
 import {
   canSubmitDeposit,
   getDepositMethodOption,
@@ -137,7 +139,7 @@ import { CallBellIcon } from './CallBellIcon'
 import { InspectorGroup } from './InspectorGroup'
 import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
-import { HardwareBlock, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
+import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
 import './workstations.css'
 
 const RIGHTS = {
@@ -488,6 +490,7 @@ export function WorkstationWorkspace() {
   const [anonymDraftError, setAnonymDraftError] = useState<string | null>(null)
   const [anonymSearch, setAnonymSearch] = useState('')
   const moneyIntent = useIdempotentIntent('workstation-workspace-money')
+  const depositPrint = useDepositReceiptPrint()
   const paymentWaitPayoutIntent = useIdempotentIntent('payment-wait-payout')
   const paymentWaitContinueIntent = useIdempotentIntent('payment-wait-continue')
   const changePcIntent = useIdempotentIntent('workstation-change-pc')
@@ -593,6 +596,8 @@ export function WorkstationWorkspace() {
     staleTime: 15_000,
   })
   const hw = hardwareQuery.data?.hardware ?? null
+  // Phan hwm.exe lay hong o lan gui gan nhat -> icon canh bao o dong tom tat (thay ca khi thu gon).
+  const hwErrorsTitle = hardwareErrorsTitle(hw?.errors)
   const {
     view: machineOrders,
     isLoading: machineOrdersLoading,
@@ -802,7 +807,6 @@ export function WorkstationWorkspace() {
             userId: exactUser.userId,
             chargeMoney: moneyAmount,
             paymentMethod: toDepositApiPaymentMethod(depositMethod),
-            note: moneyNote.trim() || undefined,
             idem,
           })
         case 'giveFree':
@@ -822,6 +826,15 @@ export function WorkstationWorkspace() {
       }
     },
     onSuccess: () => {
+      // In phiếu nạp (nếu bật) TRƯỚC khi state bị xoá. Tiền đã ghi — in lỗi không ảnh hưởng giao dịch.
+      if (moneyAction === 'deposit' && exactUser) {
+        depositPrint.print({
+          username: exactUser.userName,
+          amount: moneyAmount,
+          method: depositMethod,
+          machine: inspectedMachine?.hostName,
+        })
+      }
       moneyIntent.clearKey()
       setMoneyAction(null)
       setMoneyAmount(null)
@@ -2202,6 +2215,16 @@ export function WorkstationWorkspace() {
                       <Thermometer size={14} weight="bold" style={{ color: TONE_TEXT_COLOR[tempTone(hw.gpu.tempC)] }} />
                       <span style={{ color: TONE_TEXT_COLOR[tempTone(hw.gpu.tempC)] }}>{num(hw.gpu.tempC, '°C') ?? '—'}</span>
                     </span>
+                    {hwErrorsTitle ? (
+                      <span
+                        className="ws-hw-summary__item"
+                        title={hwErrorsTitle}
+                        aria-label={`Thiếu dữ liệu phần cứng: ${hwErrorsTitle}`}
+                        style={{ color: TONE_TEXT_COLOR.warning }}
+                      >
+                        <Warning size={14} weight="fill" />
+                      </span>
+                    ) : null}
                     {hw.updatedAtSec ? (
                       <span className="ws-hw-summary__time">
                         {new Date(hw.updatedAtSec * 1000).toLocaleTimeString('vi-VN', {
@@ -2671,6 +2694,14 @@ export function WorkstationWorkspace() {
                   amount={moneyAmount}
                   disabled={moneyMutation.isPending}
                   onActiveChange={setDepositQrActive}
+                  onDone={({ amount: paid }) =>
+                    depositPrint.print({
+                      username: exactUser.userName,
+                      amount: paid,
+                      method: 'qr',
+                      machine: inspectedMachine?.hostName,
+                    })
+                  }
                 />
               ) : (
                 <InlineAlert tone="info">
@@ -2679,6 +2710,7 @@ export function WorkstationWorkspace() {
                     : 'Chỉ xác nhận sau khi đã đối soát khoản chuyển. Giao dịch được ghi đúng loại Chuyển khoản trên máy chủ.'}
                 </InlineAlert>
               )}
+              {depositPrint.optionBlock}
               <div className="ws-money-preview">
                 <span>Số dư dự kiến sau giao dịch</span>
                 <strong>{formatMoney(exactUser.moneyMain + (moneyAmount ?? 0))}</strong>
@@ -2742,8 +2774,8 @@ export function WorkstationWorkspace() {
               Phiên trả sau sẽ rời máy hiện tại và xuất hiện trong danh sách Chờ tính tiền.
             </InlineAlert>
           ) : null}
-          {moneyAction !== 'giveFree' && moneyAction !== 'credit' &&
-          !(moneyAction === 'deposit' && depositMethod === 'qr') ? (
+          {/* Nạp tiền KHÔNG có ô ghi chú (parity MFC); ghi chú của phiếu in cấu hình ở khối "In phiếu nạp tiền". */}
+          {moneyAction !== 'giveFree' && moneyAction !== 'credit' && moneyAction !== 'deposit' ? (
             <label className="ds-field">
               <span className="ds-field__label">Ghi chú (không bắt buộc)</span>
               <input className="ds-input" maxLength={100} value={moneyNote} onChange={(event) => setMoneyNote(event.target.value)} />
@@ -3258,10 +3290,12 @@ export function WorkstationWorkspace() {
       <StaffOrderDialog
         open={staffOrderOpen && printDetailIds === null}
         presetHostName={inspectorHost}
+        defaultMode="machine"
         onClose={() => setStaffOrderOpen(false)}
         onPrint={(detailIds) => setPrintDetailIds(detailIds)}
       />
       <PrintTicketDialog detailIds={printDetailIds} onClose={() => setPrintDetailIds(null)} />
+      {depositPrint.retryDialog}
     </section>
   )
 }

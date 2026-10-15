@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Coins, MagnifyingGlass, NotePencil, UsersThree, XCircle } from '@phosphor-icons/react'
+import { Coins, MagnifyingGlass, UsersThree, XCircle } from '@phosphor-icons/react'
 import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
 import {
   Button,
@@ -24,6 +24,7 @@ import { pushToast } from '../../store/toast'
 import { DepositMethodSelector } from '../payments/DepositMethodSelector'
 import { DepositAmountPanel } from '../payments/DepositAmountPanel'
 import { DepositQrFlow } from '../payments/DepositQrFlow'
+import { useDepositReceiptPrint } from '../payments/useDepositReceiptPrint'
 import {
   canSubmitDeposit,
   getDepositMethodOption,
@@ -214,7 +215,6 @@ export function CustomerWorkspace() {
   const [amount, setAmount] = useState<number | null>(10_000)
   const [depositMethod, setDepositMethod] = useState<DepositMethod>('cash')
   const [qrActive, setQrActive] = useState(false)
-  const [note, setNote] = useState('')
   const [recipientInput, setRecipientInput] = useState('')
   const [recipientQuery, setRecipientQuery] = useState('')
   const [recipient, setRecipient] = useState<UserAccount | null>(null)
@@ -224,6 +224,7 @@ export function CustomerWorkspace() {
   const [sortColumn, setSortColumn] = useState<CustomerColumn>('userName')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const transactionIntent = useIdempotentIntent('customer-workspace')
+  const depositPrint = useDepositReceiptPrint()
 
   useEffect(() => {
     setUserType('member')
@@ -329,7 +330,6 @@ export function CustomerWorkspace() {
         userId: selected.userId,
         amount,
         depositMethod: action === 'deposit' ? depositMethod : undefined,
-        note: note.trim(),
         recipientId: recipient?.userId ?? 0,
       }
       const idem = transactionIntent.getKey(fingerprintIntent(intent))
@@ -350,7 +350,6 @@ export function CustomerWorkspace() {
             userId: selected.userId,
             chargeMoney: amount,
             paymentMethod: toDepositApiPaymentMethod(depositMethod),
-            note: note.trim() || undefined,
             idem,
           })
         case 'give':
@@ -384,12 +383,15 @@ export function CustomerWorkspace() {
       }
     },
     onSuccess: () => {
+      // In phiếu nạp (nếu bật) TRƯỚC khi state bị xoá. Tiền đã ghi — in lỗi không ảnh hưởng giao dịch.
+      if (action === 'deposit' && selected) {
+        depositPrint.print({ username: selected.userName, amount, method: depositMethod })
+      }
       transactionIntent.clearKey()
       setAction(null)
       setAmount(null)
       setDepositMethod('cash')
       setQrActive(false)
-      setNote('')
       setRecipient(null)
       setRecipientInput('')
       setRecipientQuery('')
@@ -445,7 +447,6 @@ export function CustomerWorkspace() {
     )
     setDepositMethod('cash')
     setQrActive(false)
-    setNote('')
     setRecipient(null)
     setRecipientInput('')
     setRecipientQuery('')
@@ -465,7 +466,6 @@ export function CustomerWorkspace() {
       setAmount(null)
       setDepositMethod('cash')
       setQrActive(false)
-      setNote('')
       setRecipient(null)
       setRecipientInput('')
       setRecipientQuery('')
@@ -487,7 +487,6 @@ export function CustomerWorkspace() {
     setAmount(null)
     setDepositMethod('cash')
     setQrActive(false)
-    setNote('')
     setRecipient(null)
     setRecipientInput('')
     setRecipientQuery('')
@@ -933,29 +932,6 @@ export function CustomerWorkspace() {
                     setDepositMethod(method)
                   }}
                 />
-                {depositMethod !== 'qr' ? (
-                  <div className="ds-input-group customer-create-form__group">
-                    <label
-                      className="ds-input-group-separator customer-create-form__label"
-                      htmlFor="customer-deposit-note"
-                      title="Ghi chú"
-                    >
-                      <NotePencil size={18} weight="bold" aria-hidden="true" />
-                      <span className="ds-visually-hidden">Ghi chú (không bắt buộc)</span>
-                    </label>
-                    <input
-                      id="customer-deposit-note"
-                      className="ds-input"
-                      placeholder="Ghi chú (không bắt buộc)"
-                      value={note}
-                      maxLength={100}
-                      onChange={(event) => {
-                        transactionIntent.clearKey()
-                        setNote(event.target.value)
-                      }}
-                    />
-                  </div>
-                ) : null}
                 {depositMethod === 'cash' ? (
                   amount && amount < 0 ? (
                     <InlineAlert tone="info">
@@ -968,12 +944,16 @@ export function CustomerWorkspace() {
                     amount={amount}
                     disabled={transactionMutation.isPending}
                     onActiveChange={setQrActive}
+                    onDone={({ amount: paid }) =>
+                      depositPrint.print({ username: selected.userName, amount: paid, method: 'qr' })
+                    }
                   />
                 ) : amount && amount < 0 ? (
                   <InlineAlert tone="info">
                     Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.
                   </InlineAlert>
                 ) : null}
+                {depositPrint.optionBlock}
               </>
             ) : null}
             <dl className="customer-transaction-summary">
@@ -991,6 +971,7 @@ export function CustomerWorkspace() {
           </div>
         ) : null}
       </Dialog>
+      {depositPrint.retryDialog}
     </section>
   )
 }

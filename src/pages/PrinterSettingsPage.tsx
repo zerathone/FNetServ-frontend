@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from '@phosphor-icons/react'
 import { getPrinters, deletePrinter, discoverPrinters, getPrinterServices, printBitmap, savePrinter, savePrinterServices, type Printer, type DiscoveredPrinter } from '../api/printer'
 import { getCafeInfo } from '../api/settings'
@@ -10,8 +10,8 @@ import './printer-settings.css'
 
 const PRINTER_TYPES: Array<{ value: Printer['type']; label: string }> = [
   { value: 0, label: 'A4' },
-  { value: 1, label: 'POS 80 (576 dots)' },
-  { value: 2, label: 'POS 58 (384 dots)' },
+  { value: 1, label: 'POS 80' },
+  { value: 2, label: 'POS 58' },
 ]
 
 function printerTypeLabel(type: Printer['type']) {
@@ -22,6 +22,34 @@ function discoveredType(width: string): Printer['type'] {
   if (width.toUpperCase() === 'K80') return 1
   if (width.toUpperCase() === 'K58') return 2
   return 0
+}
+
+/** Ô chọn tất cả: tick khi đủ, gạch ngang (indeterminate) khi chọn một phần. */
+function SelectAllCheckbox({ ids, selected, onToggle, children, className }: {
+  ids: number[]
+  selected: number[]
+  onToggle: (checked: boolean) => void
+  children: React.ReactNode
+  className?: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const count = ids.filter((id) => selected.includes(id)).length
+  const all = ids.length > 0 && count === ids.length
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = count > 0 && !all
+  }, [count, all])
+  return (
+    <label className={className}>
+      <input
+        ref={ref}
+        type="checkbox"
+        checked={all}
+        disabled={ids.length === 0}
+        onChange={(event) => onToggle(event.target.checked)}
+      />
+      {children}
+    </label>
+  )
 }
 
 export function PrinterSettingsPage() {
@@ -49,15 +77,6 @@ export function PrinterSettingsPage() {
     )
   }, [servicesQuery.data])
 
-  const serviceMutation = useMutation({
-    mutationFn: () => savePrinterServices(editingPrinter!.printerId!, assignedServiceIds),
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ['printer-services', editingPrinter?.printerId] })
-      pushToast(`Đã gán ${result.assignedCount} dịch vụ cho máy in.`, 'success')
-    },
-    onError: (error: Error) => pushToast(`Lỗi lưu dịch vụ: ${error.message}`, 'error'),
-  })
-
   const discoverMutation = useMutation({
     mutationFn: discoverPrinters,
     onError: (error: Error) => {
@@ -65,10 +84,19 @@ export function PrinterSettingsPage() {
     }
   })
 
+  // "Cập nhật" lưu CẢ cấu hình máy in lẫn danh sách dịch vụ gửi đến máy in (trước đây phải bấm nút riêng, quên
+  // bấm là mất lựa chọn khi drawer đóng). `serviceIds` chỉ có khi danh mục dịch vụ ĐÃ tải xong — chưa tải/lỗi
+  // thì KHÔNG gửi, tránh ghi đè mapping hiện có bằng danh sách rỗng.
   const saveMutation = useMutation({
-    mutationFn: savePrinter,
+    mutationFn: async ({ printer, serviceIds }: { printer: Printer; serviceIds?: number[] }) => {
+      await savePrinter(printer)
+      if (printer.printerId !== undefined && serviceIds) {
+        await savePrinterServices(printer.printerId, serviceIds)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['printers'] })
+      queryClient.invalidateQueries({ queryKey: ['printer-services'] })
       pushToast('Lưu máy in thành công', 'success')
       setEditingPrinter(null)
     },
@@ -115,13 +143,19 @@ export function PrinterSettingsPage() {
     e.preventDefault()
     if (!editingPrinter?.printerName?.trim()) return
     saveMutation.mutate({
-      printerId: editingPrinter.printerId,
-      printerName: editingPrinter.printerName.trim(),
-      type: editingPrinter.type ?? 1,
-      active: editingPrinter.active ?? 1,
-      ipAddress: editingPrinter.ipAddress?.trim() ?? '',
-      port: editingPrinter.port && editingPrinter.port > 0 ? editingPrinter.port : 9100,
-      hasCutter: editingPrinter.hasCutter ?? 1,
+      printer: {
+        printerId: editingPrinter.printerId,
+        printerName: editingPrinter.printerName.trim(),
+        type: editingPrinter.type ?? 1,
+        active: editingPrinter.active ?? 1,
+        ipAddress: editingPrinter.ipAddress?.trim() ?? '',
+        port: editingPrinter.port && editingPrinter.port > 0 ? editingPrinter.port : 9100,
+        hasCutter: editingPrinter.hasCutter ?? 1,
+      },
+      serviceIds:
+        editingPrinter.printerId !== undefined && servicesQuery.isSuccess && !servicesQuery.isFetching
+          ? assignedServiceIds
+          : undefined,
     })
   }
 
@@ -154,7 +188,7 @@ export function PrinterSettingsPage() {
                 discoverMutation.mutate(undefined)
               }}
             >
-              Dò tìm máy in (Scan)
+              Tìm trong LAN
             </Button>
             <Button
               type="button"
@@ -173,7 +207,6 @@ export function PrinterSettingsPage() {
             <table className="table data-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Tên máy in</th>
                   <th>Địa chỉ IP</th>
                   <th>Loại/khổ giấy</th>
@@ -186,7 +219,6 @@ export function PrinterSettingsPage() {
               <tbody>
                 {printers && printers.length > 0 ? printers.map((p, i) => (
                   <tr key={p.printerId ?? `printer-${i}`} style={editingPrinter?.printerId === p.printerId ? { backgroundColor: 'var(--bg-hover)' } : {}}>
-                    <td>{p.printerId}</td>
                     <td>{p.printerName}</td>
                     <td>{p.ipAddress || 'USB / Driver máy chủ'}</td>
                     <td>{printerTypeLabel(p.type)}</td>
@@ -229,7 +261,7 @@ export function PrinterSettingsPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center' }}>Không có máy in nào</td>
+                    <td colSpan={7} style={{ textAlign: 'center' }}>Không có máy in nào</td>
                   </tr>
                 )}
               </tbody>
@@ -241,7 +273,7 @@ export function PrinterSettingsPage() {
       {/* Context Action Panel (Sidebar) */}
       {editingPrinter && (
         <div style={{ 
-          width: '320px', 
+          width: '420px',
           borderLeft: '1px solid var(--border)', 
           backgroundColor: 'var(--background)', 
           padding: '2rem 1.5rem',
@@ -266,56 +298,64 @@ export function PrinterSettingsPage() {
           </div>
           
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div className="field compact-field">
-              <label>Tên máy in</label>
-              <input 
-                type="text" 
+            {/* Gom nhóm [nhãn | ô nhập/chọn] trên 1 khung — cùng kiểu "Loại nhóm" ở trang user-groups. */}
+            <div className="ds-input-group">
+              <label className="ds-input-group-separator" htmlFor="printer-name">Tên máy in</label>
+              <input
+                id="printer-name"
+                className="ds-input"
+                type="text"
                 value={editingPrinter.printerName || ''}
                 onChange={e => setEditingPrinter({...editingPrinter, printerName: e.target.value})}
                 required
               />
             </div>
-            <div className="field compact-field">
-              <label>Loại máy in / khổ giấy</label>
-              <Select
-                value={editingPrinter.type ?? 1}
-                onChange={e => setEditingPrinter({ ...editingPrinter, type: Number(e.target.value) as Printer['type'] })}
-              >
-                {PRINTER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-              </Select>
+            <div className="printer-drawer__row">
+              <div className="ds-input-group printer-drawer__paper">
+                <label className="ds-input-group-separator" htmlFor="printer-type">Khổ giấy</label>
+                <Select
+                  id="printer-type"
+                  className="ds-select"
+                  value={editingPrinter.type ?? 1}
+                  onChange={e => setEditingPrinter({ ...editingPrinter, type: Number(e.target.value) as Printer['type'] })}
+                >
+                  {PRINTER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                </Select>
+              </div>
+              <label className="printer-drawer__check">
+                <input
+                  type="checkbox"
+                  checked={editingPrinter.hasCutter === 1}
+                  onChange={e => setEditingPrinter({...editingPrinter, hasCutter: e.target.checked ? 1 : 0})}
+                />
+                <span>Cắt giấy</span>
+              </label>
             </div>
-            <div className="field compact-field">
-              <label>Địa chỉ IP</label>
-              <input
-                type="text"
-                value={editingPrinter.ipAddress || ''}
-                onChange={e => setEditingPrinter({...editingPrinter, ipAddress: e.target.value})}
-                placeholder="Để trống nếu dùng USB / Windows Driver"
-              />
-            </div>
-            <div className="field compact-field" style={{ opacity: editingPrinter.ipAddress ? 1 : 0.55 }}>
-              <label>Port TCP</label>
-              <input
-                type="number"
-                min={1}
-                max={65535}
-                value={editingPrinter.port || 9100}
-                onChange={e => setEditingPrinter({...editingPrinter, port: Number(e.target.value)})}
-                disabled={!editingPrinter.ipAddress}
-              />
-            </div>
-            <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'var(--color-surface-raised)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              {editingPrinter.ipAddress
-                ? 'Máy in mạng: Qt dựng HTML, raster hóa theo khổ giấy rồi gửi bitmap ESC/POS qua máy chủ.'
-                : 'Máy in USB: Qt in trực tiếp qua Windows Driver; WebUI chỉ quản lý cấu hình.'}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', color: 'var(--text-secondary)' }}>
-              <input 
-                type="checkbox" 
-                checked={editingPrinter.hasCutter === 1}
-                onChange={e => setEditingPrinter({...editingPrinter, hasCutter: e.target.checked ? 1 : 0})}
-              />
-              <label>Có dao cắt giấy (Cutter)</label>
+            <div className="printer-drawer__row">
+              <div className="ds-input-group printer-drawer__ip">
+                <label className="ds-input-group-separator" htmlFor="printer-ip">IP</label>
+                <input
+                  id="printer-ip"
+                  className="ds-input"
+                  type="text"
+                  value={editingPrinter.ipAddress || ''}
+                  onChange={e => setEditingPrinter({...editingPrinter, ipAddress: e.target.value})}
+                  placeholder="Trống nếu dùng USB"
+                />
+              </div>
+              <div className="ds-input-group printer-drawer__port" style={{ opacity: editingPrinter.ipAddress ? 1 : 0.55 }}>
+                <label className="ds-input-group-separator" htmlFor="printer-port">Port</label>
+                <input
+                  id="printer-port"
+                  className="ds-input"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={editingPrinter.port || 9100}
+                  onChange={e => setEditingPrinter({...editingPrinter, port: Number(e.target.value)})}
+                  disabled={!editingPrinter.ipAddress}
+                />
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
               <input
@@ -331,9 +371,35 @@ export function PrinterSettingsPage() {
                 <legend>Dịch vụ gửi đến máy in</legend>
                 {servicesQuery.isLoading ? <span>Đang tải danh mục dịch vụ…</span> : null}
                 {servicesQuery.isError ? <span>Không tải được: {servicesQuery.error.message}</span> : null}
+                {servicesQuery.data && servicesQuery.data.groups.length > 0 ? (
+                  <SelectAllCheckbox
+                    className="printer-service-map__all"
+                    ids={servicesQuery.data.groups.flatMap((group) => group.services.map((service) => service.serviceId))}
+                    selected={assignedServiceIds}
+                    onToggle={(checked) => {
+                      const allIds = servicesQuery.data!.groups.flatMap((group) => group.services.map((service) => service.serviceId))
+                      setAssignedServiceIds(checked ? allIds : [])
+                    }}
+                  >
+                    <strong>Chọn tất cả</strong>
+                  </SelectAllCheckbox>
+                ) : null}
                 {servicesQuery.data?.groups.map((group) => (
                   <div key={group.groupId} className="printer-service-map__group">
-                    <strong>{group.groupName}</strong>
+                    <SelectAllCheckbox
+                      ids={group.services.map((service) => service.serviceId)}
+                      selected={assignedServiceIds}
+                      onToggle={(checked) => {
+                        const groupIds = group.services.map((service) => service.serviceId)
+                        setAssignedServiceIds((current) =>
+                          checked
+                            ? [...new Set([...current, ...groupIds])]
+                            : current.filter((id) => !groupIds.includes(id)),
+                        )
+                      }}
+                    >
+                      <strong>{group.groupName}</strong>
+                    </SelectAllCheckbox>
                     {group.services.map((service) => (
                       <label key={service.serviceId}>
                         <input
@@ -350,25 +416,24 @@ export function PrinterSettingsPage() {
                     ))}
                   </div>
                 ))}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  loading={serviceMutation.isPending}
-                  disabled={servicesQuery.isLoading}
-                  onClick={() => serviceMutation.mutate()}
-                >
-                  {serviceMutation.isPending ? 'Đang lưu…' : 'Lưu dịch vụ được gán'}
-                </Button>
               </fieldset>
             ) : null}
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-              <Button type="button" variant="secondary" onClick={() => setEditingPrinter(null)}>
-                Hủy
-              </Button>
-              <Button type="submit" variant="primary" loading={saveMutation.isPending}>
-                {editingPrinter.printerId !== undefined ? 'Cập nhật' : 'Thêm mới'}
-              </Button>
+              <div className="printer-drawer__row">
+                <Button type="button" variant="secondary" block onClick={() => setEditingPrinter(null)}>
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  block
+                  loading={saveMutation.isPending}
+                  disabled={editingPrinter.printerId !== undefined && servicesQuery.isFetching}
+                >
+                  {editingPrinter.printerId !== undefined ? 'Cập nhật' : 'Thêm mới'}
+                </Button>
+              </div>
               {editingPrinter.printerId !== undefined && (
                 <Button
                   type="button"

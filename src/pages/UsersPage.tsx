@@ -6,7 +6,6 @@ import {
   Broom,
   Coins,
   MagnifyingGlass,
-  NotePencil,
   Printer,
   SlidersHorizontal,
   UserPlus,
@@ -49,6 +48,7 @@ import { CredentialFilePrintDialog } from '../features/printers/CredentialFilePr
 import { DepositAmountPanel } from '../features/payments/DepositAmountPanel'
 import { DepositMethodSelector } from '../features/payments/DepositMethodSelector'
 import { DepositQrFlow } from '../features/payments/DepositQrFlow'
+import { useDepositReceiptPrint } from '../features/payments/useDepositReceiptPrint'
 import {
   canSubmitDeposit,
   getDepositMethodOption,
@@ -292,13 +292,13 @@ export function UsersPage() {
   const [amount, setAmount] = useState<number | null>(null)
   const [depositMethod, setDepositMethod] = useState<DepositMethod>('cash')
   const [qrActive, setQrActive] = useState(false)
-  const [note, setNote] = useState('')
   const [recipientInput, setRecipientInput] = useState('')
   const [recipientQuery, setRecipientQuery] = useState('')
   const [recipient, setRecipient] = useState<UserAccount | null>(null)
   const [deleteRequested, setDeleteRequested] = useState(false)
 
   const transactionIntent = useIdempotentIntent('users-page-legacy')
+  const depositPrint = useDepositReceiptPrint()
 
   // ── Queries ─────────────────────────────────────────────────────────────────
   const isAdvMode = advFilter !== null
@@ -400,7 +400,6 @@ export function UsersPage() {
         userId: selected.userId,
         amount,
         depositMethod: action === 'deposit' ? depositMethod : undefined,
-        note: note.trim(),
         recipientId: recipient?.userId ?? 0,
       }
       const idem = transactionIntent.getKey(fingerprintIntent(intent))
@@ -413,7 +412,6 @@ export function UsersPage() {
             userId: selected.userId,
             chargeMoney: amount,
             paymentMethod: toDepositApiPaymentMethod(depositMethod),
-            note: note.trim() || undefined,
             idem,
           })
         case 'give':
@@ -435,12 +433,15 @@ export function UsersPage() {
       }
     },
     onSuccess: () => {
+      // In phiếu nạp (nếu bật) TRƯỚC khi state bị xoá. Tiền đã ghi — in lỗi không ảnh hưởng giao dịch.
+      if (action === 'deposit' && selected) {
+        depositPrint.print({ username: selected.userName, amount, method: depositMethod })
+      }
       transactionIntent.clearKey()
       setAction(null)
       setAmount(null)
       setDepositMethod('cash')
       setQrActive(false)
-      setNote('')
       setRecipient(null)
       setRecipientInput('')
       setRecipientQuery('')
@@ -499,7 +500,6 @@ export function UsersPage() {
     )
     setDepositMethod('cash')
     setQrActive(false)
-    setNote('')
     setRecipient(null)
     setRecipientInput('')
     setRecipientQuery('')
@@ -517,7 +517,6 @@ export function UsersPage() {
     setAmount(null)
     setDepositMethod('cash')
     setQrActive(false)
-    setNote('')
     setRecipient(null)
     setRecipientInput('')
     setRecipientQuery('')
@@ -536,7 +535,6 @@ export function UsersPage() {
       setAmount(null)
       setDepositMethod('cash')
       setQrActive(false)
-      setNote('')
       setRecipient(null)
       setRecipientInput('')
       setRecipientQuery('')
@@ -1085,29 +1083,6 @@ export function UsersPage() {
                     setDepositMethod(method)
                   }}
                 />
-                {depositMethod !== 'qr' ? (
-                  <div className="ds-input-group customer-create-form__group">
-                    <label
-                      className="ds-input-group-separator customer-create-form__label"
-                      htmlFor="legacy-deposit-note"
-                      title="Ghi chú"
-                    >
-                      <NotePencil size={18} weight="bold" aria-hidden="true" />
-                      <span className="ds-visually-hidden">Ghi chú (không bắt buộc)</span>
-                    </label>
-                    <input
-                      id="legacy-deposit-note"
-                      className="ds-input"
-                      placeholder="Ghi chú (không bắt buộc)"
-                      value={note}
-                      maxLength={100}
-                      onChange={(event) => {
-                        transactionIntent.clearKey()
-                        setNote(event.target.value)
-                      }}
-                    />
-                  </div>
-                ) : null}
                 {depositMethod === 'cash' ? (
                   amount && amount < 0 ? (
                     <InlineAlert tone="info">
@@ -1120,12 +1095,16 @@ export function UsersPage() {
                     amount={amount}
                     disabled={transactionMutation.isPending}
                     onActiveChange={setQrActive}
+                    onDone={({ amount: paid }) =>
+                      depositPrint.print({ username: selected.userName, amount: paid, method: 'qr' })
+                    }
                   />
                 ) : amount && amount < 0 ? (
                   <InlineAlert tone="info">
                     Số tiền âm ghi nhận khoản rút/hoàn qua chuyển khoản; máy chủ vẫn kiểm tra quyền và số dư.
                   </InlineAlert>
                 ) : null}
+                {depositPrint.optionBlock}
               </>
             ) : null}
 
@@ -1213,6 +1192,7 @@ export function UsersPage() {
         </InlineAlert>
       </ConfirmAction>
 
+      {depositPrint.retryDialog}
     </section>
   )
 }

@@ -77,7 +77,12 @@ test('buildServiceTicketHtml: co ten mon, so luong, tong; escape HTML; phieu chu
   assert.ok(html.includes('&lt;b&gt;x&lt;/b&gt;'))
   assert.ok(html.includes('Bếp &amp; Bar'))
   assert.equal(html.includes('<b>x</b>'), false)
-  assert.ok(html.includes('2 tô'))
+  // Danh sách món 4 cột: Sản phẩm | SL | Giá (đơn giá = tổng/SL) | Tổng; tổng thanh toán ở cuối.
+  for (const heading of ['Sản phẩm', 'SL', 'Giá', 'Tổng']) assert.ok(html.includes(`>${heading}</td>`), heading)
+  assert.ok(html.includes('>15.000</td>')) // 30.000 / 2
+  assert.ok(html.includes('>30.000</td>'))
+  assert.ok(html.includes('>5.000</td>'))
+  assert.ok(html.includes('Tổng thanh toán'))
   assert.ok(html.includes('35.000'))
   assert.ok(html.includes('Gọi lúc: 08/10/2026 09:15'))
   assert.equal(html.includes('Phiếu:'), false)
@@ -102,6 +107,19 @@ test('buildServiceTicketHtml: da thu tien => "Thu luc" + so phieu; khach vang la
   assert.ok(html.includes('Khách vãng lai'))
   assert.ok(html.includes('Tại quầy'))
   assert.equal(html.includes('KHACHVANGLAI'), false)
+})
+
+test('buildServiceTicketHtml: gia/tong canh phai, tong thanh toan in dam + chu lon; SL=0 khong chia cho 0', () => {
+  const html = buildServiceTicketHtml({
+    header,
+    printerName: 'Bếp',
+    type: 1,
+    items: [{ detailId: 1, serviceName: 'Tặng', quantity: 0, unit: '', amount: 0 }],
+  })
+  assert.ok(html.includes('text-align:right;white-space:nowrap;font-weight:700;font-size:24px;'))
+  assert.equal(html.includes('NaN') || html.includes('Infinity'), false)
+  const narrow = buildServiceTicketHtml({ header, printerName: 'Bếp', type: 2, items: printer().items })
+  assert.ok(narrow.includes('font-size:20px;'))
 })
 
 test('nhan ten khach/may: KHACHVANGLAI, KHACH_TAI_QUAY, rong => nhan than thien', () => {

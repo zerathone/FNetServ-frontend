@@ -107,6 +107,7 @@ import {
 } from './orderPayModel'
 import { waitLabel, waitTone } from './orderWaitTime'
 import { PrintTicketDialog } from './PrintTicketDialog'
+import { useServiceAutoPrint } from './useServiceAutoPrint'
 import { StaffOrderDialog } from './StaffOrderDialog'
 import './orders.css'
 import './staffOrder.css'
@@ -218,6 +219,8 @@ export function OrderWorkspace() {
   // hộp thoại in đang mở; hộp thoại Gọi món hộ tạm ẩn (không xếp chồng 2 modal) nhưng GIỮ state.
   const [staffOrderOpen, setStaffOrderOpen] = useState(false)
   const [printDetailIds, setPrintDetailIds] = useState<number[] | null>(null)
+  // task web-print-flows: tự in phiếu sau khi Web duyệt/thu (mặc định tắt, nhớ theo trình duyệt).
+  const autoPrint = useServiceAutoPrint()
   const [qrCancelAck, setQrCancelAck] = useState(false)
   const [qtyOverrides, setQtyOverrides] = useState<QtyOverrides>({})
   const [now, setNow] = useState(() => Date.now())
@@ -428,6 +431,9 @@ export function OrderWorkspace() {
     onSuccess: (response, order) => {
       serviceIntent.clearKey()
       setConfirmation(null)
+      if (response.accepted > 0) {
+        autoPrint.run([order.serviceDetailId, ...order.children.map((child) => child.serviceDetailId)])
+      }
       clearOverrides([order.serviceDetailId, ...order.children.map((child) => child.serviceDetailId)])
       const result = describeProcessedCount(response.accepted, 'chấp nhận')
       const detail =
@@ -463,6 +469,7 @@ export function OrderWorkspace() {
     onSuccess: (response, group) => {
       qrIntent.clearKey()
       setConfirmation(null)
+      if (response.accepted > 0) autoPrint.run(qrAcceptItems(group).map((item) => item.detailId))
       const result = describeProcessedCount(response.accepted, 'xác nhận phục vụ')
       pushToast(
         response.accepted > 0 ? `${result.message} · Phiếu QR #${group.voucherId}` : result.message,
@@ -543,6 +550,14 @@ export function OrderWorkspace() {
       if (paymentId) setDeductAlerts((current) => removeAlert(current, paymentId))
       if (outcome.clearKey) (retry.endpoint === 'payrequest' ? payIntent : acceptedUnpaidPayIntent).clearKey()
       pushToast(outcome.message, outcome.kind === 'success' ? 'success' : 'info')
+      // Chỉ in khi thật sự vừa thu xong (kind 'success'); 'info' = đã xử lý trước đó, không in lại.
+      if (outcome.kind === 'success') {
+        autoPrint.run(
+          retry.endpoint === 'payrequest'
+            ? retry.request.items.map((item) => item.detailId)
+            : retry.request.vouchers.flatMap((voucher) => voucher.detailIds),
+        )
+      }
     }
     setConfirmation(null)
     if (retry.endpoint === 'payrequest') {
@@ -1836,6 +1851,7 @@ export function OrderWorkspace() {
 
       <StaffOrderDialog
         open={staffOrderOpen && printDetailIds === null}
+        defaultMode="guest"
         onClose={() => setStaffOrderOpen(false)}
         onPrint={(detailIds) => setPrintDetailIds(detailIds)}
       />

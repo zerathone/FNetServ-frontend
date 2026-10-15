@@ -12,3 +12,60 @@
 .printer-row-actions__delete:hover:not(:disabled) {
   background: var(--color-danger-surface);
 }
+
+/* Drawer máy in: IP + Port trên 1 dòng (IP giãn, Port cố định hẹp). */
+.printer-drawer__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.printer-drawer__ip {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.printer-drawer__port {
+  flex: 0 0 9rem;
+}
+
+.printer-drawer__check {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Hủy + Cập nhật chia đều 1 dòng. */
+.printer-drawer__row > .ds-button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Khổ giấy: ô chọn co theo nội dung (POS 80 / POS 58 / A4), không giãn hết dòng. */
+.printer-drawer__paper {
+  flex: 0 0 auto;
+  width: fit-content;
+}
+
+/* "Chọn tất cả" dịch vụ gửi đến máy in (đầu danh sách, tách khỏi các nhóm bằng đường kẻ). */
+.printer-service-map__all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.printer-service-map__group > label {
+  align-items: center;
+  cursor: pointer;
+}
+
+/* Món thuộc nhóm: thụt vào để phân biệt cha (nhóm) – con (món). Nhãn nhóm là con trực tiếp đầu tiên nên không thụt. */
+.printer-service-map__group > label:not(:first-child) {
+  margin-left: 1.5rem;
+}
