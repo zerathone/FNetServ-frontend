@@ -55,7 +55,7 @@ export function ComponentCatalogPage() {
         <h2>Trạng thái</h2>
         <div className="catalog-row">
           <StatusBadge tone="success">Sẵn sàng</StatusBadge>
-          <StatusBadge tone="info">Đang chơi</StatusBadge>
+          <StatusBadge tone="info">Đang sử dụng</StatusBadge>
           <StatusBadge tone="warning">Cảnh báo</StatusBadge>
           <StatusBadge tone="danger">Chưa thanh toán</StatusBadge>
           <StatusBadge tone="neutral">Mất kết nối</StatusBadge>

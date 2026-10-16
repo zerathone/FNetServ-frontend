@@ -297,6 +297,14 @@ button.ws-summary__row:hover {
   stroke: var(--color-action-primary);
 }
 
+.ws-group-usage__donutItem.is-full .ws-group-usage__donutFill {
+  stroke: var(--color-success);
+}
+
+.ws-group-usage__donutItem.is-full .ws-group-usage__donutLabel {
+  color: var(--color-success);
+}
+
 .ws-group-usage__donut {
   position: relative;
   width: 2.75rem;
@@ -1158,6 +1166,129 @@ button.ws-summary__row:hover {
   padding-bottom: var(--space-3);
   border-top: 0;
   border-bottom: 1px dashed var(--color-border-default);
+}
+
+/* Hang nut la con dau tien trong than group (vd Mo may tram/Khoi dong lai/Tat may
+   cua "Dieu khien he thong") -- khong co dl/noi dung nao o tren de ngan cach, nen
+   vach dashed ke thua tu rule chung o tren bi thua: dung ngay duoi vien solid cua
+   ".ws-group__body" la 2 duong gan nhau trong roi mat. Bo han vach + padding-top. */
+.ws-group__body .ws-action-grid--noSeparator {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Nut hanh dong trong THAN cua InspectorGroup -> dang o vuong nho, icon tren/chu
+   duoi, canh giua. Tat ca nut cua CUNG 1 khoi dieu kien gop chung 1 the
+   ws-action-grid (xem JSX) nen hien thi tren 1 hang; flex-wrap van la "wrap" (ke
+   thua tu rule dung chung ".ws-action-grid" o dau file) chi de phong khi so nut
+   nhieu hon so cho tren 1 hang thi xuong dong, khong bop meo/tran o. Nut hanh dong
+   chinh o HEADER (ws-group__action, vd "Tinh tien") giu nguyen dang pill ngang cu. */
+.ws-group__body .ws-action-grid > * {
+  flex: 0 1 4.5rem;
+  min-width: 3.5rem;
+}
+
+.ws-group__body .ws-action-grid .ds-button {
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  padding: var(--space-2);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  font-size: var(--font-size-xs);
+}
+
+/* Duyet dich vu / Duyet combo: chu dai + dem so luong thay doi ((3)) nen giu
+   dang nut ngang binh thuong, khong ep thanh o vuong nhu cac nut hanh dong khac. */
+.ws-group__body .ws-action-grid--top > * {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.ws-group__body .ws-action-grid--top .ds-button {
+  flex-direction: row;
+  width: auto;
+  height: var(--control-height-compact);
+  aspect-ratio: auto;
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+  text-align: left;
+  line-height: 1;
+  font-size: var(--font-size-md);
+}
+
+/* Nhom "Dang nhap" (Tra truoc/Tra sau/ADMIN), chi hien khi may o trang thai San
+   sang (xem JSX) -- CSS Grid 3 cot kich thuoc CO DINH (khong phai 1fr) de nut
+   luon dong bo 4.5rem du nhom co du 3 nut hay chi con ADMIN. */
+.ws-action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(3.5rem, 4.5rem));
+  justify-content: start;
+  gap: var(--space-1) var(--space-2);
+}
+
+.ws-action-row__loginTitle {
+  grid-column: 1 / span 3;
+  grid-row: 1;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ws-action-row > .ds-button {
+  grid-row: 2;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  padding: var(--space-2);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  font-size: var(--font-size-xs);
+}
+
+/* Hang 2 nhom canh nhau (vd "Ung dung" + "Man hinh may tram"): moi ben 2 nut,
+   khong co vach ngan -- chi phan biet bang 2 tieu de nho rieng o hang tren. */
+.ws-action-twin {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(3.5rem, 4.5rem));
+  justify-content: start;
+  gap: var(--space-1) var(--space-2);
+}
+
+.ws-action-twin__title {
+  grid-row: 1;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ws-action-twin__title--left {
+  grid-column: 1 / span 2;
+}
+
+.ws-action-twin__title--right {
+  grid-column: 3 / span 2;
+}
+
+.ws-action-twin > .ds-button {
+  grid-row: 2;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  padding: var(--space-2);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  font-size: var(--font-size-xs);
 }
 
 /* Nhom trong drawer chi tiet may (InspectorGroup): hang compact kieu danh sach

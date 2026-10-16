@@ -16,7 +16,7 @@ import {
 
 const STATUS_FILTER_OPTIONS: FilterMenuOption<WorkstationFilter>[] = [
   { value: 'connected', label: 'Đang kết nối', color: 'var(--color-action-primary)' },
-  { value: 'playing', label: 'Đang chơi', color: 'var(--color-info)' },
+  { value: 'playing', label: 'Đang sử dụng', color: 'var(--color-info)' },
   { value: 'available', label: 'Sẵn sàng', color: 'var(--color-success)' },
   { value: 'debt', label: 'Còn nợ', color: 'var(--color-warning)' },
   { value: 'disconnected', label: 'Mất kết nối', color: 'var(--color-danger)' },

@@ -19,6 +19,7 @@ import {
   Cpu,
   CurrencyCircleDollar,
   Desktop,
+  Eye,
   ForkKnife,
   Gift,
   GraphicsCard,
@@ -28,7 +29,7 @@ import {
   Lock,
   MagnifyingGlass,
   Money,
-  Monitor,
+  MonitorArrowUp,
   PencilSimple,
   Power,
   Receipt,
@@ -1439,7 +1440,7 @@ export function WorkstationWorkspace() {
                       <button
                         key={group.id}
                         type="button"
-                        className={`ws-group-usage__donutItem ${groupId === group.id ? 'is-active' : ''}`}
+                        className={`ws-group-usage__donutItem ${groupId === group.id ? 'is-active' : ''} ${group.percent >= 100 ? 'is-full' : ''}`}
                         aria-pressed={groupId === group.id}
                         aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
                         title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
@@ -1788,6 +1789,41 @@ export function WorkstationWorkspace() {
                   </dd>
                 </div>
               </dl>
+              {inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
+                <div className="ws-action-row">
+                  <span className="ws-action-row__loginTitle">Đăng nhập</span>
+                  <Button
+                    icon={<SignIn {...ICON} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
+                    title={!hasRight(RIGHTS.PREPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.PREPAID_LOGIN}` : 'Đăng nhập (trả tiền trước)'}
+                    onClick={() => openAnonymLoginDialog('prepaid')}
+                  >
+                    Trả trước
+                  </Button>
+                  <Button
+                    icon={<SignIn {...ICON} />}
+                    type="button"
+                    variant="secondary"
+                    disabled={isPaused || !hasRight(RIGHTS.POSTPAID_LOGIN)}
+                    title={!hasRight(RIGHTS.POSTPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.POSTPAID_LOGIN}` : 'Đăng nhập (trả tiền sau)'}
+                    onClick={() => openAnonymLoginDialog('payLater')}
+                  >
+                    Trả sau
+                  </Button>
+                  <Button
+                    icon={<UserGear {...ICON} />}
+                    type="button"
+                    variant="warning-outline"
+                    disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin))}
+                    title={commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin) || 'Đăng nhập ADMIN'}
+                    onClick={() => openCommand('adminLogin', [inspectedMachine])}
+                  >
+                    ADMIN
+                  </Button>
+                </div>
+              ) : null}
               {inspectedMachine.status !== WORKSTATION_STATUS.AVAILABLE ? (
                 <div className="ws-action-grid">
                   <Button
@@ -1799,93 +1835,66 @@ export function WorkstationWorkspace() {
                   >
                     Nhắn tin
                   </Button>
-                </div>
-              ) : null}
-              {inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
-                <div className="ws-action-grid ws-action-grid--nowrap">
-                  <Button
-                    icon={<SignIn {...ICON} />}
-                    type="button"
-                    variant="primary"
-                    disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
-                    title={!hasRight(RIGHTS.PREPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.PREPAID_LOGIN}` : undefined}
-                    onClick={() => openAnonymLoginDialog('prepaid')}
-                  >
-                    Đăng nhập (trả tiền trước)
-                  </Button>
-                  <Button
-                    icon={<SignIn {...ICON} />}
-                    type="button"
-                    variant="secondary"
-                    disabled={isPaused || !hasRight(RIGHTS.POSTPAID_LOGIN)}
-                    title={!hasRight(RIGHTS.POSTPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.POSTPAID_LOGIN}` : undefined}
-                    onClick={() => openAnonymLoginDialog('payLater')}
-                  >
-                    Đăng nhập (trả tiền sau)
-                  </Button>
-                </div>
-              ) : null}
-              {inspectedMachine.session && !isAdminSession ? (
-                <div className="ws-action-grid">
-                  {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
-                    <Button icon={<Receipt {...ICON} />} type="button" variant="primary" disabled={isPaused} onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
-                      Tính tiền
-                    </Button>
-                  ) : null}
-                  {hasDebt(inspectedMachine) && inspectedMachine.userId > 0 ? (
-                    <Button icon={<Money {...ICON} />} type="button" variant="secondary" disabled={isPaused} onClick={() => setMoneyAction('payDebit')}>
-                      Thanh toán phí chuyển
-                    </Button>
-                  ) : null}
-                  {!inspectedMachine.session.prepaid && inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
-                    <Button
-                      icon={<HourglassMedium {...ICON} />}
-                      type="button"
-                      variant="secondary"
-                      disabled={isPaused || !hasRight(RIGHTS.SUSPEND_MACHINE)}
-                      title={!hasRight(RIGHTS.SUSPEND_MACHINE) ? `Thiếu quyền ${RIGHTS.SUSPEND_MACHINE}` : undefined}
-                      onClick={() => setMoneyAction('suspend')}
-                    >
-                      Chờ tính tiền
-                    </Button>
-                  ) : null}
-                  {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ||
-                  inspectedMachine.userGroupType === USER_GROUP_TYPE.member ? (
-                    // Parity WorkstationList.cpp:1939-1950/1965-1969 -- IDR_CHANGE_WS/IDR_SWAP_WS
-                    // chi bat cho ANONYM/MEMBER, COMBOCARD (the combo) khong duoc chuyen may.
-                    <Button
-                      icon={<ArrowsLeftRight {...ICON} />}
-                      type="button"
-                      variant="secondary"
-                      disabled={isPaused}
-                      onClick={() => {
-                        setChangePcMode('change')
-                        setChangePcTarget('')
-                        setChangePcOpen(true)
-                      }}
-                    >
-                      Chuyển máy
-                    </Button>
-                  ) : null}
-                  {!inspectedMachine.session.prepaid &&
-                  inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym &&
-                  inspectedMachine.status === WORKSTATION_STATUS.ONLINE ? (
-                    <Button
-                      icon={<Wallet {...ICON} />}
-                      type="button"
-                      variant="secondary"
-                      disabled={isPaused}
-                      onClick={() => {
-                        setPrepaidAmount(20_000)
-                        setPrepaidOpen(true)
-                      }}
-                    >
-                      Chuyển sang trả trước
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-              <div className="ws-action-grid">
+                  {inspectedMachine.session && !isAdminSession ? (
+                  <>
+                    {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
+                      <Button icon={<Receipt {...ICON} />} type="button" variant="primary" disabled={isPaused} onClick={() => setMoneyAction(inspectedMachine.session?.prepaid ? 'payoutPrepaid' : 'payout')}>
+                        Tính tiền
+                      </Button>
+                    ) : null}
+                    {hasDebt(inspectedMachine) && inspectedMachine.userId > 0 ? (
+                      <Button icon={<Money {...ICON} />} type="button" variant="secondary" disabled={isPaused} onClick={() => setMoneyAction('payDebit')}>
+                        Thanh toán phí chuyển
+                      </Button>
+                    ) : null}
+                    {!inspectedMachine.session.prepaid && inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ? (
+                      <Button
+                        icon={<HourglassMedium {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused || !hasRight(RIGHTS.SUSPEND_MACHINE)}
+                        title={!hasRight(RIGHTS.SUSPEND_MACHINE) ? `Thiếu quyền ${RIGHTS.SUSPEND_MACHINE}` : undefined}
+                        onClick={() => setMoneyAction('suspend')}
+                      >
+                        Chờ tính tiền
+                      </Button>
+                    ) : null}
+                    {inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym ||
+                    inspectedMachine.userGroupType === USER_GROUP_TYPE.member ? (
+                      // Parity WorkstationList.cpp:1939-1950/1965-1969 -- IDR_CHANGE_WS/IDR_SWAP_WS
+                      // chi bat cho ANONYM/MEMBER, COMBOCARD (the combo) khong duoc chuyen may.
+                      <Button
+                        icon={<ArrowsLeftRight {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused}
+                        onClick={() => {
+                          setChangePcMode('change')
+                          setChangePcTarget('')
+                          setChangePcOpen(true)
+                        }}
+                      >
+                        Chuyển máy
+                      </Button>
+                    ) : null}
+                    {!inspectedMachine.session.prepaid &&
+                    inspectedMachine.userGroupType === USER_GROUP_TYPE.anonym &&
+                    inspectedMachine.status === WORKSTATION_STATUS.ONLINE ? (
+                      <Button
+                        icon={<Wallet {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused}
+                        onClick={() => {
+                          setPrepaidAmount(20_000)
+                          setPrepaidOpen(true)
+                        }}
+                      >
+                        Chuyển trả trước
+                      </Button>
+                    ) : null}
+                  </>
+                ) : null}
                 <Button
                   icon={<Lock {...ICON} />}
                   type="button"
@@ -1896,17 +1905,8 @@ export function WorkstationWorkspace() {
                 >
                   Khóa máy
                 </Button>
-                <Button
-                  icon={<UserGear {...ICON} />}
-                  type="button"
-                  variant="warning-outline"
-                  disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin))}
-                  title={commandDisabledReason(COMMANDS.adminLogin, [inspectedMachine], hasRight, isAdmin) || undefined}
-                  onClick={() => openCommand('adminLogin', [inspectedMachine])}
-                >
-                  Đăng nhập ADMIN
-                </Button>
               </div>
+              ) : null}
             </InspectorGroup>
 
             {inspectedMachine.userId > 0 ? (
@@ -2027,7 +2027,7 @@ export function WorkstationWorkspace() {
                             title={!hasRight(RIGHTS.CREDIT_MONEY) ? `Thiếu quyền ${RIGHTS.CREDIT_MONEY}` : undefined}
                             onClick={() => { setMoneyAmount(10_000); setMoneyAction('credit') }}
                           >
-                            Cho mượn tiền
+                            Cho mượn
                           </Button>
                         </div>
                       </>
@@ -2129,12 +2129,14 @@ export function WorkstationWorkspace() {
                 }
                 return (
                   <>
-                    <div className="ws-action-grid ws-action-grid--nowrap">
+                    <div className="ws-action-grid ws-action-grid--nowrap ws-action-grid--noSeparator">
                       {(['wakeup', 'restart', 'shutdown'] as CommandKind[]).map(commandButton)}
                     </div>
-                    {/* Dong rieng: "Dong ung dung" va "Ung dung dang chay" cung lam viec tren app cua may. */}
-                    <div className="ws-action-grid">
-                      {commandButton('closeApp')}
+                    {/* Ung dung (Dang chay/Dong het) + Man hinh may tram (Xem hinh anh/Dieu khien):
+                        2 nhom 2 nut canh nhau, co vach ngan o giua -- cung pattern voi
+                        "Dang nhap | Khoa may" o nhom "Phien hien tai" phia tren. */}
+                    <div className="ws-action-twin">
+                      <span className="ws-action-twin__title ws-action-twin__title--left">Ứng dụng</span>
                       <Button
                         icon={<AppWindow {...ICON} />}
                         type="button"
@@ -2142,30 +2144,39 @@ export function WorkstationWorkspace() {
                         disabled={isPaused}
                         onClick={() => openAppsDialog(inspectedMachine)}
                       >
-                        Ứng dụng đang chạy
+                        Đang chạy
                       </Button>
-                    </div>
-                    {/* task 2.22r: xem man hinh (anh tinh) + dieu khien tu xa. Quyen R_REMOTE_MACHINE nhu MFC. */}
-                    <div className="ws-action-grid">
                       <Button
-                        icon={<Monitor {...ICON} />}
+                        icon={COMMAND_ICONS.closeApp}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused || Boolean(commandDisabledReason(COMMANDS.closeApp, [inspectedMachine], hasRight, isAdmin))}
+                        title={commandDisabledReason(COMMANDS.closeApp, [inspectedMachine], hasRight, isAdmin) || COMMANDS.closeApp.label}
+                        onClick={() => openCommand('closeApp', [inspectedMachine])}
+                      >
+                        Đóng hết
+                      </Button>
+                      <span className="ws-action-twin__title ws-action-twin__title--right">Màn hình máy trạm</span>
+                      {/* task 2.22r: xem man hinh (anh tinh) + dieu khien tu xa. Quyen R_REMOTE_MACHINE nhu MFC. */}
+                      <Button
+                        icon={<Eye {...ICON} />}
                         type="button"
                         variant="secondary"
                         disabled={Boolean(remoteDisabledReason)}
                         title={remoteDisabledReason ?? undefined}
                         onClick={() => setScreenHost(inspectedMachine.hostName)}
                       >
-                        Xem màn hình
+                        Xem hình ảnh
                       </Button>
                       <Button
-                        icon={<Desktop {...ICON} />}
+                        icon={<MonitorArrowUp {...ICON} />}
                         type="button"
                         variant="secondary"
                         disabled={Boolean(remoteDisabledReason)}
                         title={remoteDisabledReason ?? undefined}
                         onClick={() => setRemoteHost(inspectedMachine.hostName)}
                       >
-                        Điều khiển từ xa
+                        Điều khiển
                       </Button>
                     </div>
                   </>
@@ -3295,10 +3306,6 @@ export function WorkstationWorkspace() {
         }
       >
         <div className="ws-dialog-stack">
-          <InlineAlert tone="warning">
-            Mở danh sách này sẽ hiện một cửa sổ chặn màn hình MFC tại quầy tới khi có người đóng —
-            chỉ dùng khi cần, đừng bấm lặp lại nhiều lần.
-          </InlineAlert>
           {appsQueryMutation.isPending ? <StateView title="Đang lấy danh sách ứng dụng…" /> : null}
           {appsError ? (
             <StateView

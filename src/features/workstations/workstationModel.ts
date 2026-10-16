@@ -65,7 +65,7 @@ export function getWorkstationStatus(machine: WorkstationRuntime): WorkstationSt
     case WORKSTATION_STATUS.DISCONNECT:
       return { label: 'Mất kết nối', tone: 'danger' }
     case WORKSTATION_STATUS.ONLINE:
-      return { label: 'Đang chơi', tone: 'info' }
+      return { label: 'Đang sử dụng', tone: 'info' }
     case WORKSTATION_STATUS.WARNING:
       return { label: 'Cảnh báo', tone: 'warning' }
     case WORKSTATION_STATUS.INIT_INFO:
