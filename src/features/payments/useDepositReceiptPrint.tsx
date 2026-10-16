@@ -12,7 +12,7 @@ import { useLicenseInfo } from '../license/useLicenseInfo'
 import { describePrintFailure, printerPaper } from '../orders/printTicketModel'
 import { PosPrinterPicker } from '../printers/PosPrinterPicker'
 import { printHtmlToPos, usePosPrintPrefs, usePosPrinters } from '../printers/posPrint'
-import { formatSystemDateTime, hasRoomInfo, pickPrinterId } from '../printers/posPrintModel'
+import { formatSystemDateTime, pickPrinterId } from '../printers/posPrintModel'
 import '../printers/pos-print.css'
 import {
   buildDepositReceiptHtml,
@@ -111,10 +111,9 @@ export function useDepositReceiptPrint() {
       if (!printer || !paper) throw new Error('Chưa có máy in POS đang hoạt động để in phiếu nạp tiền.')
       let cafe = null
       if (job.roomInfo) {
+        // Chua khai bao ten phong may thi de trong phan thong tin phong may tren phieu,
+        // KHONG chan in (buildDepositReceiptHtml tu bo qua section nay neu !hasRoomInfo).
         cafe = await queryClient.fetchQuery({ queryKey: ['settings', 'cafeinfo'], queryFn: getCafeInfo, staleTime: 60_000 })
-        if (!hasRoomInfo(cafe)) {
-          throw new Error('Chưa khai báo tên phòng máy trong Cài đặt nên không in được thông tin phòng máy.')
-        }
       }
       await printHtmlToPos({
         printerId: job.printerId,

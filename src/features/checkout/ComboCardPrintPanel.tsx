@@ -11,7 +11,7 @@ import { pushToast } from '../../store/toast'
 import { printerPaper, describePrintFailure } from '../orders/printTicketModel'
 import { PosPrinterPicker } from '../printers/PosPrinterPicker'
 import { printHtmlToPos, printHtmlViaBrowser, usePosPrintPrefs, usePosPrinters } from '../printers/posPrint'
-import { hasRoomInfo, formatReceiptDateTime, formatSystemDateTime, pickPrinterId } from '../printers/posPrintModel'
+import { formatReceiptDateTime, formatSystemDateTime, pickPrinterId } from '../printers/posPrintModel'
 import { buildComboCardHtml, formatComboCredentialsText, toComboCardData } from './comboCardPrintModel'
 
 type Props = {
@@ -65,15 +65,13 @@ export function ComboCardPrintPanel({ results, combosById, onBusyChange }: Props
 
   const loadCafe = async () => {
     if (!roomInfo) return null
-    const cafe = await queryClient.fetchQuery({
+    // Chua khai bao ten phong may thi de trong phan thong tin phong may tren the,
+    // KHONG chan in (hasRoomInfo=false -> phan render thong tin phong may tu bo qua).
+    return queryClient.fetchQuery({
       queryKey: ['settings', 'cafeinfo'],
       queryFn: getCafeInfo,
       staleTime: 60_000,
     })
-    if (!hasRoomInfo(cafe)) {
-      throw new Error('Chưa khai báo tên phòng máy trong Cài đặt nên không in được thông tin phòng máy.')
-    }
-    return cafe
   }
 
   const printPos = async () => {

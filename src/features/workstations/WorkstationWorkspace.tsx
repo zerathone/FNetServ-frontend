@@ -2721,11 +2721,11 @@ export function WorkstationWorkspace() {
                 }}
               />
               {depositMethod === 'cash' ? (
-                <InlineAlert tone="info">
-                  {moneyAmount && moneyAmount < 0
-                    ? 'Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.'
-                    : 'Tiền mặt dùng contract hiện tại và được ghi nhận ngay sau khi xác nhận.'}
-                </InlineAlert>
+                moneyAmount && moneyAmount < 0 ? (
+                  <InlineAlert tone="info">
+                    Số tiền âm là thao tác rút; máy chủ vẫn kiểm tra quyền và số dư khả dụng.
+                  </InlineAlert>
+                ) : null
               ) : depositMethod === 'qr' ? (
                 <DepositQrFlow
                   userId={exactUser.userId}
@@ -3258,7 +3258,6 @@ export function WorkstationWorkspace() {
           password={noVncSession.password}
           mode={noVncSession.mode}
           startedAt={noVncSession.startedAt}
-          vncReused={noVncSession.vncReused === true}
           onClose={() => setNoVncSession(null)}
         />
       ) : null}
