@@ -65,8 +65,8 @@ export function ComboCardPrintPanel({ results, combosById, onBusyChange }: Props
 
   const loadCafe = async () => {
     if (!roomInfo) return null
-    // Chua khai bao ten phong may thi de trong phan thong tin phong may tren the,
-    // KHONG chan in (hasRoomInfo=false -> phan render thong tin phong may tu bo qua).
+    // Chua khai bao ten phong may thi van in khoi thong tin phong may, cac truong
+    // trong de trong tren the (roomInfoRowsHtml luon in du dong) -- KHONG chan in.
     return queryClient.fetchQuery({
       queryKey: ['settings', 'cafeinfo'],
       queryFn: getCafeInfo,

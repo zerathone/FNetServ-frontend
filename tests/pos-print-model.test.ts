@@ -7,7 +7,6 @@ import {
   formatReceiptDateTime,
   formatReceiptNumber,
   formatSystemDateTime,
-  hasRoomInfo,
   pickPrinterId,
   readPosPrefs,
   roomInfoRowsHtml,
@@ -83,11 +82,18 @@ test('readPosPrefs/writePosPrefs: vòng khứ hồi, bỏ qua dữ liệu hỏng
   assert.deepEqual(readPosPrefs('combo', null), {})
 })
 
-test('roomInfoRowsHtml: rỗng khi chưa có tên phòng máy; bỏ dòng rỗng; escape HTML', () => {
-  const empty = { cafeName: '  ', cafeAddress: 'x', cafePhone: '', cafePage: '', cafeEmail: '' }
-  assert.equal(hasRoomInfo(empty), false)
-  assert.equal(roomInfoRowsHtml(empty), '')
+test('roomInfoRowsHtml: null thì rỗng; thiếu tên/trường vẫn in đủ dòng (để trống); escape HTML', () => {
   assert.equal(roomInfoRowsHtml(null), '')
+
+  // Thiếu hoàn toàn tên phòng máy + hầu hết trường: VẪN in khối (user chốt: thiếu thì de trong,
+  // khong duoc bo ca khoi/bo dong).
+  const empty = { cafeName: '  ', cafeAddress: 'x', cafePhone: '', cafePage: '', cafeEmail: '' }
+  const emptyHtml = roomInfoRowsHtml(empty)
+  assert.match(emptyHtml, /\*{16}/)
+  assert.match(emptyHtml, /Địa chỉ:/)
+  assert.match(emptyHtml, /Điện thoại:/)
+  assert.match(emptyHtml, /Website:/)
+  assert.match(emptyHtml, /Email:/)
 
   const html = roomInfoRowsHtml({
     cafeName: 'Net <Hub>',
@@ -100,8 +106,8 @@ test('roomInfoRowsHtml: rỗng khi chưa có tên phòng máy; bỏ dòng rỗng
   assert.match(html, /Net &lt;Hub&gt;/)
   assert.match(html, /Địa chỉ:/)
   assert.match(html, /Điện thoại:/)
-  assert.doesNotMatch(html, /Website:/)
-  assert.doesNotMatch(html, /Email:/)
+  assert.match(html, /Website:/)
+  assert.match(html, /Email:/)
 })
 
 test('định dạng số/ngày/giờ khớp phiếu Qt', () => {

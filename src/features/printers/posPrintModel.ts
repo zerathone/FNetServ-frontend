@@ -142,17 +142,13 @@ export function formatReceiptNumber(value: number) {
   return new Intl.NumberFormat('en-US').format(value)
 }
 
-/** Tên phòng máy rỗng thì khối thông tin phòng máy không có gì để in. */
-export function hasRoomInfo(cafe: Pick<CafeInfo, 'cafeName'> | null | undefined) {
-  return Boolean(cafe && cafe.cafeName.trim())
-}
-
 /**
  * Khối "thông tin phòng máy" (Qt `generateData*`: dòng `****************`, tên đậm giữa, Địa chỉ / Điện thoại /
- * Website / Email). Chỉ gọi khi người dùng đã tick ô "In thông tin phòng máy". Dòng rỗng được bỏ.
+ * Website / Email). Chỉ gọi khi người dùng đã tick ô "In thông tin phòng máy". Luôn in đủ các dòng kể cả khi
+ * giá trị đang trống (user chốt: thiếu thì để trống trên phiếu, không được tự ý bỏ dòng/bỏ cả khối).
  */
 export function roomInfoRowsHtml(cafe: CafeInfo | null | undefined) {
-  if (!cafe || !hasRoomInfo(cafe)) return ''
+  if (!cafe) return ''
   const rows: Array<[string, string]> = [
     ['Địa chỉ:', cafe.cafeAddress],
     ['Điện thoại:', cafe.cafePhone],
@@ -162,7 +158,7 @@ export function roomInfoRowsHtml(cafe: CafeInfo | null | undefined) {
   return [
     '<tr><td colspan="2" class="divider">****************</td></tr>',
     `<tr><td colspan="2" style="padding:4px 0;text-align:center;font-size:16px;font-weight:700;">${escapeReceiptHtml(cafe.cafeName.trim())}</td></tr>`,
-    ...rows.filter(([, value]) => value.trim() !== '').map(([label, value]) => receiptRow(label, value.trim())),
+    ...rows.map(([label, value]) => receiptRow(label, value.trim())),
   ].join('')
 }
 

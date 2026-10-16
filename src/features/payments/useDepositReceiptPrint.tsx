@@ -111,8 +111,8 @@ export function useDepositReceiptPrint() {
       if (!printer || !paper) throw new Error('Chưa có máy in POS đang hoạt động để in phiếu nạp tiền.')
       let cafe = null
       if (job.roomInfo) {
-        // Chua khai bao ten phong may thi de trong phan thong tin phong may tren phieu,
-        // KHONG chan in (buildDepositReceiptHtml tu bo qua section nay neu !hasRoomInfo).
+        // Chua khai bao ten phong may thi van in khoi thong tin phong may, cac truong
+        // trong de trong tren phieu (roomInfoRowsHtml luon in du dong) -- KHONG chan in.
         cafe = await queryClient.fetchQuery({ queryKey: ['settings', 'cafeinfo'], queryFn: getCafeInfo, staleTime: 60_000 })
       }
       await printHtmlToPos({
