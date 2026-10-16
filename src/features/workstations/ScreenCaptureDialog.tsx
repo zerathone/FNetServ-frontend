@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { captureWorkstationScreen, type WorkstationScreenshot } from '../../api/workstationRealtime'
 import { Button, Dialog, InlineAlert } from '../../design-system/components'
+import { WsCommandError } from '../../ws/wsClient'
 
 // task 2.22r-B: "Xem màn hình" = ảnh chụp TĨNH. Mở hộp thoại là chụp 1 lần; muốn ảnh mới thì bấm
 // "Chụp lại" — KHÔNG poll/auto-refresh (user chốt 2026-10-16). Ảnh đã được server thu nhỏ
@@ -54,7 +55,13 @@ export function ScreenCaptureDialog({ hostName, onClose }: Props) {
     [],
   )
 
-  const errorMessage = capture.error instanceof Error ? capture.error.message : null
+  // Kèm mã lý do server trả (vd `no_connection` = máy trạm không kết nối ngược về được,
+  // `pixels_timeout` = gửi ảnh quá chậm) để hỗ trợ kỹ thuật biết kẹt ở bước nào.
+  const errorReason = capture.error instanceof WsCommandError ? capture.error.reason : undefined
+  const errorMessage =
+    capture.error instanceof Error
+      ? `${capture.error.message}${errorReason ? ` (mã: ${errorReason})` : ''}`
+      : null
 
   return (
     <Dialog

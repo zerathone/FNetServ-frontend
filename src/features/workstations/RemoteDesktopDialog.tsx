@@ -75,32 +75,32 @@ export function RemoteDesktopDialog({ hostName, onClose, onNoVncReady }: Props) 
     >
       <div className="ws-remote">
         <div className="ws-remote__row">
-          <span className="ws-remote__label">Engine</span>
+          <span className="ws-remote__label">Mở tại</span>
           <Segmented<RemoteEngine>
-            ariaLabel="Chọn engine điều khiển từ xa"
+            ariaLabel="Chọn nơi mở màn hình máy trạm"
             value={engine}
             onChange={setEngine}
             disabled={start.isPending}
             options={[
               {
                 value: 'legacy',
-                label: 'VNC legacy',
+                label: 'Máy quầy',
                 disabled: !legacyAvailable,
-                title: legacyAvailable ? undefined : 'Máy chủ không có màn hình quầy để mở viewer',
+                title: legacyAvailable ? undefined : 'Máy chủ không có màn hình quầy',
               },
               {
                 value: 'novnc',
-                label: 'noVNC',
+                label: 'Trình duyệt này',
                 disabled: !noVncAvailable,
-                title: noVncAvailable ? undefined : 'Cầu nối noVNC đang tắt trên máy chủ (INT_WS_VNC)',
+                title: noVncAvailable ? undefined : 'Chức năng xem trong trình duyệt đang tắt trên máy chủ',
               },
             ]}
           />
         </div>
         <p className="ws-remote__hint">
           {engine === 'legacy'
-            ? 'Viewer mở trên máy quầy (máy chạy phần mềm quản lý), không mở trên thiết bị này.'
-            : 'Xem và điều khiển ngay trong trình duyệt này.'}
+            ? 'Cửa sổ mở trên máy quầy (máy chạy phần mềm quản lý), không mở trên thiết bị này.'
+            : 'Xem và điều khiển ngay trong trình duyệt này; đổi Chỉ xem / Điều khiển được ngay khi đang xem.'}
         </p>
         <div className="ws-remote__row">
           <span className="ws-remote__label">Chế độ</span>
@@ -120,13 +120,13 @@ export function RemoteDesktopDialog({ hostName, onClose, onNoVncReady }: Props) 
         ) : null}
         {start.isPending ? (
           <p className="ws-remote__hint" role="status">
-            Đang chờ máy trạm bật VNC…
+            Đang chờ máy trạm sẵn sàng…
           </p>
         ) : null}
         {errorMessage ? <InlineAlert tone="warning">{errorMessage}</InlineAlert> : null}
         {legacyResult ? (
           <InlineAlert tone="success">
-            Đã mở viewer trên máy quầy ({legacyResult.mode === 'view' ? 'chỉ xem' : 'điều khiển'}) sau{' '}
+            Đã mở cửa sổ trên máy quầy ({legacyResult.mode === 'view' ? 'chỉ xem' : 'điều khiển'}) sau{' '}
             {legacyResult.elapsedMs} ms.
           </InlineAlert>
         ) : null}

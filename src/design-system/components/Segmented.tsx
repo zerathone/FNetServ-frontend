@@ -1,6 +1,10 @@
+import type { ReactNode } from 'react'
+
 export type SegmentedOption<T extends string> = {
   value: T
   label: string
+  /** Icon đứng trước nhãn — tuỳ chọn. */
+  icon?: ReactNode
   /** task 2.22r: vô hiệu riêng 1 lựa chọn (vd engine không khả dụng) — tuỳ chọn, mặc định bật. */
   disabled?: boolean
   /** Chú thích hiện khi rê chuột (thường giải thích vì sao bị vô hiệu). */
@@ -29,6 +33,7 @@ export function Segmented<T extends string>({ value, options, onChange, ariaLabe
           title={option.title}
           onClick={() => !disabled && !option.disabled && onChange(option.value)}
         >
+          {option.icon ? <span className="ds-segmented__icon">{option.icon}</span> : null}
           {option.label}
         </button>
       ))}

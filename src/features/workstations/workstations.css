@@ -1668,7 +1668,10 @@ button.ws-summary__row:hover {
   border-bottom: 1px solid var(--color-border-default);
 }
 
-.ws-novnc__bar > :last-child {
+.ws-novnc__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   margin-left: auto;
 }
 
@@ -1685,9 +1688,24 @@ button.ws-summary__row:hover {
   color: var(--color-danger, #d64545);
 }
 
-.ws-novnc__info {
+.ws-novnc__stats {
+  display: inline-flex;
+  gap: var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-novnc__ping--good {
+  color: var(--color-success, #1f9d55);
+}
+
+.ws-novnc__ping--warn {
+  color: var(--color-warning, #b7791f);
+}
+
+.ws-novnc__ping--bad {
+  color: var(--color-danger, #d64545);
 }
 
 .ws-novnc__detail {

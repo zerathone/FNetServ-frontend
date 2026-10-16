@@ -9,6 +9,8 @@ export type WsMessage<T = unknown> = {
 
 type SubscriberFn = (msg: WsMessage) => void
 type PendingRequest = {
+  /** Lệnh đã gửi — để khớp `error unsupported_message_type` (server cũ không echo requestId). */
+  type: string
   expectedType: string
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
@@ -134,6 +136,7 @@ class WsClient {
         reject(new WsCommandError('timeout'))
       }, timeoutMs)
       this.pending.set(requestId, {
+        type,
         expectedType,
         resolve: (value) => resolve(value as TData),
         reject,
@@ -223,6 +226,20 @@ class WsClient {
           useWsStatusStore.getState().setListenerStatus({
             firebase: data.firebase,
             sse: data.sse as 'connected' | 'disconnected' | 'disabled',
+          })
+        }
+      }
+
+      // Server chưa có lệnh này (bản cũ) trả `error unsupported_message_type` KHÔNG kèm requestId,
+      // chỉ có `received` = type đã gửi => báo lỗi ngay thay vì để người dùng chờ hết timeout.
+      if (message.type === 'error' && !message.requestId) {
+        const data = message.data as { message?: string; received?: string } | undefined
+        if (data?.message === 'unsupported_message_type' && data.received) {
+          this.pending.forEach((pending, id) => {
+            if (pending.type !== data.received) return
+            window.clearTimeout(pending.timer)
+            this.pending.delete(id)
+            pending.reject(new WsCommandError('unsupported'))
           })
         }
       }

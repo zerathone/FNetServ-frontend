@@ -1449,6 +1449,12 @@ input[type="radio"]:disabled {
   transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 
+.ds-segmented__icon {
+  display: inline-flex;
+  margin-right: 0.375rem;
+  vertical-align: -0.175em;
+}
+
 .ds-segmented__item:hover:not(.is-active) {
   color: var(--color-text-primary);
 }
