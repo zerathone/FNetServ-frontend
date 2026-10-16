@@ -147,7 +147,6 @@ const RIGHTS = {
   RESTART_ALL: 121,
   SHUTDOWN_ALL: 131,
   CLOSE_ALL_APPS: 141,
-  MODIFY_MONEY: 9222,
   INPUT_NEGATIVE_MONEY: 26,
   CHANGE_GROUP: 9414,
   SUSPEND_MACHINE: 94311,
@@ -157,6 +156,8 @@ const RIGHTS = {
   PREPAID_LOGIN: 102,
   // R_DEBIT_MONEY_ALLOW_DEBIT (define.h:50) -- RBAC shadow cho /user/credit (PaymentHandlers.cpp:3724).
   CREDIT_MONEY: 242,
+  // R_GIVE_MONEY (define.h:34) -- gate that o /user/give-free (PaymentHandlers.cpp:3907-3910).
+  GIVE_MONEY: 11,
 } as const
 
 // Mau chu khop voi mau badge (.ds-badge--*, controls.css) -- dung de to mau icon/gia tri
@@ -1925,8 +1926,7 @@ export function WorkstationWorkspace() {
                       icon={<CurrencyCircleDollar {...ICON} />}
                       type="button"
                       variant="primary"
-                      disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
-                      title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                      disabled={isPaused}
                       onClick={() => {
                         setMoneyAmount(null)
                         setDepositMethod('cash')
@@ -1958,8 +1958,8 @@ export function WorkstationWorkspace() {
                         icon={<Gift {...ICON} />}
                         type="button"
                         variant="secondary"
-                        disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
-                        title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                        disabled={isPaused || !hasRight(RIGHTS.GIVE_MONEY)}
+                        title={!hasRight(RIGHTS.GIVE_MONEY) ? `Thiếu quyền ${RIGHTS.GIVE_MONEY}` : undefined}
                         onClick={() => { setMoneyAmount(10_000); setMoneyAction('giveFree') }}
                       >
                         Tặng tiền
@@ -1980,8 +1980,7 @@ export function WorkstationWorkspace() {
                             icon={<CurrencyCircleDollar {...ICON} />}
                             type="button"
                             variant="primary"
-                            disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
-                            title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                            disabled={isPaused}
                             onClick={() => {
                               setMoneyAmount(null)
                               setDepositMethod('cash')
@@ -1995,8 +1994,8 @@ export function WorkstationWorkspace() {
                             icon={<Gift {...ICON} />}
                             type="button"
                             variant="secondary"
-                            disabled={isPaused || !hasRight(RIGHTS.MODIFY_MONEY)}
-                            title={!hasRight(RIGHTS.MODIFY_MONEY) ? `Thiếu quyền ${RIGHTS.MODIFY_MONEY}` : undefined}
+                            disabled={isPaused || !hasRight(RIGHTS.GIVE_MONEY)}
+                            title={!hasRight(RIGHTS.GIVE_MONEY) ? `Thiếu quyền ${RIGHTS.GIVE_MONEY}` : undefined}
                             onClick={() => { setMoneyAmount(10_000); setMoneyAction('giveFree') }}
                           >
                             Tặng tiền
