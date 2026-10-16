@@ -191,6 +191,26 @@ export async function apiGetBlob(path: string): Promise<Blob> {
   return response.blob()
 }
 
+/** task 2.22r-B: POST JSON, nhận về nhị phân (ảnh chụp màn hình). 404 = ảnh không còn (hết hạn/đã tải). */
+export async function apiPostBlob<TBody>(path: string, body: TBody): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify(body),
+  })
+  if (response.status === 401) {
+    useAuthStore.getState().logout()
+    throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại')
+  }
+  if (!response.ok) {
+    throw new ApiError(`Không tải được dữ liệu (${response.status})`, { httpStatus: response.status })
+  }
+  return response.blob()
+}
+
 export async function apiPostForm<TResponse>(
   path: string,
   body: Record<string, string | number | boolean | null | undefined>,

@@ -21,8 +21,10 @@ const RECONNECT_MAX_MS = 30_000
 export class WsCommandError extends Error {
   readonly status: string
   readonly requiredRight?: number
+  /** task 2.22r: lý do chi tiết server gửi kèm (vd `cooldown`, `port_in_use`) — chỉ để hiển thị/log. */
+  readonly reason?: string
 
-  constructor(status: string, requiredRight?: number) {
+  constructor(status: string, requiredRight?: number, reason?: string) {
     super(
       status === 'forbidden'
         ? `Không đủ quyền thực hiện lệnh${requiredRight ? ` (${requiredRight})` : ''}.`
@@ -30,11 +32,20 @@ export class WsCommandError extends Error {
           ? 'Máy trạm đang ngoại tuyến.'
           : status === 'timeout'
             ? 'Máy trạm không phản hồi trong thời gian chờ.'
-            : 'Không thực hiện được lệnh realtime.',
+            : status === 'busy'
+              ? reason === 'cooldown'
+                ? 'Vừa chụp máy này, vui lòng chờ vài giây rồi thử lại.'
+                : reason === 'port_in_use'
+                  ? 'Máy quầy đang chụp màn hình bằng phần mềm quản lý, vui lòng thử lại sau.'
+                  : 'Đang có một yêu cầu chụp màn hình khác, vui lòng thử lại sau vài giây.'
+              : status === 'unsupported'
+                ? 'Máy chủ hiện không hỗ trợ chức năng này.'
+                : 'Không thực hiện được lệnh realtime.',
     )
     this.name = 'WsCommandError'
     this.status = status
     this.requiredRight = requiredRight
+    this.reason = reason
   }
 }
 
@@ -207,9 +218,11 @@ class WsClient {
         if (pending && pending.expectedType === message.type) {
           window.clearTimeout(pending.timer)
           this.pending.delete(message.requestId)
-          const data = message.data as { status?: string; requiredRight?: number } | undefined
+          const data = message.data as
+            | { status?: string; requiredRight?: number; reason?: string }
+            | undefined
           if (data?.status && data.status !== 'ok') {
-            pending.reject(new WsCommandError(data.status, data.requiredRight))
+            pending.reject(new WsCommandError(data.status, data.requiredRight, data.reason))
           } else {
             pending.resolve(message.data)
           }

@@ -1587,3 +1587,38 @@ button.ws-summary__row:hover {
     height: calc(100vh - 20rem);
   }
 }
+
+/* task 2.22r-B: hop thoai "Xem man hinh" (anh chup tinh, da thu nho phia server). */
+.ws-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ws-screen__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16rem;
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.ws-screen__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.ws-screen__meta {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}

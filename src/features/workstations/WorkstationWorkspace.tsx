@@ -28,6 +28,7 @@ import {
   Lock,
   MagnifyingGlass,
   Money,
+  Monitor,
   PencilSimple,
   Power,
   Receipt,
@@ -140,6 +141,7 @@ import { InspectorGroup } from './InspectorGroup'
 import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
 import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
+import { ScreenCaptureDialog } from './ScreenCaptureDialog'
 import './workstations.css'
 
 const RIGHTS = {
@@ -150,6 +152,8 @@ const RIGHTS = {
   MODIFY_MONEY: 9222,
   INPUT_NEGATIVE_MONEY: 26,
   CHANGE_GROUP: 9414,
+  // R_REMOTE_MACHINE (define.h:135) -- menu MFC chup man hinh + dieu khien tu xa (task 2.22r).
+  REMOTE_MACHINE: 9415,
   SUSPEND_MACHINE: 94311,
   // RBAC shadow o backend (INT_RBAC_ENFORCE=0, PaymentHandlers.cpp:6366/6553) -- khong chan
   // cung tren may chu, giu de hien thi "Thieu quyen" nhat quan voi cac nut khac.
@@ -410,6 +414,13 @@ export function WorkstationWorkspace() {
   const hasRight = useAuthStore((state) => state.hasRight)
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const staffName = useAuthStore((state) => state.staffName)
+  // task 2.22r: hasRight da tinh ca admin. Chup man hinh/remote di qua WS => can realtime da noi.
+  const canRemoteMachine = hasRight(RIGHTS.REMOTE_MACHINE)
+  const remoteDisabledReason = !canRemoteMachine
+    ? `Thiếu quyền ${RIGHTS.REMOTE_MACHINE}`
+    : !connected
+      ? 'Realtime chưa kết nối'
+      : null
   const setOrderHost = useOrderQueueStore((state) => state.setHostName)
   const setOrderCustomerName = useOrderQueueStore((state) => state.setCustomerNameFilter)
 
@@ -481,6 +492,8 @@ export function WorkstationWorkspace() {
   const [noteTargets, setNoteTargets] = useState<string[]>([])
   const [messageText, setMessageText] = useState('')
   const [appsDialogOpen, setAppsDialogOpen] = useState(false)
+  // task 2.22r-B: may dang mo hop thoai "Xem man hinh" (null = dong).
+  const [screenHost, setScreenHost] = useState<string | null>(null)
   const [appsList, setAppsList] = useState<WorkstationApp[] | null>(null)
   const [appsError, setAppsError] = useState<string | null>(null)
   const [anonymInfoOpen, setAnonymInfoOpen] = useState(false)
@@ -2127,12 +2140,22 @@ export function WorkstationWorkspace() {
                         Ứng dụng đang chạy
                       </Button>
                     </div>
+                    {/* task 2.22r: xem man hinh (anh tinh) + dieu khien tu xa. Quyen R_REMOTE_MACHINE nhu MFC. */}
+                    <div className="ws-action-grid">
+                      <Button
+                        icon={<Monitor {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={Boolean(remoteDisabledReason)}
+                        title={remoteDisabledReason ?? undefined}
+                        onClick={() => setScreenHost(inspectedMachine.hostName)}
+                      >
+                        Xem màn hình
+                      </Button>
+                    </div>
                   </>
                 )
               })()}
-              <InlineAlert tone="info">
-                Âm lượng, xem màn hình và điều khiển từ xa đang chờ backend (2.22).
-              </InlineAlert>
             </InspectorGroup>
 
             <InspectorGroup
@@ -3200,6 +3223,8 @@ export function WorkstationWorkspace() {
           </InlineAlert>
         </div>
       </Dialog>
+
+      {screenHost ? <ScreenCaptureDialog hostName={screenHost} onClose={() => setScreenHost(null)} /> : null}
 
       <Dialog
         open={appsDialogOpen}
