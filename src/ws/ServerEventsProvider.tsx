@@ -46,7 +46,7 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
   }, [token])
 
   // task 2.7b: dev-only — cho test-card gọi lệnh C->S từ DevTools console, ví dụ:
-  //   wsClient.send({ type: 'workstation.volume.get', hostName: 'PC-05' })
+  //   wsClient.send({ type: 'workstation.apps.get', requestId: 'r1', hostName: 'PC-05' })
   //   wsClient.sendBinary(new TextEncoder().encode('hello').buffer)  // server echo lại
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -153,15 +153,11 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           console.debug(`WS ${msg.type}`, msg.data)
           break
 
-        // task 2.7b — lát cắt round-trip volume: hiện chỉ log (UI đầy đủ để 2.22).
-        // Consumer thật ở 2.22 sẽ LỌC theo hostName máy đang mở.
-        case 'workstation.volume.requested':
-        case 'workstation.volume':
-          console.debug(`WS ${msg.type}`, msg.data)
-          break
+        // task 2.22r-A: đã bỏ case `workstation.volume*` — WebUI không còn chỉnh âm lượng.
 
         case 'binary':
-          // task 2.7b: nền binary (binary_echo). 2.22 screen sẽ giải mã ArrayBuffer thành ảnh.
+          // task 2.7b: nền binary (binary_echo). Ảnh chụp màn hình (2.22r) KHÔNG đi đường này —
+          // tải qua REST `POST /workstations/screen/image`.
           console.debug('WS binary frame', (msg.data as ArrayBuffer)?.byteLength, 'bytes')
           break
 

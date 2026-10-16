@@ -1,6 +1,10 @@
 export type SegmentedOption<T extends string> = {
   value: T
   label: string
+  /** task 2.22r: vô hiệu riêng 1 lựa chọn (vd engine không khả dụng) — tuỳ chọn, mặc định bật. */
+  disabled?: boolean
+  /** Chú thích hiện khi rê chuột (thường giải thích vì sao bị vô hiệu). */
+  title?: string
 }
 
 type SegmentedProps<T extends string> = {
@@ -21,8 +25,9 @@ export function Segmented<T extends string>({ value, options, onChange, ariaLabe
           type="button"
           className={`ds-segmented__item${option.value === value ? ' is-active' : ''}`}
           aria-pressed={option.value === value}
-          disabled={disabled}
-          onClick={() => !disabled && onChange(option.value)}
+          disabled={disabled || option.disabled}
+          title={option.title}
+          onClick={() => !disabled && !option.disabled && onChange(option.value)}
         >
           {option.label}
         </button>

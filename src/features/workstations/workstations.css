@@ -1587,3 +1587,118 @@ button.ws-summary__row:hover {
     height: calc(100vh - 20rem);
   }
 }
+
+/* task 2.22r-B: hop thoai "Xem man hinh" (anh chup tinh, da thu nho phia server). */
+.ws-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ws-screen__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16rem;
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.ws-screen__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.ws-screen__meta {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+/* task 2.22r-C/D: hop thoai "Dieu khien tu xa" (thu nghiem, so sanh 2 engine). */
+.ws-remote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ws-remote__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ws-remote__label {
+  min-width: 4.5rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.ws-remote__hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* task 2.22r-D: trinh xem noVNC toan man hinh. */
+.ws-novnc {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+}
+
+.ws-novnc__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.ws-novnc__bar > :last-child {
+  margin-left: auto;
+}
+
+.ws-novnc__phase {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.ws-novnc__phase--connected {
+  color: var(--color-success, #1f9d55);
+}
+
+.ws-novnc__phase--error {
+  color: var(--color-danger, #d64545);
+}
+
+.ws-novnc__info {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.ws-novnc__detail {
+  padding: var(--space-2) var(--space-3);
+  color: #fff;
+  background: #7a1f1f;
+  font-size: var(--font-size-sm);
+}
+
+.ws-novnc__screen {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
