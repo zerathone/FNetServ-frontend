@@ -77,6 +77,44 @@ export async function captureWorkstationScreen(hostName: string): Promise<Workst
   }
 }
 
+// task 2.22r-C/D: điều khiển từ xa — 2 engine để user TEST SO SÁNH (quyết định #3):
+//   legacy = server mở winviewer trên MÁY QUẦY (như menu MFC);
+//   novnc  = xem/điều khiển ngay trong trình duyệt qua cầu nối /ws/vnc (ticket dùng 1 lần, ~30 s).
+// Client phải tắt + mở lại winshower nên server chờ tới 15 s => client đợi 20 s.
+const REMOTE_START_TIMEOUT_MS = 20_000
+
+export type RemoteEngine = 'legacy' | 'novnc'
+export type RemoteMode = 'view' | 'control'
+
+export type RemoteStartResult = {
+  hostName: string
+  status: string
+  engine: RemoteEngine
+  mode: RemoteMode
+  /** chỉ engine novnc: vé dùng 1 lần để mở /ws/vnc. */
+  ticket?: string
+  /** chỉ engine novnc: mật khẩu VNC — KHÔNG log, KHÔNG lưu. */
+  password?: string
+  /** true = winshower đã chạy sẵn, server KHÔNG khởi động lại (không làm rớt viewer khác). */
+  vncReused?: boolean
+  /** ms từ lúc bấm tới khi server trả kết quả. */
+  elapsedMs: number
+}
+
+export async function startWorkstationRemote(
+  hostName: string,
+  engine: RemoteEngine,
+  mode: RemoteMode,
+): Promise<RemoteStartResult> {
+  const started = performance.now()
+  const data = await wsClient.request<Omit<RemoteStartResult, 'elapsedMs'>>(
+    'workstation.remote.start',
+    { hostName, data: { engine, mode } },
+    REMOTE_START_TIMEOUT_MS,
+  )
+  return { ...data, elapsedMs: Math.round(performance.now() - started) }
+}
+
 export function closeAllWorkstationApps(hostName: string) {
   return wsClient.request<AppsCloseData>(
     'workstation.apps.close',

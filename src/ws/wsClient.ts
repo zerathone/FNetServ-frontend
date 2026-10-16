@@ -49,6 +49,14 @@ export class WsCommandError extends Error {
   }
 }
 
+/** Gốc URL WebSocket (dev qua Vite proxy `/api`, prod theo API_BASE_URL). Dùng chung cho `/ws`
+ *  và cầu nối noVNC `/ws/vnc` (task 2.22r-D). */
+export function realtimeWsBase() {
+  return import.meta.env.DEV
+    ? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api`
+    : API_BASE_URL.replace(/^http/, 'ws')
+}
+
 let requestSequence = 0
 export function makeWsRequestId(now = Date.now()) {
   requestSequence = (requestSequence + 1) % 1_000_000
@@ -148,10 +156,7 @@ class WsClient {
   private createSocket() {
     if (this.intentionalDisconnect || !this.token) return
     useWsStatusStore.getState().setConnecting(this.retryCount > 0)
-    const base = import.meta.env.DEV
-      ? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api`
-      : API_BASE_URL.replace(/^http/, 'ws')
-    const url = `${base}/ws?token=${encodeURIComponent(this.token)}`
+    const url = `${realtimeWsBase()}/ws?token=${encodeURIComponent(this.token)}`
 
     try {
       const socket = new WebSocket(url)
@@ -188,8 +193,17 @@ class WsClient {
       if (!message || typeof message !== 'object' || typeof message.type !== 'string') return
 
       if (message.type === 'hello') {
-        const data = message.data as { protocolVersion?: number } | undefined
-        useWsStatusStore.getState().setConnected(data?.protocolVersion ?? 1)
+        const data = message.data as
+          | { protocolVersion?: number; capabilities?: { remoteLegacyViewer?: unknown; remoteNoVnc?: unknown } }
+          | undefined
+        // task 2.22r-C: capabilities additive — server cu khong gui thi null (an nut remote).
+        const caps = data?.capabilities
+        useWsStatusStore.getState().setConnected(
+          data?.protocolVersion ?? 1,
+          caps
+            ? { remoteLegacyViewer: caps.remoteLegacyViewer === true, remoteNoVnc: caps.remoteNoVnc === true }
+            : null,
+        )
         this.sendSubscription()
       } else if (message.type === 'subscribed') {
         const data = message.data as { domains?: string[] } | undefined

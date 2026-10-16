@@ -142,6 +142,9 @@ import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './Machi
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
 import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
 import { ScreenCaptureDialog } from './ScreenCaptureDialog'
+import { RemoteDesktopDialog } from './RemoteDesktopDialog'
+import { NoVncViewer } from './NoVncViewer'
+import type { RemoteStartResult } from '../../api/workstationRealtime'
 import './workstations.css'
 
 const RIGHTS = {
@@ -494,6 +497,9 @@ export function WorkstationWorkspace() {
   const [appsDialogOpen, setAppsDialogOpen] = useState(false)
   // task 2.22r-B: may dang mo hop thoai "Xem man hinh" (null = dong).
   const [screenHost, setScreenHost] = useState<string | null>(null)
+  // task 2.22r-C/D: hop thoai "Dieu khien tu xa" + phien noVNC dang mo (ve/mat khau chi o RAM).
+  const [remoteHost, setRemoteHost] = useState<string | null>(null)
+  const [noVncSession, setNoVncSession] = useState<(RemoteStartResult & { startedAt: number }) | null>(null)
   const [appsList, setAppsList] = useState<WorkstationApp[] | null>(null)
   const [appsError, setAppsError] = useState<string | null>(null)
   const [anonymInfoOpen, setAnonymInfoOpen] = useState(false)
@@ -2152,6 +2158,16 @@ export function WorkstationWorkspace() {
                       >
                         Xem màn hình
                       </Button>
+                      <Button
+                        icon={<Desktop {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={Boolean(remoteDisabledReason)}
+                        title={remoteDisabledReason ?? undefined}
+                        onClick={() => setRemoteHost(inspectedMachine.hostName)}
+                      >
+                        Điều khiển từ xa
+                      </Button>
                     </div>
                   </>
                 )
@@ -3225,6 +3241,28 @@ export function WorkstationWorkspace() {
       </Dialog>
 
       {screenHost ? <ScreenCaptureDialog hostName={screenHost} onClose={() => setScreenHost(null)} /> : null}
+      {remoteHost ? (
+        <RemoteDesktopDialog
+          hostName={remoteHost}
+          onClose={() => setRemoteHost(null)}
+          onNoVncReady={(session) => {
+            setRemoteHost(null)
+            setNoVncSession(session)
+          }}
+        />
+      ) : null}
+      {noVncSession && noVncSession.ticket && noVncSession.password ? (
+        <NoVncViewer
+          key={noVncSession.ticket}
+          hostName={noVncSession.hostName}
+          ticket={noVncSession.ticket}
+          password={noVncSession.password}
+          mode={noVncSession.mode}
+          startedAt={noVncSession.startedAt}
+          vncReused={noVncSession.vncReused === true}
+          onClose={() => setNoVncSession(null)}
+        />
+      ) : null}
 
       <Dialog
         open={appsDialogOpen}
