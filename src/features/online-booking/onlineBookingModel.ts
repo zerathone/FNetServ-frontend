@@ -5,6 +5,7 @@ import type {
   BookingStatus,
   ConfigFieldError,
   FailCode,
+  PayMethod,
   PcState,
   SlotSource,
 } from '../../api/onlineBooking'
@@ -85,6 +86,17 @@ const FAIL_CODE_LABEL: Record<FailCode, string> = {
   BAD_STATUS: 'Trạng thái đơn hiện tại không cho phép thao tác này.',
   BAD_REQUEST: 'Yêu cầu không hợp lệ.',
   INTERNAL: 'Lỗi hệ thống, vui lòng thử lại.',
+  TID_USED: 'Giao dịch thanh toán QR này đã được ghi nhận cho việc khác.',
+}
+
+/** OB-R2: nhãn cách trả tiền (đơn cũ/đặt hộ không có field ⇒ Ví). */
+export const PAY_METHOD_LABEL: Record<PayMethod, string> = {
+  wallet: 'Ví',
+  qr: 'QR',
+}
+
+export function payMethodOf(booking: Pick<Booking, 'payMethod'>): PayMethod {
+  return booking.payMethod ?? 'wallet'
 }
 
 export function describeFailCode(failCode: FailCode | null | undefined): string | null {

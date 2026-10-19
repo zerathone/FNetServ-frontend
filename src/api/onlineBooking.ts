@@ -34,6 +34,12 @@ export type FailCode =
   | 'BAD_STATUS'
   | 'BAD_REQUEST'
   | 'INTERNAL'
+  | 'TID_USED'
+
+/** OB-R2: cách trả tiền của đơn FZone (PLAN_ONLINE_BOOKING_QR.md). Đơn đặt hộ luôn 'wallet'. */
+export type PayMethod = 'wallet' | 'qr'
+/** OB-R3: huỷ có cộng lại tài khoản chính — none | pending (đã huỷ, đang cộng) | credited. */
+export type CancelCreditState = 'none' | 'pending' | 'credited'
 
 export type PcState = 'off' | 'on_idle' | 'in_use' | 'unknown'
 export type BookingChannel = 'fzone' | 'staff'
@@ -93,6 +99,11 @@ export type Booking = {
   approvedBy: BookingPerson
   cancelledBy: BookingPerson
   cancelReason: string | null
+  // OB-R2/R3 — optional: server trước OB-R2 không trả các field này.
+  payMethod?: PayMethod
+  depositPaymentId?: number | null
+  cancelCredit?: CancelCreditState
+  cancelCreditAmount?: number | null
 }
 
 export type BookingListParams = {
@@ -657,7 +668,10 @@ export function rejectBooking(payload: { bookId: number; reason: string }): Prom
   return apiPost<Booking, { bookId: number; reason: string }>('/onlinebook/reject', payload)
 }
 
-export function cancelBooking(payload: { bookId: number; reason: string }): Promise<Booking> {
+/** OB-R3: `credit: true` = "Huỷ + cộng lại tài khoản chính" (đúng `total`, chỉ ví chính). Thiếu = không hoàn. */
+export type CancelPayload = { bookId: number; reason: string; credit?: boolean }
+
+export function cancelBooking(payload: CancelPayload): Promise<Booking> {
   if (USE_MOCK) {
     const booking = mockBookings.find((b) => b.bookId === payload.bookId)
     if (!booking) mockFail('BAD_STATUS', 'Không tìm thấy đơn')
@@ -666,9 +680,11 @@ export function cancelBooking(payload: { bookId: number; reason: string }): Prom
     booking.status = 'cancelled'
     booking.cancelledBy = staff
     booking.cancelReason = payload.reason
+    booking.cancelCredit = payload.credit ? 'credited' : 'none'
+    booking.cancelCreditAmount = payload.credit ? booking.total : null
     return mockDelay({ ...booking })
   }
-  return apiPost<Booking, { bookId: number; reason: string }>('/onlinebook/cancel', payload)
+  return apiPost<Booking, CancelPayload>('/onlinebook/cancel', payload)
 }
 
 export function getOnlineBookConfig(): Promise<ConfigResponse> {

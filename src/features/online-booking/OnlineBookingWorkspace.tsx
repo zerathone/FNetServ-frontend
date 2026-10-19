@@ -35,6 +35,8 @@ import {
   formatMoney,
   formatTimeRange,
   OB_RIGHTS,
+  PAY_METHOD_LABEL,
+  payMethodOf,
   PC_STATE_LABEL,
   PC_STATE_TONE,
   SLOT_SOURCE_LABEL,
@@ -47,7 +49,8 @@ import './online-booking.css'
 
 const PAGE_SIZE = 20
 
-type PendingAction = { type: 'approve' | 'reject' | 'cancel'; booking: Booking } | null
+/** OB-R3: 2 kiểu huỷ — 'cancel' = huỷ, không hoàn; 'cancelCredit' = huỷ + cộng lại tài khoản chính. */
+type PendingAction = { type: 'approve' | 'reject' | 'cancel' | 'cancelCredit'; booking: Booking } | null
 
 function todayYMD(): string {
   const now = new Date()
@@ -142,14 +145,25 @@ export function OnlineBookingWorkspace() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: (vars: { booking: Booking; reason: string }) =>
-      cancelBooking({ bookId: vars.booking.bookId, reason: vars.reason }),
-    onSuccess: () => {
-      pushToast('Đã huỷ đơn — hội viên không được hoàn tiền.', 'info')
+    mutationFn: (vars: { booking: Booking; reason: string; credit: boolean }) =>
+      cancelBooking({ bookId: vars.booking.bookId, reason: vars.reason, credit: vars.credit }),
+    onSuccess: (result, vars) => {
+      if (vars.credit) {
+        pushToast(
+          `Đã huỷ đơn và cộng lại ${formatMoney(result.cancelCreditAmount ?? vars.booking.total)} vào tài khoản chính của hội viên.`,
+          'success',
+        )
+      } else {
+        pushToast('Đã huỷ đơn — hội viên không được hoàn tiền.', 'info')
+      }
       invalidateAll()
       closeAction()
     },
-    onError: (error) => setActionError(describeBookingError(error)),
+    onError: (error) => {
+      setActionError(describeBookingError(error))
+      // Đơn có thể ĐÃ huỷ dù phần cộng lại còn đang làm (server tự làm tiếp) — làm mới danh sách.
+      invalidateAll()
+    },
   })
 
   const queueItems = queueQuery.data?.items ?? []
@@ -164,15 +178,39 @@ export function OnlineBookingWorkspace() {
 
   const isBusy = approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending
 
-  const confirmLabel = action?.type === 'approve' ? 'Duyệt đơn' : action?.type === 'reject' ? 'Từ chối đơn' : 'Huỷ đơn'
+  const confirmLabel =
+    action?.type === 'approve'
+      ? 'Duyệt đơn'
+      : action?.type === 'reject'
+        ? 'Từ chối đơn'
+        : action?.type === 'cancelCredit'
+          ? 'Huỷ + cộng lại tài khoản chính'
+          : 'Huỷ, không hoàn'
   const confirmTitle =
     action?.type === 'approve'
       ? `Duyệt đơn ${action.booking.bookCode}?`
       : action?.type === 'reject'
         ? `Từ chối đơn ${action?.booking.bookCode}?`
-        : `Huỷ đơn ${action?.booking.bookCode}?`
+        : action?.type === 'cancelCredit'
+          ? `Huỷ đơn ${action.booking.bookCode} và cộng lại tiền?`
+          : `Huỷ đơn ${action?.booking.bookCode}, không hoàn tiền?`
 
-  const needsReason = action?.type === 'reject' || action?.type === 'cancel'
+  const actionIsQr = action ? payMethodOf(action.booking) === 'qr' : false
+  const actionMoney = action ? formatMoney(action.booking.total) : ''
+  const confirmDescription =
+    action?.type === 'cancel'
+      ? 'Hội viên sẽ KHÔNG được hoàn tiền. Khung giờ sẽ trở về trống ngay sau khi huỷ.'
+      : action?.type === 'cancelCredit'
+        ? `Cộng lại đúng ${actionMoney} vào tài khoản chính của hội viên ${action.booking.member.username} (không trả tiền mặt, không chuyển khoản). Mỗi đơn chỉ cộng lại một lần. Khung giờ sẽ trở về trống ngay sau khi huỷ.`
+        : action?.type === 'approve'
+          ? actionIsQr
+            ? `Tiền QR ${actionMoney} đã nạp vào ví hội viên lúc đặt. Duyệt sẽ trừ ${actionMoney} từ ví nếu máy vẫn còn tắt và còn trống.`
+            : `Hệ thống sẽ trừ ${actionMoney} từ ví hội viên nếu máy vẫn còn tắt và còn trống.`
+          : action?.type === 'reject' && actionIsQr
+            ? `Tiền QR ${actionMoney} đã nạp vào ví hội viên sẽ nằm lại trong ví (không bị trừ).`
+            : undefined
+
+  const needsReason = action?.type === 'reject' || action?.type === 'cancel' || action?.type === 'cancelCredit'
 
   return (
     <section className="ob-workspace">
@@ -221,7 +259,9 @@ export function OnlineBookingWorkspace() {
                         <StatusBadge tone={PC_STATE_TONE[booking.pcState]}>{PC_STATE_LABEL[booking.pcState]}</StatusBadge>
                       </span>
                       <span>{formatTimeRange(booking.from, booking.to)}</span>
-                      <span>Tổng {formatMoney(booking.total)}</span>
+                      <span>
+                        Tổng {formatMoney(booking.total)} · Thanh toán: {PAY_METHOD_LABEL[payMethodOf(booking)]}
+                      </span>
                     </div>
                   </div>
                   <div className="ob-queue__side">
@@ -359,7 +399,10 @@ export function OnlineBookingWorkspace() {
                       <div className="ob-table__sub">{booking.machineGroup}</div>
                     </td>
                     <td>{formatTimeRange(booking.from, booking.to)}</td>
-                    <td>{formatMoney(booking.total)}</td>
+                    <td>
+                      {formatMoney(booking.total)}
+                      <div className="ob-table__sub">Thanh toán: {PAY_METHOD_LABEL[payMethodOf(booking)]}</div>
+                    </td>
                     <td>
                       <StatusBadge tone={STATUS_TONE[booking.status]}>{STATUS_LABEL[booking.status]}</StatusBadge>
                       {booking.status === 'rejected' && booking.failCode ? (
@@ -379,6 +422,15 @@ export function OnlineBookingWorkspace() {
                         <>
                           {describePerson(booking.cancelledBy)}
                           <div className="ob-table__sub">{booking.cancelReason}</div>
+                          {booking.cancelCredit === 'credited' ? (
+                            <StatusBadge tone="success">
+                              Đã cộng lại {formatMoney(booking.cancelCreditAmount ?? booking.total)}
+                            </StatusBadge>
+                          ) : booking.cancelCredit === 'pending' ? (
+                            <StatusBadge tone="warning">Đang cộng lại tài khoản chính</StatusBadge>
+                          ) : booking.status === 'cancelled' ? (
+                            <div className="ob-table__sub">Không hoàn tiền</div>
+                          ) : null}
                         </>
                       ) : (
                         '—'
@@ -386,15 +438,26 @@ export function OnlineBookingWorkspace() {
                     </td>
                     <td>
                       {booking.status === 'confirmed' ? (
-                        <Button
-                          type="button"
-                          variant="danger-outline"
-                          disabled={!canCancel}
-                          title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
-                          onClick={() => setAction({ type: 'cancel', booking })}
-                        >
-                          Huỷ đơn
-                        </Button>
+                        <div className="ob-queue__actions">
+                          <Button
+                            type="button"
+                            variant="danger-outline"
+                            disabled={!canCancel}
+                            title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
+                            onClick={() => setAction({ type: 'cancel', booking })}
+                          >
+                            Huỷ, không hoàn
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="warning-outline"
+                            disabled={!canCancel}
+                            title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
+                            onClick={() => setAction({ type: 'cancelCredit', booking })}
+                          >
+                            Huỷ + cộng lại tài khoản chính
+                          </Button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
@@ -474,13 +537,7 @@ export function OnlineBookingWorkspace() {
       <ConfirmAction
         open={Boolean(action)}
         title={confirmTitle}
-        description={
-          action?.type === 'cancel'
-            ? 'Hội viên sẽ KHÔNG được hoàn tiền. Khung giờ sẽ trở về trống ngay sau khi huỷ.'
-            : action?.type === 'approve'
-              ? `Hệ thống sẽ trừ ${action ? formatMoney(action.booking.total) : ''} từ ví hội viên nếu máy vẫn còn tắt và còn trống.`
-              : undefined
-        }
+        description={confirmDescription}
         confirmLabel={confirmLabel}
         danger={action?.type !== 'approve'}
         pending={isBusy}
@@ -490,7 +547,12 @@ export function OnlineBookingWorkspace() {
           if (!action) return
           if (action.type === 'approve') approveMutation.mutate(action.booking)
           else if (action.type === 'reject') rejectMutation.mutate({ booking: action.booking, reason: reason.trim() })
-          else cancelMutation.mutate({ booking: action.booking, reason: reason.trim() })
+          else
+            cancelMutation.mutate({
+              booking: action.booking,
+              reason: reason.trim(),
+              credit: action.type === 'cancelCredit',
+            })
         }}
       >
         {needsReason ? (
