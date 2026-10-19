@@ -38,8 +38,11 @@ export type FailCode =
 
 /** OB-R2: cách trả tiền của đơn FZone (PLAN_ONLINE_BOOKING_QR.md). Đơn đặt hộ luôn 'wallet'. */
 export type PayMethod = 'wallet' | 'qr'
-/** OB-R3: huỷ có cộng lại tài khoản chính — none | pending (đã huỷ, đang cộng) | credited. */
-export type CancelCreditState = 'none' | 'pending' | 'credited'
+/**
+ * OB-R3: huỷ có cộng lại tài khoản chính — none | pending (đã huỷ, đang cộng) | credited |
+ * failed (cộng lỗi: phiếu ghi một phần / mã phiếu bị chiếm — quản lý đối soát tay, hệ thống không tự thử lại).
+ */
+export type CancelCreditState = 'none' | 'pending' | 'credited' | 'failed'
 
 export type PcState = 'off' | 'on_idle' | 'in_use' | 'unknown'
 export type BookingChannel = 'fzone' | 'staff'

@@ -428,6 +428,8 @@ export function OnlineBookingWorkspace() {
                             </StatusBadge>
                           ) : booking.cancelCredit === 'pending' ? (
                             <StatusBadge tone="warning">Đang cộng lại tài khoản chính</StatusBadge>
+                          ) : booking.cancelCredit === 'failed' ? (
+                            <StatusBadge tone="danger">Cộng lại lỗi — cần đối soát</StatusBadge>
                           ) : booking.status === 'cancelled' ? (
                             <div className="ob-table__sub">Không hoàn tiền</div>
                           ) : null}
