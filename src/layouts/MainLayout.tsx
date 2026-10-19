@@ -22,7 +22,8 @@ import {
   Palette, SignOut, List, X, CaretRight, CaretLeft,
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
   CreditCard, Storefront,
-  CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook, Heartbeat
+  CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook, Heartbeat,
+  CalendarPlus, CalendarCheck,
 } from '@phosphor-icons/react'
 import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
@@ -129,6 +130,7 @@ const workspaces: readonly Workspace[] = [
         icon: <Users size={24} weight="duotone" />,
       },
       { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <CallBell size={24} weight="duotone" /> },
+      { to: '/online-booking', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarPlus size={24} weight="duotone" /> },
       { to: '/combo_sale', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/card-sale', label: 'Bán thẻ nạp', shortLabel: 'Thẻ nạp', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/logs/voucher', label: 'Giao dịch', shortLabel: 'GD', icon: <ArrowsLeftRight size={24} weight="duotone" /> },
@@ -150,6 +152,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" /> },
       { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" /> },
+      { to: '/online-booking/settings', label: 'Cấu hình đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" /> },
       { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" /> },
       { to: '/apps', label: 'Ứng dụng', shortLabel: 'App', icon: <AppWindow size={24} weight="duotone" /> },
       { to: '/webblock', label: 'Khống chế Web/App', shortLabel: 'Web', icon: <ShieldWarning size={24} weight="duotone" /> },

@@ -128,6 +128,16 @@ const CustomerQrDisplay = lazy(() =>
     default: module.CustomerQrDisplay,
   })),
 )
+const OnlineBookingPage = lazy(() =>
+  import('../features/online-booking/OnlineBookingWorkspace').then((module) => ({
+    default: module.OnlineBookingWorkspace,
+  })),
+)
+const OnlineBookingSettingsPage = lazy(() =>
+  import('../features/online-booking/OnlineBookingSettingsPage').then((module) => ({
+    default: module.OnlineBookingSettingsPage,
+  })),
+)
 
 function RouteLoading() {
   return (
@@ -147,6 +157,9 @@ function ProtectedRoutes() {
           {/* Theo dõi hoạt động: có cả ở Thu ngân lẫn Quản lý → NGOÀI AdminRoute (như /workstations). */}
           <Route path="/health_monitor" element={<HealthMonitorPage />} />
           <Route path="/orders" element={<OrderQueuePage />} />
+          {/* OB-5: trang Quản lý đặt máy online — thu ngân có quyền R_ONLINE_BOOK_APPROVE/CANCEL hoặc
+              admin; trang tự kiểm quyền (ẩn nút), server là lớp chặn thật. NGOÀI AdminRoute như /orders. */}
+          <Route path="/online-booking" element={<OnlineBookingPage />} />
           <Route path="/combo_sale" element={<PaymentPage />} />
           <Route path="/payments" element={<Navigate to="/combo_sale" replace />} />
           <Route path="/card-sale" element={<CardSalePage />} />
@@ -171,6 +184,8 @@ function ProtectedRoutes() {
             <Route path="/logs/server" element={<ServerLogPage />} />
             <Route path="/logs/webhistory" element={<WebHistoryPage />} />
             <Route path="/machine-groups" element={<MachineGroupsPage />} />
+            {/* OB-5: trang Cấu hình đặt máy online — CHỈ admin (design §12.6, không có quyền riêng). */}
+            <Route path="/online-booking/settings" element={<OnlineBookingSettingsPage />} />
             <Route path="/user-groups" element={<UserGroupsPage />} />
             <Route path="/users/legacy" element={<LegacyUsersPage />} />
             <Route path="/orders/legacy" element={<LegacyOrderQueuePage />} />
