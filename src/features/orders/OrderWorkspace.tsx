@@ -52,6 +52,7 @@ import {
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { useAuthStore } from '../../store/auth'
 import { useOrderQueueStore } from '../../store/orderQueue'
+import { useRevenuePrefs } from '../../store/revenuePrefs'
 import { pushToast } from '../../store/toast'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { formatShiftStart } from '../../lib/shiftTime'
@@ -954,9 +955,6 @@ export function OrderWorkspace() {
         <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
         <div className="order-card__meta-row">
           <span className="order-card__voucher-id">#{group.voucherId}</span>
-          <StatusBadge tone={group.paymentMethod ? COMPLETED_METHOD_TONE[group.paymentMethod] : 'success'}>
-            {group.paymentMethod ? COMPLETED_METHOD_LABEL[group.paymentMethod] : 'Hoàn thành'}
-          </StatusBadge>
         </div>
         {group.paidTime ? (
           <small className="order-card__paid-time">Thu lúc {group.paidTime.slice(0, 5)}</small>
@@ -978,6 +976,18 @@ export function OrderWorkspace() {
       <div className="order-card__total">
         <span>Đã thu</span>
         <strong>{formatMoney(group.paidTotal)}</strong>
+        {/* Hình thức thu: badge có icon, in đậm, đứng dưới số tiền (cùng kiểu thẻ đơn ở trang Đặt máy). */}
+        {(() => {
+          const PayIcon = group.paymentMethod ? COMPLETED_METHOD_ICON[group.paymentMethod] : CheckCircle
+          return (
+            <StatusBadge tone={group.paymentMethod ? COMPLETED_METHOD_TONE[group.paymentMethod] : 'success'}>
+              <span className="order-card__pay">
+                <PayIcon size={14} weight="fill" aria-hidden="true" />
+                {group.paymentMethod ? COMPLETED_METHOD_LABEL[group.paymentMethod] : 'Hoàn thành'}
+              </span>
+            </StatusBadge>
+          )
+        })()}
       </div>
       <div className="order-card__actions">
         {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
@@ -1219,6 +1229,18 @@ export function OrderWorkspace() {
     )
   }
 
+  // Ô check ở góc ô "Cấn trừ": bỏ check (mặc định) = tiền cấn trừ (trừ vào số dư ví, không phải tiền thu mới) KHÔNG tính vào
+  // tổng "Doanh thu". Chỉ đổi cách hiển thị tổng trên máy này; số liệu từng hình thức và báo cáo không đổi.
+  const deductInRevenue = useRevenuePrefs((state) => state.deductInRevenue)
+  const setDeductInRevenue = useRevenuePrefs((state) => state.setDeductInRevenue)
+  const deductRow = completedStats?.completed.byType.find((row) => row.key === 'deduct')
+  const revenueAmount = completedStats
+    ? completedStats.completed.amount - (deductInRevenue ? 0 : (deductRow?.amount ?? 0))
+    : null
+  const revenueCount = completedStats
+    ? completedStats.completed.count - (deductInRevenue ? 0 : (deductRow?.count ?? 0))
+    : null
+
   return (
     <section className="order-workspace">
       <PageHeader
@@ -1296,17 +1318,19 @@ export function OrderWorkspace() {
           <button
             type="button"
             className={`order-summary__total order-summary__total--completed ${activeView === 'completed' && !completedMethod ? 'is-active' : ''}`}
-            title="Đơn dịch vụ đã thu tiền xong hôm nay, toàn quán (không gồm nạp giờ / bán thẻ / combo). Số đếm là số phiếu."
+            title={`Đơn dịch vụ đã thu tiền xong hôm nay, toàn quán (không gồm nạp giờ / bán thẻ / combo). Số đếm là số phiếu.${
+              deductInRevenue ? '' : ' Không gồm cấn trừ.'
+            }`}
             onClick={() => showCompleted(null)}
           >
             <CheckCircle className="order-summary__total-icon" size={28} weight="fill" aria-hidden="true" />
             <div className="order-summary__total-completed-text">
               <span className="order-summary__total-label">Doanh thu</span>
               <strong className="order-summary__total-amount">
-                {completedStats ? formatMoney(completedStats.completed.amount) : '—'}
+                {revenueAmount !== null ? formatMoney(revenueAmount) : '—'}
               </strong>
               <small className="order-summary__total-count">
-                {completedStats ? completedStats.completed.count : '—'} đơn
+                {revenueCount !== null ? revenueCount : '—'} đơn
               </small>
               {formatShiftStart(completedStats?.shiftStart) ? (
                 <small className="order-summary__total-count" title="Thời điểm bắt đầu tính thống kê này (giờ máy chủ).">
@@ -1322,17 +1346,13 @@ export function OrderWorkspace() {
                 .filter((row) => row.count > 0 || row.key === 'cash' || row.key === 'qr' || row.key === 'deduct')
                 .map((row, index) => {
                   const MethodIcon = COMPLETED_METHOD_ICON[row.key]
-                  return (
-                    <Fragment key={row.key}>
-                    {/* Dấu "|" phân cách giữa các nút hình thức thu (giống dấu trước cụm "Đã hủy"). */}
-                    {index > 0 ? (
-                      <span className="order-summary__breakdown-divider" aria-hidden="true">
-                        |
-                      </span>
-                    ) : null}
+                  const isDeduct = row.key === 'deduct'
+                  const methodButton = (
                     <button
                       type="button"
-                      className={`order-summary__row order-summary__completed-method ${activeView === 'completed' && completedMethod === row.key ? 'is-active' : ''}`}
+                      className={`order-summary__row order-summary__completed-method ${activeView === 'completed' && completedMethod === row.key ? 'is-active' : ''}${
+                        isDeduct && !deductInRevenue ? ' is-excluded' : ''
+                      }`}
                       onClick={() => showCompleted(row.key)}
                     >
                       <span className="order-summary__row-label-line">
@@ -1347,6 +1367,31 @@ export function OrderWorkspace() {
                         aria-hidden="true"
                       />
                     </button>
+                  )
+                  return (
+                    <Fragment key={row.key}>
+                    {/* Dấu "|" phân cách giữa các nút hình thức thu (giống dấu trước cụm "Đã hủy"). */}
+                    {index > 0 ? (
+                      <span className="order-summary__breakdown-divider" aria-hidden="true">
+                        |
+                      </span>
+                    ) : null}
+                    {isDeduct ? (
+                      // Checkbox là anh em của nút (không lồng trong <button>), đè lên góc trên phải ô.
+                      <div className="order-summary__row-wrap">
+                        {methodButton}
+                        <input
+                          type="checkbox"
+                          className="order-summary__deduct-toggle"
+                          checked={deductInRevenue}
+                          aria-label="Tính cấn trừ vào doanh thu"
+                          title={deductInRevenue ? 'Đang tính cấn trừ vào doanh thu — bấm để bỏ' : 'Không tính cấn trừ vào doanh thu — bấm để tính'}
+                          onChange={(event) => setDeductInRevenue(event.target.checked)}
+                        />
+                      </div>
+                    ) : (
+                      methodButton
+                    )}
                     </Fragment>
                   )
                 })}

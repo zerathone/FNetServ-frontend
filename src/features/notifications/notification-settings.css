@@ -1,0 +1,137 @@
+.notif-settings-page {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 56rem;
+  align-content: start;
+}
+
+.notif-settings-card {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  overflow: hidden;
+}
+
+.notif-settings-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Công tắc tổng tắt: mờ phần chữ/icon nhưng giữ công tắc + nút thu gọn rõ để còn bật lại. */
+.notif-settings-card.is-dimmed .notif-settings-card__icon,
+.notif-settings-card.is-dimmed .notif-settings-card__copy,
+.notif-settings-card.is-dimmed .notif-settings-card__count {
+  opacity: 0.55;
+}
+
+.notif-settings-card__icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-text-secondary);
+}
+
+.notif-settings-card__copy {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.notif-settings-card__copy strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.notif-settings-card__copy small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.notif-settings-card__count {
+  flex: 0 0 auto;
+  min-width: 2.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.notif-settings-card__chevron {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.notif-settings-card__chevron:hover,
+.notif-settings-card__chevron:focus-visible {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+}
+
+.notif-settings-card__chevron svg {
+  transition: transform 0.15s;
+}
+
+.notif-settings-card__chevron.is-open svg {
+  transform: rotate(180deg);
+}
+
+.notif-settings-card__body {
+  border-top: 1px solid var(--color-border-default);
+  background: var(--color-surface-subtle);
+}
+
+.notif-settings-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Chừa bên phải đúng bằng cột chevron của tiêu đề (2rem + gap) để công tắc hàng con
+   thẳng cột với công tắc của tiêu đề nhóm — mọi control nằm cùng một mép phải. */
+.notif-settings-list > li,
+.notif-settings-list > .ds-switch-row,
+.notif-settings-list__test {
+  padding: var(--space-3) calc(var(--space-4) + 2rem + var(--space-3)) var(--space-3)
+    calc(var(--space-4) + 2.25rem);
+}
+
+.notif-settings-list__test {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.notif-settings-list > * + * {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.notif-settings-list__levels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+  .notif-settings-list > li,
+  .notif-settings-list > .ds-switch-row,
+  .notif-settings-list__test {
+    padding-left: var(--space-4);
+  }
+}

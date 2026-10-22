@@ -430,7 +430,7 @@ export function StaffOrderDialog({ open, presetHostName, defaultMode = 'machine'
   // ===================== nội dung theo màn hình =====================
   const renderCompose = () => (
     <div className="staff-order">
-      <section className="staff-order__section" aria-label="Khách được gọi hộ">
+      <section className="staff-order__section" aria-label="Khách được gọi hộ" data-search-field={machineSearchField}>
         <Segmented
           ariaLabel="Đối tượng gọi món hộ"
           value={mode}

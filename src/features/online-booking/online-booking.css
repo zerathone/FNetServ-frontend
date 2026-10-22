@@ -105,14 +105,214 @@
   gap: var(--space-2);
 }
 
-.ob-filters {
+/* Khu vực không viền: tiêu đề + danh sách thẻ đơn (kiểu trang Đơn dịch vụ). */
+.ob-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  align-items: end;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
+/* Thẻ đơn đặt máy: dùng .order-card (orders.css) nhưng không có ô chọn, nên đặt lại lưới 4 cột
+   (danh tính | giờ đặt + nhật ký | tổng | hành động). Cần `.order-card.ob-bcard` để thắng media query của orders.css. */
+.order-card.ob-bcard {
+  grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) minmax(10rem, 13rem);
+  align-items: start;
+}
+
+/* Tên máy + nhóm máy + trạng thái máy (Tắt / Bật...) cùng một hàng ở đầu thẻ. */
+.ob-bcard__machine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.ob-bcard__group {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+/* Ngày dd-mm trong khoảng thời gian đặt: mờ hơn giờ, giữ cỡ chữ của giờ (thắng `.order-card__items span` cỡ xs của orders.css). */
+.order-card__items .ob-bcard__day {
+  color: var(--color-text-muted);
+  font-size: inherit;
+  font-weight: 500;
+}
+
+/* Cách trả tiền dưới tổng tiền: icon đứng trước chữ (QR / Cấn trừ). */
+.ob-bcard__pay {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Badge cách trả tiền: chữ đậm, màu theo tông badge (QR = warning, Cấn trừ = info — cùng màu icon ở thẻ Doanh thu).
+   `color: inherit` thắng `.order-card__total span` (chữ phụ màu mờ) của orders.css; bỏ chấm tròn mặc định vì đã có icon. */
+.order-card__total .ob-bcard__pay {
+  color: inherit;
+  font-weight: 700;
+}
+
+.order-card__total .ds-badge::before {
+  display: none;
+}
+
+/* Tên kênh (FZone / Thu ngân) tô sáng trong dòng nhật ký. */
+.ob-bcard__channel {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* Dòng nhật ký nhỏ dưới giờ đặt: tạo bởi ai, ai duyệt, vào máy, huỷ... */
+.ob-bcard__log {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ob-bcard__log > span {
+  display: block;
+}
+
+/* Thẻ thống kê: màu chấm + trạng thái chọn cho "Chờ duyệt" / "Đã duyệt". */
+.ob-sum__dot--wait { background: var(--color-warning); }
+.ob-sum__dot--confirmed { background: var(--color-success); }
+
+/* Các trạng thái kế tiếp trên thẻ tổng quan: màu chấm + màu khi đang chọn lấy từ biến --ob-sum-color. */
+.ob-sum--in_use { --ob-sum-color: var(--color-info); }
+.ob-sum--done { --ob-sum-color: var(--color-text-secondary); }
+.ob-sum--no_show { --ob-sum-color: var(--color-danger-text, var(--color-danger)); }
+.ob-sum--cancelled { --ob-sum-color: var(--color-text-secondary); }
+.ob-sum--rejected { --ob-sum-color: var(--color-danger-text, var(--color-danger)); }
+
+.ob-sum__dot--in_use { background: var(--color-info); }
+.ob-sum__dot--done { background: var(--color-text-muted); }
+.ob-sum__dot--no_show { background: var(--color-danger); }
+.ob-sum__dot--cancelled { background: var(--color-text-secondary); }
+.ob-sum__dot--rejected { background: var(--color-danger); }
+
+.order-summary__row.ob-sum--in_use.is-active,
+.order-summary__row.ob-sum--done.is-active,
+.order-summary__row.ob-sum--no_show.is-active,
+.order-summary__row.ob-sum--cancelled.is-active,
+.order-summary__row.ob-sum--rejected.is-active {
+  color: var(--ob-sum-color);
+  background: color-mix(in srgb, var(--ob-sum-color) 12%, var(--color-surface-default));
+}
+
+/* "Đã huỷ" và "Từ chối" là cụm đặc biệt (đơn không thành): tách khỏi các trạng thái trước bằng đường kẻ DÀI cao hết hàng,
+   cùng kiểu với đường kẻ giữa thẻ tổng và breakdown (thay cho dấu | ngắn tự sinh giữa 2 nút liền nhau). */
+.order-summary__row.ob-sum--cancelled,
+.order-summary__row.ob-sum--rejected {
+  align-self: stretch;
+  border-left: 1px solid var(--color-border-default);
+  border-radius: 0;
+  padding-left: var(--space-3);
+}
+
+.order-summary__breakdown .order-summary__row.ob-sum--cancelled::before,
+.order-summary__breakdown .order-summary__row.ob-sum--rejected::before {
+  display: none;
+}
+
+/* Thẻ Doanh thu: ô tổng chỉ để xem (không bấm lọc), "Đã huỷ" / "Từ chối" là số đơn trung tính (không phải tiền thu). */
+.ob-rev__static {
+  cursor: default;
+}
+
+.ob-rev__static:hover {
+  background: transparent;
+}
+
+/* QR / Ví là ô tĩnh nhưng KHÔNG phải cụm đặc biệt: orders.css cho mọi ô tĩnh `completed-method` đường kẻ dài bên trái
+   (dành riêng "Đã hủy") — bỏ đi, giữa QR và Ví chỉ còn dấu `|` ngắn như trang Đơn dịch vụ. */
+.order-summary__completed-method.order-summary__row--static.ob-rev__method {
+  align-self: auto;
+  border-left: 0;
+  padding-left: var(--space-2);
+}
+
+/* Checkbox "tính cấn trừ vào doanh thu" ở góc trên phải ô Cấn trừ — dùng kiểu checkbox mặc định của design system. */
+.order-summary__completed-method > input.ob-rev__toggle[type="checkbox"] {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  z-index: 1;
+  margin: 0;
+}
+/* Cấn trừ bị loại khỏi doanh thu: chỉ đổi số tiền sang màu tối (mờ), bố cục giữ nguyên. */
+.order-summary__completed-method.ob-rev__method.is-excluded .order-summary__row-amount {
+  color: var(--color-text-muted);
+}
+
+.order-summary__completed-method.ob-sum .order-summary__row-amount--neutral {
+  color: var(--color-text-primary);
+}
+
+.order-summary__completed-method.ob-sum.is-active .order-summary__row-amount--neutral {
+  color: inherit;
+}
+
+/* Nhãn "Duyệt" + badge AUTO khi bật tự động duyệt. */
+.order-summary__label .ds-badge {
+  margin-left: var(--space-1);
+  vertical-align: middle;
+}
+
+.order-summary__row.ob-sum--wait.is-active {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface-default));
+}
+
+.order-summary__row.ob-sum--confirmed.is-active {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface-default));
+}
+
+@media (max-width: 1120px) {
+  .order-card.ob-bcard {
+    grid-template-columns: minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
+  }
+
+  .order-card.ob-bcard .order-card__actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .order-card.ob-bcard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Thanh lọc: mỗi bộ lọc là một cụm [nhãn][ô chọn] cùng hàng; ô tìm kiếm không có nhãn, chiếm phần còn lại. */
+.ob-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* Mỗi bộ lọc là một khung liền dùng control có sẵn của design system: ds-input-group + ds-input-group-separator. */
+.ob-filter {
+  flex: none;
+}
+
+/* .ds-date-range mặc định width:100% (đúng khi đứng một mình trong field riêng) -- ở đây dùng chung hàng với
+   các bộ lọc khác trong .ob-filters nên phải ép chiều dài cố định, giống .card-date-filter của trang Thẻ. */
+.ob-filters .ds-date-range {
+  width: 21rem;
+}
+
+/* Ô tìm kiếm độ rộng cố định (không giãn hết hàng); hẹp quá thì co lại tới 16rem. */
 .ob-filters__search {
-  grid-column: span 2;
+  flex: 0 1 22rem;
   min-width: 16rem;
 }
 
@@ -150,6 +350,12 @@
   font-size: var(--font-size-xs);
 }
 
+.ob-table__empty {
+  padding: var(--space-6, 1.5rem) var(--space-3);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .ob-calendar__slots {
   display: flex;
   flex-wrap: wrap;
@@ -164,58 +370,676 @@
   white-space: nowrap;
 }
 
-.ob-settings__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--space-3);
+/* Card nhóm kiểu Windows 11: header = icon + tiêu đề/tóm tắt (+ mũi tên), thân là các hàng cài đặt. */
+.ob-settings__card {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
+.ob-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ob-card__head--button {
+  cursor: pointer;
+}
+
+/* Card thu gọn được có control bên phải header: nút thu gọn chiếm phần còn lại, control đứng cạnh (không lồng trong nút). */
+.ob-card__headrow {
+  display: flex;
+  align-items: center;
+}
+
+.ob-card__headrow > .ob-card__head {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.ob-card__headrow-action {
+  flex: none;
+  padding-right: var(--space-2);
+}
+
+.ob-card__caretbtn {
+  flex: none;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-4) 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ob-card__caretbtn:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ob-card__head--button:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ob-card__head--button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ob-card__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  color: var(--color-text-secondary);
+}
+
+.ob-card__titles {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ob-card__titles strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md, 1rem);
+}
+
+.ob-card__summary {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.ob-card__val {
+  color: var(--color-text-primary);
+  font-weight: 650;
+}
+
+.ob-card__caret {
+  flex: none;
+  color: var(--color-text-secondary);
+  transition: transform var(--motion-fast) ease;
+}
+
+.ob-card__caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* Thân card bọc trong fieldset để khóa cả cụm control khi tính năng đang tắt. */
+.ob-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ob-fieldset:disabled {
+  opacity: 0.5;
+}
+
+.ob-card__switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.ob-card__body--padded {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+/* Kiểu trang cài đặt Chrome: mỗi hàng = nhãn (+ gợi ý) bên trái, control bên phải; hàng ngăn nhau bằng đường kẻ.
+   Nhóm liên quan có một hàng tiêu đề, các hàng con thụt vào. */
+.ob-rows {
+  display: grid;
+}
+
+.ob-settings__saving {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ob-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.ob-row__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ob-row__label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.ob-row__control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* Ô số tiền và ô số có đơn vị trong khung: cùng một độ rộng ngắn, canh phải thẳng cột. */
+.ob-row__control > .ds-field,
+.ob-row__numbox {
+  width: 9rem;
+}
+
+.ob-row__numbox input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.ob-row__numbox input[type="number"]::-webkit-inner-spin-button,
+.ob-row__numbox input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+/* Hàng tiêu đề của nhóm: không có control, nhãn đậm hơn. */
+.ob-row--title {
+  min-height: 0;
+}
+
+.ob-row--title .ob-row__label {
+  font-weight: 650;
+}
+
+.ob-row-group > .ob-row:not(.ob-row--title) {
+  padding-left: calc(var(--space-4) + var(--space-6, 1.5rem));
+}
+
+.ob-row-group > .ob-row:not(.ob-row--title):not(:last-child) {
+  border-top-style: dashed;
+}
+
+/* MoneyInput: nhãn của hàng đã hiển thị bên trái, nhãn nội bộ chỉ còn cho trình đọc màn hình;
+   gợi ý/lỗi cũng đã nằm ở cột trái. */
+.ob-row__control .ds-field > .ds-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.ob-row__control .ds-field > .ds-field__error {
+  display: none;
+}
+
+/* Công tắc bật/tắt (checkbox role=switch). Selector có [type] để thắng luật input[type="checkbox"] toàn cục
+   của design-system (khung vuông 1.25rem, viền, dấu tick ::before). */
+input[type="checkbox"].ob-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 1.375rem;
+  min-height: 1.375rem;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease;
+}
+
+input[type="checkbox"].ob-switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(1.375rem - 6px);
+  height: calc(1.375rem - 6px);
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  clip-path: none;
+  transform: none;
+  transition: transform var(--motion-fast) ease;
+}
+
+input[type="checkbox"].ob-switch:checked {
+  background: var(--color-action-primary);
+}
+
+input[type="checkbox"].ob-switch:checked::before {
+  transform: translateX(1.125rem);
+}
+
+input[type="checkbox"].ob-switch:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.ob-card__switch-state {
+  min-width: 2rem;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+@media (max-width: 720px) {
+  .ob-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .ob-row__control {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
 .ob-settings__card footer {
   display: flex;
   justify-content: flex-end;
 }
 
-.ob-settings__machine-group {
+/* Nhóm máy: header (chọn tất cả + tên + bảng giá + đã chọn/tổng) và danh sách máy xếp trái→phải, trên→dưới. */
+.ob-mg-list {
   display: grid;
   gap: var(--space-2);
 }
 
-.ob-settings__machine-group h3 {
-  margin: 0;
+.ob-mg {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  overflow: hidden;
+}
+
+.ob-mg__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+}
+
+.ob-mg__toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ob-mg__head:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ob-mg__toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ob-mg__name {
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
 }
 
-.ob-field__unit {
-  color: var(--color-text-muted);
-  font-weight: 400;
+.ob-mg__prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
-.ob-toggle {
+.ob-mg__count {
+  margin-left: auto;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.ob-mg__count.is-full {
+  color: var(--color-success);
+}
+
+.ob-mg__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+  list-style: none;
+}
+
+.ob-mg__item {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-direction: row;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
 }
+
+.ob-mg__item:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ob-mg__item:has(input:checked) {
+  color: var(--color-text-primary);
+}
+
+/* Lưu vết thay đổi chưa lưu: máy mới tích = xanh nhạt, máy đang có bị bỏ tích = đỏ nhạt (hết khi lưu). */
+.ob-mg__item.is-added,
+.ob-mg__item.is-added:hover {
+  background: var(--color-success-surface);
+  color: var(--color-text-primary);
+}
+
+.ob-mg__item.is-removed,
+.ob-mg__item.is-removed:hover {
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
+}
+
+
 
 .ob-staff-form {
   display: grid;
   gap: var(--space-3);
 }
 
-.ob-staff-form__row {
+/* Fieldset mỗi nhóm: reset border/padding, lưới 2 cột với khoảng cách đều */
+.ob-staff-form__section {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ob-staff-form__section + .ob-staff-form__section {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* Legend nhóm: kiểu tiêu đề nhỏ IN HOA, giống customer-create-form__section > legend */
+.ob-staff-form__section > legend {
+  grid-column: 1 / -1;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Field container */
+.ob-staff-form__field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Ô chiếm cả hàng (2 cột) */
+.ob-staff-form__wide {
+  grid-column: 1 / -1;
+}
+
+/* Icon prefix bên trái trong input-group — giống customer-create-form__label */
+.ob-staff-form__prefix {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  min-width: 2.75rem;
+  padding: 0 var(--space-3);
+  border-radius: calc(var(--input-radius) - 1px) 0 0 calc(var(--input-radius) - 1px);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  cursor: default;
+}
+
+/* DatePicker trong ob-staff-form__group: bỏ border riêng, tích hợp vào group */
+.ob-staff-form__group .ds-date-picker {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  border-radius: 0 calc(var(--input-radius) - 1px) calc(var(--input-radius) - 1px) 0 !important;
+  box-shadow: none !important;
+}
+
+/* Select trong ob-staff-form__group */
+.ob-staff-form__group .ds-select,
+.ob-staff-form__group select {
+  border: none;
+  box-shadow: none;
+  border-radius: 0 calc(var(--input-radius) - 1px) calc(var(--input-radius) - 1px) 0;
+}
+
+/* Ô chọn máy: tag máy đã chọn nằm trong ô nhập + các nút máy khớp từ khóa (cùng kiểu form "Gọi món hộ"). */
+.ob-pc-search {
+  flex-wrap: nowrap;
+}
+
+/* Ô nhập + số máy có thể đặt đứng cạnh nhau (như "N máy online" ở form Gọi món hộ). */
+.ob-pc-row {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
 }
 
+.ob-pc-row__field {
+  flex: 1;
+  min-width: 0;
+}
+
+.ob-pc-row__count {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.ob-pc-row__count strong {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ob-pc-tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 16rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  padding: 1px var(--space-1) 1px var(--space-3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ob-pc-tag strong,
+.ob-pc-tag__meta,
+.ob-pc-chip strong,
+.ob-pc-chip__meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ob-pc-tag__meta,
+.ob-pc-chip__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.ob-pc-tag__meta {
+  max-width: 6rem;
+}
+
+.ob-pc-tag__close {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.ob-pc-tag__close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.ob-pc-search:has(.ob-pc-tag) .ds-input {
+  min-width: 4rem;
+}
+
+.ob-pc-results {
+  max-height: 8rem;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: 1px;
+}
+
+.ob-pc-results > .ds-field__hint {
+  flex-basis: 100%;
+}
+
+.ob-pc-chip {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Tên máy cùng cỡ chữ với nhóm máy / thời gian trống, vẫn đậm + sáng; ngăn cách các phần bằng dấu chấm giữa. */
+.ob-pc-chip strong {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.ob-pc-chip__meta::before {
+  content: '·';
+  margin-right: var(--space-2);
+}
+
+.ob-pc-chip:hover {
+  background: var(--color-surface-hover);
+}
+
+.ob-pc-chip.is-active {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 10%, var(--color-surface-default));
+}
+
+/* Chọn nhanh thời lượng (bước 30 phút): các nút chẵn 30 phút, 1 giờ, 1 giờ 30 phút … */
+.ob-duration {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ob-duration__chip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ob-duration__chip:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.ob-duration__chip.is-active {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
 @media (max-width: 720px) {
+  .ob-filter,
   .ob-filters__search {
-    grid-column: span 1;
+    flex: 1 1 100%;
   }
 
-  .ob-staff-form__row {
+  .ob-filters .ds-date-range {
+    width: 100%;
+  }
+
+  .ob-staff-form__section {
     grid-template-columns: 1fr;
+  }
+
+  .ob-staff-form__wide {
+    grid-column: auto;
   }
 
   .ob-queue__card {

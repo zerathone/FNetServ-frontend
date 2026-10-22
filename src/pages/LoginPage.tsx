@@ -5,6 +5,12 @@ import { login } from '../api/auth'
 import { getServerInfo } from '../api/system'
 import { useAuthStore } from '../store/auth'
 
+// Chỉ `npm run dev`: bỏ trống mật khẩu thì tự dùng VITE_DEV_PASSWORD (đặt trong .env.development.local,
+// file *.local không commit). Bản build PROD: Vite thay import.meta.env.DEV = false nên nhánh này bị loại,
+// ô mật khẩu vẫn bắt buộc. Server vẫn từ chối mật khẩu rỗng — nên không thể gửi rỗng thật.
+const DEV_PASSWORD: string = import.meta.env.DEV ? ((import.meta.env.VITE_DEV_PASSWORD as string | undefined) ?? '') : ''
+const ALLOW_EMPTY_PASSWORD = import.meta.env.DEV
+
 export function LoginPage() {
   const token = useAuthStore((state) => state.token)
   const setCredentials = useAuthStore((state) => state.setCredentials)
@@ -19,7 +25,7 @@ export function LoginPage() {
   })
 
   const loginMutation = useMutation({
-    mutationFn: () => login(username, password),
+    mutationFn: () => login(username, password || DEV_PASSWORD),
     onSuccess: (data) => {
       setCredentials({
         token: data.token,
@@ -38,7 +44,7 @@ export function LoginPage() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!username || !password || loginMutation.isPending) return
+    if (!username || (!password && !ALLOW_EMPTY_PASSWORD) || loginMutation.isPending) return
     loginMutation.mutate()
   }
 
@@ -91,7 +97,7 @@ export function LoginPage() {
           <button
             type="submit"
             className="primary-button"
-            disabled={!username || !password || loginMutation.isPending}
+            disabled={!username || (!password && !ALLOW_EMPTY_PASSWORD) || loginMutation.isPending}
           >
             {loginMutation.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>

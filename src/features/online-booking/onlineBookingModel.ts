@@ -20,7 +20,7 @@ export const OB_RIGHTS = {
 export const STATUS_LABEL: Record<BookingStatus, string> = {
   pending: 'Đang xử lý',
   wait_approval: 'Chờ duyệt',
-  confirmed: 'Đã xác nhận — chờ khách đến',
+  confirmed: 'Đã duyệt',
   in_use: 'Khách đang dùng',
   done: 'Đã dùng xong',
   no_show: 'Khách không đến',
@@ -31,8 +31,8 @@ export const STATUS_LABEL: Record<BookingStatus, string> = {
 export const STATUS_TONE: Record<BookingStatus, StatusTone> = {
   pending: 'neutral',
   wait_approval: 'warning',
-  confirmed: 'info',
-  in_use: 'success',
+  confirmed: 'success',
+  in_use: 'info',
   done: 'neutral',
   no_show: 'danger',
   cancelled: 'neutral',
@@ -40,22 +40,22 @@ export const STATUS_TONE: Record<BookingStatus, StatusTone> = {
 }
 
 export const PC_STATE_LABEL: Record<PcState, string> = {
-  off: 'Tắt',
+  off: 'Đang tắt',
   on_idle: 'Bật — chờ đăng nhập',
   in_use: 'Đang chơi',
   unknown: 'Không rõ',
 }
 
 export const PC_STATE_TONE: Record<PcState, StatusTone> = {
-  off: 'success',
-  on_idle: 'warning',
+  off: 'neutral',
+  on_idle: 'success',
   in_use: 'danger',
   unknown: 'neutral',
 }
 
 export const CHANNEL_LABEL: Record<BookingChannel, string> = {
-  fzone: 'FZone (hội viên tự đặt)',
-  staff: 'Thu ngân đặt hộ',
+  fzone: 'FZone',
+  staff: 'Thu ngân',
 }
 
 export const SLOT_SOURCE_LABEL: Record<SlotSource, string> = {
@@ -69,7 +69,7 @@ const FAIL_CODE_LABEL: Record<FailCode, string> = {
   DISABLED: 'Tính năng đặt máy online đang tắt.',
   TOO_SOON: 'Giờ bắt đầu quá sát, chọn giờ muộn hơn.',
   TOO_FAR: 'Giờ bắt đầu quá xa so với hiện tại.',
-  BAD_HOURS: 'Số giờ đặt không hợp lệ.',
+  BAD_HOURS: 'Thời lượng đặt không hợp lệ (từ 30 phút, theo bước 30 phút).',
   OUTSIDE_WINDOW: 'Ngoài khung giờ cho phép đặt.',
   NOT_BOOKABLE: 'Máy này hiện không thể đặt online.',
   MACHINE_NOT_OFF: 'Máy đang bật — chỉ đặt được máy đang tắt.',
@@ -89,9 +89,9 @@ const FAIL_CODE_LABEL: Record<FailCode, string> = {
   TID_USED: 'Giao dịch thanh toán QR này đã được ghi nhận cho việc khác.',
 }
 
-/** OB-R2: nhãn cách trả tiền (đơn cũ/đặt hộ không có field ⇒ Ví). */
+/** OB-R2: nhãn cách trả tiền (đơn cũ/đặt hộ không có field ⇒ ví, hiển thị "Cấn trừ" như trang Đơn dịch vụ). */
 export const PAY_METHOD_LABEL: Record<PayMethod, string> = {
-  wallet: 'Ví',
+  wallet: 'Cấn trừ',
   qr: 'QR',
 }
 
@@ -156,6 +156,34 @@ export function formatTimeRange(fromIso: string, toIso: string): string {
     : `${timeFmt(from)} ${dateFmt(from)} → ${timeFmt(to)} ${dateFmt(to)}`
 }
 
+/**
+ * Thời gian đặt trên thẻ đơn: cùng ngày `dd-mm hh:mm → hh:mm`, qua ngày `dd-mm hh:mm → dd-mm hh:mm`.
+ * (Bảng "Lịch theo máy" vẫn dùng formatTimeRange.)
+ */
+export type BookingRangeParts = {
+  fromDay: string
+  fromTime: string
+  /** null = cùng ngày với `fromDay` (không in lại ngày ở đầu kết thúc) */
+  toDay: string | null
+  toTime: string
+}
+
+/** Tách riêng phần ngày (dd-mm, UI hiển thị mờ) và phần giờ để định dạng từng phần. Null khi thời gian không hợp lệ. */
+export function formatBookingRange(fromIso: string, toIso: string): BookingRangeParts | null {
+  const from = new Date(fromIso)
+  const to = new Date(toIso)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const dayOf = (d: Date) => `${pad(d.getDate())}-${pad(d.getMonth() + 1)}`
+  const timeOf = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return {
+    fromDay: dayOf(from),
+    fromTime: timeOf(from),
+    toDay: from.toDateString() === to.toDateString() ? null : dayOf(to),
+    toTime: timeOf(to),
+  }
+}
+
 /** Đếm ngược tới `approvalDeadline` — `null` khi đã hết hạn (hiển thị "Đã hết hạn"). */
 export function formatCountdown(deadlineIso: string | null, nowMs: number): { label: string; expired: boolean } {
   if (!deadlineIso) return { label: '—', expired: false }
@@ -174,7 +202,7 @@ export function describePerson(person: Booking['createdBy']): string {
 }
 
 export const STATUS_FILTER_OPTIONS: Array<{ value: BookingStatus | ''; label: string }> = [
-  { value: '', label: 'Tất cả trạng thái' },
+  { value: '', label: 'Tất cả' },
   { value: 'wait_approval', label: STATUS_LABEL.wait_approval },
   { value: 'confirmed', label: STATUS_LABEL.confirmed },
   { value: 'in_use', label: STATUS_LABEL.in_use },
@@ -185,7 +213,22 @@ export const STATUS_FILTER_OPTIONS: Array<{ value: BookingStatus | ''; label: st
 ]
 
 export const CHANNEL_FILTER_OPTIONS: Array<{ value: BookingChannel | ''; label: string }> = [
-  { value: '', label: 'Tất cả kênh' },
+  { value: '', label: 'Tất cả' },
   { value: 'fzone', label: CHANNEL_LABEL.fzone },
   { value: 'staff', label: CHANNEL_LABEL.staff },
 ]
+
+/** Nhãn thời lượng (user chốt): chẵn giờ ghi "giờ", có phút lẻ thì viết tắt g/ph — 30 → "30ph", 60 → "1 giờ", 90 → "1g 30ph". */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h === 0) return `${m}ph`
+  return m === 0 ? `${h} giờ` : `${h}g ${m}ph`
+}
+
+/** Các mức thời lượng chọn nhanh: từ `stepMin` đến `maxMinutes`, mỗi bước `stepMin` (vd 30, 60, 90 … 360). */
+export function durationOptions(maxMinutes: number, stepMin: number): number[] {
+  const options: number[] = []
+  for (let minutes = stepMin; minutes <= maxMinutes; minutes += stepMin) options.push(minutes)
+  return options
+}

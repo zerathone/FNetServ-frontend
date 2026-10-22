@@ -322,9 +322,18 @@
   max-width: 100%;
 }
 
+/* Tieu de nhom (CPU/GPU/RAM/O cung/Mang o hang 1) -- noi bat hon muc muted/600 mac dinh cua
+   .ws-table__header (dung chung voi header thuong) vi day la nhan chinh cua ca cum cot. */
 .hm-hc--group {
   height: 100%;
   border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.hm-hc--group svg {
+  color: currentColor;
 }
 
 /* Vien doc nhe ngan cach cac cum cot chinh (CPU/GPU/RAM/O cung/Mang/Cap nhat). Dat o canh trai
@@ -451,6 +460,80 @@
 
 .hm-dot--danger {
   background: var(--color-danger);
+}
+
+/* Nut mo rong/thu gon o dau o "Ten may" -- bam de xem ten/model phan cung chua co cot rieng
+   (CPU/GPU/RAM/O cung/Mang/Bo mach chu). Mui ten xoay 90 do khi mo, giong pattern caret thong thuong. */
+.hm-expand-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-right: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.hm-expand-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.hm-expand-icon {
+  transition: transform var(--motion-fast) ease;
+}
+
+.hm-expand-icon--open {
+  transform: rotate(90deg);
+}
+
+/* Panel chi tiet khi mo rong 1 dong: ten/model phan cung (CPU/GPU/RAM/O cung/Mang/Bo mach chu) --
+   cac truong nay chi co dang chu (ten linh kien), KHONG co nguong canh bao nen khong can cot rieng
+   trong luoi so lieu; gop vao day cho gon. */
+.hm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) var(--space-3) calc(var(--space-3) + 1rem + var(--space-1));
+  background: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.hm-detail__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.hm-detail__label {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-width: 7rem;
+  padding: 3px 0;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-size: var(--font-size-sm);
+}
+
+.hm-detail__label svg {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.hm-detail__value {
+  color: var(--color-text-secondary);
+}
+
+.hm-detail__empty {
+  color: var(--color-text-muted);
 }
 
 /* Cham do tuoi du lieu o DAU dong (truoc ten may): xanh = gui deu (<= 10 phut), vang = lau hon,

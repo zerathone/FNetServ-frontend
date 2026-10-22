@@ -199,6 +199,27 @@
   font-weight: 700;
 }
 
+/* Tên tài khoản trên nút máy / tag: cỡ chữ 13px. */
+.staff-order__machines .staff-order__machine strong,
+.staff-order__tag strong {
+  font-size: 13px;
+}
+
+/* Tìm theo "Tên máy": đảo nhấn mạnh — tên máy đậm + sáng, tên tài khoản nhạt + nét mảnh
+   (tìm theo "Tài khoản" giữ mặc định ở trên: tài khoản đậm sáng, tên máy nhỏ + mờ). */
+[data-search-field='host'] .staff-order__machine-host {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+[data-search-field='host'] .staff-order__machine strong,
+[data-search-field='host'] .staff-order__tag strong {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
 /* ---- danh mục ---- */
 .staff-order__chips {
   display: flex;

@@ -1,0 +1,125 @@
+.ds-switch {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 1.5rem;
+}
+
+/* Selector có [type] + 2 class để thắng luật toàn cục `input[type="checkbox"]` của controls.css
+   (khung vuông 1.25rem, viền, dấu tick ::before) — nếu không, vùng nhận click chỉ còn 1.25rem ở góc
+   công tắc và bấm vào phần còn lại của công tắc không ăn. */
+.ds-switch input[type="checkbox"].ds-switch__input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  outline: none;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ds-switch__track {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.ds-switch__track::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0.3rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transform: translateY(-50%);
+  transition: left 0.15s, width 0.15s, height 0.15s, background-color 0.15s;
+}
+
+.ds-switch input:hover + .ds-switch__track::after {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.ds-switch input:checked + .ds-switch__track {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+}
+
+.ds-switch input:checked + .ds-switch__track::after {
+  left: 1.45rem;
+  background: var(--color-surface-default);
+}
+
+.ds-switch input:focus-visible + .ds-switch__track {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.ds-switch input[type="checkbox"].ds-switch__input:disabled {
+  cursor: not-allowed;
+}
+
+.ds-switch input:disabled + .ds-switch__track {
+  opacity: 0.45;
+}
+
+/* Trong hàng có nhãn, controls.css đã làm mờ cả <label> khi disabled (`label:has(:disabled)`) —
+   không mờ thêm lần nữa ở track. */
+.ds-switch-row .ds-switch input:disabled + .ds-switch__track {
+  opacity: 1;
+}
+
+/* `.ds-switch-row.ds-switch-row` (0,2,0) để thắng `label:has(input[type="checkbox"])` toàn cục
+   (display:inline-flex) — luật đó làm hàng co theo chữ thay vì giãn hết chiều ngang. */
+.ds-switch-row.ds-switch-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  cursor: pointer;
+}
+
+.ds-switch-row.is-disabled {
+  cursor: not-allowed;
+}
+
+.ds-switch-row__copy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+/* Công tắc luôn dính mép phải của hàng, không co theo độ dài chữ. */
+.ds-switch-row > .ds-switch {
+  margin-left: auto;
+}
+
+.ds-switch-row__copy strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.ds-switch-row__copy small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

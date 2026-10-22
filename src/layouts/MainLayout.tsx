@@ -23,7 +23,7 @@ import {
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
   CreditCard, Storefront,
   CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook, Heartbeat,
-  CalendarPlus, CalendarCheck,
+  CalendarPlus, CalendarCheck, BellRinging,
 } from '@phosphor-icons/react'
 import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
@@ -163,6 +163,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/logs/server', label: 'Nhật ký máy chủ', shortLabel: 'SV', icon: <TerminalWindow size={24} weight="duotone" /> },
       { to: '/logs/webhistory', label: 'Nhật ký duyệt web', shortLabel: 'Web', icon: <Globe size={24} weight="duotone" /> },
       { to: '/settings', label: 'Cài đặt', shortLabel: 'Đặt', icon: <Gear size={24} weight="duotone" /> },
+      { to: '/notification-settings', label: 'Thiết lập thông báo', shortLabel: 'TB', icon: <BellRinging size={24} weight="duotone" /> },
       { to: '/printers', label: 'Máy in', shortLabel: 'In', icon: <Printer size={24} weight="duotone" /> },
       { to: '/staff-rights', label: 'Phân quyền nhân viên', shortLabel: 'Quyền', icon: <ShieldCheck size={24} weight="duotone" /> },
       {

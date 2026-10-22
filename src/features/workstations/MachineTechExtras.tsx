@@ -18,7 +18,7 @@ export function num(value: number | null | undefined, unit: string, digits = 0) 
 }
 
 /** Ghep cac phan co gia tri bang " · "; khong phan nao co gia tri -> '—'. */
-function joinParts(parts: Array<string | null | undefined>) {
+export function joinParts(parts: Array<string | null | undefined>) {
   const present = parts.filter((part): part is string => Boolean(part))
   return present.length > 0 ? present.join(' · ') : NO_DATA
 }

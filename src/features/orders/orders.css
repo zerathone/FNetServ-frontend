@@ -811,3 +811,57 @@
   gap: var(--space-2);
   margin-top: var(--space-1);
 }
+
+/* Ô Cấn trừ có checkbox "tính vào doanh thu": bọc nút + checkbox (anh em, không lồng trong <button>).
+   Bỏ check -> số tiền cấn trừ màu tối; bố cục giữ nguyên. Dùng chung với trang Bán combo. */
+.order-summary__row-wrap {
+  position: relative;
+  display: flex;
+}
+
+.order-summary__row-wrap > .order-summary__row {
+  flex: 1;
+}
+
+.order-summary__deduct-toggle {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  z-index: 2;
+  margin: 0;
+}
+
+.order-summary__completed-method.is-excluded .order-summary__row-amount {
+  color: var(--color-text-muted);
+}
+
+/* Icon nền của ô bị loại khỏi doanh thu cũng về màu trung tính (cùng tông ô "Chuyển khoản"). */
+.order-summary__completed-method.is-excluded .order-summary__row-icon-bg {
+  color: var(--color-text-secondary);
+}
+/* Badge hình thức thu dưới số tiền của thẻ đơn: icon + chữ đậm, màu theo tông badge. `color: inherit` thắng
+   `.order-card__total span` (chữ phụ màu mờ); bỏ chấm tròn mặc định của badge vì đã có icon. Dùng chung với trang Đặt máy. */
+.order-card__total .order-card__pay {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  font-weight: 700;
+}
+
+.order-card__total .ds-badge::before {
+  display: none;
+}
+/* Badge hình thức thu dưới số tiền của thẻ đơn: icon + chữ đậm, màu theo tông badge. `color: inherit` thắng
+   `.order-card__total span` (chữ phụ màu mờ); bỏ chấm tròn mặc định của badge vì đã có icon. Dùng chung với trang Đặt máy. */
+.order-card__total .order-card__pay {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  font-weight: 700;
+}
+
+.order-card__total .ds-badge::before {
+  display: none;
+}

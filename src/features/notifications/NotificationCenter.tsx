@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, Check, CheckCircle, Hand, ArrowSquareOut } from '@phosphor-icons/react'
+import { Bell, Check, CheckCircle, GearSix, Hand, ArrowSquareOut } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import {
   getOperationNotificationSnapshot,
@@ -134,6 +134,17 @@ export function NotificationCenter() {
         footer={
           <div className="notification-footer">
             <span>{connected ? 'Realtime đang kết nối' : 'Đang dùng đồng bộ dự phòng 15 giây'}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              icon={<GearSix size={18} weight="bold" />}
+              onClick={() => {
+                setOpen(false)
+                navigate('/notification-settings')
+              }}
+            >
+              Thiết lập
+            </Button>
             <Button
               type="button"
               variant="secondary"

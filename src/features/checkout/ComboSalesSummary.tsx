@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Bank, CheckCircle, CurrencyCircleDollar, HandCoins, QrCode } from '@phosphor-icons/react'
 import { getComboSalesStats, type ComboSaleMethod } from '../../api/combo'
 import { formatShiftStart } from '../../lib/shiftTime'
+import { useRevenuePrefs } from '../../store/revenuePrefs'
 // Dùng lại đúng giao diện ô "Hoàn thành" của /orders (class global `order-summary__*`).
 import '../orders/orders.css'
 
@@ -33,21 +34,31 @@ export function ComboSalesSummary() {
   const stats = statsQuery.data
   const shiftStart = formatShiftStart(stats?.shiftStart)
 
+  // Checkbox ở góc ô "Cấn trừ": bỏ check (mặc định) = cấn trừ (trừ vào số dư ví, không phải tiền thu mới) KHÔNG tính vào tổng
+  // "Doanh thu". Dùng chung tuỳ chọn với trang Đơn dịch vụ / Đặt máy; chỉ đổi cách hiển thị tổng trên máy này.
+  const deductInRevenue = useRevenuePrefs((state) => state.deductInRevenue)
+  const setDeductInRevenue = useRevenuePrefs((state) => state.setDeductInRevenue)
+  const deductRow = stats?.completed.byType.find((row) => row.key === 'deduct')
+  const revenueAmount = stats ? stats.completed.amount - (deductInRevenue ? 0 : (deductRow?.amount ?? 0)) : null
+  const revenueCount = stats ? stats.completed.count - (deductInRevenue ? 0 : (deductRow?.count ?? 0)) : null
+
   return (
     <div className="order-summary combo-sales-summary" aria-label="Thống kê bán COMBO">
       <div className="order-summary__card order-summary__card--completed">
         <div
           className="order-summary__total order-summary__total--completed"
-          title="Thẻ COMBO đã thu tiền xong trong 24 giờ gần nhất, toàn quán (cùng khung thời gian với trang Đơn dịch vụ). Số đếm là số thẻ."
+          title={`Thẻ COMBO đã thu tiền xong trong 24 giờ gần nhất, toàn quán (cùng khung thời gian với trang Đơn dịch vụ). Số đếm là số thẻ.${
+            deductInRevenue ? '' : ' Không gồm cấn trừ.'
+          }`}
         >
           <CheckCircle className="order-summary__total-icon" size={28} weight="fill" aria-hidden="true" />
           <div className="order-summary__total-completed-text">
             <span className="order-summary__total-label">Doanh thu</span>
             <strong className="order-summary__total-amount">
-              {stats ? formatMoney(stats.completed.amount) : '—'}
+              {revenueAmount !== null ? formatMoney(revenueAmount) : '—'}
             </strong>
             <small className="order-summary__total-count">
-              {stats ? stats.completed.count : '—'} thẻ
+              {revenueCount !== null ? revenueCount : '—'} thẻ
             </small>
             {shiftStart ? (
               <small className="order-summary__total-count" title="Thời điểm bắt đầu tính thống kê này (giờ máy chủ).">
@@ -60,6 +71,7 @@ export function ComboSalesSummary() {
           <div className="order-summary__breakdown">
             {stats.completed.byType.map((row, index) => {
               const MethodIcon = METHOD_ICON[row.key]
+              const isDeduct = row.key === 'deduct'
               return (
                 <div key={row.key} className="combo-sales-summary__method">
                   {index > 0 ? (
@@ -67,7 +79,21 @@ export function ComboSalesSummary() {
                       |
                     </span>
                   ) : null}
-                  <div className="order-summary__row order-summary__completed-method">
+                  <div
+                    className={`order-summary__row order-summary__completed-method${
+                      isDeduct && !deductInRevenue ? ' is-excluded' : ''
+                    }`}
+                  >
+                    {isDeduct ? (
+                      <input
+                        type="checkbox"
+                        className="order-summary__deduct-toggle"
+                        checked={deductInRevenue}
+                        aria-label="Tính cấn trừ vào doanh thu"
+                        title={deductInRevenue ? 'Đang tính cấn trừ vào doanh thu — bấm để bỏ' : 'Không tính cấn trừ vào doanh thu — bấm để tính'}
+                        onChange={(event) => setDeductInRevenue(event.target.checked)}
+                      />
+                    ) : null}
                     <span className="order-summary__row-label-line">
                       <span className="order-summary__label">{METHOD_LABEL[row.key]}</span>
                     </span>

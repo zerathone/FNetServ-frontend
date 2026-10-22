@@ -133,6 +133,11 @@ const OnlineBookingPage = lazy(() =>
     default: module.OnlineBookingWorkspace,
   })),
 )
+const NotificationSettingsPage = lazy(() =>
+  import('../features/notifications/NotificationSettingsPage').then((module) => ({
+    default: module.NotificationSettingsPage,
+  })),
+)
 const OnlineBookingSettingsPage = lazy(() =>
   import('../features/online-booking/OnlineBookingSettingsPage').then((module) => ({
     default: module.OnlineBookingSettingsPage,
@@ -160,6 +165,9 @@ function ProtectedRoutes() {
           {/* OB-5: trang Quản lý đặt máy online — thu ngân có quyền R_ONLINE_BOOK_APPROVE/CANCEL hoặc
               admin; trang tự kiểm quyền (ẩn nút), server là lớp chặn thật. NGOÀI AdminRoute như /orders. */}
           <Route path="/online-booking" element={<OnlineBookingPage />} />
+          {/* Thiết lập thông báo nổi/âm báo: tuỳ chọn theo trình duyệt (localStorage), thu ngân nào cũng
+              chỉnh được → NGOÀI AdminRoute. Mở từ footer hộp thông báo (chuông). */}
+          <Route path="/notification-settings" element={<NotificationSettingsPage />} />
           <Route path="/combo_sale" element={<PaymentPage />} />
           <Route path="/payments" element={<Navigate to="/combo_sale" replace />} />
           <Route path="/card-sale" element={<CardSalePage />} />

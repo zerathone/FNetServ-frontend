@@ -142,6 +142,7 @@ import { InspectorGroup } from './InspectorGroup'
 import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
 import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
+import { WakeupGroupPanel } from './WakeupGroupPanel'
 import { ScreenCaptureDialog } from './ScreenCaptureDialog'
 import { RemoteDesktopDialog } from './RemoteDesktopDialog'
 import { NoVncViewer } from './NoVncViewer'
@@ -196,6 +197,15 @@ const USER_KIND_LABEL: Record<UserKind, string> = {
   combo: 'Combo',
   admin: 'Admin',
 }
+
+// Tìm nhanh: giống trang Đặt máy online (combo chọn trường + ô nhập). "pc" dùng datalist gợi ý tên máy có sẵn.
+type WsSearchField = 'pc' | 'user' | 'note'
+const WS_SEARCH_PLACEHOLDER: Record<WsSearchField, string> = {
+  pc: 'Nhập hoặc chọn tên máy',
+  user: 'Nhập tên đăng nhập',
+  note: 'Nhập nội dung ghi chú',
+}
+const WS_PC_LIST_ID = 'ws-pc-options'
 
 function getUserKind(machine: WorkstationRuntime): UserKind | null {
   if (machine.status === WORKSTATION_STATUS.ONLINE && machine.userId === 0) return 'admin'
@@ -453,6 +463,7 @@ export function WorkstationWorkspace() {
   const allMachines = useMemo(() => snapshot?.items ?? [], [snapshot])
   const [now, setNow] = useState(() => Date.now())
   const [filter, setFilter] = useState<WorkstationFilter>('all')
+  const [searchField, setSearchField] = useState<WsSearchField>('pc')
   const [search, setSearch] = useState('')
   const [groupId, setGroupId] = useState(0)
   const [optionalColumns, setOptionalColumns] = useState(getInitialOptionalColumns)
@@ -479,6 +490,8 @@ export function WorkstationWorkspace() {
   const [wakeupSearch, setWakeupSearch] = useState('')
   const [wakeupChecked, setWakeupChecked] = useState<Set<string>>(new Set())
   const [wakeupResults, setWakeupResults] = useState<WsControlResult[]>([])
+  // Nhóm máy mặc định mở (cần thấy máy để chọn); chỉ nhóm bị bấm thu gọn mới có khoá.
+  const [wakeupClosedGroups, setWakeupClosedGroups] = useState<Record<number, boolean>>({})
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false)
   const [payoutWaitLog, setPayoutWaitLog] = useState<PaymentWaitLog | null>(null)
   const [continueWaitLog, setContinueWaitLog] = useState<PaymentWaitLog | null>(null)
@@ -548,6 +561,11 @@ export function WorkstationWorkspace() {
   const elapsedSeconds =
     snapshotQuery.dataUpdatedAt > 0 ? (now - snapshotQuery.dataUpdatedAt) / 1_000 : 0
 
+  const pcNameOptions = useMemo(
+    () => Array.from(new Set(allMachines.map((machine) => machine.hostName))),
+    [allMachines],
+  )
+
   const filteredMachines = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')
     return allMachines
@@ -555,14 +573,13 @@ export function WorkstationWorkspace() {
       .filter((machine) => groupId === 0 || machine.machineGroupId === groupId)
       .filter((machine) => {
         if (!needle) return true
-        return [machine.hostName, machine.ip, machine.userName, machine.note]
-          .filter(Boolean)
-          .some((value) => String(value).toLocaleLowerCase('vi').includes(needle))
+        const value = searchField === 'pc' ? machine.hostName : searchField === 'user' ? machine.userName : machine.note
+        return String(value ?? '').toLocaleLowerCase('vi').includes(needle)
       })
       .sort((left, right) =>
         left.hostName.localeCompare(right.hostName, 'vi', { numeric: true }),
       )
-  }, [allMachines, filter, groupId, search])
+  }, [allMachines, filter, groupId, search, searchField])
   const hasActiveFilter = filter !== 'all' || groupId !== 0 || search.trim() !== ''
 
   const selectedMachines = useMemo(
@@ -1225,6 +1242,21 @@ export function WorkstationWorkspace() {
   const overallInUse = allMachines.filter(isCountedOnline).length
   const overallUsagePercent = overallTotal > 0 ? Math.round((overallInUse / overallTotal) * 100) : 0
 
+  // Stack bar toàn phòng máy. "Chưa bật" = máy đăng ký trong DB nhưng chưa từng connect (không có trong RAM
+  // g_Listener) — khác "Mất kết nối" là máy đã có trong danh sách nhưng đang rớt. Trạng thái còn lại
+  // (Cảnh báo / Đang khởi tạo) gom vào "Khác" để thanh khớp tổng.
+  const ramHostSet = new Set(allMachines.map((m) => m.hostName))
+  const notOnCount = registeredReady ? registeredMachines.filter((m) => !ramHostSet.has(m.hostName)).length : 0
+  const otherCount = allMachines.length - counts.playing - counts.available - counts.disconnected
+  const fleetSegments: Array<{ key: string; label: string; value: number; filter?: WorkstationFilter }> = [
+    { key: 'playing', label: 'Sử dụng', value: counts.playing, filter: 'playing' },
+    { key: 'available', label: 'Sẵn sàng', value: counts.available, filter: 'available' },
+    { key: 'disconnected', label: 'Mất kết nối', value: counts.disconnected, filter: 'disconnected' },
+    ...(otherCount > 0 ? [{ key: 'other', label: 'Khác', value: otherCount }] : []),
+    { key: 'off', label: 'Chưa bật', value: notOnCount },
+  ]
+  const fleetTotal = allMachines.length + notOnCount
+
   const updateGroupScrollState = useCallback(() => {
     const el = groupScrollRef.current
     if (!el) {
@@ -1271,6 +1303,16 @@ export function WorkstationWorkspace() {
       }),
     [registeredMachines, ramByHost],
   )
+  // Máy vừa được mở (hoặc tự kết nối lại) rời khỏi danh sách "đang tắt" -> bỏ khỏi tập đã chọn,
+  // để số đếm và nút Mở/Xoá không còn tính máy đang chạy.
+  useEffect(() => {
+    if (!registeredReady) return
+    const offHosts = new Set(offCandidates.map((m) => m.hostName))
+    setWakeupChecked((current) => {
+      const next = new Set([...current].filter((hostName) => offHosts.has(hostName)))
+      return next.size === current.size ? current : next
+    })
+  }, [offCandidates, registeredReady])
   const wakeupSearchNormalized = wakeupSearch.trim().toLocaleLowerCase('vi-VN')
   const visibleWakeupCandidates = useMemo(
     () =>
@@ -1285,6 +1327,30 @@ export function WorkstationWorkspace() {
         : offCandidates,
     [offCandidates, wakeupSearchNormalized, groupsQuery.data],
   )
+  // Máy "chưa bật" gom theo nhóm máy (thứ tự nhóm theo danh sách nhóm; máy chưa gán nhóm xuống cuối).
+  const wakeupGroups = useMemo(() => {
+    const byGroup = new Map<number, { id: number; name: string; machines: typeof visibleWakeupCandidates }>()
+    visibleWakeupCandidates.forEach((m) => {
+      const name = groupsQuery.data?.find((g) => g.id === m.machineGroupId)?.name ?? 'Chưa gán nhóm'
+      const group = byGroup.get(m.machineGroupId) ?? { id: m.machineGroupId, name, machines: [] }
+      group.machines.push(m)
+      byGroup.set(m.machineGroupId, group)
+    })
+    const order = new Map((groupsQuery.data ?? []).map((g, index) => [g.id, index]))
+    return [...byGroup.values()].sort(
+      (a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    )
+  }, [visibleWakeupCandidates, groupsQuery.data])
+  const wakeupResultByHost = useMemo(() => new Map(wakeupResults.map((r) => [r.hostName, r])), [wakeupResults])
+  const setWakeupMachinesChecked = (hostNames: string[], checked: boolean) =>
+    setWakeupChecked((current) => {
+      const next = new Set(current)
+      hostNames.forEach((hostName) => {
+        if (checked) next.add(hostName)
+        else next.delete(hostName)
+      })
+      return next
+    })
   const serverClockDrift =
     snapshot?.serverTimeMs && snapshotQuery.dataUpdatedAt
       ? snapshot.serverTimeMs - snapshotQuery.dataUpdatedAt
@@ -1318,6 +1384,7 @@ export function WorkstationWorkspace() {
               onClick={() => {
                 setWakeupChecked(new Set())
                 setWakeupResults([])
+                setWakeupClosedGroups({})
                 setWakeupSearch('')
                 setWakeupOpen(true)
               }}
@@ -1340,7 +1407,8 @@ export function WorkstationWorkspace() {
       />
 
       <div className="ws-summary" aria-label="Tổng quan máy trạm">
-        <div className="ws-summary__card">
+        <div className="ws-summary__card ws-summary__card--stacked">
+          <div className="ws-summary__top">
           <button type="button" className={`ws-summary__total ${filter === 'all' ? 'is-active' : ''}`} onClick={() => setFilter('all')}>
             <span>Máy trạm</span>
             <strong>{allMachines.length}</strong>
@@ -1362,6 +1430,52 @@ export function WorkstationWorkspace() {
               <strong>{counts.disconnected}</strong>
             </button>
           </div>
+          </div>
+          {fleetTotal > 0 ? (
+            <div className="ws-fleet">
+              <div className="ws-fleet__col">
+                {/* Dòng % tách riêng khỏi track màu bên dưới -- bo tròn chỉ áp cho track (cao 6px), không áp
+                    cho cả khối gồm chữ % (cao hơn nhiều) thì bán kính mới thấy rõ được. */}
+                <div className="ws-fleet__labels" aria-hidden="true">
+                  {fleetSegments.map((segment) => {
+                    const isZero = segment.value <= 0
+                    const percent = Math.round((segment.value / fleetTotal) * 100)
+                    return (
+                      <span
+                        key={segment.key}
+                        className={`ws-fleet__pct ws-fleet__pct--${segment.key}`}
+                        style={isZero ? { flex: '0 0 2px', minWidth: 2 } : { flexGrow: segment.value }}
+                      >
+                        {isZero ? '' : `${percent}%`}
+                      </span>
+                    )
+                  })}
+                </div>
+                <div className="ws-fleet__bar" role="img" aria-label={`Tình trạng ${fleetTotal} máy trạm của phòng máy: ${fleetSegments.map((s) => `${s.label} ${s.value}`).join(', ')}`}>
+                  {fleetSegments.map((segment) => {
+                    const segFilter = segment.filter
+                    const isZero = segment.value <= 0
+                    const title = `${segment.label}: ${segment.value}/${fleetTotal}`
+                    const segClassName = `ws-fleet__seg ws-fleet__seg--${segment.key}${isZero ? ' ws-fleet__seg--zero' : ''}`
+                    const segStyle = isZero ? undefined : { flexGrow: segment.value }
+                    return segFilter ? (
+                      <button
+                        key={segment.key}
+                        type="button"
+                        className={`${segClassName} ${filter === segFilter ? 'is-active' : ''}`}
+                        style={segStyle}
+                        title={title}
+                        onClick={() => setFilter(segFilter)}
+                      />
+                    ) : (
+                      <span key={segment.key} className={segClassName} style={segStyle} title={title} />
+                    )
+                  })}
+                </div>
+              </div>
+              <strong className="ws-fleet__total" title="Tổng số máy">{fleetTotal}</strong>
+            </div>
+          ) : null}
         </div>
 
         <div className="ws-summary__card">
@@ -1524,6 +1638,7 @@ export function WorkstationWorkspace() {
             </div>
           </div>
         ) : null}
+
       </div>
 
       {Math.abs(serverClockDrift) > 120_000 ? (
@@ -1537,17 +1652,32 @@ export function WorkstationWorkspace() {
         <div className="ds-field ws-search">
           <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
           <div className="ds-input-group ds-input-group--search">
+            <Select
+              value={searchField}
+              aria-label="Tìm theo"
+              onChange={(event) => setSearchField(event.target.value as WsSearchField)}
+            >
+              <option value="pc">Máy</option>
+              <option value="user">Tên đăng nhập</option>
+              <option value="note">Ghi chú</option>
+            </Select>
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
               <input
                 className="ds-input"
                 type="search"
+                list={searchField === 'pc' ? WS_PC_LIST_ID : undefined}
                 value={search}
-                placeholder="Tên máy, IP, khách hàng hoặc ghi chú"
+                placeholder={WS_SEARCH_PLACEHOLDER[searchField]}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
           </div>
+          <datalist id={WS_PC_LIST_ID}>
+            {pcNameOptions.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
         </div>
         <div className="ws-toolbar__end">
           <div className="ws-toolbar__count" aria-live="polite">
@@ -2371,53 +2501,7 @@ export function WorkstationWorkspace() {
         description="Chức năng này chỉ hoạt động khi máy trạm có mainboard hổ trợ và hệ điều hành đã bật chức năng này."
         onClose={() => setWakeupOpen(false)}
         className="ws-wakeup-drawer"
-        footer={
-          offCandidates.length > 0 ? (
-            <div className="ws-wakeup-footer">
-              <label className="ws-wait-card__select ws-wakeup-selectall">
-                <input
-                  type="checkbox"
-                  checked={visibleWakeupCandidates.length > 0 && visibleWakeupCandidates.every((m) => wakeupChecked.has(m.hostName))}
-                  onChange={() => {
-                    const allVisibleChecked =
-                      visibleWakeupCandidates.length > 0 && visibleWakeupCandidates.every((m) => wakeupChecked.has(m.hostName))
-                    setWakeupChecked((current) => {
-                      const next = new Set(current)
-                      visibleWakeupCandidates.forEach((m) => {
-                        if (allVisibleChecked) next.delete(m.hostName)
-                        else next.add(m.hostName)
-                      })
-                      return next
-                    })
-                  }}
-                />
-                <span>Chọn tất cả ({visibleWakeupCandidates.length})</span>
-              </label>
-              <div className="ws-wakeup-footer__row">
-                <Button
-                  type="button"
-                  variant="primary"
-                  icon={<Power size={18} weight="bold" aria-hidden="true" />}
-                  disabled={!isAdmin || wakeupChecked.size === 0 || wakeupDrawerMutation.isPending}
-                  title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
-                  onClick={() => wakeupDrawerMutation.mutate([...wakeupChecked])}
-                >
-                  Mở máy trạm đã chọn ({wakeupChecked.size})
-                </Button>
-                <Button
-                  type="button"
-                  variant="danger-outline"
-                  icon={<TrashSimple size={18} weight="bold" aria-hidden="true" />}
-                  disabled={!isAdmin || wakeupChecked.size === 0}
-                  title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
-                  onClick={() => setDeactivateConfirmOpen(true)}
-                >
-                  Xoá máy đã chọn ({wakeupChecked.size})
-                </Button>
-              </div>
-            </div>
-          ) : undefined
-        }
+        size="wide"
       >
         <div className="ws-wait-panel">
           {registeredQuery.isLoading ? (
@@ -2435,19 +2519,49 @@ export function WorkstationWorkspace() {
             />
           ) : (
             <>
-              <div className="ds-field ws-search">
-                <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
-                <div className="ds-input-group ds-input-group--search">
-                  <div className="ds-search-input">
-                    <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
-                    <input
-                      className="ds-input"
-                      type="search"
-                      value={wakeupSearch}
-                      placeholder="Tìm tên máy hoặc nhóm máy"
-                      onChange={(event) => setWakeupSearch(event.target.value)}
-                    />
+              <div className="ws-wakeup-toolbar">
+                <div className="ws-wakeup-toolbar__row">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    icon={<Power size={18} weight="bold" aria-hidden="true" />}
+                    disabled={!isAdmin || wakeupChecked.size === 0 || wakeupDrawerMutation.isPending}
+                    loading={wakeupDrawerMutation.isPending}
+                    title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
+                    onClick={() => wakeupDrawerMutation.mutate([...wakeupChecked])}
+                  >
+                    Mở máy trạm ({wakeupChecked.size})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger-outline"
+                    icon={<TrashSimple size={18} weight="bold" aria-hidden="true" />}
+                    disabled={!isAdmin || wakeupChecked.size === 0}
+                    title={!isAdmin ? 'Chỉ quản trị viên được thực hiện' : undefined}
+                    onClick={() => setDeactivateConfirmOpen(true)}
+                  >
+                    Xoá máy trạm ({wakeupChecked.size})
+                  </Button>
+                </div>
+                <div className="ws-wakeup-toolbar__row ws-wakeup-toolbar__filter">
+                  <div className="ds-field ws-search">
+                    <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
+                    <div className="ds-input-group ds-input-group--search">
+                      <div className="ds-search-input">
+                        <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+                        <input
+                          className="ds-input"
+                          type="search"
+                          value={wakeupSearch}
+                          placeholder="Tìm tên máy hoặc nhóm máy"
+                          onChange={(event) => setWakeupSearch(event.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
+                  <span className="ws-wakeup-toolbar__total">
+                    Đã chọn {wakeupChecked.size}/{offCandidates.length} máy
+                  </span>
                 </div>
               </div>
               {visibleWakeupCandidates.length === 0 ? (
@@ -2456,33 +2570,20 @@ export function WorkstationWorkspace() {
                   description="Thử từ khoá khác."
                 />
               ) : (
-                <div className="ws-wait-list ws-wakeup-scroll">
-                  {visibleWakeupCandidates.map((machine) => {
-                    const groupName = groupsQuery.data?.find((g) => g.id === machine.machineGroupId)?.name
-                    const lastResult = wakeupResults.find((r) => r.hostName === machine.hostName)
-                    return (
-                      <article key={machine.hostName} className="ws-wait-card">
-                        <header>
-                          <label className="ws-wait-card__select">
-                            <input
-                              type="checkbox"
-                              checked={wakeupChecked.has(machine.hostName)}
-                              onChange={() => toggleWakeupChecked(machine.hostName)}
-                            />
-                            <div>
-                              <strong>{machine.hostName}</strong>
-                              <span>{groupName ?? 'Chưa gán nhóm'}</span>
-                            </div>
-                          </label>
-                        </header>
-                        {lastResult ? (
-                          <InlineAlert tone={lastResult.ok ? 'success' : 'warning'}>
-                            {lastResult.ok ? 'Đã gửi lệnh mở máy trạm.' : `Lỗi: ${lastResult.reason}`}
-                          </InlineAlert>
-                        ) : null}
-                      </article>
-                    )
-                  })}
+                <div className="ws-mg-list">
+                  {wakeupGroups.map((group) => (
+                    <WakeupGroupPanel
+                      key={group.id}
+                      name={group.name}
+                      machines={group.machines}
+                      checked={wakeupChecked}
+                      results={wakeupResultByHost}
+                      open={!wakeupClosedGroups[group.id]}
+                      onToggleOpen={() => setWakeupClosedGroups((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                      onToggleMachine={toggleWakeupChecked}
+                      onToggleAll={setWakeupMachinesChecked}
+                    />
+                  ))}
                 </div>
               )}
             </>

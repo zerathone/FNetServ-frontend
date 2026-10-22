@@ -51,6 +51,19 @@ function pingTone(ms: number) {
   return ms < 60 ? 'good' : ms < 150 ? 'warn' : 'bad'
 }
 
+// Kiểu 1 (mặc định, cố định): preset tối ưu LAN -- tương đương "-quickoption 1" của UltraVNC
+// viewer gốc (ít nén, ưu tiên nét), KHÔNG đổi theo mạng. Thay cho mặc định thư viện noVNC
+// (qualityLevel=6, compressionLevel=2) vốn không tối ưu cho LAN.
+const QUALITY_FIXED = { quality: 8, compression: 1 } as const
+
+// Kiểu 2 (tự động cân bằng): chọn preset theo ping đo được -- mạng tốt thì giữ như kiểu 1,
+// mạng chậm thì hạ chất lượng/tăng nén để đỡ trễ, cùng ngưỡng màu với pingTone().
+function autoQualityFor(ms: number | null) {
+  if (ms === null || ms < 60) return QUALITY_FIXED
+  if (ms < 150) return { quality: 6, compression: 3 }
+  return { quality: 3, compression: 5 }
+}
+
 /** Đo khứ hồi trình duyệt ⇄ máy chủ bằng lệnh `ping` sẵn có của /ws (server trả `pong`). */
 function measurePing(): Promise<number | null> {
   return new Promise((resolve) => {
@@ -81,7 +94,19 @@ export function NoVncViewer({ hostName, ticket, password, mode, startedAt, onClo
   const [currentMode, setCurrentMode] = useState<RemoteMode>(mode)
   const [rate, setRate] = useState<number | null>(null)
   const [pingMs, setPingMs] = useState<number | null>(null)
+  const [autoBalance, setAutoBalance] = useState(false)
+  const autoBalanceRef = useRef(autoBalance)
+  autoBalanceRef.current = autoBalance
   const token = useAuthStore((state) => state.token)
+
+  /** Áp preset chất lượng hiện hành (kiểu 1 cố định, hoặc kiểu 2 theo ping) lên rfb đang mở. */
+  const applyQuality = (ms: number | null) => {
+    const rfb = rfbRef.current
+    if (!rfb) return
+    const { quality, compression } = autoBalanceRef.current ? autoQualityFor(ms) : QUALITY_FIXED
+    rfb.qualityLevel = quality
+    rfb.compressionLevel = compression
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -107,6 +132,7 @@ export function NoVncViewer({ hostName, ticket, password, mode, startedAt, onClo
         rfb.viewOnly = mode === 'view'
         rfb.scaleViewport = true
         rfb.resizeSession = false
+        applyQuality(null) // kiểu 1 (mặc định) ngay khi mở -- autoBalanceRef vẫn false lúc này
         rfb.addEventListener('connect', () => {
           setPhase('connected')
           setReadyMs(Math.round(performance.now() - startedAt))
@@ -163,7 +189,9 @@ export function NoVncViewer({ hostName, ticket, password, mode, startedAt, onClo
     let alive = true
     const doPing = () => {
       void measurePing().then((ms) => {
-        if (alive) setPingMs(ms)
+        if (!alive) return
+        setPingMs(ms)
+        applyQuality(ms) // kiểu 2: mỗi lần đo ping mới thì xét lại preset chất lượng
       })
     }
     doPing()
@@ -176,7 +204,14 @@ export function NoVncViewer({ hostName, ticket, password, mode, startedAt, onClo
       setRate(null)
       setPingMs(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
+
+  // Bật/tắt công tắc: áp lại preset ngay (không đợi vòng ping kế tiếp) bằng ping đã đo gần nhất.
+  useEffect(() => {
+    applyQuality(pingMs)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoBalance])
 
   const changeMode = (next: RemoteMode) => {
     setCurrentMode(next)
@@ -207,6 +242,20 @@ export function NoVncViewer({ hostName, ticket, password, mode, startedAt, onClo
             >
               Ping {pingMs === null ? '—' : `${pingMs} ms`}
             </span>
+            <label
+              className="ws-novnc__switch"
+              title="Tắt: chất lượng cố định cho mạng LAN ổn định. Bật: tự động giảm chất lượng khi mạng chậm, giữ nét khi mạng tốt."
+            >
+              <input
+                type="checkbox"
+                role="switch"
+                className="ws-novnc__switchInput"
+                checked={autoBalance}
+                onChange={(event) => setAutoBalance(event.target.checked)}
+              />
+              <span className="ws-novnc__switchTrack" aria-hidden="true" />
+              Tự động cân bằng
+            </label>
           </span>
         ) : null}
         <div className="ws-novnc__actions">

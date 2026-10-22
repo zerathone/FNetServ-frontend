@@ -8,6 +8,9 @@ import {
   type OperationNotificationSnapshot,
 } from '../api/notifications'
 import { mergeNotificationEvent, notificationDescription } from '../features/notifications/notificationModel'
+import { shouldAlert, shouldPlaySound } from '../features/notifications/notificationPrefsModel'
+import { playNotificationSound } from '../features/notifications/notificationSound'
+import { useNotificationPrefs } from '../store/notificationPrefs'
 import { invalidateNotificationDomain } from '../lib/fintechQueries'
 import { pushToast } from '../store/toast'
 
@@ -141,7 +144,13 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           }
           void invalidateNotificationDomain(queryClient, notification)
           if (msg.type === 'operation.notification.created') {
-            pushToast(notificationDescription(notification), 'info')
+            // Thiết lập thông báo (trang /notification-settings): chỉ chặn toast + âm báo, tin vẫn
+            // vào hộp thông báo ở trên. `critical` luôn qua (xem shouldAlert).
+            const prefs = useNotificationPrefs.getState()
+            if (shouldAlert(prefs, notification)) {
+              pushToast(notificationDescription(notification), 'info')
+              if (shouldPlaySound(prefs, notification)) playNotificationSound(notification.severity)
+            }
           }
           break
         }

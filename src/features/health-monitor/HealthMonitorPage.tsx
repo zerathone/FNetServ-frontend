@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowDown,
   ArrowUp,
+  CaretRight,
+  Circuitry,
   Cpu,
   Fan,
   GraphicsCard,
@@ -28,6 +30,7 @@ import {
   FAN_WARN_PCT,
   fanTone,
   hardwareErrorsTitle,
+  joinParts,
   LOAD_DANGER_PCT,
   LOAD_WARN_PCT,
   loadTone,
@@ -88,6 +91,7 @@ function gridStyleFor(nameColPx: number | null) {
 function measureNameColumn(table: HTMLElement): number {
   let max = 0
   table.querySelectorAll<HTMLElement>('.hm-row').forEach((row) => {
+    const expandBtn = row.querySelector<HTMLElement>('.hm-expand-btn')
     const dot = row.querySelector<HTMLElement>('.hm-fresh')
     const line = row.querySelector<HTMLElement>('.hm-name-line')
     const version = row.querySelector<HTMLElement>('.hm-version')
@@ -95,8 +99,9 @@ function measureNameColumn(table: HTMLElement): number {
     if (line) {
       for (const child of Array.from(line.children) as HTMLElement[]) lineW += child.scrollWidth
     }
+    const expandW = expandBtn ? expandBtn.offsetWidth + parseFloat(getComputedStyle(expandBtn).marginRight || '0') : 0
     const dotW = dot ? dot.offsetWidth + parseFloat(getComputedStyle(dot).marginRight || '0') : 0
-    max = Math.max(max, dotW + Math.max(lineW, version?.scrollWidth ?? 0))
+    max = Math.max(max, expandW + dotW + Math.max(lineW, version?.scrollWidth ?? 0))
   })
   // Chi theo noi dung cac dong; header "Ten may" khong tham gia (can giua, tag loc tu cat "..." neu chat).
   return max > 0 ? Math.ceil(max) + 2 : 0
@@ -545,8 +550,43 @@ function PollSteps({
   )
 }
 
+// Cac ten/model phan cung CHUA co cot rieng trong luoi (chi hien tri so nhu nhiet/tai/cong suat o cot) --
+// bam nut mo rong o cot "Ten may" moi thay. fanRpm la so vong/phut, khac fanPct (%) da co cot.
+function hardwareDetailItems(hw: WorkstationHardware | null) {
+  if (!hw) return null
+  return [
+    {
+      id: 'cpu',
+      icon: Cpu,
+      label: 'CPU',
+      value: joinParts([
+        hw.cpu.name,
+        hw.cpu.cores !== null && hw.cpu.threads !== null ? `${hw.cpu.cores} nhân / ${hw.cpu.threads} luồng` : null,
+      ]),
+    },
+    {
+      id: 'gpu',
+      icon: GraphicsCard,
+      label: 'GPU',
+      value: joinParts([hw.gpu.name, num(hw.gpu.memoryMB, ' MB VRAM'), num(hw.gpu.fanRpm, ' RPM quạt')]),
+    },
+    { id: 'ram', icon: Memory, label: 'RAM', value: hw.ram.name ?? NO_DATA },
+    { id: 'storage', icon: HardDrive, label: 'Ổ cứng', value: hw.storage.name ?? NO_DATA },
+    { id: 'network', icon: Network, label: 'Mạng', value: hw.network.name ?? NO_DATA },
+    { id: 'motherboard', icon: Circuitry, label: 'Bo mạch', value: hw.motherboard ?? NO_DATA },
+  ]
+}
+
 export function HealthMonitorPage() {
   const [search, setSearch] = useState('')
+  const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set())
+  const toggleExpand = (hostName: string) =>
+    setExpandedHosts((current) => {
+      const next = new Set(current)
+      if (next.has(hostName)) next.delete(hostName)
+      else next.add(hostName)
+      return next
+    })
 
   // Cung queryKey/queryFn voi trang May tram -> dung chung cache danh sach may. KHONG tu
   // refetchInterval o day: cum PollSteps la dong ho duy nhat, tu goi lai ca 2 query moi POLL_MS
@@ -835,9 +875,21 @@ export function HealthMonitorPage() {
                 const offline = machine.status === WORKSTATION_STATUS.DISCONNECT
                 const errTone = hwErrorTone(hw)
                 const errTitle = hardwareErrorsTitle(hw?.errors)
+                const isExpanded = expandedHosts.has(machine.hostName)
+                const detailItems = isExpanded ? hardwareDetailItems(hw) : null
                 return (
-                <div key={machine.hostName} className="hm-row" role="row">
+                <Fragment key={machine.hostName}>
+                <div className="hm-row" role="row">
                   <Body start>
+                    <button
+                      type="button"
+                      className="hm-expand-btn"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? `Thu gọn thông tin phần cứng ${machine.hostName}` : `Xem tên/model phần cứng ${machine.hostName}`}
+                      onClick={() => toggleExpand(machine.hostName)}
+                    >
+                      <CaretRight size={12} weight="bold" className={`hm-expand-icon${isExpanded ? ' hm-expand-icon--open' : ''}`} aria-hidden="true" />
+                    </button>
                     <DataFreshDot hw={hw} offline={offline} nowMs={nowServerMs} />
                     {/* Ten may (+ canh bao loi doc du lieu) o dong tren, phien ban FNet chu nho mo o duoi. */}
                     <span className="hm-name-block">
@@ -890,6 +942,24 @@ export function HealthMonitorPage() {
                   <Body divider><Cell text={dataVolume(hw?.network.uploadGB)} value={hw?.network.uploadGB ?? null} /></Body>
                   <Body><Cell text={dataVolume(hw?.network.downloadGB)} value={hw?.network.downloadGB ?? null} /></Body>
                 </div>
+                {isExpanded ? (
+                  <div className="hm-detail">
+                    {detailItems === null ? (
+                      <span className="hm-detail__empty">Chưa có dữ liệu phần cứng.</span>
+                    ) : (
+                      detailItems.map((item) => {
+                        const Icon = item.icon
+                        return (
+                          <span key={item.id} className="hm-detail__item">
+                            <span className="hm-detail__label"><Icon size={16} weight="light" aria-hidden="true" /> {item.label}</span>
+                            <span className="hm-detail__value">{item.value}</span>
+                          </span>
+                        )
+                      })
+                    )}
+                  </div>
+                ) : null}
+                </Fragment>
                 )
               })}
             </div>

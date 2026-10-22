@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CaretDown, Clock, Desktop, DesktopTower, GearSix } from '@phosphor-icons/react'
 import {
   getOnlineBookAdminMachines,
   getOnlineBookConfig,
   putOnlineBookConfig,
   saveOnlineBookMachines,
+  type AdminMachine,
   type ConfigFieldError,
   type ConfigRow,
   type ConfigSetting,
   type ConfigStation,
   type ConfigTime,
+  type MachinePrice,
 } from '../../api/onlineBooking'
 import {
   Button,
@@ -38,24 +41,236 @@ type NumFieldProps = {
   max: number
   error?: string
   onChange: (value: number) => void
+  /** Gọi khi người dùng xong một lần nhập (rời ô hoặc nhấn Enter): lúc đó mới tự lưu. */
+  onCommit: () => void
 }
 
-function NumField({ label, hint, unit, value, min, max, error, onChange }: NumFieldProps) {
+type SettingRowProps = {
+  label: string
+  /** Id của control bên trong; bỏ trống khi control không phải một input (nhãn thành <span>). */
+  htmlFor?: string
+  hint?: string
+  error?: string
+  children: ReactNode
+}
+
+/** Kiểu trang cài đặt của Chrome: nhãn + gợi ý bên trái, control bên phải, các hàng ngăn bằng đường kẻ. */
+function SettingRow({ label, htmlFor, hint, error, children }: SettingRowProps) {
   return (
-    <label className="ds-field">
-      <span className="ds-field__label">
-        {label} <span className="ob-field__unit">({unit})</span>
+    <div className="ob-row">
+      <div className="ob-row__text">
+        {htmlFor ? (
+          <label className="ob-row__label" htmlFor={htmlFor}>
+            {label}
+          </label>
+        ) : (
+          <span className="ob-row__label">{label}</span>
+        )}
+        {error ? (
+          <span className="ds-field__error" role="alert">{error}</span>
+        ) : hint ? (
+          <span className="ds-field__hint">{hint}</span>
+        ) : null}
+      </div>
+      <div className="ob-row__control">{children}</div>
+    </div>
+  )
+}
+
+/** Nhóm các hàng liên quan: một hàng tiêu đề, các hàng con thụt vào. */
+function SettingGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="ob-row-group" role="group" aria-label={title}>
+      <div className="ob-row ob-row--title">
+        <span className="ob-row__label">{title}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+type SettingsCardProps = {
+  icon: ReactNode
+  title: string
+  summary: ReactNode
+  status?: string
+  /** Có `collapsible`: cả header là nút bấm để thu gọn/mở rộng. */
+  collapsible?: boolean
+  open?: boolean
+  onToggle?: () => void
+  /** Thân card không phải danh sách hàng (vd bảng máy) nên cần lề trong. */
+  padded?: boolean
+  /** Khóa mọi control trong thân card (fieldset disabled) — dùng khi tính năng đang tắt. */
+  disabled?: boolean
+  /** Control đặt ở bên phải header (vd công tắc bật/tắt, nút Lưu). Card `collapsible` đặt nó cạnh nút thu gọn (không lồng nút trong nút). */
+  headerAction?: ReactNode
+  children: ReactNode
+}
+
+/** Nhóm cài đặt kiểu Windows 11: icon, tiêu đề + tóm tắt giá trị, mũi tên thu gọn/mở rộng. */
+function SettingsCard({ icon, title, summary, status, collapsible, open = true, onToggle, padded, disabled, headerAction, children }: SettingsCardProps) {
+  const bodyId = useId()
+  const caret = <CaretDown size={18} weight="bold" aria-hidden="true" className={`ob-card__caret${open ? ' is-open' : ''}`} />
+  const content = (
+    <>
+      <span className="ob-card__icon" aria-hidden="true">{icon}</span>
+      <span className="ob-card__titles">
+        <strong>{title}</strong>
+        <span className="ob-card__summary">{summary}</span>
       </span>
-      <input
-        className="ds-input"
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
-      {error ? <span className="ds-field__error">{error}</span> : hint ? <span className="ds-field__hint">{hint}</span> : null}
-    </label>
+      {status ? <span className="ob-settings__saving">{status}</span> : null}
+      {collapsible && !headerAction ? caret : null}
+    </>
+  )
+  return (
+    <section className="ob-settings__card">
+      {collapsible ? (
+        <div className="ob-card__headrow">
+          <button type="button" className="ob-card__head ob-card__head--button" aria-expanded={open} aria-controls={bodyId} onClick={onToggle}>
+            {content}
+          </button>
+          {headerAction ? (
+            <>
+              <div className="ob-card__headrow-action">{headerAction}</div>
+              {/* Mũi tên nằm ngoài cùng bên phải; nút tiêu đề ở bên trái đã là nút thu gọn chính nên nút này chỉ để bấm cho tiện. */}
+              <button type="button" className="ob-card__caretbtn" tabIndex={-1} aria-hidden="true" onClick={onToggle}>
+                {caret}
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <div className="ob-card__head">
+          {content}
+          {headerAction}
+        </div>
+      )}
+      {open ? (
+        <div id={bodyId} className={padded ? 'ob-card__body ob-card__body--padded' : 'ob-card__body'}>
+          <fieldset className="ob-fieldset" disabled={disabled}>
+            {children}
+          </fieldset>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const MONEY = new Intl.NumberFormat('vi-VN')
+
+/** Giá trị + đơn vị trong dòng tóm tắt: chữ sáng hơn phần còn lại để dễ quét mắt. */
+const val = (text: string) => <b className="ob-card__val">{text}</b>
+
+function joinSummary(parts: ReactNode[]) {
+  return parts.map((part, index) => (
+    <Fragment key={index}>
+      {index > 0 ? ' · ' : null}
+      {part}
+    </Fragment>
+  ))
+}
+
+type MachineGroupPanelProps = {
+  name: string
+  prices: MachinePrice[]
+  machines: AdminMachine[]
+  isSelected: (machine: AdminMachine) => boolean
+  /** Máy đang khác bản đã lưu (chưa lưu): tích mới → nền xanh, bỏ tích máy đang có → nền đỏ, tới khi lưu. */
+  isChanged: (machine: AdminMachine) => boolean
+  open: boolean
+  onToggleOpen: () => void
+  onToggleMachine: (machineId: number, checked: boolean) => void
+  onToggleAll: (checked: boolean) => void
+}
+
+/** Một nhóm máy: [chọn tất cả] [mũi tên + tên nhóm + bảng giá ... đã chọn/tổng], thân là danh sách máy xếp trái→phải, trên→dưới. */
+function MachineGroupPanel({ name, prices, machines, isSelected, isChanged, open, onToggleOpen, onToggleMachine, onToggleAll }: MachineGroupPanelProps) {
+  const bodyId = useId()
+  const checkAllRef = useRef<HTMLInputElement>(null)
+  const total = machines.length
+  const count = machines.filter(isSelected).length
+  const full = total > 0 && count === total
+
+  useEffect(() => {
+    if (checkAllRef.current) checkAllRef.current.indeterminate = count > 0 && !full
+  }, [count, full])
+
+  return (
+    <div className="ob-mg">
+      <div className="ob-mg__head">
+        <input
+          ref={checkAllRef}
+          type="checkbox"
+          className="ob-mg__all"
+          checked={full}
+          aria-label={`Chọn tất cả máy nhóm ${name}`}
+          title="Chọn / bỏ chọn tất cả máy trong nhóm"
+          onChange={(event) => onToggleAll(event.target.checked)}
+        />
+        <button type="button" className="ob-mg__toggle" aria-expanded={open} aria-controls={bodyId} onClick={onToggleOpen}>
+          <CaretDown size={16} weight="bold" aria-hidden="true" className={`ob-card__caret${open ? ' is-open' : ''}`} />
+          <strong className="ob-mg__name">{name}</strong>
+          <span className="ob-mg__prices">
+            {prices.length === 0 ? (
+              <span className="ob-table__sub">Chưa có giá hội viên</span>
+            ) : (
+              prices.map((price) => (
+                <span key={price.userGroupId} className="ob-calendar__slot">
+                  {price.userGroup}: {val(`${MONEY.format(price.pricePerHour)} đ/giờ`)}
+                </span>
+              ))
+            )}
+          </span>
+          <span className={`ob-mg__count${full ? ' is-full' : ''}`} title="Máy được chọn / tổng số máy trong nhóm">
+            {count}/{total}
+          </span>
+        </button>
+      </div>
+      {open ? (
+        <ul id={bodyId} className="ob-mg__list">
+          {machines.map((machine) => {
+            const selected = isSelected(machine)
+            const changeClass = isChanged(machine) ? (selected ? ' is-added' : ' is-removed') : ''
+            return (
+            <li key={machine.machineId}>
+              <label className={`ob-mg__item${changeClass}`}>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(event) => onToggleMachine(machine.machineId, event.target.checked)}
+                />
+                <span>{machine.pc}</span>
+              </label>
+            </li>
+            )
+          })}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+function NumField({ label, hint, unit, value, min, max, error, onChange, onCommit }: NumFieldProps) {
+  const id = useId()
+  return (
+    <SettingRow label={label} htmlFor={id} hint={hint} error={error}>
+      <span className={`ds-money-input ob-row__numbox${error ? ' ds-money-input--error' : ''}`}>
+          <input
+          id={id}
+          className="ds-money-input__control"
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          aria-invalid={Boolean(error)}
+          onChange={(event) => onChange(Number(event.target.value))}
+          onBlur={onCommit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+        />
+        <span aria-hidden="true">{unit}</span>
+      </span>
+    </SettingRow>
   )
 }
 
@@ -66,6 +281,11 @@ export function OnlineBookingSettingsPage() {
   const [stationDraft, setStationDraft] = useState<ConfigStation | null>(null)
   const [fieldErrors, setFieldErrors] = useState<ConfigFieldError[]>([])
   const [machineOverrides, setMachineOverrides] = useState<Record<number, boolean>>({})
+  // Hai nhóm dài mặc định thu gọn (tóm tắt đã ở header).
+  const [timeOpen, setTimeOpen] = useState(false)
+  const [machinesOpen, setMachinesOpen] = useState(false)
+  // Nhóm máy mặc định thu gọn: chỉ nhóm được bấm mở mới có khoá.
+  const [openGroups, setOpenGroups] = useState<Record<number, boolean>>({})
 
   const configQuery = useQuery({ queryKey: ['onlinebook-config'], queryFn: getOnlineBookConfig })
   const machinesQuery = useQuery({ queryKey: ['onlinebook-admin-machines'], queryFn: getOnlineBookAdminMachines })
@@ -83,7 +303,7 @@ export function OnlineBookingSettingsPage() {
 
   const errorFor = (row: ConfigRow, key: string) => fieldErrors.find((e) => e.row === row && e.key === key)?.message
 
-  // Hook dùng chung cho 3 nút Lưu (mỗi dòng JSON lưu riêng, tên "use…" để ESLint coi là custom hook).
+  // Hook dùng chung cho 3 dòng cấu hình (mỗi dòng JSON lưu riêng, tên "use…" để ESLint coi là custom hook).
   function useSaveConfigMutation() {
     return useMutation({
       mutationFn: putOnlineBookConfig,
@@ -103,6 +323,21 @@ export function OnlineBookingSettingsPage() {
   const saveSettingMutation = useSaveConfigMutation()
   const saveTimeMutation = useSaveConfigMutation()
   const saveStationMutation = useSaveConfigMutation()
+
+  // Tự lưu: công tắc/lựa chọn lưu ngay khi đổi; ô số lưu khi rời ô. Không đổi so với máy chủ thì bỏ qua.
+  const unchanged = (draft: object, saved: object | undefined) => !saved || JSON.stringify(draft) === JSON.stringify(saved)
+  const commitSetting = (draft: ConfigSetting) => {
+    if (unchanged(draft, configQuery.data?.setting)) return
+    saveSettingMutation.mutate({ setting: draft })
+  }
+  const commitTime = (draft: ConfigTime) => {
+    if (unchanged(draft, configQuery.data?.time)) return
+    saveTimeMutation.mutate({ time: draft })
+  }
+  const commitStation = (draft: ConfigStation) => {
+    if (unchanged(draft, configQuery.data?.station)) return
+    saveStationMutation.mutate({ station: draft })
+  }
 
   const saveMachinesMutation = useMutation({
     mutationFn: saveOnlineBookMachines,
@@ -127,7 +362,51 @@ export function OnlineBookingSettingsPage() {
   }, [machinesQuery.data])
 
   const machinesDirty = Object.keys(machineOverrides).length > 0
+  const isMachineSelected = (m: AdminMachine) => machineOverrides[m.machineId] ?? m.enabled
+  // Ghi đè chỉ giữ máy khác với dữ liệu đã lưu, để tích rồi bỏ tích lại không bị tính là chưa lưu.
+  const setMachinesSelected = (ids: number[], checked: boolean) =>
+    setMachineOverrides((prev) => {
+      const next = { ...prev }
+      const saved = new Map((machinesQuery.data?.machines ?? []).map((m) => [m.machineId, m.enabled]))
+      ids.forEach((id) => {
+        if (saved.get(id) === checked) delete next[id]
+        else next[id] = checked
+      })
+      return next
+    })
+  const bookingEnabled = settingDraft?.enabled === 1
 
+  // Tóm tắt hiện ở header mỗi nhóm để khỏi mở ra mới biết giá trị đang đặt.
+  const settingSummary: ReactNode = settingDraft
+    ? joinSummary([
+        settingDraft.enabled === 1 ? 'Đang bật' : 'Đang tắt',
+        <>Phí {val(`${MONEY.format(settingDraft.fee)} đ`)}/đơn</>,
+        settingDraft.approval_mode === 1 ? 'Duyệt thủ công' : 'Tự động duyệt',
+      ])
+    : ''
+  const timeSummary: ReactNode = timeDraft
+    ? joinSummary([
+        <>Đặt trước tối đa {val(`${timeDraft.max_ahead} phút`)}</>,
+        <>Không đặt sát giờ {val(`${timeDraft.min_lead} phút`)}</>,
+        <>Tối đa {val(`${timeDraft.max_hours} giờ`)}/đơn</>,
+        <>Đệm {val(`${timeDraft.buffer} phút`)}</>,
+        <>Hết hạn chờ duyệt {val(`${timeDraft.approval_timeout} phút`)}</>,
+      ])
+    : ''
+  const stationSummary: ReactNode = stationDraft
+    ? joinSummary([
+        <>Khoá đăng nhập trước {val(`${stationDraft.lock_window} phút`)}</>,
+        <>Vào máy sớm {val(`${stationDraft.early_login} phút`)}</>,
+      ])
+    : ''
+  const allMachines = machinesQuery.data?.machines ?? []
+  const machinesEnabledCount = allMachines.filter((m) => machineOverrides[m.machineId] ?? m.enabled).length
+  const machinesSummary: ReactNode = machinesQuery.isLoading
+    ? 'Đang tải…'
+    : joinSummary([
+        <>{val(`${machinesEnabledCount}/${allMachines.length}`)} máy đang cho đặt online</>,
+        ...(machinesDirty ? ['chưa lưu'] : []),
+      ])
   return (
     <section className="ob-settings">
       <PageHeader
@@ -156,99 +435,133 @@ export function OnlineBookingSettingsPage() {
       ))}
 
       {settingDraft ? (
-        <section className="ob-settings__card">
-          <header>
-            <strong>Cài đặt chính</strong>
-          </header>
-          <div className="ob-settings__grid">
-            <label className="ds-field ob-toggle">
+        <SettingsCard
+          icon={<GearSix size={22} weight="regular" aria-hidden="true" />}
+          title="Cài đặt chính"
+          summary={settingSummary}
+          status={saveSettingMutation.isPending ? 'Đang lưu…' : undefined}
+          disabled={!bookingEnabled}
+          headerAction={
+            <label className="ob-card__switch">
+              <span>Đặt máy online</span>
+              <span className="ob-card__switch-state" aria-hidden="true">{bookingEnabled ? 'Bật' : 'Tắt'}</span>
               <input
+                className="ob-switch"
                 type="checkbox"
-                checked={settingDraft.enabled === 1}
-                onChange={(event) => setSettingDraft({ ...settingDraft, enabled: event.target.checked ? 1 : 0 })}
+                role="switch"
+                checked={bookingEnabled}
+                onChange={(event) => {
+                  const next: ConfigSetting = { ...settingDraft, enabled: event.target.checked ? 1 : 0 }
+                  setSettingDraft(next)
+                  commitSetting(next)
+                }}
               />
-              <span>Bật tính năng đặt máy online</span>
             </label>
-            <MoneyInput
-              label="Phí đặt chỗ mỗi đơn"
-              value={settingDraft.fee}
-              min={0}
-              max={10_000_000}
-              error={errorFor('setting', 'fee')}
-              hint="0 … 10.000.000 đ, cộng vào tổng mỗi đơn."
-              onChange={(value) => setSettingDraft({ ...settingDraft, fee: value ?? 0 })}
-            />
-            <label className="ds-field">
-              <span className="ds-field__label">Chế độ duyệt</span>
+          }
+        >
+          <div className="ob-rows">
+            <SettingRow
+              label="Chế độ duyệt"
+              error={errorFor('setting', 'approval_mode')}
+              hint="Mặc định duyệt thủ công; chỉ bật tự động khi đã chạy ổn."
+            >
               <Segmented
                 value={settingDraft.approval_mode === 1 ? 'manual' : 'auto'}
                 ariaLabel="Chế độ duyệt"
                 options={[
-                  { value: 'manual', label: 'Duyệt tay' },
+                  { value: 'manual', label: 'Duyệt thủ công' },
                   { value: 'auto', label: 'Tự động' },
                 ]}
-                onChange={(value) => setSettingDraft({ ...settingDraft, approval_mode: value === 'manual' ? 1 : 0 })}
+                onChange={(value) => {
+                  const next: ConfigSetting = { ...settingDraft, approval_mode: value === 'manual' ? 1 : 0 }
+                  setSettingDraft(next)
+                  commitSetting(next)
+                }}
               />
-              {errorFor('setting', 'approval_mode') ? (
-                <span className="ds-field__error">{errorFor('setting', 'approval_mode')}</span>
-              ) : (
-                <span className="ds-field__hint">Mặc định duyệt tay; chỉ bật tự động khi đã chạy ổn.</span>
-              )}
-            </label>
+            </SettingRow>
+            <SettingRow
+              label="Phí đặt chỗ mỗi đơn"
+              htmlFor="ob-fee"
+              error={errorFor('setting', 'fee')}
+              hint="0 … 10.000.000 đ, cộng vào tổng mỗi đơn."
+            >
+              <MoneyInput
+                id="ob-fee"
+                label="Phí đặt chỗ mỗi đơn"
+                value={settingDraft.fee}
+                min={0}
+                max={10_000_000}
+                error={errorFor('setting', 'fee')}
+                onChange={(value) => setSettingDraft({ ...settingDraft, fee: value ?? 0 })}
+                onBlur={() => commitSetting(settingDraft)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur()
+                }}
+              />
+            </SettingRow>
           </div>
-          <footer>
-            <Button type="button" variant="primary" loading={saveSettingMutation.isPending} onClick={() => saveSettingMutation.mutate({ setting: settingDraft })}>
-              Lưu cài đặt chính
-            </Button>
-          </footer>
-        </section>
+        </SettingsCard>
       ) : null}
 
       {timeDraft ? (
-        <section className="ob-settings__card">
-          <header>
-            <strong>Thời gian đặt đơn</strong>
-          </header>
-          <div className="ob-settings__grid">
-            <NumField
-              label="Đặt trước tối đa"
-              unit="phút"
-              min={0}
-              max={180}
-              value={timeDraft.max_ahead}
-              error={errorFor('time', 'max_ahead')}
-              hint="Bắt đầu muộn nhất sau N phút kể từ lúc đặt."
-              onChange={(v) => setTimeDraft({ ...timeDraft, max_ahead: v })}
-            />
-            <NumField
-              label="Số giờ tối đa mỗi đơn"
-              unit="giờ"
-              min={1}
-              max={24}
-              value={timeDraft.max_hours}
-              error={errorFor('time', 'max_hours')}
-              onChange={(v) => setTimeDraft({ ...timeDraft, max_hours: v })}
-            />
-            <NumField
-              label="Không đặt sát giờ"
-              unit="phút"
-              min={0}
-              max={120}
-              value={timeDraft.min_lead}
-              error={errorFor('time', 'min_lead')}
-              hint="Khoảng cách tối thiểu từ lúc đặt đến giờ bắt đầu."
-              onChange={(v) => setTimeDraft({ ...timeDraft, min_lead: v })}
-            />
-            <NumField
-              label="Đệm giữa 2 đơn"
-              unit="phút"
-              min={0}
-              max={60}
-              value={timeDraft.buffer}
-              error={errorFor('time', 'buffer')}
-              hint="Thời gian bàn giao máy giữa 2 đơn liên tiếp."
-              onChange={(v) => setTimeDraft({ ...timeDraft, buffer: v })}
-            />
+        <SettingsCard
+          icon={<Clock size={22} weight="regular" aria-hidden="true" />}
+          title="Thời gian đặt đơn"
+          summary={timeSummary}
+          status={saveTimeMutation.isPending ? 'Đang lưu…' : undefined}
+          disabled={!bookingEnabled}
+          collapsible
+          open={timeOpen}
+          onToggle={() => setTimeOpen((v) => !v)}
+        >
+          <div className="ob-rows">
+            <SettingGroup title="Thời điểm bắt đầu">
+              <NumField
+                label="Đặt trước tối đa"
+                unit="phút"
+                min={0}
+                max={180}
+                value={timeDraft.max_ahead}
+                error={errorFor('time', 'max_ahead')}
+                hint="Bắt đầu muộn nhất sau N phút kể từ lúc đặt."
+                onChange={(v) => setTimeDraft({ ...timeDraft, max_ahead: v })}
+                onCommit={() => commitTime(timeDraft)}
+              />
+              <NumField
+                label="Không đặt sát giờ"
+                unit="phút"
+                min={0}
+                max={120}
+                value={timeDraft.min_lead}
+                error={errorFor('time', 'min_lead')}
+                hint="Khoảng cách tối thiểu từ lúc đặt đến giờ bắt đầu."
+                onChange={(v) => setTimeDraft({ ...timeDraft, min_lead: v })}
+                onCommit={() => commitTime(timeDraft)}
+              />
+            </SettingGroup>
+            <SettingGroup title="Thời lượng đơn">
+              <NumField
+                label="Số giờ tối đa mỗi đơn"
+                unit="giờ"
+                min={1}
+                max={24}
+                value={timeDraft.max_hours}
+                error={errorFor('time', 'max_hours')}
+                onChange={(v) => setTimeDraft({ ...timeDraft, max_hours: v })}
+                onCommit={() => commitTime(timeDraft)}
+              />
+              <NumField
+                label="Đệm giữa 2 đơn"
+                unit="phút"
+                min={0}
+                max={60}
+                value={timeDraft.buffer}
+                error={errorFor('time', 'buffer')}
+                hint="Thời gian bàn giao máy giữa 2 đơn liên tiếp."
+                onChange={(v) => setTimeDraft({ ...timeDraft, buffer: v })}
+                onCommit={() => commitTime(timeDraft)}
+              />
+            </SettingGroup>
             <NumField
               label="Hết hạn chờ duyệt"
               unit="phút"
@@ -257,22 +570,21 @@ export function OnlineBookingSettingsPage() {
               value={timeDraft.approval_timeout}
               error={errorFor('time', 'approval_timeout')}
               onChange={(v) => setTimeDraft({ ...timeDraft, approval_timeout: v })}
+              onCommit={() => commitTime(timeDraft)}
             />
           </div>
-          <footer>
-            <Button type="button" variant="primary" loading={saveTimeMutation.isPending} onClick={() => saveTimeMutation.mutate({ time: timeDraft })}>
-              Lưu thời gian đặt đơn
-            </Button>
-          </footer>
-        </section>
+        </SettingsCard>
       ) : null}
 
       {stationDraft ? (
-        <section className="ob-settings__card">
-          <header>
-            <strong>Máy trạm</strong>
-          </header>
-          <div className="ob-settings__grid">
+        <SettingsCard
+          icon={<Desktop size={22} weight="regular" aria-hidden="true" />}
+          title="Máy trạm"
+          summary={stationSummary}
+          status={saveStationMutation.isPending ? 'Đang lưu…' : undefined}
+          disabled={!bookingEnabled}
+        >
+          <div className="ob-rows">
             <NumField
               label="Khoá đăng nhập trước giờ đặt"
               unit="phút"
@@ -282,6 +594,7 @@ export function OnlineBookingSettingsPage() {
               error={errorFor('station', 'lock_window')}
               hint="Chặn người khác login từ (giờ đặt − N phút)."
               onChange={(v) => setStationDraft({ ...stationDraft, lock_window: v })}
+              onCommit={() => commitStation(stationDraft)}
             />
             <NumField
               label="Cho vào máy sớm"
@@ -292,94 +605,65 @@ export function OnlineBookingSettingsPage() {
               error={errorFor('station', 'early_login')}
               hint="Chủ đơn được vào máy sớm trước giờ đặt; vẫn chỉ chơi đúng số phút đã trả."
               onChange={(v) => setStationDraft({ ...stationDraft, early_login: v })}
+              onCommit={() => commitStation(stationDraft)}
             />
           </div>
-          <footer>
-            <Button type="button" variant="primary" loading={saveStationMutation.isPending} onClick={() => saveStationMutation.mutate({ station: stationDraft })}>
-              Lưu máy trạm
-            </Button>
-          </footer>
-        </section>
+        </SettingsCard>
       ) : null}
 
-      <section className="ob-settings__card">
-        <header>
-          <strong>Máy cho đặt online</strong>
-          <span>{machinesQuery.data?.machines.length ?? 0} máy</span>
-        </header>
+      <SettingsCard
+        icon={<DesktopTower size={22} weight="regular" aria-hidden="true" />}
+        title="Máy cho đặt online"
+        summary={machinesSummary}
+        status={saveMachinesMutation.isPending ? 'Đang lưu…' : undefined}
+        disabled={!bookingEnabled}
+        collapsible
+        open={machinesOpen}
+        onToggle={() => setMachinesOpen((v) => !v)}
+        padded
+        headerAction={
+          <Button
+            type="button"
+            variant="primary"
+            disabled={!machinesDirty}
+            loading={saveMachinesMutation.isPending}
+            onClick={() => {
+              const machines = (machinesQuery.data?.machines ?? []).map((m) => ({
+                machineId: m.machineId,
+                enabled: machineOverrides[m.machineId] ?? m.enabled,
+              }))
+              saveMachinesMutation.mutate({ machines })
+            }}
+          >
+            Lưu
+          </Button>
+        }
+      >
         {machinesQuery.isLoading ? (
           <StateView title="Đang tải danh sách máy…" />
         ) : machinesQuery.isError ? (
           <StateView title="Không tải được danh sách máy" description={describeBookingError(machinesQuery.error)} />
         ) : (
           <>
-            {machineGroups.map((group) => (
-              <div key={group.id} className="ob-settings__machine-group">
-                <h3>{group.name}</h3>
-                <table className="ob-table">
-                  <thead>
-                    <tr>
-                      <th>Cho đặt online</th>
-                      <th>Máy</th>
-                      <th>Bảng giá</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.machines.map((machine) => {
-                      const enabled = machineOverrides[machine.machineId] ?? machine.enabled
-                      return (
-                        <tr key={machine.machineId}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={enabled}
-                              aria-label={`Cho đặt online máy ${machine.pc}`}
-                              onChange={(event) =>
-                                setMachineOverrides((prev) => ({ ...prev, [machine.machineId]: event.target.checked }))
-                              }
-                            />
-                          </td>
-                          <td>{machine.pc}</td>
-                          <td>
-                            <div className="ob-calendar__slots">
-                              {machine.prices.length === 0 ? (
-                                <span className="ob-table__sub">Chưa có giá hội viên</span>
-                              ) : (
-                                machine.prices.map((price) => (
-                                  <span key={price.userGroupId} className="ob-calendar__slot">
-                                    {price.userGroup}: {new Intl.NumberFormat('vi-VN').format(price.pricePerHour)} đ/giờ
-                                  </span>
-                                ))
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-            <footer>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={!machinesDirty}
-                loading={saveMachinesMutation.isPending}
-                onClick={() => {
-                  const machines = (machinesQuery.data?.machines ?? []).map((m) => ({
-                    machineId: m.machineId,
-                    enabled: machineOverrides[m.machineId] ?? m.enabled,
-                  }))
-                  saveMachinesMutation.mutate({ machines })
-                }}
-              >
-                Lưu danh sách máy
-              </Button>
-            </footer>
+            <div className="ob-mg-list">
+              {machineGroups.map((group) => (
+                <MachineGroupPanel
+                  key={group.id}
+                  name={group.name}
+                  prices={group.machines[0]?.prices ?? []}
+                  machines={group.machines}
+                  isSelected={isMachineSelected}
+                  isChanged={(m) => m.machineId in machineOverrides}
+                  open={Boolean(openGroups[group.id])}
+                  onToggleOpen={() => setOpenGroups((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                  onToggleMachine={(machineId, checked) => setMachinesSelected([machineId], checked)}
+                  onToggleAll={(checked) => setMachinesSelected(group.machines.map((m) => m.machineId), checked)}
+                />
+              ))}
+            </div>
           </>
         )}
-      </section>
+      </SettingsCard>
     </section>
   )
 }

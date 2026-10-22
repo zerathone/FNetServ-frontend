@@ -1,18 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, Clock, XCircle } from '@phosphor-icons/react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CheckCircle, HandCoins, MagnifyingGlass, QrCode, Stack, XCircle } from '@phosphor-icons/react'
 import {
   approveBooking,
   cancelBooking,
   getBoard,
   getBookingList,
+  getOnlineBookConfig,
   rejectBooking,
   type Booking,
 } from '../../api/onlineBooking'
 import {
   Button,
   ConfirmAction,
-  DatePicker,
+  DateRangePicker,
   InlineAlert,
   ListPagination,
   PageHeader,
@@ -22,6 +23,7 @@ import {
   StatusBadge,
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
+import { useRevenuePrefs } from '../../store/revenuePrefs'
 import { useWsStatusStore } from '../../store/wsStatus'
 import { pushToast } from '../../store/toast'
 import {
@@ -33,6 +35,7 @@ import {
   formatCountdown,
   formatDateTime,
   formatMoney,
+  formatBookingRange,
   formatTimeRange,
   OB_RIGHTS,
   PAY_METHOD_LABEL,
@@ -45,6 +48,8 @@ import {
   STATUS_TONE,
 } from './onlineBookingModel'
 import { StaffBookingDialog } from './StaffBookingDialog'
+// Thẻ đơn + thẻ thống kê dùng chung kiểu với trang Đơn dịch vụ (order-card / order-summary).
+import '../orders/orders.css'
 import './online-booking.css'
 
 const PAGE_SIZE = 20
@@ -58,6 +63,29 @@ function todayYMD(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
+type SearchField = 'member' | 'code' | 'pc'
+const SEARCH_PLACEHOLDER: Record<SearchField, string> = {
+  member: 'Nhập tên đăng nhập hội viên',
+  code: 'Nhập mã đơn, vd DM7K3QX',
+  pc: 'Nhập hoặc chọn tên máy',
+}
+const PC_LIST_ID = 'ob-pc-options'
+
+/** Cách trả tiền hiện trên thẻ Doanh thu (không có tiền mặt). `iconClass` = màu icon nền của orders.css. */
+const REVENUE_METHODS: Array<{ key: 'qr' | 'wallet'; Icon: typeof QrCode; iconClass: string }> = [
+  { key: 'qr', Icon: QrCode, iconClass: 'qr' },
+  { key: 'wallet', Icon: HandCoins, iconClass: 'deduct' },
+]
+
+/** Trạng thái thống kê trên thẻ tổng quan (ngoài Chờ duyệt / Đã duyệt). allDates: đếm mọi ngày, ngược lại chỉ hôm nay. */
+const STAT_STATUSES: Array<{ key: 'in_use' | 'done' | 'no_show' | 'cancelled' | 'rejected'; label: string; allDates: boolean }> = [
+  { key: 'in_use', label: 'Đang dùng', allDates: true },
+  { key: 'done', label: 'Đã dùng xong', allDates: false },
+  { key: 'no_show', label: 'Không đến', allDates: false },
+  { key: 'cancelled', label: 'Đã huỷ', allDates: false },
+  { key: 'rejected', label: 'Từ chối / hết hạn', allDates: false },
+]
+
 export function OnlineBookingWorkspace() {
   const queryClient = useQueryClient()
   const hasRight = useAuthStore((state) => state.hasRight)
@@ -65,11 +93,17 @@ export function OnlineBookingWorkspace() {
   const canApprove = hasRight(OB_RIGHTS.APPROVE)
   const canCancel = hasRight(OB_RIGHTS.CANCEL)
 
-  const [date, setDate] = useState(() => todayYMD())
+  const [fromDate, setFromDate] = useState(() => todayYMD())
+  const [toDate, setToDate] = useState(() => todayYMD())
   const [status, setStatus] = useState('')
-  const [pc, setPc] = useState('')
   const [channel, setChannel] = useState('')
-  const [q, setQ] = useState('')
+  // Một ô tìm kiếm gộp [combo chọn trường][ô nhập]: mã đơn / hội viên → tham số `q` của server (khớp một phần),
+  // máy → tham số `pc` (khớp đúng tên máy, không phân biệt hoa thường; có gợi ý tên máy).
+  const [searchField, setSearchField] = useState<SearchField>('member')
+  const [searchText, setSearchText] = useState('')
+  const keyword = searchText.trim()
+  const pc = searchField === 'pc' ? keyword : ''
+  const q = searchField === 'pc' ? '' : keyword
   const [page, setPage] = useState(0)
   const [staffDialogOpen, setStaffDialogOpen] = useState(false)
   const [action, setAction] = useState<PendingAction>(null)
@@ -82,7 +116,7 @@ export function OnlineBookingWorkspace() {
     return () => window.clearInterval(timer)
   }, [])
 
-  useEffect(() => setPage(0), [date, status, pc, channel, q])
+  useEffect(() => setPage(0), [fromDate, toDate, status, pc, channel, q])
 
   const boardQuery = useQuery({
     queryKey: ['onlinebook-board'],
@@ -96,11 +130,66 @@ export function OnlineBookingWorkspace() {
     refetchInterval: connected ? 15_000 : 5_000,
   })
 
+  // Chế độ duyệt (approval_mode 0 = tự động). /onlinebook/config chỉ dành cho admin: tài khoản không phải admin
+  // nhận lỗi → coi như duyệt thủ công (không hiện AUTO), không báo lỗi lên trang.
+  const configQuery = useQuery({
+    queryKey: ['onlinebook-config'],
+    queryFn: getOnlineBookConfig,
+    retry: false,
+    staleTime: 60_000,
+  })
+  const autoApprove = configQuery.data?.setting.approval_mode === 0
+
+  // Đơn đã duyệt, đang chờ khách đến nhận máy (mọi ngày) — cho thẻ thống kê "Đã duyệt".
+  const confirmedQuery = useQuery({
+    queryKey: ['onlinebook-confirmed'],
+    queryFn: () => getBookingList({ status: 'confirmed', limit: 50 }),
+    refetchInterval: connected ? 30_000 : 10_000,
+  })
+
+  // Thống kê các trạng thái kế tiếp: lấy `total` cho số đếm + tối đa 200 đơn (giới hạn của server) để cộng doanh thu.
+  const today = todayYMD()
+  const statQueries = useQueries({
+    queries: STAT_STATUSES.map((stat) => ({
+      queryKey: ['onlinebook-stat', stat.key, stat.allDates ? 'all' : today],
+      queryFn: () => getBookingList({ status: stat.key, date: stat.allDates ? undefined : today, limit: 200 }),
+      refetchInterval: connected ? 30_000 : 10_000,
+    })),
+  })
+  const statData = (key: (typeof STAT_STATUSES)[number]['key']) =>
+    statQueries[STAT_STATUSES.findIndex((s) => s.key === key)]?.data
+
+  // Doanh thu hôm nay = đơn đã bị trừ tiền và KHÔNG hoàn: Đã duyệt, Đang dùng, Đã dùng xong, Không đến, và Đã huỷ
+  // không hoàn (huỷ có cộng lại tài khoản chính — đã cộng hoặc đang cộng — thì tiền trả về nên không tính).
+  // Từ chối / hết hạn chưa từng trừ tiền nên không tính.
+  const isToday = (b: Booking) => b.from.slice(0, 10) === today
+  const paidBookings: Booking[] = [
+    ...(confirmedQuery.data?.items ?? []).filter(isToday),
+    ...(statData('in_use')?.items ?? []).filter(isToday),
+    ...(statData('done')?.items ?? []),
+    ...(statData('no_show')?.items ?? []),
+    ...(statData('cancelled')?.items ?? []).filter((b) => b.cancelCredit !== 'credited' && b.cancelCredit !== 'pending'),
+  ]
+  // Ô tròn ở góc ô "Cấn trừ": bỏ chọn = tiền cấn trừ (trừ vào số dư ví, không phải tiền thu mới) không tính vào doanh thu.
+  const deductInRevenue = useRevenuePrefs((state) => state.deductInRevenue)
+  const setDeductInRevenue = useRevenuePrefs((state) => state.setDeductInRevenue)
+  const revenueBookings = deductInRevenue ? paidBookings : paidBookings.filter((b) => payMethodOf(b) !== 'wallet')
+  const revenue = revenueBookings.reduce((sum, b) => sum + b.total, 0)
+  // Server chỉ trả tối đa 200 đơn / lần (đơn chờ duyệt xác nhận 50): nếu còn nhiều hơn thì tiền bị thiếu → hiện "≥".
+  const revenueTruncated =
+    (confirmedQuery.data ? confirmedQuery.data.total > confirmedQuery.data.items.length : false) ||
+    (['in_use', 'done', 'no_show', 'cancelled'] as const).some((key) => {
+      const data = statData(key)
+      return data ? data.total > data.items.length : false
+    })
+  const formatRevenue = (amount: number) => (revenueTruncated ? `≥ ${formatMoney(amount)}` : formatMoney(amount))
+
   const listQuery = useQuery({
-    queryKey: ['onlinebook-list', { date, status, pc, channel, q, page }],
+    queryKey: ['onlinebook-list', { fromDate, toDate, status, pc, channel, q, page }],
     queryFn: () =>
       getBookingList({
-        date: date || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
         status: (status || undefined) as Booking['status'] | undefined,
         pc: pc || undefined,
         channel: (channel || undefined) as Booking['channel'] | undefined,
@@ -113,6 +202,8 @@ export function OnlineBookingWorkspace() {
 
   const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['onlinebook-queue'] })
+    void queryClient.invalidateQueries({ queryKey: ['onlinebook-confirmed'] })
+    void queryClient.invalidateQueries({ queryKey: ['onlinebook-stat'] })
     void queryClient.invalidateQueries({ queryKey: ['onlinebook-list'] })
     void queryClient.invalidateQueries({ queryKey: ['onlinebook-board'] })
   }
@@ -167,6 +258,24 @@ export function OnlineBookingWorkspace() {
   })
 
   const queueItems = queueQuery.data?.items ?? []
+  // Số đếm lấy `total` của server; tiền chỉ cộng các đơn đã tải (tối đa 50 đơn mỗi loại).
+  const waitCount = queueQuery.data?.total ?? 0
+  const waitAmount = queueItems.reduce((sum, b) => sum + b.total, 0)
+  const confirmedCount = confirmedQuery.data?.total ?? 0
+  const confirmedAmount = (confirmedQuery.data?.items ?? []).reduce((sum, b) => sum + b.total, 0)
+
+  // Bấm thẻ thống kê = lọc danh sách đơn theo trạng thái đó. Đơn chờ/đã duyệt có thể thuộc ngày khác nên bỏ lọc ngày;
+  // bấm thẻ tổng thì về mặc định (mọi trạng thái, hôm nay).
+  // Các trạng thái kế tiếp (đang dùng / xong / không đến / huỷ / từ chối): đếm đơn HÔM NAY (đang dùng: mọi ngày) nên
+  // bấm vào thì lọc đúng khoảng ngày đó để số trên thẻ khớp với danh sách.
+  const showStatus = (next: string) => {
+    setStatus(next)
+    const stat = STAT_STATUSES.find((s) => s.key === next)
+    const d = next === '' || (stat && !stat.allDates) ? todayYMD() : ''
+    setFromDate(d)
+    setToDate(d)
+  }
+
   const listItems = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -184,7 +293,7 @@ export function OnlineBookingWorkspace() {
       : action?.type === 'reject'
         ? 'Từ chối đơn'
         : action?.type === 'cancelCredit'
-          ? 'Huỷ + cộng lại tài khoản chính'
+          ? 'Hủy (cộng lại tk chính)'
           : 'Huỷ, không hoàn'
   const confirmTitle =
     action?.type === 'approve'
@@ -212,99 +321,355 @@ export function OnlineBookingWorkspace() {
 
   const needsReason = action?.type === 'reject' || action?.type === 'cancel' || action?.type === 'cancelCredit'
 
+  const renderBookingCard = (booking: Booking) => {
+    const countdown = formatCountdown(booking.approvalDeadline, now)
+    const waiting = booking.status === 'wait_approval'
+    const range = formatBookingRange(booking.from, booking.to)
+    // Icon cách trả tiền (cùng icon với ô QR / Cấn trừ trên thẻ Doanh thu).
+    const payMethod = payMethodOf(booking)
+    const PayIcon = REVENUE_METHODS.find((m) => m.key === payMethod)?.Icon ?? HandCoins
+    // Tên kênh (FZone / Thu ngân) tô sáng; tên nhân viên đi kèm giữ màu thường.
+    const channelLine = (
+      <>
+        <b className="ob-bcard__channel">{CHANNEL_LABEL[booking.channel]}</b>
+        {booking.channel === 'staff' && booking.createdBy ? `: ${describePerson(booking.createdBy)}` : ''}
+      </>
+    )
+    return (
+      <article key={booking.bookId} className="order-card ob-bcard">
+        <div className="order-card__identity">
+          <div className="ob-bcard__machine">
+            <strong>{booking.pc}</strong>
+            <span className="ob-bcard__group">{booking.machineGroup}</span>
+            <StatusBadge tone={PC_STATE_TONE[booking.pcState]}>{PC_STATE_LABEL[booking.pcState]}</StatusBadge>
+          </div>
+          <span className="order-card__username">{booking.member.username}</span>
+          <div className="order-card__meta-row">
+            <span className="order-card__voucher-id">#{booking.bookCode}</span>
+            {waiting ? (
+              <StatusBadge tone={countdown.expired ? 'danger' : 'warning'}>
+                {countdown.expired ? 'Đã hết hạn duyệt' : `Hết hạn sau ${countdown.label}`}
+              </StatusBadge>
+            ) : (
+              <StatusBadge tone={STATUS_TONE[booking.status]}>{STATUS_LABEL[booking.status]}</StatusBadge>
+            )}
+          </div>
+        </div>
+        <div className="order-card__items">
+          <div className="order-card__line">
+            <div className="order-card__line-main">
+              <strong>
+                {range ? (
+                  <>
+                    <span className="ob-bcard__day">{range.fromDay}</span> {range.fromTime} →{' '}
+                    {range.toDay ? <span className="ob-bcard__day">{range.toDay} </span> : null}
+                    {range.toTime}
+                  </>
+                ) : (
+                  '—'
+                )}
+              </strong>
+            </div>
+            <div className="order-card__line-qty">
+              <span className="order-card__line-qty-value">{booking.minutes} phút</span>
+              <span>
+                {formatMoney(booking.pricePerHour)}/giờ{booking.fee > 0 ? ` + phí ${formatMoney(booking.fee)}` : ''}
+              </span>
+            </div>
+          </div>
+          <div className="ob-bcard__log">
+            <span>
+              Tạo {formatDateTime(booking.createdAt)} · {channelLine}
+            </span>
+            {booking.approvedBy ? <span>Duyệt: {describePerson(booking.approvedBy)}</span> : null}
+            {booking.loginAt ? <span>Khách vào máy: {formatDateTime(booking.loginAt)}</span> : null}
+            {booking.status === 'rejected' && booking.failCode ? <span>{describeFailCode(booking.failCode)}</span> : null}
+            {booking.cancelledBy ? (
+              <span>
+                Huỷ: {describePerson(booking.cancelledBy)}
+                {booking.cancelReason ? ` — ${booking.cancelReason}` : ''}
+              </span>
+            ) : null}
+            {booking.cancelCredit === 'credited' ? (
+              <StatusBadge tone="success">
+                Đã cộng lại {formatMoney(booking.cancelCreditAmount ?? booking.total)}
+              </StatusBadge>
+            ) : booking.cancelCredit === 'pending' ? (
+              <StatusBadge tone="warning">Đang cộng lại tài khoản chính</StatusBadge>
+            ) : booking.cancelCredit === 'failed' ? (
+              <StatusBadge tone="danger">Cộng lại lỗi — cần đối soát</StatusBadge>
+            ) : booking.status === 'cancelled' ? (
+              <span>Không hoàn tiền</span>
+            ) : null}
+          </div>
+        </div>
+        <div className="order-card__total">
+          <span>Tổng</span>
+          <strong>{formatMoney(booking.total)}</strong>
+          <StatusBadge tone={payMethod === 'qr' ? 'warning' : 'info'}>
+            <span className="ob-bcard__pay">
+              <PayIcon size={14} weight="fill" aria-hidden="true" />
+              {PAY_METHOD_LABEL[payMethod]}
+            </span>
+          </StatusBadge>
+        </div>
+        <div className="order-card__actions">
+          {waiting ? (
+            <>
+              <Button
+                type="button"
+                variant="primary"
+                icon={<CheckCircle size={18} weight="bold" aria-hidden="true" />}
+                disabled={!canApprove}
+                title={canApprove ? undefined : `Cần quyền Duyệt (${OB_RIGHTS.APPROVE})`}
+                onClick={() => setAction({ type: 'approve', booking })}
+              >
+                Duyệt
+              </Button>
+              <Button
+                type="button"
+                variant="danger-outline"
+                icon={<XCircle size={18} weight="bold" aria-hidden="true" />}
+                disabled={!canApprove}
+                title={canApprove ? undefined : `Cần quyền Duyệt (${OB_RIGHTS.APPROVE})`}
+                onClick={() => setAction({ type: 'reject', booking })}
+              >
+                Từ chối
+              </Button>
+            </>
+          ) : null}
+          {booking.status === 'confirmed' ? (
+            <>
+              <Button
+                type="button"
+                variant="danger-outline"
+                disabled={!canCancel}
+                title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
+                onClick={() => setAction({ type: 'cancel', booking })}
+              >
+                Huỷ, không hoàn
+              </Button>
+              <Button
+                type="button"
+                variant="warning-outline"
+                disabled={!canCancel}
+                title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
+                onClick={() => setAction({ type: 'cancelCredit', booking })}
+              >
+                Hủy (cộng lại tk chính)
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </article>
+    )
+  }
+
   return (
     <section className="ob-workspace">
       <PageHeader
         eyebrow="Đặt máy online"
         title="Quản lý đặt máy"
-        description="Hàng chờ duyệt, theo dõi khách đến/không đến, đặt hộ và huỷ đơn."
+        description="Duyệt đơn, theo dõi khách đến/không đến, đặt máy và huỷ đơn."
         actions={
-          <Button
-            type="button"
-            variant="primary"
-            disabled={!canApprove}
-            title={canApprove ? undefined : `Cần quyền Đặt hộ / Duyệt (${OB_RIGHTS.APPROVE})`}
-            onClick={() => setStaffDialogOpen(true)}
-          >
-            Đặt hộ
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!canApprove}
+              title={canApprove ? undefined : `Cần quyền Đặt hộ / Duyệt (${OB_RIGHTS.APPROVE})`}
+              onClick={() => setStaffDialogOpen(true)}
+            >
+              Đặt máy
+            </Button>
+            <PollingStatus
+              connected={connected}
+              isError={queueQuery.isError || listQuery.isError}
+              isFetching={queueQuery.isFetching || confirmedQuery.isFetching || listQuery.isFetching}
+              dataUpdatedAt={queueQuery.dataUpdatedAt}
+              intervalMs={connected ? 15_000 : 5_000}
+              onRefresh={() => {
+                void queueQuery.refetch()
+                void confirmedQuery.refetch()
+                statQueries.forEach((query) => void query.refetch())
+                void listQuery.refetch()
+              }}
+            />
+          </>
         }
       />
 
-      <section className="ob-queue">
-        <header className="ob-queue__header">
-          <Clock size={20} weight="duotone" aria-hidden="true" />
-          <strong>Hàng chờ duyệt</strong>
-          <StatusBadge tone={queueItems.length > 0 ? 'warning' : 'neutral'}>{queueItems.length} đơn</StatusBadge>
-        </header>
-        {queueQuery.isLoading ? (
-          <StateView title="Đang tải hàng chờ duyệt…" />
-        ) : queueItems.length === 0 ? (
-          <StateView title="Không có đơn chờ duyệt" />
-        ) : (
-          <div className="ob-queue__list">
-            {queueItems.map((booking) => {
-              const countdown = formatCountdown(booking.approvalDeadline, now)
+      <div className="order-summary" aria-label="Tổng quan đơn đặt máy">
+        {/* Doanh thu hôm nay (kiểu thẻ "Doanh thu" của trang Đơn dịch vụ, không có tiền mặt) + đơn không thành. */}
+        <div className="order-summary__card order-summary__card--completed">
+          <div
+            className="order-summary__total order-summary__total--completed ob-rev__static"
+            title={`Tổng tiền các đơn hôm nay đã trừ tiền và không hoàn: Đã duyệt, Đang dùng, Đã dùng xong, Không đến và Đã huỷ không hoàn.${
+              deductInRevenue ? '' : ' Không gồm cấn trừ.'
+            }`}
+          >
+            <CheckCircle className="order-summary__total-icon" size={28} weight="fill" aria-hidden="true" />
+            <div className="order-summary__total-completed-text">
+              <span className="order-summary__total-label">Doanh thu</span>
+              <strong className="order-summary__total-amount">{formatRevenue(revenue)}</strong>
+              <small className="order-summary__total-count">{revenueBookings.length} đơn</small>
+              <small className="order-summary__total-count">Hôm nay</small>
+            </div>
+          </div>
+          <div className="order-summary__breakdown">
+            {REVENUE_METHODS.map((method, index) => {
+              const rows = paidBookings.filter((b) => payMethodOf(b) === method.key)
+              const MethodIcon = method.Icon
+              const isDeduct = method.key === 'wallet'
+              const excluded = isDeduct && !deductInRevenue
               return (
-                <article key={booking.bookId} className="ob-queue__card">
-                  <div className="ob-queue__main">
-                    <div className="ob-queue__code">
-                      <strong>{booking.bookCode}</strong>
-                      <span>{CHANNEL_LABEL[booking.channel]}</span>
-                    </div>
-                    <div className="ob-queue__detail">
-                      <span>Hội viên: {booking.member.username}</span>
-                      <span>
-                        Máy {booking.pc} · {booking.machineGroup} ·{' '}
-                        <StatusBadge tone={PC_STATE_TONE[booking.pcState]}>{PC_STATE_LABEL[booking.pcState]}</StatusBadge>
-                      </span>
-                      <span>{formatTimeRange(booking.from, booking.to)}</span>
-                      <span>
-                        Tổng {formatMoney(booking.total)} · Thanh toán: {PAY_METHOD_LABEL[payMethodOf(booking)]}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="ob-queue__side">
-                    <span className={`ob-queue__countdown${countdown.expired ? ' is-expired' : ''}`}>
-                      {countdown.expired ? 'Đã hết hạn duyệt' : `Hết hạn sau ${countdown.label}`}
+                <Fragment key={method.key}>
+                  {/* Bỏ check cấn trừ chỉ đổi màu số tiền (is-excluded) — giữ nguyên bố cục để ô không bị xê dịch. */}
+                  {index > 0 ? (
+                    <span className="order-summary__breakdown-divider" aria-hidden="true">
+                      |
                     </span>
-                    <div className="ob-queue__actions">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        icon={<CheckCircle size={18} weight="bold" aria-hidden="true" />}
-                        disabled={!canApprove}
-                        title={canApprove ? undefined : `Cần quyền Duyệt (${OB_RIGHTS.APPROVE})`}
-                        onClick={() => setAction({ type: 'approve', booking })}
-                      >
-                        Duyệt
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="danger-outline"
-                        icon={<XCircle size={18} weight="bold" aria-hidden="true" />}
-                        disabled={!canApprove}
-                        title={canApprove ? undefined : `Cần quyền Duyệt (${OB_RIGHTS.APPROVE})`}
-                        onClick={() => setAction({ type: 'reject', booking })}
-                      >
-                        Từ chối
-                      </Button>
-                    </div>
+                  ) : null}
+                  <div
+                    className={`order-summary__row order-summary__row--static order-summary__completed-method ob-rev__method${
+                      excluded ? ' is-excluded' : ''
+                    }`}
+                  >
+                    {isDeduct ? (
+                      <input
+                        type="checkbox"
+                        className="ob-rev__toggle"
+                        checked={deductInRevenue}
+                        aria-label="Tính cấn trừ vào doanh thu"
+                        title={deductInRevenue ? 'Đang tính cấn trừ vào doanh thu — bấm để bỏ' : 'Không tính cấn trừ vào doanh thu — bấm để tính'}
+                        onChange={(event) => setDeductInRevenue(event.target.checked)}
+                      />
+                    ) : null}
+                    <span className="order-summary__row-label-line">
+                      <span className="order-summary__label">{PAY_METHOD_LABEL[method.key]}</span>
+                    </span>
+                    <strong className="order-summary__row-amount">
+                      {formatRevenue(rows.reduce((sum, b) => sum + b.total, 0))}
+                    </strong>
+                    <small className="order-summary__row-count">{rows.length} đơn</small>
+                    <MethodIcon
+                      className={`order-summary__row-icon-bg order-summary__row-icon-bg--${method.iconClass}`}
+                      size={30}
+                      weight="fill"
+                      aria-hidden="true"
+                    />
                   </div>
-                </article>
+                </Fragment>
               )
             })}
+            {STAT_STATUSES.map((stat, index) =>
+              stat.key === 'cancelled' || stat.key === 'rejected' ? (
+                <button
+                  key={stat.key}
+                  type="button"
+                  className={`order-summary__row order-summary__completed-method ob-sum ob-sum--${stat.key} ${status === stat.key ? 'is-active' : ''}`}
+                  onClick={() => showStatus(stat.key)}
+                  title={`${STATUS_LABEL[stat.key]} — đơn hôm nay`}
+                >
+                  <span className="order-summary__row-label-line">
+                    <span className={`order-summary__dot ob-sum__dot--${stat.key}`} aria-hidden="true" />
+                    <span className="order-summary__label">{stat.label}</span>
+                  </span>
+                  <strong className="order-summary__row-amount order-summary__row-amount--neutral">
+                    {statQueries[index]?.data?.total ?? 0} đơn
+                  </strong>
+                </button>
+              ) : null,
+            )}
           </div>
-        )}
-      </section>
+        </div>
+
+        <div className="order-summary__card">
+          <button
+            type="button"
+            className={`order-summary__total ${status === '' ? 'is-active' : ''}`}
+            title="Bỏ lọc trạng thái, xem tất cả đơn hôm nay"
+            onClick={() => showStatus('')}
+          >
+            <Stack className="order-summary__total-icon--pending" size={28} weight="fill" aria-hidden="true" />
+            <div className="order-summary__total__text">
+              <span>Đơn đang xử lý</span>
+              <small className="order-summary__hint order-summary__total-hint">
+                {formatMoney(waitAmount + confirmedAmount)}
+              </small>
+            </div>
+            <strong>{waitCount + confirmedCount}</strong>
+          </button>
+          <div className="order-summary__breakdown">
+            <button
+              type="button"
+              className={`order-summary__row ob-sum ob-sum--wait ${status === 'wait_approval' ? 'is-active' : ''}`}
+              onClick={() => showStatus('wait_approval')}
+            >
+              <span className="order-summary__dot ob-sum__dot--wait" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">
+                  {autoApprove ? 'Duyệt' : 'Chờ duyệt'}
+                  {autoApprove ? (
+                    <StatusBadge tone="info" title="Đang bật tự động duyệt đơn đặt máy">
+                      AUTO
+                    </StatusBadge>
+                  ) : null}
+                </span>
+                <small className="order-summary__hint">{formatMoney(waitAmount)}</small>
+              </span>
+              <strong>{waitCount}</strong>
+            </button>
+            <button
+              type="button"
+              className={`order-summary__row ob-sum ob-sum--confirmed ${status === 'confirmed' ? 'is-active' : ''}`}
+              onClick={() => showStatus('confirmed')}
+              title="Đơn đã duyệt, đang chờ khách đến nhận máy"
+            >
+              <span className="order-summary__dot ob-sum__dot--confirmed" aria-hidden="true" />
+              <span className="order-summary__row-text">
+                <span className="order-summary__label">Đã duyệt</span>
+                <small className="order-summary__hint">
+                  {formatMoney(confirmedAmount)}
+                  <span className="order-summary__hint--muted"> · chờ khách đến</span>
+                </small>
+              </span>
+              <strong>{confirmedCount}</strong>
+            </button>
+            {/* Đã huỷ / Từ chối nằm ở thẻ Doanh thu phía trên (đơn không thành). */}
+            {STAT_STATUSES.map((stat, index) =>
+              stat.key === 'cancelled' || stat.key === 'rejected' ? null : (
+                <button
+                  key={stat.key}
+                  type="button"
+                  className={`order-summary__row ob-sum ob-sum--${stat.key} ${status === stat.key ? 'is-active' : ''}`}
+                  onClick={() => showStatus(stat.key)}
+                  title={stat.allDates ? `${STATUS_LABEL[stat.key]} (mọi ngày)` : `${STATUS_LABEL[stat.key]} — đơn hôm nay`}
+                >
+                  <span className={`order-summary__dot ob-sum__dot--${stat.key}`} aria-hidden="true" />
+                  <span className="order-summary__row-text">
+                    <span className="order-summary__label">{stat.label}</span>
+                    <small className="order-summary__hint">{stat.allDates ? 'hiện tại' : 'hôm nay'}</small>
+                  </span>
+                  <strong>{statQueries[index]?.data?.total ?? 0}</strong>
+                </button>
+              ),
+            )}
+          </div>
+        </div>
+      </div>
 
       <section className="ob-filters">
-        <label className="ds-field">
-          <span className="ds-field__label">Ngày</span>
-          <DatePicker value={date} onChange={setDate} aria-label="Lọc theo ngày" />
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Trạng thái</span>
+        <DateRangePicker
+          className="ob-filter"
+          fromDate={fromDate}
+          toDate={toDate}
+          onFromDateChange={setFromDate}
+          onToDateChange={setToDate}
+          label="Lọc theo khoảng ngày"
+        />
+        <div className="ds-input-group ob-filter">
+          <span className="ds-input-group-separator">Trạng thái</span>
           <Select value={status} aria-label="Lọc theo trạng thái" onChange={(e) => setStatus(e.target.value)}>
             {STATUS_FILTER_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -312,20 +677,9 @@ export function OnlineBookingWorkspace() {
               </option>
             ))}
           </Select>
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Máy</span>
-          <Select value={pc} aria-label="Lọc theo máy" onChange={(e) => setPc(e.target.value)}>
-            <option value="">Tất cả máy</option>
-            {pcOptions.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Kênh</span>
+        </div>
+        <div className="ds-input-group ob-filter">
+          <span className="ds-input-group-separator">Kênh</span>
           <Select value={channel} aria-label="Lọc theo kênh" onChange={(e) => setChannel(e.target.value)}>
             {CHANNEL_FILTER_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -333,24 +687,53 @@ export function OnlineBookingWorkspace() {
               </option>
             ))}
           </Select>
-        </label>
-        <label className="ds-field ob-filters__search">
-          <span className="ds-field__label">Tìm mã đơn / hội viên</span>
-          <input className="ds-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="DM7K3QX hoặc username" />
-        </label>
+        </div>
+        <div className="ob-filters__search">
+          <div className="ds-input-group ds-input-group--search">
+            <Select
+              value={searchField}
+              aria-label="Tìm theo"
+              onChange={(event) => setSearchField(event.target.value as SearchField)}
+            >
+              <option value="member">Hội viên</option>
+              <option value="code">Mã đơn</option>
+              <option value="pc">Máy</option>
+            </Select>
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                list={searchField === 'pc' ? PC_LIST_ID : undefined}
+                placeholder={SEARCH_PLACEHOLDER[searchField]}
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+              />
+              {searchText ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  title="Xóa từ khóa"
+                  onClick={() => setSearchText('')}
+                >
+                  <XCircle size={17} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <datalist id={PC_LIST_ID}>
+            {pcOptions.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+        </div>
       </section>
 
-      <section className="ob-list">
-        <header className="ob-list__header">
+      <section className="ob-section">
+        <header className="ob-queue__header">
           <strong>Danh sách đơn</strong>
-          <PollingStatus
-            connected={connected}
-            isError={listQuery.isError}
-            isFetching={listQuery.isFetching}
-            dataUpdatedAt={listQuery.dataUpdatedAt}
-            intervalMs={connected ? 30_000 : 8_000}
-            onRefresh={() => void listQuery.refetch()}
-          />
+          <StatusBadge tone="neutral">{total} đơn</StatusBadge>
         </header>
 
         {listQuery.isLoading ? (
@@ -366,107 +749,9 @@ export function OnlineBookingWorkspace() {
             }
           />
         ) : listItems.length === 0 ? (
-          <StateView title="Không có đơn phù hợp bộ lọc" />
+          <p className="order-empty-compact">Không có đơn phù hợp bộ lọc.</p>
         ) : (
-          <div className="ob-table-wrap">
-            <table className="ob-table">
-              <thead>
-                <tr>
-                  <th>Mã đơn</th>
-                  <th>Giờ tạo</th>
-                  <th>Hội viên</th>
-                  <th>Máy</th>
-                  <th>Từ – đến</th>
-                  <th>Tổng</th>
-                  <th>Trạng thái</th>
-                  <th>Khách vào máy</th>
-                  <th>Người duyệt / đặt hộ</th>
-                  <th>Người huỷ / lý do</th>
-                  <th>Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {listItems.map((booking) => (
-                  <tr key={booking.bookId}>
-                    <td>
-                      <strong>{booking.bookCode}</strong>
-                      <div className="ob-table__sub">{CHANNEL_LABEL[booking.channel]}</div>
-                    </td>
-                    <td>{formatDateTime(booking.createdAt)}</td>
-                    <td>{booking.member.username}</td>
-                    <td>
-                      {booking.pc}
-                      <div className="ob-table__sub">{booking.machineGroup}</div>
-                    </td>
-                    <td>{formatTimeRange(booking.from, booking.to)}</td>
-                    <td>
-                      {formatMoney(booking.total)}
-                      <div className="ob-table__sub">Thanh toán: {PAY_METHOD_LABEL[payMethodOf(booking)]}</div>
-                    </td>
-                    <td>
-                      <StatusBadge tone={STATUS_TONE[booking.status]}>{STATUS_LABEL[booking.status]}</StatusBadge>
-                      {booking.status === 'rejected' && booking.failCode ? (
-                        <div className="ob-table__sub">{describeFailCode(booking.failCode)}</div>
-                      ) : null}
-                    </td>
-                    <td>{formatDateTime(booking.loginAt)}</td>
-                    <td>
-                      {booking.channel === 'staff' ? `Đặt hộ: ${describePerson(booking.createdBy)}` : null}
-                      {booking.approvedBy ? (
-                        <div className="ob-table__sub">Duyệt: {describePerson(booking.approvedBy)}</div>
-                      ) : null}
-                      {booking.channel !== 'staff' && !booking.approvedBy ? '—' : null}
-                    </td>
-                    <td>
-                      {booking.cancelledBy ? (
-                        <>
-                          {describePerson(booking.cancelledBy)}
-                          <div className="ob-table__sub">{booking.cancelReason}</div>
-                          {booking.cancelCredit === 'credited' ? (
-                            <StatusBadge tone="success">
-                              Đã cộng lại {formatMoney(booking.cancelCreditAmount ?? booking.total)}
-                            </StatusBadge>
-                          ) : booking.cancelCredit === 'pending' ? (
-                            <StatusBadge tone="warning">Đang cộng lại tài khoản chính</StatusBadge>
-                          ) : booking.cancelCredit === 'failed' ? (
-                            <StatusBadge tone="danger">Cộng lại lỗi — cần đối soát</StatusBadge>
-                          ) : booking.status === 'cancelled' ? (
-                            <div className="ob-table__sub">Không hoàn tiền</div>
-                          ) : null}
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      {booking.status === 'confirmed' ? (
-                        <div className="ob-queue__actions">
-                          <Button
-                            type="button"
-                            variant="danger-outline"
-                            disabled={!canCancel}
-                            title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
-                            onClick={() => setAction({ type: 'cancel', booking })}
-                          >
-                            Huỷ, không hoàn
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="warning-outline"
-                            disabled={!canCancel}
-                            title={canCancel ? undefined : `Cần quyền Huỷ đơn (${OB_RIGHTS.CANCEL})`}
-                            onClick={() => setAction({ type: 'cancelCredit', booking })}
-                          >
-                            Huỷ + cộng lại tài khoản chính
-                          </Button>
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <div className="order-list">{listItems.map(renderBookingCard)}</div>
         )}
 
         <ListPagination
@@ -531,7 +816,7 @@ export function OnlineBookingWorkspace() {
         board={boardQuery.data}
         onClose={() => setStaffDialogOpen(false)}
         onCreated={() => {
-          pushToast('Đã tạo đơn đặt hộ.', 'success')
+          pushToast('Đã tạo đơn đặt máy.', 'success')
           invalidateAll()
         }}
       />

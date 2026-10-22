@@ -190,6 +190,105 @@ button.ws-summary__row:hover {
   color: inherit;
 }
 
+/* Stack bar toàn phòng máy: thanh ngang chia theo trạng thái + tổng máy bên phải. */
+/* Card đầu: hàng trên (số máy + breakdown), hàng dưới là stack bar full chiều rộng card. */
+.ws-summary__card--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ws-summary__top {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.ws-fleet {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+/* Bar chart nhỏ: dòng % và track màu TÁCH RIÊNG (không lồng trong cùng 1 cột) -- bo tròn 2 đầu chỉ áp cho
+   track cao 6px; nếu bo cả khối (gồm cả dòng chữ % cao hơn nhiều) thì bán kính 3px gần như vô hình. */
+.ws-fleet__col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ws-fleet__labels,
+.ws-fleet__bar {
+  display: flex;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ws-fleet__bar {
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ws-fleet__pct {
+  flex-basis: 0;
+  min-width: 2.25rem;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.ws-fleet__seg {
+  display: block;
+  flex-basis: 0;
+  min-width: 2.25rem;
+  height: 6px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  /* <button> mac dinh co appearance: auto (khung nut he thong) de len -- lam mat mau nen tuy bien va bo
+     goc custom o .ws-fleet__bar khong an. Tat appearance de button chi con la 1 o mau phang nhu <span>. */
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+}
+
+/* Trạng thái 0 máy vẫn hiện 1 vạch màu đầy đủ (không mờ), cố định 2px thay vì ẩn hẳn -- giống kiểu "Context usage". */
+.ws-fleet__seg.ws-fleet__seg--zero {
+  flex: 0 0 2px;
+  min-width: 2px;
+}
+
+/* Dư 1 class (.ws-fleet__bar ...) để thắng độ đặc tả ".ws-summary__card button { background: transparent }"
+   (dòng ~61) -- nút .ws-fleet__seg nằm trong .ws-summary__card nên bị rule đó đè mất màu nếu không nâng specificity. */
+.ws-fleet__bar .ws-fleet__seg--playing { background: var(--color-info); }
+.ws-fleet__bar .ws-fleet__seg--available { background: var(--color-success); }
+.ws-fleet__bar .ws-fleet__seg--disconnected { background: var(--color-danger); }
+.ws-fleet__bar .ws-fleet__seg--other { background: var(--color-warning); }
+.ws-fleet__bar .ws-fleet__seg--off { background: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-surface-default)); }
+
+.ws-fleet__pct--playing { color: var(--color-info); }
+.ws-fleet__pct--available { color: var(--color-success); }
+.ws-fleet__pct--disconnected { color: var(--color-danger-text); }
+.ws-fleet__pct--other { color: var(--color-warning); }
+
+button.ws-fleet__seg { cursor: pointer; }
+button.ws-fleet__seg:hover { filter: brightness(1.15); }
+button.ws-fleet__seg.is-active { box-shadow: inset 0 0 0 2px color-mix(in srgb, white 55%, transparent); }
+.ws-fleet__total {
+  flex: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .ws-group-usage__scrollWrap {
   position: relative;
   display: flex;
@@ -487,10 +586,11 @@ button.ws-summary__row:hover {
   gap: var(--space-3);
 }
 
+/* Rộng hơn bản cũ (chỉ 1 ô nhập) vì giờ có thêm combo chọn trường (Máy/Tên đăng nhập/Ghi chú), giống .ob-filters__search. */
 .ws-search {
-  flex: 0 1 20rem;
-  min-width: 13rem;
-  max-width: 20rem;
+  flex: 0 1 26rem;
+  min-width: 18rem;
+  max-width: 26rem;
 }
 
 .ws-toolbar__end {
@@ -1568,48 +1668,174 @@ button.ws-summary__row:hover {
   display: grid;
 }
 
-/* .ds-drawer__body (dung chung moi Drawer) luon reserve scrollbar-gutter:stable du
-   co can cuon hay khong -- rieng drawer nay, danh sach may da tu cuon o trong
-   (.ws-wakeup-scroll) nen than body it khi can cuon; tat gutter cua body de canh
-   phai cua noi dung (list) khop voi canh phai cua footer (khong scroll, khong
-   reserve gutter) thay vi bi thut vao trong. */
-.ws-wakeup-drawer .ds-drawer__body {
-  scrollbar-gutter: auto;
-}
-
 .ws-wakeup-badge::before {
   display: none;
 }
 
-.ws-wakeup-footer {
+/* Thanh nut + tim kiem dinh tren cung than drawer: danh sach may co the rat dai nen
+   nut "Mo may tram" / "Xoa may tram" khong duoc nam cuoi danh sach. Ca than drawer cuon,
+   thanh nay dung yen (sticky). Bu padding drawer de nen phu kin den mep. */
+.ws-wakeup-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: var(--space-2);
+  margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+  /* Nền đặc + bóng đổ phía dưới: danh sách cuộn dưới thanh này không bị dính/lẫn vào nút và ô tìm kiếm. */
+  background: var(--color-surface-elevated);
+  box-shadow: 0 8px 10px -8px rgb(0 0 0 / 0.5);
+}
+
+.ws-wakeup-toolbar__row {
   display: flex;
-  flex-direction: column;
-  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Ô tìm kiếm chiếm phần còn lại, "Đã chọn x/y máy" nằm cùng dòng bên phải. */
+.ws-wakeup-toolbar__filter {
+  flex-wrap: nowrap;
+}
+
+.ws-wakeup-toolbar__filter .ws-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-wakeup-toolbar__total {
+  flex: none;
+  white-space: nowrap;
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nhom may (parity trang cau hinh dat may online): header = [chon tat ca] [mui ten + ten nhom ... da chon/tong],
+   than = danh sach may xep trai -> phai, tren -> duoi. */
+.ws-mg-list {
+  display: grid;
   gap: var(--space-2);
 }
 
-.ws-wakeup-footer__row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+.ws-mg {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  overflow: hidden;
 }
 
-.ws-wakeup-selectall {
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--color-border-default);
-  font-weight: 600;
+.ws-mg__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+}
+
+.ws-mg__head:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ws-mg__toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ws-mg__toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ws-mg__caret {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.ws-mg__caret.is-open {
+  transform: rotate(0deg);
+}
+
+.ws-mg__name {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ws-mg__count {
+  margin-left: auto;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-mg__count.is-full {
+  color: var(--color-success);
+}
+
+.ws-mg__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+  list-style: none;
+}
+
+/* Tên máy (vd DESKTOP-F20UK55) không xuống dòng; quá dài thì cắt "…", đầy đủ ở tooltip. */
+.ws-mg__item > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-mg__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ws-mg__item:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ws-mg__item:has(input:checked) {
   color: var(--color-text-primary);
 }
 
-.ws-wakeup-scroll {
-  max-height: calc(100dvh - 25rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* KHONG dung scrollbar-gutter:stable o day: no reserve khoang trong ben phai du
-     co scroll hay khong, lam canh phai cua the/card lech vao trong so voi footer
-     (khong scroll, khong reserve) -- gay lech hang voi 2 nut ben duoi. */
+/* Ket qua lan gui lenh gan nhat: may da gui = xanh nhat, may loi = do nhat (ly do o tooltip). */
+.ws-mg__item.is-sent,
+.ws-mg__item.is-sent:hover {
+  background: var(--color-success-surface);
+  color: var(--color-text-primary);
+}
+
+.ws-mg__item.is-failed,
+.ws-mg__item.is-failed:hover {
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
 }
 
 .ws-wait-card > header strong {
@@ -1662,6 +1888,11 @@ button.ws-summary__row:hover {
   .ws-summary__card {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* Hàng trên của card đầu xếp dọc như các card khác (breakdown đã có style border-top ở dưới). */
+  .ws-summary__top {
+    flex-direction: column;
   }
 
   .ws-summary__breakdown,
@@ -1837,6 +2068,63 @@ button.ws-summary__row:hover {
 
 .ws-novnc__ping--bad {
   color: var(--color-danger, #d64545);
+}
+
+.ws-novnc__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+
+.ws-novnc__switchInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.ws-novnc__switchTrack {
+  position: relative;
+  display: inline-block;
+  width: 1.75rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transition: background var(--motion-fast) ease;
+}
+
+.ws-novnc__switchTrack::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--motion-fast) ease;
+}
+
+.ws-novnc__switchInput:checked + .ws-novnc__switchTrack {
+  background: var(--color-action-primary);
+}
+
+.ws-novnc__switchInput:checked + .ws-novnc__switchTrack::before {
+  transform: translateX(0.75rem);
+}
+
+.ws-novnc__switchInput:focus-visible + .ws-novnc__switchTrack {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.ws-novnc__switchInput:disabled + .ws-novnc__switchTrack {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ws-novnc__detail {
