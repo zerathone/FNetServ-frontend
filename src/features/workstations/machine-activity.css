@@ -1,0 +1,65 @@
+.machine-activity {
+  display: grid;
+  gap: var(--space-3);
+  /* Chừa chỗ cho lịch xổ xuống của DateRangePicker khi danh sách còn ngắn/trống. */
+  min-height: 24rem;
+  align-content: start;
+}
+
+.machine-activity__day {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.machine-activity__day h3 {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.machine-activity__card {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-left: 0.3rem solid var(--color-info);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  background: var(--color-surface-default);
+}
+
+.machine-activity__card--attention {
+  border-left-color: var(--color-warning);
+}
+
+.machine-activity__card--urgent {
+  border-left-color: var(--color-danger);
+}
+
+.machine-activity__card--ok {
+  border-left-color: var(--color-success);
+}
+
+.machine-activity__card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.machine-activity__card header strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.machine-activity__card header small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.machine-activity__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

@@ -192,7 +192,7 @@ function ProtectedRoutes() {
             <Route path="/logs/server" element={<ServerLogPage />} />
             <Route path="/logs/webhistory" element={<WebHistoryPage />} />
             <Route path="/machine-groups" element={<MachineGroupsPage />} />
-            {/* OB-5: trang Cấu hình đặt máy online — CHỈ admin (design §12.6, không có quyền riêng). */}
+            {/* OB-5: trang Thiết lập đặt máy online — CHỈ admin (design §12.6, không có quyền riêng). */}
             <Route path="/online-booking/settings" element={<OnlineBookingSettingsPage />} />
             <Route path="/user-groups" element={<UserGroupsPage />} />
             <Route path="/users/legacy" element={<LegacyUsersPage />} />

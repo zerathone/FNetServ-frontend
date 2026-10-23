@@ -1,7 +1,13 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Ticket } from '@phosphor-icons/react'
-import { getWorkstationOrders, type WorkstationOrderStatus } from '../../api/workstations'
+import { getAcceptedUnpaidOrders, type PendingOrder } from '../../api/orders'
+import {
+  getWorkstationOrders,
+  type WorkstationOrderStatus,
+  type WorkstationRuntime,
+} from '../../api/workstations'
+import { paidAmountOf } from '../orders/orderQueueModel'
 import { Button, InlineAlert, StatusBadge, type StatusTone } from '../../design-system/components'
 import {
   MACHINE_ORDER_STATUS_LABEL,
@@ -13,7 +19,7 @@ import {
   type MachineOrdersSummary,
 } from './machineOrdersModel'
 import { CallBellIcon } from './CallBellIcon'
-import { formatMoney } from './workstationModel'
+import { WORKSTATION_FLAGS, WORKSTATION_STATUS, formatMoney } from './workstationModel'
 
 // Đơn hàng khách đã gọi/mua trong PHIÊN CHƠI hiện tại của một máy (nhóm "Đơn hàng" ở drawer chi tiết
 // máy): món dịch vụ + combo. Một lần gọi GET /workstations/orders — Server tự lọc theo máy + phiên và tính
@@ -63,6 +69,132 @@ export function useMachineOrders(hostName: string | null, enabled: boolean, conn
     isLoading: query.isLoading,
     error: query.isError ? (query.error as Error) : null,
   }
+}
+
+// ---- Nợ dịch vụ của máy AVAILABLE (khách phiên trước đã rời, đơn đã duyệt chưa thu) ----
+// Máy không còn phiên nên /workstations/orders (lọc theo phiên) trả rỗng; MFC mở danh sách này bằng
+// IDR_SERVICE_ORDER khi CheckServiceDebit(tài khoản máy). Nguồn ở đây là /orders/accepted-unpaid (chung
+// cache với trang /orders), lọc phía client theo tên máy.
+
+const ACCEPTED_UNPAID_QUERY_KEY = ['orders-accepted-unpaid'] as const
+
+// Khớp theo: mã người dùng còn giữ trên máy (MFC giữ nguyên UserId khi còn nợ dịch vụ, có thể là
+// hội viên chứ không riêng tài khoản máy), hoặc tên máy ở đơn / tên tài khoản máy.
+function orderBelongsToMachine(order: PendingOrder, hostName: string, userId: number) {
+  const host = hostName.toLocaleLowerCase('vi')
+  return (
+    (userId > 0 && order.userId === userId) ||
+    (order.hostName ?? '').toLocaleLowerCase('vi') === host ||
+    order.userName.toLocaleLowerCase('vi') === host
+  )
+}
+
+/**
+ * Trả về hàm "máy này đã thu hết nợ dịch vụ chưa" để bỏ badge "Đã nhận món" ở danh sách và drawer.
+ * Cờ SERVICE_ACCEPT do server bật vô điều kiện cho máy AVAILABLE còn giữ user (WorkstationHandlers.cpp:580)
+ * nên thu xong cờ vẫn còn. Chỉ trả true khi ĐÃ tải xong danh sách nợ và không còn dòng nào của máy —
+ * đang tải / lỗi thì trả false (giữ badge, không đoán).
+ */
+export function useServiceAcceptCleared(machines: WorkstationRuntime[], connected: boolean) {
+  const enabled = machines.some(
+    (machine) => machine.status === WORKSTATION_STATUS.AVAILABLE && machine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT,
+  )
+  const query = useQuery({
+    queryKey: ACCEPTED_UNPAID_QUERY_KEY,
+    queryFn: () => getAcceptedUnpaidOrders(),
+    enabled,
+    refetchInterval: connected ? 30_000 : 5_000,
+  })
+  const data = query.isSuccess ? query.data : null
+
+  return useCallback(
+    (machine: WorkstationRuntime) => {
+      if (!data) return false
+      if (machine.status !== WORKSTATION_STATUS.AVAILABLE || !(machine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT)) {
+        return false
+      }
+      return !data.some((order) => orderBelongsToMachine(order, machine.hostName, machine.userId))
+    },
+    [data],
+  )
+}
+
+export function useMachineServiceDebt(
+  hostName: string | null,
+  userId: number,
+  enabled: boolean,
+  connected: boolean,
+) {
+  const query = useQuery({
+    queryKey: ACCEPTED_UNPAID_QUERY_KEY,
+    queryFn: () => getAcceptedUnpaidOrders(),
+    enabled: enabled && Boolean(hostName),
+    refetchInterval: connected ? 30_000 : 5_000,
+  })
+
+  const lines = useMemo<PendingOrder[]>(() => {
+    if (!hostName) return []
+    return (query.data ?? []).filter((order) => orderBelongsToMachine(order, hostName, userId))
+  }, [query.data, hostName, userId])
+
+  return {
+    lines,
+    // Topping đi kèm món chính: không cộng vào số món (cùng cách /workstations/orders đếm).
+    itemCount: lines.reduce((sum, order) => sum + (order.parentId && order.parentId > 0 ? 0 : order.quantity), 0),
+    total: lines.reduce((sum, order) => sum + paidAmountOf(order), 0),
+    isLoading: query.isLoading,
+    error: query.isError ? (query.error as Error) : null,
+  }
+}
+
+type MachineServiceDebtListProps = {
+  lines: PendingOrder[]
+  total: number
+  error: Error | null
+}
+
+// Nút "Thu tiền" nằm ở header nhóm (cùng chỗ "Tạo đơn"), nên danh sách này chỉ hiển thị.
+export function MachineServiceDebtList({ lines, total, error }: MachineServiceDebtListProps) {
+  return (
+    <>
+      {error ? <InlineAlert tone="warning">Không tải được đơn dịch vụ còn nợ: {error.message}</InlineAlert> : null}
+      {lines.length === 0 ? (
+        <p className="ws-muted">Không có đơn dịch vụ còn nợ.</p>
+      ) : (
+        <section className="ws-order-section">
+          <h4 className="ws-tech-block__title">Đã duyệt, chưa thu tiền</h4>
+          <ul className="ws-order-list">
+            {lines.map((order) => {
+              const isTopping = Boolean(order.parentId && order.parentId > 0)
+              return (
+                <li key={order.serviceDetailId} className="ws-order-item">
+                  <div className="ws-order-item__main">
+                    <span className={isTopping ? 'ws-order-item__topping' : 'ws-order-item__name'}>
+                      {isTopping ? '+ ' : ''}
+                      {order.serviceName}
+                      <span className="ws-order-item__qty"> × {order.quantity}</span>
+                    </span>
+                    {!isTopping && order.serviceDate ? (
+                      <span className="ws-order-item__time">
+                        Gọi lúc {(order.serviceTime ?? '').slice(0, 5) || order.serviceDate}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="ws-order-item__side">
+                    <StatusBadge tone="info">{MACHINE_ORDER_STATUS_LABEL.accepted}</StatusBadge>
+                    <span className="ws-order-item__amount">{formatMoney(paidAmountOf(order))}</span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="ws-order-total">
+            Tổng còn nợ: <strong>{formatMoney(total)}</strong>
+          </p>
+        </section>
+      )}
+    </>
+  )
 }
 
 /**

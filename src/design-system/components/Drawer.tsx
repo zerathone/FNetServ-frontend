@@ -2,11 +2,14 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from '@phosphor-icons/react'
 import { IconButton } from './IconButton'
+import { lockBodyScroll } from './bodyScrollLock'
 
 export type DrawerProps = {
   open: boolean
   title: string
   description?: string
+  /** Hàng điều khiển hiển thị ngay dưới tiêu đề (chỗ của description). */
+  headerActions?: ReactNode
   children: ReactNode
   footer?: ReactNode
   size?: 'default' | 'wide'
@@ -19,6 +22,7 @@ export function Drawer({
   open,
   title,
   description,
+  headerActions,
   children,
   footer,
   size = 'default',
@@ -39,8 +43,7 @@ export function Drawer({
   useEffect(() => {
     if (!open) return
     const previousFocus = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockBodyScroll()
     const focusTimer = window.setTimeout(() => {
       const firstControl = panelRef.current?.querySelector<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -73,7 +76,7 @@ export function Drawer({
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       window.clearTimeout(focusTimer)
-      document.body.style.overflow = previousOverflow
+      unlockScroll()
       document.removeEventListener('keydown', handleKeyDown)
       previousFocus?.focus()
     }
@@ -114,6 +117,7 @@ export function Drawer({
               <div>
                 <h2 id={titleId}>{title}</h2>
                 {description ? <p id={descriptionId}>{description}</p> : null}
+                {headerActions ? <div className="ds-drawer__header-actions">{headerActions}</div> : null}
               </div>
               <IconButton
                 type="button"

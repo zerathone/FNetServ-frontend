@@ -411,7 +411,7 @@ export function OnlineBookingSettingsPage() {
     <section className="ob-settings">
       <PageHeader
         eyebrow="Đặt máy online"
-        title="Cấu hình đặt máy"
+        title="Thiết lập đặt máy"
         description="Chỉ admin chỉnh được. Mỗi lần lưu, máy chủ kiểm ràng buộc chéo trên cả ba bộ số trước khi ghi."
       />
 

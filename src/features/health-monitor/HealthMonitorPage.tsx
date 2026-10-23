@@ -40,6 +40,15 @@ import {
   tempTone,
 } from '../workstations/MachineTechExtras'
 import { WORKSTATION_STATUS } from '../workstations/workstationModel'
+import {
+  ALERT_DEVICES,
+  ALERT_TONES,
+  alertKey,
+  hwErrorTone,
+  type AlertDevice,
+  type AlertMetric,
+  type AlertTone,
+} from './healthAlertModel'
 // Dung chung khung/ban/toolbar cua trang May tram (.ws-workspace, .ws-toolbar, .ws-content, .ws-table__*).
 import '../workstations/workstations.css'
 import './health-monitor.css'
@@ -107,87 +116,8 @@ function measureNameColumn(table: HTMLElement): number {
   return max > 0 ? Math.ceil(max) + 2 : 0
 }
 
-// ---- Thong ke canh bao (tren bang): moi nut = 1 chi so (nhiet/tai) cua 1 linh kien o 1 muc (danger/warning),
-// hien so may dang o muc do. Chi nut co so may > 0 moi hien; khong co nut nao -> an ca khoi. Bam = loc bang. ----
-type AlertTone = 'danger' | 'warning'
-
-type AlertMetric = {
-  id: string
-  label: string
-  icon: typeof Thermometer
-  toneOf: (hw: WorkstationHardware) => StatusTone
-  levels: Record<AlertTone, string>
-  /** Nhan ngan tren tag loc o header cot. */
-  tagLabel: Record<AlertTone, string>
-}
-
-type AlertDevice = {
-  id: string
-  label: string
-  icon: typeof Cpu
-  metrics: AlertMetric[]
-}
-
-const TEMP_LEVELS = {
-  danger: `quá nhiệt, trên ${TEMP_DANGER_C}°C`,
-  warning: `nóng, trên ${TEMP_WARN_C}°C`,
-}
-
-function tempMetric(read: (hw: WorkstationHardware) => number | null): AlertMetric {
-  return {
-    id: 'temp',
-    label: 'nhiệt độ',
-    icon: Thermometer,
-    toneOf: (hw) => tempTone(read(hw)),
-    levels: TEMP_LEVELS,
-    tagLabel: { danger: 'Quá nhiệt', warning: 'Nóng' },
-  }
-}
-
-// Quat GPU (% dieu khien): may khong bao quat (fanPct null/khong co) -> fanTone 'neutral' -> khong dem,
-// khong hien nut -- dung "khong co data thi thoi".
-const FAN_METRIC: AlertMetric = {
-  id: 'fan',
-  label: 'quạt',
-  icon: Fan,
-  toneOf: (hw) => fanTone(hw.gpu.fanPct ?? null),
-  levels: {
-    danger: `quay rất mạnh, trên ${FAN_DANGER_PCT}%`,
-    warning: `quay mạnh, trên ${FAN_WARN_PCT}%`,
-  },
-  tagLabel: { danger: 'Quạt rất mạnh', warning: 'Quạt mạnh' },
-}
-
-// hwm.exe bao phan lay hong (hardware.errors): hong 'hardware' = mat sach so lieu cam bien (vd crash
-// 0xE0434352 cua thu vien .NET, timeout) -> danger; chi hong phan khac (vd 'winlicense') -> warning.
-function hwErrorTone(hw: WorkstationHardware | null | undefined): StatusTone {
-  const errors = hw?.errors
-  if (!errors || errors.length === 0) return 'neutral'
-  return errors.some((e) => e.part === 'hardware') ? 'danger' : 'warning'
-}
-
-const HW_ERROR_METRIC: AlertMetric = {
-  id: 'error',
-  label: 'đọc dữ liệu',
-  icon: Warning,
-  toneOf: (hw) => hwErrorTone(hw),
-  levels: {
-    danger: 'lỗi, không đọc được cảm biến',
-    warning: 'thiếu một phần',
-  },
-  tagLabel: { danger: 'Lỗi cảm biến', warning: 'Thiếu dữ liệu' },
-}
-
-const ALERT_DEVICES: AlertDevice[] = [
-  { id: 'gpu', label: 'GPU', icon: GraphicsCard, metrics: [tempMetric((hw) => hw.gpu.tempC), FAN_METRIC] },
-  { id: 'cpu', label: 'CPU', icon: Cpu, metrics: [tempMetric((hw) => hw.cpu.tempC)] },
-  // Tag loc cua nhom nay gan o header cot "Ten may" (filterTag('hwm')).
-  { id: 'hwm', label: 'Máy trạm', icon: Warning, metrics: [HW_ERROR_METRIC] },
-]
-
-const ALERT_TONES: AlertTone[] = ['danger', 'warning']
-
-const alertKey = (device: AlertDevice, metric: AlertMetric, tone: AlertTone) => `${device.id}.${metric.id}.${tone}`
+// Thong ke canh bao (tren bang): luat + nhom (GPU/CPU/loi may tram) nam o healthAlertModel.ts, dung chung voi
+// badge o menu trai. Chi nut co so may > 0 moi hien; khong co nut nao -> an ca khoi. Bam = loc bang.
 
 function Empty() {
   return <span className="hm-empty">{NO_DATA}</span>

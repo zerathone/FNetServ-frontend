@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AppWindow,
   ArrowCircleUp,
+  ArrowCounterClockwise,
   ArrowsClockwise,
   ArrowsLeftRight,
   CaretDown,
@@ -16,6 +17,7 @@ import {
   ChartDonut,
   ChatCircleText,
   Clock,
+  ClockCounterClockwise,
   Cpu,
   CurrencyCircleDollar,
   Desktop,
@@ -66,6 +68,7 @@ import {
   payoutPaymentWait,
   payoutWorkstation,
   payDebitWorkstation,
+  reloginWorkstation,
   restartWorkstations,
   sendWorkstationMessage,
   shutdownWorkstations,
@@ -139,7 +142,15 @@ import { PrintTicketDialog } from '../orders/PrintTicketDialog'
 import { StaffOrderDialog } from '../orders/StaffOrderDialog'
 import { CallBellIcon } from './CallBellIcon'
 import { InspectorGroup } from './InspectorGroup'
-import { MachineOrderList, MachineOrdersCounts, useMachineOrders } from './MachineOrdersPanel'
+import { MachineActivityDialog } from './MachineActivityDialog'
+import {
+  MachineOrderList,
+  MachineOrdersCounts,
+  MachineServiceDebtList,
+  useMachineOrders,
+  useMachineServiceDebt,
+  useServiceAcceptCleared,
+} from './MachineOrdersPanel'
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
 import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
 import { WakeupGroupPanel } from './WakeupGroupPanel'
@@ -461,6 +472,7 @@ export function WorkstationWorkspace() {
 
   const snapshot = Array.isArray(snapshotQuery.data) ? null : snapshotQuery.data
   const allMachines = useMemo(() => snapshot?.items ?? [], [snapshot])
+  const isServiceAcceptCleared = useServiceAcceptCleared(allMachines, connected)
   const [now, setNow] = useState(() => Date.now())
   const [filter, setFilter] = useState<WorkstationFilter>('all')
   const [searchField, setSearchField] = useState<WsSearchField>('pc')
@@ -472,6 +484,7 @@ export function WorkstationWorkspace() {
   const [groupScrollState, setGroupScrollState] = useState({ canLeft: false, canRight: false })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [inspectorHost, setInspectorHost] = useState<string | null>(null)
+  const [activityOpen, setActivityOpen] = useState(false)
   const [noteExpanded, setNoteExpanded] = useState(false)
   const [pendingCommand, setPendingCommand] = useState<CommandKind | null>(null)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
@@ -530,6 +543,8 @@ export function WorkstationWorkspace() {
   const changePcIntent = useIdempotentIntent('workstation-change-pc')
   const prepaidIntent = useIdempotentIntent('workstation-change-prepaid')
   const anonymLoginIntent = useIdempotentIntent('workstation-anonym-login')
+  const reloginIntent = useIdempotentIntent('workstation-relogin')
+  const [reloginOpen, setReloginOpen] = useState(false)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000)
@@ -589,7 +604,9 @@ export function WorkstationWorkspace() {
   const inspectedMachine =
     allMachines.find((machine) => machine.hostName === inspectorHost) ?? null
   const status = inspectedMachine ? getWorkstationStatus(inspectedMachine) : null
-  const flags = inspectedMachine ? getWorkstationFlags(inspectedMachine) : []
+  const flags = inspectedMachine
+    ? getWorkstationFlags(inspectedMachine, { hideServiceAccept: isServiceAcceptCleared(inspectedMachine) })
+    : []
   const userKind = inspectedMachine ? getUserKind(inspectedMachine) : null
   // ADMIN login dung userId=0 (WorkstationHandlers.cpp:657) -- khong phai khach hang
   // tra tien, nen khong co Tinh tien/Chuyen may/Dich vu (parity WorkstationList.cpp
@@ -598,6 +615,14 @@ export function WorkstationWorkspace() {
     inspectedMachine &&
       inspectedMachine.status === WORKSTATION_STATUS.ONLINE &&
       inspectedMachine.userId === 0,
+  )
+  // Máy AVAILABLE còn phiên khách vãng lai trước chưa tính tiền (client restart bất ngờ): server bật
+  // HAVE_NOT_PAID khi CheckingPaid > 0. MFC (WorkstationList.cpp:1856-1878) khi đó KHÔNG cho Đăng nhập
+  // trả sau/trả trước, chỉ bật Đăng nhập lại + Tính tiền (+ Đăng nhập ADMIN ở nhóm riêng).
+  const pendingSettle = Boolean(
+    inspectedMachine &&
+      inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE &&
+      hasDebt(inspectedMachine),
   )
   const clock = inspectedMachine
     ? interpolateSession(inspectedMachine, elapsedSeconds)
@@ -645,6 +670,24 @@ export function WorkstationWorkspace() {
     Boolean(inspectedMachine?.session) && !isAdminSession,
     connected,
   )
+  // Máy AVAILABLE còn nợ dịch vụ đã duyệt của khách trước. MFC bật IDR_SERVICE_ORDER theo
+  // CheckServiceDebit (WorkstationList.cpp:1886-1892), không phụ thuộc phiên trước còn nợ giờ hay không.
+  // ⚠️ Cờ SERVICE_ACCEPT KHÔNG đủ tin khi máy còn giữ UserId của khách trước: server bật nó vô điều kiện
+  // ở nhánh có user (WorkstationHandlers.cpp:580, parity AddRowToList:625). Vì vậy cờ chỉ để quyết định
+  // có ĐI TÌM đơn hay không; nhóm chỉ hiện khi thật sự tìm thấy dòng nợ.
+  const serviceDebtCandidate = Boolean(
+    inspectedMachine &&
+      inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE &&
+      inspectedMachine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT,
+  )
+  const serviceDebt = useMachineServiceDebt(
+    inspectedMachine?.hostName ?? null,
+    inspectedMachine?.userId ?? 0,
+    serviceDebtCandidate,
+    connected,
+  )
+  const hasServiceDebt =
+    serviceDebtCandidate && (serviceDebt.isLoading || Boolean(serviceDebt.error) || serviceDebt.lines.length > 0)
   const anonymSearchQuery = useQuery({
     queryKey: ['anonyms', 'search', anonymSearch],
     queryFn: () => anonymsApi.getList(anonymSearch || undefined),
@@ -881,6 +924,21 @@ export function WorkstationWorkspace() {
       setMoneyNote('')
       pushToast('Giao dịch đã hoàn tất và dữ liệu đang được làm mới.', 'success')
       void invalidateMoneyQueries(queryClient)
+    },
+    onError: (error) => pushToast(error.message, 'error'),
+  })
+
+  const reloginMutation = useMutation({
+    mutationFn: () => {
+      if (!inspectedMachine) throw new Error('Chưa chọn máy')
+      const payload = { hostName: inspectedMachine.hostName }
+      return reloginWorkstation({ ...payload, idem: reloginIntent.getKey(fingerprintIntent(payload)) })
+    },
+    onSuccess: () => {
+      reloginIntent.clearKey()
+      setReloginOpen(false)
+      pushToast('Đã đăng nhập lại phiên trước cho máy.', 'success')
+      void queryClient.invalidateQueries({ queryKey: ['workstations'] })
     },
     onError: (error) => pushToast(error.message, 'error'),
   })
@@ -1808,6 +1866,7 @@ export function WorkstationWorkspace() {
             filter={filter}
             onFilterChange={setFilter}
             visibleColumns={visibleColumns}
+            isServiceAcceptCleared={isServiceAcceptCleared}
             emptyState={
               hasActiveFilter ? (
                 <StateView
@@ -1827,7 +1886,23 @@ export function WorkstationWorkspace() {
         open={Boolean(inspectedMachine)}
         title={inspectedMachine?.hostName ?? 'Chi tiết máy'}
         description={inspectedMachine ? `${inspectedMachine.ip || 'Không có IP'} · ${inspectedMachine.machineGroupName || `Nhóm ${inspectedMachine.machineGroupId}`}` : undefined}
-        onClose={() => setInspectorHost(null)}
+        headerActions={
+          inspectedMachine ? (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<ClockCounterClockwise size={18} weight="bold" aria-hidden="true" />}
+              onClick={() => setActivityOpen(true)}
+            >
+              Hoạt động gần đây
+            </Button>
+          ) : null
+        }
+        onClose={() => {
+          // Esc khi hộp thoại "Hoạt động gần đây" đang mở chỉ đóng hộp thoại, không đóng luôn drawer.
+          if (activityOpen) return
+          setInspectorHost(null)
+        }}
       >
         {inspectedMachine && status ? (
           <div className="ws-inspector" key={inspectedMachine.hostName}>
@@ -1844,12 +1919,24 @@ export function WorkstationWorkspace() {
               summary={
                 inspectedMachine.session
                   ? `${inspectedMachine.userName || '—'} · ${sessionLabel(inspectedMachine.session)} · còn ${formatDuration(clock.remaining, 'minutes')}`
-                  : inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE
-                    ? 'Máy trống, sẵn sàng đăng nhập'
-                    : 'Không có phiên'
+                  : pendingSettle
+                    ? 'Phiên trước chưa tính tiền — đăng nhập lại hoặc tính tiền'
+                    : inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE
+                      ? 'Máy trống, sẵn sàng đăng nhập'
+                      : 'Không có phiên'
               }
               action={
-                inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
+                pendingSettle ? (
+                  <Button
+                    icon={<Receipt {...ICON} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused}
+                    onClick={() => setMoneyAction('payout')}
+                  >
+                    Tính tiền
+                  </Button>
+                ) : inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
                   <Button
                     icon={<SignIn {...ICON} />}
                     type="button"
@@ -1921,27 +2008,54 @@ export function WorkstationWorkspace() {
               </dl>
               {inspectedMachine.status === WORKSTATION_STATUS.AVAILABLE ? (
                 <div className="ws-action-row">
-                  <span className="ws-action-row__loginTitle">Đăng nhập</span>
-                  <Button
-                    icon={<SignIn {...ICON} />}
-                    type="button"
-                    variant="primary"
-                    disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
-                    title={!hasRight(RIGHTS.PREPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.PREPAID_LOGIN}` : 'Đăng nhập (trả tiền trước)'}
-                    onClick={() => openAnonymLoginDialog('prepaid')}
-                  >
-                    Trả trước
-                  </Button>
-                  <Button
-                    icon={<SignIn {...ICON} />}
-                    type="button"
-                    variant="secondary"
-                    disabled={isPaused || !hasRight(RIGHTS.POSTPAID_LOGIN)}
-                    title={!hasRight(RIGHTS.POSTPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.POSTPAID_LOGIN}` : 'Đăng nhập (trả tiền sau)'}
-                    onClick={() => openAnonymLoginDialog('payLater')}
-                  >
-                    Trả sau
-                  </Button>
+                  {pendingSettle ? (
+                    <>
+                      <Button
+                        icon={<ArrowCounterClockwise {...ICON} />}
+                        type="button"
+                        variant="primary"
+                        disabled={isPaused}
+                        title="Đăng nhập lại phiên trước của khách (máy vừa khởi động lại)"
+                        onClick={() => setReloginOpen(true)}
+                      >
+                        Đăng nhập lại
+                      </Button>
+                      <Button
+                        icon={<Receipt {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused}
+                        title="Tính tiền phiên trước"
+                        onClick={() => setMoneyAction('payout')}
+                      >
+                        Tính tiền
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="ws-action-row__loginTitle">Đăng nhập</span>
+                      <Button
+                        icon={<SignIn {...ICON} />}
+                        type="button"
+                        variant="primary"
+                        disabled={isPaused || !hasRight(RIGHTS.PREPAID_LOGIN)}
+                        title={!hasRight(RIGHTS.PREPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.PREPAID_LOGIN}` : 'Đăng nhập (trả tiền trước)'}
+                        onClick={() => openAnonymLoginDialog('prepaid')}
+                      >
+                        Trả trước
+                      </Button>
+                      <Button
+                        icon={<SignIn {...ICON} />}
+                        type="button"
+                        variant="secondary"
+                        disabled={isPaused || !hasRight(RIGHTS.POSTPAID_LOGIN)}
+                        title={!hasRight(RIGHTS.POSTPAID_LOGIN) ? `Thiếu quyền ${RIGHTS.POSTPAID_LOGIN}` : 'Đăng nhập (trả tiền sau)'}
+                        onClick={() => openAnonymLoginDialog('payLater')}
+                      >
+                        Trả sau
+                      </Button>
+                    </>
+                  )}
                   <Button
                     icon={<UserGear {...ICON} />}
                     type="button"
@@ -2213,6 +2327,45 @@ export function WorkstationWorkspace() {
               </InspectorGroup>
             ) : null}
 
+            {hasServiceDebt ? (
+              <InspectorGroup
+                icon={<ForkKnife size={22} weight="duotone" />}
+                title="Đơn hàng"
+                defaultExpanded
+                badges={<StatusBadge tone="danger">Chưa thu tiền</StatusBadge>}
+                summary={
+                  serviceDebt.isLoading
+                    ? 'Đang tải đơn dịch vụ…'
+                    : serviceDebt.error
+                      ? 'Không tải được danh sách đơn'
+                      : `${serviceDebt.itemCount} món · còn nợ ${formatMoney(serviceDebt.total)}`
+                }
+                action={
+                  // Cùng vị trí nút "Tạo đơn" của nhóm Đơn hàng. Chỉ ĐIỀU HƯỚNG sang /orders (lọc sẵn theo
+                  // máy): thu tiền / hủy dòng nợ là money-core, không làm trong drawer.
+                  <Button
+                    icon={<CallBellIcon size={ICON.size} />}
+                    type="button"
+                    variant="primary"
+                    disabled={isPaused}
+                    onClick={() => {
+                      setOrderHost(inspectedMachine.hostName)
+                      setOrderCustomerName('')
+                      navigate('/orders')
+                    }}
+                  >
+                    Thu tiền
+                  </Button>
+                }
+              >
+                <MachineServiceDebtList
+                  lines={serviceDebt.lines}
+                  total={serviceDebt.total}
+                  error={serviceDebt.error}
+                />
+              </InspectorGroup>
+            ) : null}
+
             <InspectorGroup
               icon={<Desktop size={22} weight="duotone" />}
               title="Điều khiển hệ thống"
@@ -2423,6 +2576,15 @@ export function WorkstationWorkspace() {
           </div>
         ) : null}
       </Drawer>
+
+      {/* Chỉ mount khi mở: mỗi lần mở lại tự đặt khoảng ngày về hôm nay và không gọi nhật ký lúc đóng. */}
+      {activityOpen && inspectedMachine ? (
+        <MachineActivityDialog
+          hostName={inspectedMachine.hostName}
+          open
+          onClose={() => setActivityOpen(false)}
+        />
+      ) : null}
 
       <Drawer
         open={paymentWaitOpen}
@@ -2687,6 +2849,21 @@ export function WorkstationWorkspace() {
           </InlineAlert>
         </div>
       </Dialog>
+
+      <ConfirmAction
+        open={reloginOpen}
+        title="Đăng nhập lại phiên trước"
+        description="Khôi phục phiên khách vãng lai đang dở (máy vừa khởi động lại). Không ghi tiền; giờ đã dùng do máy chủ tự tính."
+        confirmLabel="Đăng nhập lại"
+        pending={reloginMutation.isPending}
+        onCancel={() => setReloginOpen(false)}
+        onConfirm={() => reloginMutation.mutate()}
+      >
+        <div className="ws-confirm-targets">
+          <span>Đích thực hiện</span>
+          <strong>{inspectedMachine?.hostName ?? ''}</strong>
+        </div>
+      </ConfirmAction>
 
       <ConfirmAction
         open={Boolean(pendingCommand)}

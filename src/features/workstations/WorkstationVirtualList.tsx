@@ -103,6 +103,8 @@ type WorkstationVirtualListProps = {
   filter: WorkstationFilter
   onFilterChange: (filter: WorkstationFilter) => void
   visibleColumns: ColumnDefinition[]
+  /** Máy đã thu hết nợ dịch vụ ⇒ bỏ badge "Đã nhận món" (cờ server còn sót). */
+  isServiceAcceptCleared?: (machine: WorkstationRuntime) => boolean
   emptyState?: ReactNode
 }
 
@@ -119,6 +121,7 @@ export function WorkstationVirtualList({
   filter,
   onFilterChange,
   visibleColumns,
+  isServiceAcceptCleared,
   emptyState,
 }: WorkstationVirtualListProps) {
   const { theme } = useTheme()
@@ -164,7 +167,7 @@ export function WorkstationVirtualList({
     if (column.id === 'ip') return <div className="ws-table__truncate" role="cell">{machine.ip || '—'}</div>
     if (column.id === 'status') {
       const status = getWorkstationStatus(machine)
-      const flags = getWorkstationFlags(machine)
+      const flags = getWorkstationFlags(machine, { hideServiceAccept: isServiceAcceptCleared?.(machine) })
       return <div className="ws-table__status" role="cell"><StatusBadge tone={status.tone}>{status.label}</StatusBadge>{flags.map((flag) => <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>)}</div>
     }
     if (column.id === 'user') return <div className="ws-table__user" role="cell"><strong>{machine.userName || '—'}</strong></div>

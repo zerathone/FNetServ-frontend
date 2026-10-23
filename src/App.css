@@ -657,6 +657,89 @@
   display: none;
 }
 
+/* Số / badge cạnh nhãn mục menu (Máy trạm, Đơn dịch vụ, Đặt máy, Combo, Giao dịch, Theo dõi): cụm "chấm tròn nhỏ
+   + số to cùng màu", cùng dòng với nhãn và canh sát mép phải. Lưới của link chỉ có 2 cột (icon, nhãn) nên phần
+   tử thứ 3 sẽ rớt xuống hàng mới -- phải khai báo hẳn cột thứ 3, và chỉ cho link đang có cụm badge (:has) để mục
+   không có badge không mất khoảng trống. Các luật thu gọn / classic / mobile bên dưới cũng có bản :has riêng. */
+.workspace-nav__link:has(.workspace-nav__counts) {
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+}
+
+.workspace-nav__counts {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: var(--space-2);
+}
+
+.workspace-nav__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--workspace-nav-count-color);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.workspace-nav__count-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--workspace-nav-count-color);
+}
+
+/* Badge cảnh báo phần cứng ở mục Theo dõi hoạt động: icon nhóm (GPU/CPU/Cảnh báo) + số máy, màu warning/danger
+   theo đúng luật trang Theo dõi. Chỉ render khi số máy > 0. */
+.workspace-nav__alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--workspace-nav-count-color);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.workspace-nav__alert--danger { --workspace-nav-count-color: var(--color-danger); }
+.workspace-nav__alert--warning { --workspace-nav-count-color: var(--color-warning); }
+.workspace-nav__alert--success { --workspace-nav-count-color: var(--color-success); }
+
+/* Chớp tắt kiểu "thở": sáng rõ -> mờ -> sáng rõ, lặp trong 10 giây sau khi số đổi / có giao dịch mới (class do
+   useNavBadge / useSelfPaymentFlash gỡ sau NAV_PULSE_MS). Cùng kiểu hm-pulse ở trang Theo dõi hoạt động. Số vừa về 0
+   (is-zero) mờ hơn để biết sắp biến mất; khi đang chớp thì animation quyết định độ mờ. */
+@keyframes nav-heartbeat {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.workspace-nav__count.is-pulsing,
+.workspace-nav__alert.is-pulsing {
+  animation: nav-heartbeat 1.4s ease-in-out infinite;
+}
+
+.workspace-nav__count.is-zero {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-nav__count.is-pulsing,
+  .workspace-nav__alert.is-pulsing {
+    animation: none;
+  }
+}
+
+.workspace-nav__count--pending { --workspace-nav-count-color: var(--color-warning); }
+.workspace-nav__count--accepted { --workspace-nav-count-color: var(--color-info); }
+.workspace-nav__count--confirmed { --workspace-nav-count-color: var(--color-success); }
+.workspace-nav__count--playing { --workspace-nav-count-color: var(--color-info); }
+.workspace-nav__count--available { --workspace-nav-count-color: var(--color-success); }
+.workspace-nav__count--disconnected { --workspace-nav-count-color: var(--color-danger); }
+
 /* --- Nav group headers (chỉ workspace Phân tích) --- */
 .workspace-nav__group-header {
   display: flex;
@@ -995,6 +1078,64 @@
 .app-shell--collapsed .workspace-nav__short {
   display: block;
   font-size: 0.5625rem;
+}
+
+/* Sidebar thu gọn (desktop, không phải theme classic -- classic là thanh ngang, vẫn hiện badge như khi bung;
+   ≤900px thì sidebar là drawer bung đủ): chỉ còn icon + nhãn ngắn nên badge đổi sang dạng chấm tròn tô màu, số
+   lồng bên trong (chữ màu inverse của theme), xếp DỌC từ trên xuống, canh phải, NỬA TRONG NỬA NGOÀI mép phải
+   trên của nút (kiểu badge thông báo; offset âm nhỏ hơn padding ngang của .workspace-nav nên không bị cắt). Chớp
+   (.is-pulsing) vẫn là animation opacity chung ở trên. */
+@media (min-width: 901px) {
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__link {
+    position: relative;
+  }
+
+  /* 3 chấm xếp dọc (máy trạm) cao hơn nút mặc định -> nới nút ra cho khỏi tràn sang mục bên dưới. */
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__link:has(.workspace-nav__counts > :nth-child(3)) {
+    min-height: 3.5rem;
+  }
+
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__counts {
+    position: absolute;
+    top: -0.4rem;
+    right: -0.4rem;
+    z-index: 1;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 2px;
+    pointer-events: none;
+  }
+
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__count,
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__alert {
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    gap: 0;
+    color: var(--color-text-inverse);
+    background: var(--workspace-nav-count-color);
+    font-size: 0.625rem;
+  }
+
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__count-dot,
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__alert svg {
+    display: none;
+  }
+
+  /* Giao dịch tự thanh toán: chấm chỉ còn icon loại giao dịch (số tiền nằm ở tooltip, không nhét vừa chấm tròn). */
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__alert--flash svg {
+    display: block;
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+
+  :root:not([data-theme="classic"]) .app-shell--collapsed .workspace-nav__alert--flash .workspace-nav__alert-text {
+    display: none;
+  }
 }
 
 .app-shell--collapsed .workspace-nav__group-header {
@@ -1622,6 +1763,15 @@
     display: none;
   }
 
+  :root[data-theme="classic"] .workspace-nav__link:has(.workspace-nav__counts),
+  :root[data-theme="classic"] .app-shell--collapsed .workspace-nav__link:has(.workspace-nav__counts) {
+    grid-template-columns: 1.65rem auto auto;
+  }
+
+  :root[data-theme="classic"] .app-shell--collapsed .workspace-nav__counts {
+    display: inline-flex;
+  }
+
   :root[data-theme="classic"] .app-sidebar__footer {
     flex: 0 0 auto;
     display: flex;
@@ -1814,6 +1964,14 @@
 
   .app-shell--collapsed .workspace-nav__short {
     display: none;
+  }
+
+  .app-shell--collapsed .workspace-nav__link:has(.workspace-nav__counts) {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  }
+
+  .app-shell--collapsed .workspace-nav__counts {
+    display: inline-flex;
   }
 
   .app-nav-scrim {

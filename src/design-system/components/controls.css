@@ -1225,6 +1225,39 @@ input[type="radio"]:disabled {
   font-size: var(--font-size-sm);
 }
 
+/* Cột chữ của header giãn hết chỗ trống để hàng actions có thể dàn trái/phải. */
+.ds-drawer__header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Có cả description lẫn actions: actions nằm CÙNG HÀNG với description, canh phải
+   (vd drawer máy trạm: "IP · nhóm máy" bên trái, nút bên phải). Không description thì giữ
+   hàng actions riêng như hộp thông báo. */
+.ds-drawer__header > div:first-child:has(> p + .ds-drawer__header-actions) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+}
+
+.ds-drawer__header > div:first-child:has(> p + .ds-drawer__header-actions) > h2 {
+  grid-column: 1 / -1;
+}
+
+.ds-drawer__header > div:first-child:has(> p + .ds-drawer__header-actions) > .ds-drawer__header-actions {
+  margin-top: var(--space-1);
+  justify-self: end;
+}
+
+.ds-drawer__header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
 .ds-dialog__body,
 .ds-drawer__body {
   min-height: 0;

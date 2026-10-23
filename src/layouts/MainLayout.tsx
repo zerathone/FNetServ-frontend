@@ -14,6 +14,7 @@ import { LicenseButton } from '../features/license/LicenseButton'
 import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
+import { NavItemBadges } from './NavItemBadges'
 import {
   Desktop, Users, CallBell, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
@@ -152,7 +153,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" /> },
       { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" /> },
-      { to: '/online-booking/settings', label: 'Cấu hình đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" /> },
+      { to: '/online-booking/settings', label: 'Thiết lập đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" /> },
       { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" /> },
       { to: '/apps', label: 'Ứng dụng', shortLabel: 'App', icon: <AppWindow size={24} weight="duotone" /> },
       { to: '/webblock', label: 'Khống chế Web/App', shortLabel: 'Web', icon: <ShieldWarning size={24} weight="duotone" /> },
@@ -247,6 +248,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
   )
   const workspace = getWorkspace(workspaceId)
   const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight))
+  // Riêng trang Theo dõi hoạt động tự poll danh sách máy + phần cứng (PollSteps) -> badge ở menu không poll chồng lên.
+  const pollNavData = location.pathname !== '/health_monitor'
 
   useEffect(() => {
     // Workspace hiện tại không còn khả dụng (đăng xuất/đổi quyền): về Thu ngân.
@@ -533,6 +536,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
                     </span>
                     <span className="workspace-nav__label">{item.label}</span>
                     <span className="workspace-nav__short">{item.shortLabel}</span>
+                    <NavItemBadges to={item.to} pollNavData={pollNavData} />
                   </NavLink>
                 )}
               </Fragment>

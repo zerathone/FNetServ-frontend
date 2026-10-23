@@ -35,12 +35,13 @@ export function formatZoneList(value: string) {
  * với trước đây nên các nơi đang invalidate key này (ServerEventsProvider, fintechQueries) vẫn làm mới được;
  * nút trên thanh thống kê và danh sách dùng chung 1 cache.
  */
-export function usePendingComboOrders() {
+export function usePendingComboOrders(enabled = true) {
   const connected = useWsStatusStore((state) => state.connected)
   const query = useQuery({
     queryKey: ['pending-orders-combo'],
     queryFn: getPendingComboOrders,
     refetchInterval: connected ? 30_000 : 5_000,
+    enabled,
   })
   const orders = useMemo(
     () =>

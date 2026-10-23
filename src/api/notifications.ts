@@ -28,6 +28,8 @@ export type OperationNotification = {
   updatedAtMs: number
   hostName: string
   memberId: number
+  // Task 6.5b: tên tài khoản (rỗng = không gắn tài khoản). Optional vì Server.exe bản cũ không có.
+  userName?: string
   dedupeKey: string
   state: OperationNotificationState
   count: number
@@ -103,6 +105,19 @@ export async function getOperationNotificationSnapshot() {
     dropped: lastPage?.dropped ?? false,
     items,
   } satisfies OperationNotificationSnapshot
+}
+
+// Nút của thông báo `qr_no_signal` (task 6.3). 🔴 Money-core: số tiền server tự lấy từ đơn,
+// KHÔNG gửi `value`; người bấm lấy từ token (StaffId per-request) nên bắt buộc đã đăng nhập.
+export function confirmQrManual(orderId: string, tid: string) {
+  return apiPost<{ orderId: string; value: number; comboSettled: boolean }, { orderId: string; tid: string }>(
+    '/payment/qr/confirm-manual',
+    { orderId, tid },
+  )
+}
+
+export function cancelQrOrder(orderId: string) {
+  return apiPost<{ orderId: string }, { orderId: string }>('/payment/qr/cancel', { orderId })
 }
 
 export function updateOperationNotificationState(

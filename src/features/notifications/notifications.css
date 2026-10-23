@@ -41,21 +41,27 @@
   gap: var(--space-3);
 }
 
-.notification-toolbar,
-.notification-footer {
+.notification-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.notification-footer {
-  width: 100%;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+.notification-header-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.notification-toolbar .ds-input-group {
+  flex: 1;
+  min-width: 0;
 }
 
 .notification-tabs {
+  flex: 0 0 auto;
   display: flex;
   gap: var(--space-1);
   padding: 0.2rem;
@@ -153,6 +159,71 @@
   line-height: 1.45;
 }
 
+/* Timeline của card gộp: giờ · chấm nối · nội dung (cũ → mới). */
+.notification-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-timeline__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.2rem 0.75rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0.3rem 0;
+  font-size: var(--font-size-sm);
+}
+
+.notification-timeline__row time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.notification-timeline__dot {
+  position: relative;
+  z-index: 1;
+  width: 0.55rem;
+  height: 0.55rem;
+  align-self: center;
+  justify-self: center;
+  border: 2px solid var(--color-info);
+  border-radius: 999px;
+  background: var(--color-surface-default);
+}
+
+.notification-timeline__row--ok .notification-timeline__dot {
+  border-color: var(--color-success);
+}
+
+.notification-timeline__row--attention .notification-timeline__dot {
+  border-color: var(--color-warning);
+}
+
+.notification-timeline__row--urgent .notification-timeline__dot,
+.notification-timeline__row--critical .notification-timeline__dot {
+  border-color: var(--color-danger);
+}
+
+/* Đường nối giữa các chấm (không vẽ ở dòng cuối). */
+.notification-timeline__row:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  bottom: -50%;
+  left: calc(4.2rem + var(--space-2) + 0.375rem - 1px);
+  width: 2px;
+  background: var(--color-border-default);
+}
+
+.notification-timeline__text {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
 .notification-item__actions {
   display: flex;
   flex-wrap: wrap;
@@ -165,9 +236,55 @@
   font-size: var(--font-size-sm);
 }
 
+.notification-item__actions--qr {
+  align-items: center;
+}
+
+.notification-item__reason {
+  flex-basis: 100%;
+}
+
+.qr-confirm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.qr-confirm__summary {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.qr-confirm__summary > div {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.qr-confirm__summary dt {
+  flex: 0 0 5.5rem;
+  color: var(--color-text-muted);
+}
+
+.qr-confirm__summary dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.qr-confirm__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 @media (max-width: 560px) {
-  .notification-toolbar,
-  .notification-footer {
+  .notification-toolbar {
     align-items: stretch;
     flex-direction: column;
   }

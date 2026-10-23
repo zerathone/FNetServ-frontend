@@ -360,9 +360,6 @@ export function UserGroupWorkspace() {
                                 <strong>{group.name}</strong>
                                 <span>#{group.id}</span>
                               </div>
-                              {!group.active ? (
-                                <StatusBadge tone="warning">Không hoạt động</StatusBadge>
-                              ) : null}
                             </div>
                           </td>
                           <td className="user-group-table__action-column">

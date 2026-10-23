@@ -7,7 +7,11 @@ import {
   type OperationNotification,
   type OperationNotificationSnapshot,
 } from '../api/notifications'
-import { mergeNotificationEvent, notificationDescription } from '../features/notifications/notificationModel'
+import {
+  mergeNotificationEvent,
+  notificationDescription,
+  notificationIsDisplayable,
+} from '../features/notifications/notificationModel'
 import { shouldAlert, shouldPlaySound } from '../features/notifications/notificationPrefsModel'
 import { playNotificationSound } from '../features/notifications/notificationSound'
 import { useNotificationPrefs } from '../store/notificationPrefs'
@@ -143,7 +147,8 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
             void queryClient.invalidateQueries({ queryKey: OPERATIONS_NOTIFICATIONS_QUERY_KEY })
           }
           void invalidateNotificationDomain(queryClient, notification)
-          if (msg.type === 'operation.notification.created') {
+          // Loại không biết + không có tiêu đề: ẩn khỏi hộp thông báo thì cũng không báo toast/âm.
+          if (msg.type === 'operation.notification.created' && notificationIsDisplayable(notification)) {
             // Thiết lập thông báo (trang /notification-settings): chỉ chặn toast + âm báo, tin vẫn
             // vào hộp thông báo ở trên. `critical` luôn qua (xem shouldAlert).
             const prefs = useNotificationPrefs.getState()

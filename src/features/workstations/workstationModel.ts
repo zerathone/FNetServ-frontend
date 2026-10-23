@@ -129,7 +129,11 @@ export function getWinLicenseView(machine: WorkstationRuntime): WinLicenseView |
   }
 }
 
-export function getWorkstationFlags(machine: WorkstationRuntime) {
+/**
+ * hideServiceAccept: bỏ badge "Đã nhận món" khi đã biết chắc máy hết nợ dịch vụ (xem
+ * `useServiceAcceptCleared`) — server bật cờ này vô điều kiện cho máy còn giữ user của khách trước.
+ */
+export function getWorkstationFlags(machine: WorkstationRuntime, options: { hideServiceAccept?: boolean } = {}) {
   const flags: Array<{ label: string; tone: StatusTone }> = []
   if (machine.flagMask & WORKSTATION_FLAGS.HAVE_NOT_PAID) {
     flags.push({ label: 'Còn nợ', tone: 'danger' })
@@ -137,7 +141,7 @@ export function getWorkstationFlags(machine: WorkstationRuntime) {
   if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ORDER) {
     flags.push({ label: 'Có gọi món', tone: 'warning' })
   }
-  if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT) {
+  if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT && !options.hideServiceAccept) {
     flags.push({ label: 'Đã nhận món', tone: 'info' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.TRANSFER_PAYMENT) {

@@ -6,6 +6,7 @@ import {
 } from 'react'
 import { X } from '@phosphor-icons/react'
 import { createPortal } from 'react-dom'
+import { lockBodyScroll } from './bodyScrollLock'
 import { IconButton } from './IconButton'
 
 export type DialogProps = {
@@ -42,8 +43,7 @@ export function Dialog({
     if (!open) return
 
     const previousFocus = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockBodyScroll()
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -73,7 +73,7 @@ export function Dialog({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.body.style.overflow = previousOverflow
+      unlockScroll()
       document.removeEventListener('keydown', handleKeyDown)
       previousFocus?.focus()
     }

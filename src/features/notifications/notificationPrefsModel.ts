@@ -45,7 +45,7 @@ export const NOTIFICATION_GROUPS: NotificationGroupDef[] = [
     label: 'Máy trạm & khách',
     hint: 'Cảnh báo máy, mất kết nối, tin nhắn từ khách',
     types: [
-      { type: 'workstation_warning', label: 'Máy trạm cần chú ý', hint: 'Máy trạm gửi cảnh báo', severities: ['urgent'] },
+      { type: 'workstation_warning', label: 'Cảnh báo', hint: 'Máy trạm gửi cảnh báo', severities: ['urgent'] },
       { type: 'client_message', label: 'Khách gửi tin nhắn', hint: 'Tin nhắn từ máy trạm', severities: ['attention'] },
       { type: 'workstation_offline', label: 'Máy trạm ngắt kết nối', hint: 'Máy vừa tắt, cần dọn chỗ ngồi', severities: ['info'] },
     ],
@@ -74,10 +74,11 @@ export const NOTIFICATION_GROUPS: NotificationGroupDef[] = [
   },
   {
     id: 'system',
-    label: 'Hệ thống & đối tác',
-    hint: 'Tin từ FNet và từ đối tác',
+    label: 'Đối tác',
+    hint: 'Tin do đối tác gửi vào',
     types: [
-      { type: 'fnet_system', label: 'Thông báo từ FNet', hint: 'Bảo trì, license sắp hết', severities: ['urgent'] },
+      // `fnet_system` (bảo trì, license sắp hết) CỐ Ý chưa có ở đây: server chưa có nơi nào phát loại
+      // này (kiểm 2026-10-22). Thêm lại cùng lúc với nguồn phát để công tắc không đứng không.
       { type: 'partner_notice', label: 'Thông báo từ đối tác', hint: 'Đối tác tự chọn mức khi gửi', severities: ['info', 'attention', 'urgent', 'critical'] },
     ],
   },

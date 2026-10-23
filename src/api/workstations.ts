@@ -337,6 +337,12 @@ export function payoutWorkstation(payload: { machine: string, realAmount?: numbe
   return apiPost<any, typeof payload>('/workstation/payout', payload)
 }
 
+// "Đăng nhập lại" (IDR_RELOGIN) cho máy vãng lai AVAILABLE còn phiên cũ chưa tính tiền (client
+// restart bất ngờ). Server tự đọc giờ và gửi lại VSM_LOGIN_OK; hội viên đi lane /user/credit.
+export function reloginWorkstation(payload: { hostName: string, idem: string }) {
+  return apiPost<any, typeof payload>('/workstation/relogin', payload)
+}
+
 export function payoutPrepaidWorkstation(payload: { userId: number, note?: string, idem: string }) {
   return apiPost<any, typeof payload>('/workstation/payout/prepaid', payload)
 }

@@ -208,7 +208,11 @@ export function OrderWorkspace() {
   // Lọc thêm trong view 'completed' theo hình thức thu (bấm dòng breakdown của tile); null = tất cả.
   const [completedMethod, setCompletedMethod] = useState<CompletedPaymentMethod | null>(null)
   // Gộp 2 ô lọc cũ thành 1 thanh search (parity /logs/system): dropdown chọn trường, 1 ô nhập.
-  const [searchField, setSearchField] = useState<'customer' | 'host'>('customer')
+  // Mở trang khi store đã có sẵn lọc máy (từ thông báo/chi tiết máy) thì combo phải hiện "Tên máy",
+  // nếu không ô nhập sẽ trống trong khi danh sách đang bị lọc.
+  const [searchField, setSearchField] = useState<'customer' | 'host'>(() =>
+    hostName && !customerNameFilter ? 'host' : 'customer',
+  )
   // servicePage giờ phân trang CHUNG cho danh sách đã gộp (Dịch vụ + QR + Đã duyệt-chưa thanh toán).
   const [servicePage, setServicePage] = useState(0)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
