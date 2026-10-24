@@ -39,10 +39,22 @@ type NumFieldProps = {
   value: number
   min: number
   max: number
+  /** Bước nhảy của ô số. Mặc định 1 (số nguyên). */
+  step?: number
   error?: string
   onChange: (value: number) => void
   /** Gọi khi người dùng xong một lần nhập (rời ô hoặc nhấn Enter): lúc đó mới tự lưu. */
   onCommit: () => void
+}
+
+type SelectFieldProps = {
+  label: string
+  hint?: string
+  value: number
+  options: { value: number; label: string }[]
+  error?: string
+  onChange: (value: number) => void
+  onCommit: (value: number) => void
 }
 
 type SettingRowProps = {
@@ -158,6 +170,27 @@ function SettingsCard({ icon, title, summary, status, collapsible, open = true, 
 
 const MONEY = new Intl.NumberFormat('vi-VN')
 
+/** task OB-R8: miền rời rạc của "giữ máy khi khách đến trễ" — khớp `Validate` phía server (0 hoặc 15…30). */
+const LATE_HOLD_OPTIONS = [
+  { value: 0, label: 'Không giới hạn — giữ tới hết khung' },
+  { value: 15, label: '15 phút' },
+  { value: 20, label: '20 phút' },
+  { value: 25, label: '25 phút' },
+  { value: 30, label: '30 phút' },
+]
+
+/** task OB-R8: số phút → câu người đọc được ("4 giờ", "1 ngày", "1 ngày 12 giờ", "1 giờ 30 phút"). */
+function describeMinutes(minutes: number): string {
+  if (minutes <= 0) return '0 phút'
+  if (minutes < 60) return `${minutes} phút`
+  const days = Math.floor(minutes / (24 * 60))
+  const hours = Math.floor((minutes % (24 * 60)) / 60)
+  const mins = minutes % 60
+  return [days ? `${days} ngày` : '', hours ? `${hours} giờ` : '', mins ? `${mins} phút` : '']
+    .filter(Boolean)
+    .join(' ')
+}
+
 /** Giá trị + đơn vị trong dòng tóm tắt: chữ sáng hơn phần còn lại để dễ quét mắt. */
 const val = (text: string) => <b className="ob-card__val">{text}</b>
 
@@ -249,7 +282,33 @@ function MachineGroupPanel({ name, prices, machines, isSelected, isChanged, open
     </div>
   )
 }
-function NumField({ label, hint, unit, value, min, max, error, onChange, onCommit }: NumFieldProps) {
+/** Ô chọn một giá trị trong danh sách rời rạc (vd thời gian giữ máy: 0 / 15 / 20 / 25 / 30 phút). */
+function SelectField({ label, hint, value, options, error, onChange, onCommit }: SelectFieldProps) {
+  const id = useId()
+  return (
+    <SettingRow label={label} htmlFor={id} hint={hint} error={error}>
+      <select
+        id={id}
+        className="ds-select ob-row__select"
+        value={value}
+        aria-invalid={Boolean(error)}
+        onChange={(event) => {
+          const next = Number(event.target.value)
+          onChange(next)
+          onCommit(next)
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </SettingRow>
+  )
+}
+
+function NumField({ label, hint, unit, value, min, max, step, error, onChange, onCommit }: NumFieldProps) {
   const id = useId()
   return (
     <SettingRow label={label} htmlFor={id} hint={hint} error={error}>
@@ -260,6 +319,7 @@ function NumField({ label, hint, unit, value, min, max, error, onChange, onCommi
           type="number"
           min={min}
           max={max}
+          step={step ?? 1}
           value={value}
           aria-invalid={Boolean(error)}
           onChange={(event) => onChange(Number(event.target.value))}
@@ -386,9 +446,14 @@ export function OnlineBookingSettingsPage() {
     : ''
   const timeSummary: ReactNode = timeDraft
     ? joinSummary([
-        <>Đặt trước tối đa {val(`${timeDraft.max_ahead} phút`)}</>,
+        <>Đặt trước tối đa {val(describeMinutes(timeDraft.max_ahead))}</>,
         <>Không đặt sát giờ {val(`${timeDraft.min_lead} phút`)}</>,
-        <>Tối đa {val(`${timeDraft.max_hours} giờ`)}/đơn</>,
+        <>Mỗi đơn {val(`${timeDraft.min_hours}–${timeDraft.max_hours} giờ`)}</>,
+        timeDraft.require_off_within > 0 ? (
+          <>Chỉ máy tắt khi đặt trong {val(describeMinutes(timeDraft.require_off_within))}</>
+        ) : (
+          <>Không bắt máy tắt</>
+        ),
         <>Đệm {val(`${timeDraft.buffer} phút`)}</>,
         <>Hết hạn chờ duyệt {val(`${timeDraft.approval_timeout} phút`)}</>,
       ])
@@ -397,6 +462,11 @@ export function OnlineBookingSettingsPage() {
     ? joinSummary([
         <>Khoá đăng nhập trước {val(`${stationDraft.lock_window} phút`)}</>,
         <>Vào máy sớm {val(`${stationDraft.early_login} phút`)}</>,
+        stationDraft.late_hold > 0 ? (
+          <>Giữ máy khi đến trễ {val(`${stationDraft.late_hold} phút`)}</>
+        ) : (
+          <>Giữ máy tới hết khung</>
+        ),
       ])
     : ''
   const allMachines = machinesQuery.data?.machines ?? []
@@ -516,15 +586,18 @@ export function OnlineBookingSettingsPage() {
         >
           <div className="ob-rows">
             <SettingGroup title="Thời điểm bắt đầu">
+              {/* task OB-R8: nhập theo GIỜ (tối đa 7 ngày), lưu xuống phút. Giá trị cũ không tròn giờ (vd 90
+                  phút = 1,5 giờ) vẫn hiển thị đúng và không bị ghi đè khi chỉ rời ô — `unchanged()` lo việc đó. */}
               <NumField
                 label="Đặt trước tối đa"
-                unit="phút"
-                min={0}
-                max={180}
-                value={timeDraft.max_ahead}
+                unit="giờ"
+                min={1}
+                max={168}
+                step={0.5}
+                value={timeDraft.max_ahead / 60}
                 error={errorFor('time', 'max_ahead')}
-                hint="Bắt đầu muộn nhất sau N phút kể từ lúc đặt."
-                onChange={(v) => setTimeDraft({ ...timeDraft, max_ahead: v })}
+                hint={`Bắt đầu muộn nhất sau ${describeMinutes(timeDraft.max_ahead)} kể từ lúc đặt.`}
+                onChange={(v) => setTimeDraft({ ...timeDraft, max_ahead: Math.round(v * 60) })}
                 onCommit={() => commitTime(timeDraft)}
               />
               <NumField
@@ -538,8 +611,33 @@ export function OnlineBookingSettingsPage() {
                 onChange={(v) => setTimeDraft({ ...timeDraft, min_lead: v })}
                 onCommit={() => commitTime(timeDraft)}
               />
+              {/* task OB-R8: ngưỡng thay cho luật cứng "máy phải tắt" cũ. */}
+              <NumField
+                label="Chỉ đặt máy đang tắt khi đặt trong vòng"
+                unit="giờ"
+                min={0}
+                max={168}
+                step={0.5}
+                value={timeDraft.require_off_within / 60}
+                error={errorFor('time', 'require_off_within')}
+                hint="Đặt sát giờ hơn mức này thì chỉ chọn được máy đang tắt; xa hơn thì chọn được cả máy đang bật. 0 = không bao giờ bắt máy tắt."
+                onChange={(v) => setTimeDraft({ ...timeDraft, require_off_within: Math.round(v * 60) })}
+                onCommit={() => commitTime(timeDraft)}
+              />
             </SettingGroup>
             <SettingGroup title="Thời lượng đơn">
+              {/* task OB-R8: sàn dưới mỗi đơn (trước đây là hằng số 30 phút). */}
+              <NumField
+                label="Số giờ tối thiểu mỗi đơn"
+                unit="giờ"
+                min={1}
+                max={23}
+                value={timeDraft.min_hours}
+                error={errorFor('time', 'min_hours')}
+                hint="Phải nhỏ hơn số giờ tối đa mỗi đơn."
+                onChange={(v) => setTimeDraft({ ...timeDraft, min_hours: v })}
+                onCommit={() => commitTime(timeDraft)}
+              />
               <NumField
                 label="Số giờ tối đa mỗi đơn"
                 unit="giờ"
@@ -606,6 +704,16 @@ export function OnlineBookingSettingsPage() {
               hint="Chủ đơn được vào máy sớm trước giờ đặt; vẫn chỉ chơi đúng số phút đã trả."
               onChange={(v) => setStationDraft({ ...stationDraft, early_login: v })}
               onCommit={() => commitStation(stationDraft)}
+            />
+            {/* task OB-R8: quá mức này mà chủ đơn chưa vào thì đơn thành "không đến" và máy được nhả. */}
+            <SelectField
+              label="Giữ máy khi khách đến trễ"
+              value={stationDraft.late_hold}
+              options={LATE_HOLD_OPTIONS}
+              error={errorFor('station', 'late_hold')}
+              hint="Quá thời gian này kể từ giờ bắt đầu mà chủ đơn chưa vào máy thì đơn bị tính là không đến và máy được nhả. Không hoàn tiền."
+              onChange={(v) => setStationDraft({ ...stationDraft, late_hold: v })}
+              onCommit={(v) => commitStation({ ...stationDraft, late_hold: v })}
             />
           </div>
         </SettingsCard>

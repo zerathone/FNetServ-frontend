@@ -552,6 +552,11 @@
   width: 9rem;
 }
 
+/* task OB-R8: ô chọn trong hàng cài đặt (vd thời gian giữ máy) — rộng hơn ô số vì nhãn dài hơn. */
+.ob-row__select {
+  width: 16rem;
+}
+
 .ob-row__numbox input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
