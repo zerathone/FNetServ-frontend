@@ -80,8 +80,14 @@ export type BoardResponse = {
   enabled: boolean
   fee: number
   maxHours: number
+  /** task OB-R8: số giờ tối thiểu mỗi đơn. */
+  minHours: number
   minLeadMin: number
   maxAheadMin: number
+  /** task OB-R8: đặt sát giờ hơn mức này (phút) thì chỉ chọn được máy đang tắt. 0 = không bao giờ bắt máy tắt. */
+  requireOffWithinMin: number
+  /** task OB-R8: giữ máy bao lâu sau giờ bắt đầu khi chủ đơn chưa vào. 0 = giữ tới hết khung. */
+  lateHoldMin: number
   slotBufferMin: number
   horizon: { from: string; to: string }
   machines: BoardMachine[]
@@ -118,7 +124,15 @@ export type Booking = {
   depositPaymentId?: number | null
   cancelCredit?: CancelCreditState
   cancelCreditAmount?: number | null
+  // OB-R9 — optional: server trước OB-R9 không trả.
+  /** Nhóm giá của hội viên — dùng để đọc đúng cột giá trong `prices[]` của /board khi đổi máy. */
+  userGroupId?: number
+  /** Dấu vết đổi máy; null = chưa từng đổi. Tiền của đơn vẫn là tiền của máy cũ. */
+  movedFrom?: MovedFrom
 }
+
+/** OB-R9: đơn đã được nhân viên đổi sang máy khác. */
+export type MovedFrom = { pc: string; at: string | null; by: BookingPerson } | null
 
 export type BookingListParams = {
   /** @deprecated dung fromDate/toDate (loc theo khoang ngay); date van duoc server chap nhan de tuong thich nguoc. */
@@ -140,11 +154,16 @@ export type ConfigTime = {
   v: number
   max_ahead: number
   max_hours: number
+  /** task OB-R8: số giờ tối thiểu mỗi đơn (1…23, phải nhỏ hơn max_hours). */
+  min_hours: number
   min_lead: number
   buffer: number
   approval_timeout: number
+  /** task OB-R8: ngưỡng "chỉ chọn máy đang tắt" (phút, 0…10080). */
+  require_off_within: number
 }
-export type ConfigStation = { v: number; lock_window: number; early_login: number }
+/** task OB-R8: `late_hold` = thời gian giữ máy khi khách đến trễ (phút; 0 = tắt, hoặc 15…30). */
+export type ConfigStation = { v: number; lock_window: number; early_login: number; late_hold: number }
 export type ConfigRow = 'setting' | 'time' | 'station'
 export type ConfigResponse = {
   setting: ConfigSetting
@@ -211,6 +230,14 @@ function slotSourceOf(channel: BookingChannel): SlotSource {
   return channel === 'staff' ? 'counter' : 'online'
 }
 
+/**
+ * task OB-R8: đơn có `from − now` nhỏ hơn `require_off_within` thì chỉ chọn được máy đang tắt.
+ * So nghiêm ngặt `<` — giống `RequiresOff()` phía server.
+ */
+function mockRequiresOff(fromMs: number): boolean {
+  return fromMs - Date.now() < mockConfig.time.require_off_within * MIN
+}
+
 function buildMockBoard(): BoardResponse {
   const live = mockBookings.filter((b) => b.status === 'wait_approval' || b.status === 'confirmed' || b.status === 'in_use')
   const machines: BoardMachine[] = mockBoardMachines.map((m) => {
@@ -218,9 +245,14 @@ function buildMockBoard(): BoardResponse {
       .filter((b) => b.pc === m.pc)
       .map((b) => ({ from: b.from, to: b.to, source: slotSourceOf(b.channel), state: b.status as SlotState }))
       .sort((a, b) => a.from.localeCompare(b.from))
-    const available = m.pcState === 'off'
+    // task OB-R8: máy đang bật vẫn đặt được — nhưng sớm nhất là qua ngưỡng `require_off_within`.
+    const leadMin =
+      m.pcState === 'off'
+        ? mockConfig.time.min_lead
+        : Math.max(mockConfig.time.min_lead, mockConfig.time.require_off_within)
+    const available = leadMin <= mockConfig.time.max_ahead
     const bookableNow: BookableNow = available
-      ? { earliestFrom: isoOffset(MOCK_NOW + mockConfig.time.min_lead * MIN), maxMinutes: mockConfig.time.max_hours * 60 }
+      ? { earliestFrom: isoOffset(MOCK_NOW + leadMin * MIN), maxMinutes: mockConfig.time.max_hours * 60 }
       : null
     return {
       pc: m.pc,
@@ -238,8 +270,11 @@ function buildMockBoard(): BoardResponse {
     enabled: mockConfig.setting.enabled === 1,
     fee: mockConfig.setting.fee,
     maxHours: mockConfig.time.max_hours,
+    minHours: mockConfig.time.min_hours,
     minLeadMin: mockConfig.time.min_lead,
     maxAheadMin: mockConfig.time.max_ahead,
+    requireOffWithinMin: mockConfig.time.require_off_within,
+    lateHoldMin: mockConfig.station.late_hold,
     slotBufferMin: mockConfig.time.buffer,
     horizon: { from: isoOffset(Date.now()), to: isoOffset(Date.now() + 8 * HOUR) },
     machines: mockConfig.setting.enabled === 1 ? machines : [],
@@ -250,14 +285,21 @@ function mockResolveQuote(payload: QuotePayload): QuoteResponse {
   if (mockConfig.setting.enabled !== 1) mockFail('DISABLED', 'Tính năng đặt máy online đang tắt')
   const machine = mockBoardMachines.find((m) => m.pc === payload.pc)
   if (!machine) mockFail('NOT_BOOKABLE', 'Máy không nằm trong danh sách cho đặt online')
-  if (machine.pcState !== 'off') mockFail('MACHINE_NOT_OFF', 'Máy đang bật — chỉ đặt được máy đang tắt')
+  // task OB-R8: chỉ đơn đặt sát giờ mới bắt buộc máy đang tắt.
+  if (mockRequiresOff(payload.from * 1000) && machine.pcState !== 'off') {
+    mockFail('MACHINE_NOT_OFF', 'Máy đang bật — đặt sát giờ chỉ chọn được máy đang tắt')
+  }
+  // task OB-R8: sàn dưới = `min_hours` giờ (trước đây là hằng số 30 phút).
   if (
     !Number.isInteger(payload.minutes) ||
-    payload.minutes < BOOKING_STEP_MIN ||
+    payload.minutes < mockConfig.time.min_hours * 60 ||
     payload.minutes % BOOKING_STEP_MIN !== 0 ||
     payload.minutes > mockConfig.time.max_hours * 60
   ) {
-    mockFail('BAD_HOURS', `Thời lượng đặt từ 30 phút đến ${mockConfig.time.max_hours} giờ, theo bước 30 phút.`)
+    mockFail(
+      'BAD_HOURS',
+      `Thời lượng đặt từ ${mockConfig.time.min_hours} giờ đến ${mockConfig.time.max_hours} giờ, theo bước 30 phút.`,
+    )
   }
   const username = payload.username.trim().toLowerCase()
   const mockMember = MOCK_MEMBERS.find(
@@ -287,7 +329,10 @@ function buildQuery(params: Record<string, string | number | undefined>): string
   return query ? `?${query}` : ''
 }
 
-export function getBoard(params: { from?: number; horizonHours?: number } = {}): Promise<BoardResponse> {
+/** `from` + `minutes` = hỏi lịch cho ĐÚNG một khung giờ: server tính sẵn `available` cho [from, from+minutes). */
+export function getBoard(
+  params: { from?: number; minutes?: number; horizonHours?: number } = {},
+): Promise<BoardResponse> {
   if (USE_MOCK) return mockDelay(buildMockBoard())
   return apiGet<BoardResponse>(`/onlinebook/board${buildQuery(params)}`)
 }
@@ -366,7 +411,10 @@ export function approveBooking(payload: { bookId: number }): Promise<Booking> {
     if (!booking) mockFail('BAD_STATUS', 'Không tìm thấy đơn')
     if (booking.status !== 'wait_approval') mockFail('BAD_STATUS', 'Đơn không còn ở trạng thái chờ duyệt')
     const machine = mockBoardMachines.find((m) => m.pc === booking.pc)
-    if (machine && machine.pcState !== 'off') mockFail('MACHINE_NOT_OFF', 'Máy đang bật — chỉ đặt được máy đang tắt')
+    // task OB-R8: duyệt muộn có thể làm `from − now` tụt xuống dưới ngưỡng ⇒ lúc đó mới bắt máy tắt.
+    if (machine && mockRequiresOff(Date.parse(booking.from)) && machine.pcState !== 'off') {
+      mockFail('MACHINE_NOT_OFF', 'Máy đang bật — đặt sát giờ chỉ chọn được máy đang tắt')
+    }
     const staff = currentStaff()
     booking.status = 'confirmed'
     booking.approvedBy = staff
@@ -407,6 +455,46 @@ export function cancelBooking(payload: CancelPayload): Promise<Booking> {
   return apiPost<Booking, CancelPayload>('/onlinebook/cancel', payload)
 }
 
+export type MovePayload = { bookId: number; pc: string }
+
+/**
+ * OB-R9: đổi máy cho đơn đã xác nhận, khách chưa vào máy.
+ * Tiền của đơn KHÔNG đổi, kể cả khi máy mới khác nhóm giá — khách không trả thêm và cũng không được
+ * hoàn chênh lệch (quyết định 2026-10-24). Vì vậy đường này không đụng ví.
+ */
+export function moveBooking(payload: MovePayload): Promise<Booking> {
+  if (USE_MOCK) {
+    const booking = mockBookings.find((b) => b.bookId === payload.bookId)
+    if (!booking) mockFail('BAD_STATUS', 'Không tìm thấy đơn')
+    if (booking.status === 'in_use' || booking.loginAt) {
+      mockFail('ALREADY_USED', 'Khách đã vào máy — không đổi máy được nữa')
+    }
+    if (booking.status !== 'confirmed') mockFail('BAD_STATUS', 'Chỉ đổi máy được cho đơn đã xác nhận')
+    if (booking.pc === payload.pc) return mockDelay({ ...booking })
+    const machine = mockBoardMachines.find((m) => m.pc === payload.pc)
+    if (!machine) mockFail('NOT_BOOKABLE', 'Máy không nằm trong danh sách cho đặt online')
+    if (mockRequiresOff(new Date(booking.from).getTime()) && machine.pcState !== 'off') {
+      mockFail('MACHINE_NOT_OFF', 'Máy đang bật — đơn sắp tới giờ chỉ đổi được sang máy đang tắt')
+    }
+    const busy = mockBookings.some(
+      (b) =>
+        b.bookId !== booking.bookId &&
+        b.pc === payload.pc &&
+        (b.status === 'confirmed' || b.status === 'in_use' || b.status === 'wait_approval') &&
+        new Date(b.to).getTime() > new Date(booking.from).getTime() &&
+        new Date(b.from).getTime() < new Date(booking.to).getTime(),
+    )
+    if (busy) mockFail('MACHINE_BUSY', 'Máy đã có đơn khác trùng khung giờ')
+    booking.movedFrom = { pc: booking.pc, at: isoOffset(Date.now()), by: currentStaff() }
+    booking.pc = machine.pc
+    booking.machineGroup = machine.machineGroup
+    booking.pcState = machine.pcState
+    // Giá/tổng GIỮ NGUYÊN — chủ ý, không phải quên cập nhật.
+    return mockDelay({ ...booking })
+  }
+  return apiPost<Booking, MovePayload>('/onlinebook/move', payload)
+}
+
 export function getOnlineBookConfig(): Promise<ConfigResponse> {
   if (USE_MOCK) return mockDelay(JSON.parse(JSON.stringify(mockConfig)) as ConfigResponse)
   return apiGet<ConfigResponse>('/onlinebook/config')
@@ -417,14 +505,19 @@ function mockValidateConfig(next: ConfigResponse): ConfigFieldError[] {
   if (next.time.min_lead >= next.time.max_ahead) {
     errors.push({ row: 'time', key: 'min_lead', message: 'Phải nhỏ hơn "Đặt trước tối đa"' })
   }
-  if (next.time.max_ahead > next.station.lock_window) {
-    errors.push({ row: 'time', key: 'max_ahead', message: 'Không được lớn hơn "Khoá đăng nhập trước giờ đặt"' })
+  // task OB-R8: ràng buộc `max_ahead ≤ lock_window` ĐÃ BỎ; thay bằng `min_hours < max_hours`.
+  if (next.time.min_hours >= next.time.max_hours) {
+    errors.push({ row: 'time', key: 'min_hours', message: 'Phải nhỏ hơn "Số giờ tối đa mỗi đơn"' })
   }
   if (next.setting.approval_mode === 1 && next.time.min_lead < next.time.approval_timeout) {
     errors.push({ row: 'time', key: 'min_lead', message: 'Duyệt thủ công: phải ≥ "Hết hạn chờ duyệt"' })
   }
   if (next.station.early_login > next.time.min_lead) {
     errors.push({ row: 'station', key: 'early_login', message: 'Không được lớn hơn "Không đặt sát giờ"' })
+  }
+  // task OB-R8: late_hold = 0 (tắt) hoặc 15…30 phút.
+  if (next.station.late_hold !== 0 && (next.station.late_hold < 15 || next.station.late_hold > 30)) {
+    errors.push({ row: 'station', key: 'late_hold', message: 'Phải là 0 (tắt) hoặc từ 15 đến 30 phút' })
   }
   return errors
 }

@@ -69,10 +69,12 @@ const FAIL_CODE_LABEL: Record<FailCode, string> = {
   DISABLED: 'Tính năng đặt máy online đang tắt.',
   TOO_SOON: 'Giờ bắt đầu quá sát, chọn giờ muộn hơn.',
   TOO_FAR: 'Giờ bắt đầu quá xa so với hiện tại.',
-  BAD_HOURS: 'Thời lượng đặt không hợp lệ (từ 30 phút, theo bước 30 phút).',
+  // task OB-R8: sàn dưới nay là tham số `min_hours` — câu chính xác do server trả kèm, đây chỉ là câu dự phòng.
+  BAD_HOURS: 'Thời lượng đặt không hợp lệ (theo bước 30 phút, trong khoảng cho phép của quán).',
   OUTSIDE_WINDOW: 'Ngoài khung giờ cho phép đặt.',
   NOT_BOOKABLE: 'Máy này hiện không thể đặt online.',
-  MACHINE_NOT_OFF: 'Máy đang bật — chỉ đặt được máy đang tắt.',
+  // task OB-R8: luật này nay có điều kiện (ngưỡng `require_off_within`) — đặt xa hơn ngưỡng thì máy bật vẫn chọn được.
+  MACHINE_NOT_OFF: 'Máy đang bật — đặt sát giờ chỉ chọn được máy đang tắt.',
   MACHINE_BUSY: 'Máy đã được đặt trong khung giờ này.',
   BAD_MEMBER: 'Không tìm thấy hội viên phù hợp.',
   MEMBER_HAS_BOOKING: 'Hội viên đang có một đơn đặt máy khác chưa hoàn tất.',
@@ -226,9 +228,14 @@ export function formatDuration(minutes: number): string {
   return m === 0 ? `${h} giờ` : `${h}g ${m}ph`
 }
 
-/** Các mức thời lượng chọn nhanh: từ `stepMin` đến `maxMinutes`, mỗi bước `stepMin` (vd 30, 60, 90 … 360). */
-export function durationOptions(maxMinutes: number, stepMin: number): number[] {
+/**
+ * Các mức thời lượng chọn nhanh: từ `minMinutes` đến `maxMinutes`, mỗi bước `stepMin` (vd 60, 90 … 360).
+ * task OB-R8: `minMinutes` = `min_hours * 60` của quán; bỏ trống thì bắt đầu từ `stepMin` như trước.
+ */
+export function durationOptions(maxMinutes: number, stepMin: number, minMinutes = stepMin): number[] {
   const options: number[] = []
-  for (let minutes = stepMin; minutes <= maxMinutes; minutes += stepMin) options.push(minutes)
+  // Mốc đầu phải là bội của `stepMin` để mọi lựa chọn đều hợp luật bước 30 phút.
+  const first = Math.max(stepMin, Math.ceil(minMinutes / stepMin) * stepMin)
+  for (let minutes = first; minutes <= maxMinutes; minutes += stepMin) options.push(minutes)
   return options
 }

@@ -61,13 +61,17 @@ export function StaffBookingDialog({ open, board, onClose, onCreated }: StaffBoo
   const [preview, setPreview] = useState<QuoteResponse | null>(null)
 
   const maxHours = board?.maxHours ?? 6
+  // task OB-R8: sàn dưới mỗi đơn do quán cấu hình (trước đây là hằng số 30 phút).
+  const minMinutes = (board?.minHours ?? 1) * 60
   const minLeadMin = board?.minLeadMin ?? 15
-  const maxAheadMin = board?.maxAheadMin ?? 120
+  const maxAheadMin = board?.maxAheadMin ?? 1440
 
+  // task OB-R8: KHÔNG còn lọc `pcState === 'off'` ở đây — luật "máy phải tắt" nay phụ thuộc giờ bắt đầu và
+  // đã được server tính sẵn vào `available`/`bookableNow` (không nhân đôi luật ở frontend).
   const bookableMachines = useMemo(
     () =>
       (board?.machines ?? [])
-        .filter((m) => m.pcState === 'off' && m.available && m.bookableNow)
+        .filter((m) => m.available && m.bookableNow)
         .sort((a, b) => a.pc.localeCompare(b.pc, 'vi', { numeric: true })),
     [board],
   )
@@ -99,7 +103,7 @@ export function StaffBookingDialog({ open, board, onClose, onCreated }: StaffBoo
     setPc('')
     setPcSearch('')
     setFromValue(defaultFrom)
-    setMinutes(60)
+    setMinutes(Math.max(60, minMinutes))  // task OB-R8: không mở form với thời lượng dưới sàn của quán
     setPreview(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ reset lúc mở dialog
   }, [open])
@@ -138,7 +142,7 @@ export function StaffBookingDialog({ open, board, onClose, onCreated }: StaffBoo
     username.trim().length > 0 &&
     phone.trim().length > 0 &&
     Boolean(selectedMachine) &&
-    minutes >= BOOKING_STEP_MIN &&
+    minutes >= minMinutes &&
     minutes <= maxMinutesForMachine
 
   return (
@@ -348,7 +352,8 @@ export function StaffBookingDialog({ open, board, onClose, onCreated }: StaffBoo
               Thời lượng
             </span>
             <div className="ob-duration" role="radiogroup" aria-labelledby="ob-duration-label">
-              {durationOptions(maxMinutesForMachine, BOOKING_STEP_MIN).map((value) => (
+              {/* task OB-R8: danh sách bắt đầu từ `minHours * 60`, không còn từ 30 phút cứng. */}
+              {durationOptions(maxMinutesForMachine, BOOKING_STEP_MIN, minMinutes).map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -365,7 +370,8 @@ export function StaffBookingDialog({ open, board, onClose, onCreated }: StaffBoo
               ))}
             </div>
             <span className="ds-field__hint">
-              Tối đa {formatDuration(maxMinutesForMachine)}/đơn, theo bước {BOOKING_STEP_MIN} phút.
+              Từ {formatDuration(minMinutes)} đến {formatDuration(maxMinutesForMachine)}/đơn, theo bước{' '}
+              {BOOKING_STEP_MIN} phút.
             </span>
           </div>
         </fieldset>

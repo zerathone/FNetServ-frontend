@@ -127,8 +127,18 @@ export function createMockAdminMachines(board: MockBoardMachine[]): AdminMachine
 export function createMockConfig(): ConfigResponse {
   return {
     setting: { v: 1, enabled: 1, fee: 2000, approval_mode: 1 },
-    time: { v: 1, max_ahead: 120, max_hours: 6, min_lead: 15, buffer: 10, approval_timeout: 15 },
-    station: { v: 1, lock_window: 180, early_login: 10 },
+    // task OB-R8: mặc định mới — đặt trước 1 ngày, tối thiểu 1 giờ/đơn, bắt máy tắt khi đặt trong vòng 4 giờ.
+    time: {
+      v: 1,
+      max_ahead: 1440,
+      max_hours: 6,
+      min_hours: 1,
+      min_lead: 15,
+      buffer: 10,
+      approval_timeout: 15,
+      require_off_within: 240,
+    },
+    station: { v: 1, lock_window: 180, early_login: 10, late_hold: 30 },
     corrupt: [],
   }
 }

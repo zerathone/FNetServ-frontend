@@ -552,6 +552,11 @@
   width: 9rem;
 }
 
+/* task OB-R8: ô chọn trong hàng cài đặt (vd thời gian giữ máy) — rộng hơn ô số vì nhãn dài hơn. */
+.ob-row__select {
+  width: 16rem;
+}
+
 .ob-row__numbox input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
@@ -940,6 +945,27 @@ input[type="checkbox"].ob-switch:focus-visible {
 
 .ob-pc-search:has(.ob-pc-tag) .ds-input {
   min-width: 4rem;
+}
+
+/* OB-R9 — hộp thoại đổi máy cho đơn. */
+.ob-move {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ob-move__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ob-move__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
 }
 
 .ob-pc-results {
