@@ -1,6 +1,14 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, HandCoins, MagnifyingGlass, QrCode, Stack, XCircle } from '@phosphor-icons/react'
+import {
+  ArrowsLeftRight,
+  CheckCircle,
+  HandCoins,
+  MagnifyingGlass,
+  QrCode,
+  Stack,
+  XCircle,
+} from '@phosphor-icons/react'
 import {
   approveBooking,
   cancelBooking,
@@ -47,6 +55,7 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
 } from './onlineBookingModel'
+import { MoveMachineDialog } from './MoveMachineDialog'
 import { StaffBookingDialog } from './StaffBookingDialog'
 // Thẻ đơn + thẻ thống kê dùng chung kiểu với trang Đơn dịch vụ (order-card / order-summary).
 import '../orders/orders.css'
@@ -106,6 +115,8 @@ export function OnlineBookingWorkspace() {
   const q = searchField === 'pc' ? '' : keyword
   const [page, setPage] = useState(0)
   const [staffDialogOpen, setStaffDialogOpen] = useState(false)
+  /** OB-R9: đơn đang mở hộp thoại đổi máy. */
+  const [moveTarget, setMoveTarget] = useState<Booking | null>(null)
   const [action, setAction] = useState<PendingAction>(null)
   const [reason, setReason] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
@@ -383,6 +394,14 @@ export function OnlineBookingWorkspace() {
             </span>
             {booking.approvedBy ? <span>Duyệt: {describePerson(booking.approvedBy)}</span> : null}
             {booking.loginAt ? <span>Khách vào máy: {formatDateTime(booking.loginAt)}</span> : null}
+            {/* OB-R9: tiền của đơn vẫn là tiền của máy CŨ — dòng này là chỗ giải thích con số. */}
+            {booking.movedFrom ? (
+              <span>
+                Đổi máy từ {booking.movedFrom.pc}
+                {booking.movedFrom.at ? ` lúc ${formatDateTime(booking.movedFrom.at)}` : ''}
+                {booking.movedFrom.by ? ` — ${describePerson(booking.movedFrom.by)}` : ''} (giữ nguyên tiền)
+              </span>
+            ) : null}
             {booking.status === 'rejected' && booking.failCode ? <span>{describeFailCode(booking.failCode)}</span> : null}
             {booking.cancelledBy ? (
               <span>
@@ -440,6 +459,20 @@ export function OnlineBookingWorkspace() {
           ) : null}
           {booking.status === 'confirmed' ? (
             <>
+              {/* OB-R9: đổi máy — khách đã vào máy thì không còn đổi được (đó là chuyển phiên, việc khác).
+                  Dùng quyền Duyệt chứ không phải quyền Huỷ: thao tác này không đụng tới tiền. */}
+              {!booking.loginAt ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<ArrowsLeftRight size={18} weight="bold" aria-hidden="true" />}
+                  disabled={!canApprove}
+                  title={canApprove ? undefined : `Cần quyền Duyệt (${OB_RIGHTS.APPROVE})`}
+                  onClick={() => setMoveTarget(booking)}
+                >
+                  Đổi máy
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="danger-outline"
@@ -810,6 +843,16 @@ export function OnlineBookingWorkspace() {
           </div>
         )}
       </section>
+
+      <MoveMachineDialog
+        open={moveTarget !== null}
+        booking={moveTarget}
+        onClose={() => setMoveTarget(null)}
+        onMoved={() => {
+          pushToast('Đã đổi máy cho đơn — số tiền của đơn giữ nguyên.', 'success')
+          invalidateAll()
+        }}
+      />
 
       <StaffBookingDialog
         open={staffDialogOpen}
