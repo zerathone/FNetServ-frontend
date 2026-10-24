@@ -58,7 +58,6 @@ import {
   classifyStepFailure,
   describeFailureKind,
   describeSettled,
-  describeTarget,
   failureActions,
   listMachineTargets,
   methodGates,
@@ -424,7 +423,6 @@ export function StaffOrderDialog({ open, presetHostName, defaultMode = 'machine'
     onClose()
   }
 
-  const orderLabel = activeTarget ? describeTarget(activeTarget) : ''
   const amountLabel = created ? formatVnd(created.amount) : `${formatVnd(total)} (tạm tính)`
 
   // ===================== nội dung theo màn hình =====================
