@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 
 export type SegmentedOption<T extends string> = {
   value: T
@@ -9,6 +9,10 @@ export type SegmentedOption<T extends string> = {
   disabled?: boolean
   /** Chú thích hiện khi rê chuột (thường giải thích vì sao bị vô hiệu). */
   title?: string
+  /** Dòng phụ mờ nhỏ dưới nhãn (vd ngày tháng) — tuỳ chọn; có thì nút cao hơn thành 2 dòng. */
+  sublabel?: string
+  /** Vạch ngăn dọc ngay trước lựa chọn này (tách nhóm lựa chọn) — tuỳ chọn. */
+  dividerBefore?: boolean
 }
 
 type SegmentedProps<T extends string> = {
@@ -24,18 +28,27 @@ export function Segmented<T extends string>({ value, options, onChange, ariaLabe
   return (
     <div className={`ds-segmented${disabled ? ' is-disabled' : ''}`} role="group" aria-label={ariaLabel}>
       {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className={`ds-segmented__item${option.value === value ? ' is-active' : ''}`}
-          aria-pressed={option.value === value}
-          disabled={disabled || option.disabled}
-          title={option.title}
-          onClick={() => !disabled && !option.disabled && onChange(option.value)}
-        >
-          {option.icon ? <span className="ds-segmented__icon">{option.icon}</span> : null}
-          {option.label}
-        </button>
+        <Fragment key={option.value}>
+          {option.dividerBefore ? <span className="ds-segmented__divider" aria-hidden="true" /> : null}
+          <button
+            type="button"
+            className={`ds-segmented__item${option.value === value ? ' is-active' : ''}${option.sublabel ? ' has-sublabel' : ''}`}
+            aria-pressed={option.value === value}
+            disabled={disabled || option.disabled}
+            title={option.title}
+            onClick={() => !disabled && !option.disabled && onChange(option.value)}
+          >
+            {option.icon ? <span className="ds-segmented__icon">{option.icon}</span> : null}
+            {option.sublabel ? (
+              <span className="ds-segmented__text">
+                {option.label}
+                <small className="ds-segmented__sub">{option.sublabel}</small>
+              </span>
+            ) : (
+              option.label
+            )}
+          </button>
+        </Fragment>
       ))}
     </div>
   )

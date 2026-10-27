@@ -1,10 +1,12 @@
 import { apiGet, apiPost, apiPut, ApiError } from './client'
 import { useAuthStore } from '../store/auth'
+import { getWorkstationsRuntime, type WorkstationsRuntimeSnapshot } from './workstations'
 import {
   createMockAdminMachines,
   createMockBoardMachines,
   createMockBookings,
   createMockConfig,
+  createMockWorkstationsRuntime,
   HOUR,
   isoOffset,
   MIN,
@@ -88,6 +90,8 @@ export type BoardResponse = {
   requireOffWithinMin: number
   /** task OB-R8: giữ máy bao lâu sau giờ bắt đầu khi chủ đơn chưa vào. 0 = giữ tới hết khung. */
   lateHoldMin: number
+  /** Từ giờ bắt đầu − lockWindowMin guard login chặn người khác vào máy đã đặt. Optional: server cũ không trả (web dùng 180). */
+  lockWindowMin?: number
   slotBufferMin: number
   horizon: { from: string; to: string }
   machines: BoardMachine[]
@@ -124,6 +128,12 @@ export type Booking = {
   depositPaymentId?: number | null
   cancelCredit?: CancelCreditState
   cancelCreditAmount?: number | null
+  // Mốc cho cột tiến trình đơn — optional: server cũ không trả (web khi đó không hiện giờ ở bước tương ứng).
+  /** Lúc đơn thành "Đã duyệt" (thu ngân duyệt tay hoặc hệ thống tự duyệt). */
+  confirmedAt?: string | null
+  cancelledAt?: string | null
+  /** Lần ghi cuối của dòng: chỉ là giờ GẦN ĐÚNG cho từ chối / hết hạn duyệt / khách không đến (không có cột riêng). */
+  updatedAt?: string | null
   // OB-R9 — optional: server trước OB-R9 không trả.
   /** Nhóm giá của hội viên — dùng để đọc đúng cột giá trong `prices[]` của /board khi đổi máy. */
   userGroupId?: number
@@ -275,6 +285,7 @@ function buildMockBoard(): BoardResponse {
     maxAheadMin: mockConfig.time.max_ahead,
     requireOffWithinMin: mockConfig.time.require_off_within,
     lateHoldMin: mockConfig.station.late_hold,
+    lockWindowMin: mockConfig.station.lock_window,
     slotBufferMin: mockConfig.time.buffer,
     horizon: { from: isoOffset(Date.now()), to: isoOffset(Date.now() + 8 * HOUR) },
     machines: mockConfig.setting.enabled === 1 ? machines : [],
@@ -337,6 +348,12 @@ export function getBoard(
   return apiGet<BoardResponse>(`/onlinebook/board${buildQuery(params)}`)
 }
 
+/** Ai đang dùng máy (cho Timeline lịch hẹn): mock → dữ liệu giả; thật → /workstations/runtime của trang Máy trạm. */
+export function getBookingWorkstationsRuntime(): Promise<WorkstationsRuntimeSnapshot> {
+  if (USE_MOCK) return mockDelay(createMockWorkstationsRuntime())
+  return getWorkstationsRuntime()
+}
+
 export function getBookingList(params: BookingListParams = {}): Promise<BookingListResponse> {
   if (USE_MOCK) {
     let items = mockBookings.slice()
@@ -394,6 +411,9 @@ export function createBooking(payload: CreatePayload): Promise<Booking> {
       createdAt: isoOffset(Date.now()),
       approvalDeadline: null,
       loginAt: null,
+      confirmedAt: isoOffset(Date.now()), // đặt hộ = duyệt ngay lúc tạo
+      cancelledAt: null,
+      updatedAt: isoOffset(Date.now()),
       createdBy: staff,
       approvedBy: staff,
       cancelledBy: null,
@@ -419,6 +439,8 @@ export function approveBooking(payload: { bookId: number }): Promise<Booking> {
     booking.status = 'confirmed'
     booking.approvedBy = staff
     booking.approvalDeadline = null
+    booking.confirmedAt = isoOffset(Date.now())
+    booking.updatedAt = booking.confirmedAt
     return mockDelay({ ...booking })
   }
   return apiPost<Booking, { bookId: number }>('/onlinebook/approve', payload)
@@ -431,6 +453,7 @@ export function rejectBooking(payload: { bookId: number; reason: string }): Prom
     if (booking.status !== 'wait_approval') mockFail('BAD_STATUS', 'Đơn không còn ở trạng thái chờ duyệt')
     booking.status = 'rejected'
     booking.failCode = 'REJECTED_BY_STAFF'
+    booking.updatedAt = isoOffset(Date.now())
     return mockDelay({ ...booking })
   }
   return apiPost<Booking, { bookId: number; reason: string }>('/onlinebook/reject', payload)
@@ -447,6 +470,8 @@ export function cancelBooking(payload: CancelPayload): Promise<Booking> {
     const staff = currentStaff()
     booking.status = 'cancelled'
     booking.cancelledBy = staff
+    booking.cancelledAt = isoOffset(Date.now())
+    booking.updatedAt = booking.cancelledAt
     booking.cancelReason = payload.reason
     booking.cancelCredit = payload.credit ? 'credited' : 'none'
     booking.cancelCreditAmount = payload.credit ? booking.total : null

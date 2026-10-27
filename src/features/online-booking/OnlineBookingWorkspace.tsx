@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowsLeftRight,
@@ -26,6 +26,7 @@ import {
   ListPagination,
   PageHeader,
   PollingStatus,
+  Segmented,
   Select,
   StateView,
   StatusBadge,
@@ -34,7 +35,9 @@ import { useAuthStore } from '../../store/auth'
 import { useRevenuePrefs } from '../../store/revenuePrefs'
 import { useWsStatusStore } from '../../store/wsStatus'
 import { pushToast } from '../../store/toast'
+import { Steps } from '../orders/OrderSteps'
 import {
+  bookingSteps,
   CHANNEL_FILTER_OPTIONS,
   CHANNEL_LABEL,
   describeBookingError,
@@ -54,8 +57,12 @@ import {
   STATUS_FILTER_OPTIONS,
   STATUS_LABEL,
   STATUS_TONE,
+  type ScheduleStatusFilter,
 } from './onlineBookingModel'
+import { MachineScheduleMap } from './MachineScheduleMap'
+import { MachineScheduleTimeline } from './MachineScheduleTimeline'
 import { MoveMachineDialog } from './MoveMachineDialog'
+import { fetchScheduleBookings } from './scheduleData'
 import { StaffBookingDialog } from './StaffBookingDialog'
 // Thẻ đơn + thẻ thống kê dùng chung kiểu với trang Đơn dịch vụ (order-card / order-summary).
 import '../orders/orders.css'
@@ -70,6 +77,11 @@ function todayYMD(): string {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+/** Khoá ghép một khung đặt trong /board với đơn tương ứng trong /list (cùng máy + giờ bắt đầu + giờ kết thúc). */
+function slotKey(pc: string, from: string, to: string): string {
+  return `${pc.toLowerCase()}|${from}|${to}`
 }
 
 type SearchField = 'member' | 'code' | 'pc'
@@ -115,6 +127,23 @@ export function OnlineBookingWorkspace() {
   const q = searchField === 'pc' ? '' : keyword
   const [page, setPage] = useState(0)
   const [staffDialogOpen, setStaffDialogOpen] = useState(false)
+  /** Mục Lịch theo máy: timeline (mặc định), sơ đồ hoặc bảng danh sách như cũ. */
+  const [scheduleView, setScheduleView] = useState<'map' | 'timeline' | 'list'>('timeline')
+  /** Lọc trạng thái dùng chung cho hai view Sơ đồ và Timeline. */
+  const [scheduleStatus, setScheduleStatus] = useState<ScheduleStatusFilter>('approved')
+  // "Chi tiết" từ timeline: nhảy tới dòng đơn trong Danh sách đơn và tô sáng ít giây.
+  const [highlightBookId, setHighlightBookId] = useState<number | null>(null)
+  const [jumpTick, setJumpTick] = useState(0)
+  /** Mã đơn đang lọc do "Chi tiết" đặt — còn thì nút X ô tìm kiếm được tô viền đỏ cho dễ thấy. */
+  const [jumpCode, setJumpCode] = useState<string | null>(null)
+  // Đích cuộn của "Chi tiết" = thanh bộ lọc (thấy ngay ô tìm mã đơn + nút X để thoát).
+  const jumpTargetRef = useRef<HTMLElement>(null)
+  // Bộ lọc trước lần nhảy đầu tiên + giá trị lần nhảy gần nhất: bấm X trên ô tìm kiếm thì trả về như cũ.
+  const jumpRestoreRef = useRef<{
+    before: { fromDate: string; toDate: string; status: string; channel: string; searchField: SearchField; searchText: string }
+    code: string
+    status: string
+  } | null>(null)
   /** OB-R9: đơn đang mở hộp thoại đổi máy. */
   const [moveTarget, setMoveTarget] = useState<Booking | null>(null)
   const [action, setAction] = useState<PendingAction>(null)
@@ -129,11 +158,86 @@ export function OnlineBookingWorkspace() {
 
   useEffect(() => setPage(0), [fromDate, toDate, status, pc, channel, q])
 
+  useEffect(() => {
+    if (jumpTick === 0) return
+    jumpTargetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [jumpTick])
+
+  useEffect(() => {
+    if (highlightBookId === null) return
+    const timer = window.setTimeout(() => setHighlightBookId(null), 4_000)
+    return () => window.clearTimeout(timer)
+  }, [highlightBookId])
+
+  // Đặt bộ lọc để đúng đơn đó chắc chắn hiện trong danh sách (mọi ngày, đúng trạng thái của đơn, tìm theo mã đơn), rồi cuộn tới thanh bộ lọc.
+  const jumpToBooking = (booking: Booking) => {
+    jumpRestoreRef.current = {
+      before: jumpRestoreRef.current?.before ?? { fromDate, toDate, status, channel, searchField, searchText },
+      code: booking.bookCode,
+      status: booking.status,
+    }
+    setStatus(booking.status)
+    setChannel('')
+    setFromDate('')
+    setToDate('')
+    setSearchField('code')
+    setSearchText(booking.bookCode)
+    setJumpCode(booking.bookCode)
+    setHighlightBookId(booking.bookId)
+    setJumpTick((tick) => tick + 1)
+  }
+
+  // Nút X ô tìm kiếm: nếu đang ở trạng thái do "Chi tiết" đặt (chưa ai chỉnh thêm) thì trả toàn bộ bộ lọc về trước khi nhảy;
+  // còn lại chỉ xoá từ khoá như bình thường.
+  const clearSearch = () => {
+    const jump = jumpRestoreRef.current
+    jumpRestoreRef.current = null
+    setJumpCode(null)
+    if (
+      jump &&
+      searchField === 'code' &&
+      searchText === jump.code &&
+      status === jump.status &&
+      fromDate === '' &&
+      toDate === '' &&
+      channel === ''
+    ) {
+      setFromDate(jump.before.fromDate)
+      setToDate(jump.before.toDate)
+      setStatus(jump.before.status)
+      setChannel(jump.before.channel)
+      setSearchField(jump.before.searchField)
+      setSearchText(jump.before.searchText)
+      return
+    }
+    setSearchText('')
+  }
+
   const boardQuery = useQuery({
     queryKey: ['onlinebook-board'],
     queryFn: () => getBoard({}),
     refetchInterval: connected ? 30_000 : 10_000,
   })
+
+  // Bảng Danh sách của Lịch hẹn: khung đặt hộ trong /board không có tên người đặt → ghép với danh sách đơn
+  // cùng cửa sổ (theo máy + giờ bắt đầu + giờ kết thúc) để ghi Đặt hộ → <nhân viên>.
+  const slotFromDate = boardQuery.data?.horizon.from.slice(0, 10)
+  const slotToDate = boardQuery.data?.horizon.to.slice(0, 10)
+  const slotBookingsQuery = useQuery({
+    queryKey: ['onlinebook-schedule', slotFromDate, slotToDate],
+    queryFn: () => fetchScheduleBookings(slotFromDate ?? '', slotToDate ?? ''),
+    enabled: scheduleView === 'list' && Boolean(slotFromDate && slotToDate),
+    refetchInterval: connected ? 30_000 : 10_000,
+  })
+  const slotStaffByKey = useMemo(
+    () =>
+      new Map(
+        (slotBookingsQuery.data?.items ?? [])
+          .filter((b) => b.channel === 'staff' && b.createdBy)
+          .map((b) => [slotKey(b.pc, b.from, b.to), describePerson(b.createdBy)]),
+      ),
+    [slotBookingsQuery.data],
+  )
 
   const queueQuery = useQuery({
     queryKey: ['onlinebook-queue'],
@@ -217,6 +321,7 @@ export function OnlineBookingWorkspace() {
     void queryClient.invalidateQueries({ queryKey: ['onlinebook-stat'] })
     void queryClient.invalidateQueries({ queryKey: ['onlinebook-list'] })
     void queryClient.invalidateQueries({ queryKey: ['onlinebook-board'] })
+    void queryClient.invalidateQueries({ queryKey: ['onlinebook-schedule'] })
   }
 
   const closeAction = () => {
@@ -287,6 +392,17 @@ export function OnlineBookingWorkspace() {
     setToDate(d)
   }
 
+  // Mở trang: có đơn chờ duyệt thì chọn sẵn "Chờ duyệt" (như bấm thẻ đó); không có thì giữ mặc định "Đơn đang xử lý".
+  // Chỉ chạy một lần khi số liệu hàng chờ về lần đầu — sau đó không ghi đè lựa chọn của người dùng.
+  const didInitialFilter = useRef(false)
+  const queueLoaded = queueQuery.isSuccess
+  useEffect(() => {
+    if (didInitialFilter.current || !queueLoaded) return
+    didInitialFilter.current = true
+    if (waitCount > 0) showStatus('wait_approval')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueLoaded])
+
   const listItems = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -339,15 +455,18 @@ export function OnlineBookingWorkspace() {
     // Icon cách trả tiền (cùng icon với ô QR / Cấn trừ trên thẻ Doanh thu).
     const payMethod = payMethodOf(booking)
     const PayIcon = REVENUE_METHODS.find((m) => m.key === payMethod)?.Icon ?? HandCoins
-    // Tên kênh (FZone / Thu ngân) tô sáng; tên nhân viên đi kèm giữ màu thường.
+    // Tên kênh (FZone / Đặt hộ) tô sáng; đơn đặt hộ ghi thêm "→ <nhân viên đặt>" (màu thường).
     const channelLine = (
       <>
         <b className="ob-bcard__channel">{CHANNEL_LABEL[booking.channel]}</b>
-        {booking.channel === 'staff' && booking.createdBy ? `: ${describePerson(booking.createdBy)}` : ''}
+        {booking.channel === 'staff' && booking.createdBy ? ` → ${describePerson(booking.createdBy)}` : ''}
       </>
     )
     return (
-      <article key={booking.bookId} className="order-card ob-bcard">
+      <article
+        key={booking.bookId}
+        className={`order-card ob-bcard${highlightBookId === booking.bookId ? ` ob-jump-glow ob-jump-glow--${jumpTick % 2}` : ''}`}
+      >
         <div className="order-card__identity">
           <div className="ob-bcard__machine">
             <strong>{booking.pc}</strong>
@@ -392,7 +511,14 @@ export function OnlineBookingWorkspace() {
             <span>
               Tạo {formatDateTime(booking.createdAt)} · {channelLine}
             </span>
-            {booking.approvedBy ? <span>Duyệt: {describePerson(booking.approvedBy)}</span> : null}
+            {booking.approvedBy && booking.status !== 'rejected' ? <span>Duyệt: {describePerson(booking.approvedBy)}</span> : null}
+            {/* Đơn bị từ chối: server ghi nhân viên bấm Từ chối vào cột người duyệt (ApprovedBy) — hiện đúng nhãn "Từ chối". */}
+            {booking.status === 'rejected' && booking.approvedBy ? (
+              <span>
+                Từ chối: {describePerson(booking.approvedBy)}
+                {booking.cancelReason ? ' — ' + booking.cancelReason : ''}
+              </span>
+            ) : null}
             {booking.loginAt ? <span>Khách vào máy: {formatDateTime(booking.loginAt)}</span> : null}
             {/* OB-R9: tiền của đơn vẫn là tiền của máy CŨ — dòng này là chỗ giải thích con số. */}
             {booking.movedFrom ? (
@@ -432,6 +558,7 @@ export function OnlineBookingWorkspace() {
             </span>
           </StatusBadge>
         </div>
+        <Steps steps={bookingSteps(booking)} label="Tiến trình đơn đặt máy" />
         <div className="order-card__actions">
           {waiting ? (
             <>
@@ -692,7 +819,7 @@ export function OnlineBookingWorkspace() {
         </div>
       </div>
 
-      <section className="ob-filters">
+      <section className="ob-filters ob-section--jump" ref={jumpTargetRef}>
         <DateRangePicker
           className="ob-filter"
           fromDate={fromDate}
@@ -722,7 +849,7 @@ export function OnlineBookingWorkspace() {
           </Select>
         </div>
         <div className="ob-filters__search">
-          <div className="ds-input-group ds-input-group--search">
+          <div className={`ds-input-group ds-input-group--search${highlightBookId !== null ? ` ob-jump-glow ob-jump-glow--${jumpTick % 2}` : ''}`}>
             <Select
               value={searchField}
               aria-label="Tìm theo"
@@ -745,10 +872,12 @@ export function OnlineBookingWorkspace() {
               {searchText ? (
                 <button
                   type="button"
-                  className="ds-search-input__clear"
+                  className={`ds-search-input__clear${
+                    jumpCode !== null && searchField === 'code' && searchText === jumpCode ? ' ob-search-clear--jump' : ''
+                  }`}
                   aria-label="Xóa từ khóa tìm kiếm"
                   title="Xóa từ khóa"
-                  onClick={() => setSearchText('')}
+                  onClick={clearSearch}
                 >
                   <XCircle size={17} weight="fill" aria-hidden="true" />
                 </button>
@@ -798,10 +927,48 @@ export function OnlineBookingWorkspace() {
 
       <section className="ob-calendar">
         <header>
-          <strong>Lịch theo máy</strong>
-          <span>Khung giờ đã đặt trong cửa sổ {boardQuery.data ? formatTimeRange(boardQuery.data.horizon.from, boardQuery.data.horizon.to) : '—'}</span>
+          <strong>Lịch hẹn</strong>
+          {scheduleView === 'list' ? (
+            <span>Khung giờ đã đặt trong cửa sổ {boardQuery.data ? formatTimeRange(boardQuery.data.horizon.from, boardQuery.data.horizon.to) : '—'}</span>
+          ) : null}
+          <span className="ob-calendar__view">
+            <Segmented
+              value={scheduleView}
+              options={[
+                { value: 'timeline', label: 'Theo thời gian' },
+                { value: 'map', label: 'Theo máy' },
+                { value: 'list', label: 'Danh sách' },
+              ]}
+              onChange={setScheduleView}
+              ariaLabel="Cách xem lịch hẹn"
+            />
+          </span>
         </header>
-        {boardQuery.isLoading ? (
+        {scheduleView === 'map' ? (
+          <MachineScheduleMap
+            board={boardQuery.data}
+            boardLoading={boardQuery.isLoading}
+            refetchMs={connected ? 30_000 : 10_000}
+            statusFilter={scheduleStatus}
+            onStatusFilterChange={setScheduleStatus}
+            canApprove={canApprove}
+            onApprove={(booking) => setAction({ type: 'approve', booking })}
+            onReject={(booking) => setAction({ type: 'reject', booking })}
+            onDetail={jumpToBooking}
+          />
+        ) : scheduleView === 'timeline' ? (
+          <MachineScheduleTimeline
+            board={boardQuery.data}
+            boardLoading={boardQuery.isLoading}
+            refetchMs={connected ? 30_000 : 10_000}
+            statusFilter={scheduleStatus}
+            onStatusFilterChange={setScheduleStatus}
+            canApprove={canApprove}
+            onApprove={(booking) => setAction({ type: 'approve', booking })}
+            onReject={(booking) => setAction({ type: 'reject', booking })}
+            onDetail={jumpToBooking}
+          />
+        ) : boardQuery.isLoading ? (
           <StateView title="Đang tải lịch máy…" />
         ) : (
           <div className="ob-table-wrap">
@@ -831,6 +998,9 @@ export function OnlineBookingWorkspace() {
                           {m.bookedSlots.map((slot, index) => (
                             <span key={index} className={`ob-calendar__slot ob-calendar__slot--${slot.source}`}>
                               {formatTimeRange(slot.from, slot.to)} · {SLOT_SOURCE_LABEL[slot.source]}
+                              {slot.source === 'counter' && slotStaffByKey.has(slotKey(m.pc, slot.from, slot.to))
+                                ? ` → ${slotStaffByKey.get(slotKey(m.pc, slot.from, slot.to))}`
+                                : ''}
                             </span>
                           ))}
                         </div>

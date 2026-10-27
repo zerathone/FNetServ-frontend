@@ -115,7 +115,8 @@
 /* Thẻ đơn đặt máy: dùng .order-card (orders.css) nhưng không có ô chọn, nên đặt lại lưới 4 cột
    (danh tính | giờ đặt + nhật ký | tổng | hành động). Cần `.order-card.ob-bcard` để thắng media query của orders.css. */
 .order-card.ob-bcard {
-  grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) minmax(10rem, 13rem);
+  /* Cột 5 = tiến trình đơn (Steps, orders.css). Cột giờ đặt + nhật ký (thứ 2) có trần để không giãn hết chỗ. */
+  grid-template-columns: minmax(10rem, 1fr) minmax(16rem, 24rem) minmax(8rem, 0.7fr) minmax(12rem, 1fr) minmax(10rem, 13rem);
   align-items: start;
 }
 
@@ -279,8 +280,13 @@
     grid-template-columns: minmax(8rem, 0.8fr) minmax(14rem, 1.6fr) minmax(8rem, 0.7fr);
   }
 
+  /* Thẻ này không có ô chọn nên tiến trình trải hết hàng (orders.css để cột 2 trở đi cho thẻ có ô chọn). */
+  .order-card.ob-bcard .order-card__steps,
   .order-card.ob-bcard .order-card__actions {
     grid-column: 1 / -1;
+  }
+
+  .order-card.ob-bcard .order-card__actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1076,4 +1082,714 @@ input[type="checkbox"].ob-switch:focus-visible {
     justify-items: start;
     width: 100%;
   }
+}
+
+/* Sơ đồ lịch theo máy: mỗi hàng = một nhóm máy (nhãn trái) + các thẻ máy xếp ngang, tự xuống dòng. */
+.ob-calendar > header .ob-calendar__view {
+  margin-left: auto;
+}
+
+.ob-map {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ob-map__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.ob-map__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ob-map__summary strong {
+  color: var(--color-text-primary);
+}
+
+.ob-map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+}
+
+.ob-map__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ob-map__dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--ob-map-tone);
+}
+
+.ob-map__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ob-map__group {
+  flex: 0 0 5.5rem;
+  padding-top: var(--space-2);
+  color: var(--color-text-primary);
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.ob-map__cards {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ob-map__card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  flex: 0 1 14.5rem;
+  min-width: 12.5rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--ob-map-tone) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--ob-map-tone) 8%, var(--color-surface-default));
+}
+
+/* Màu theo tình trạng: dùng chung một biến để thẻ, chú giải và chấm luôn khớp nhau. */
+.ob-map__card--free,
+.ob-map__dot--free {
+  --ob-map-tone: var(--color-success);
+}
+
+.ob-map__card--pending,
+.ob-map__booking--pending,
+.ob-tl__card--pending,
+.ob-map__dot--pending {
+  --ob-map-tone: var(--color-warning);
+}
+
+.ob-map__card--active,
+.ob-map__booking--active,
+.ob-tl__card--active,
+.ob-map__dot--active {
+  --ob-map-tone: var(--color-info);
+}
+
+.ob-map__card--past,
+.ob-map__booking--past,
+.ob-tl__card--past,
+.ob-map__dot--past {
+  --ob-map-tone: var(--color-workstation-disconnected, var(--color-text-muted));
+}
+
+.ob-map__card--closed,
+.ob-map__booking--closed,
+.ob-tl__card--closed,
+.ob-map__dot--closed {
+  --ob-map-tone: var(--color-danger);
+}
+
+.ob-map__pc {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ob-map__empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ob-map__booking {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  border-top: 1px dashed color-mix(in srgb, var(--color-border-strong) 70%, transparent);
+  font-size: var(--font-size-xs);
+}
+
+.ob-map__booking:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* Dòng 1: khung giờ (khối đặc màu theo trạng thái, là phần nổi nhất) + mã đơn nhạt kế bên. */
+.ob-map__booking-head,
+.ob-map__booking-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.ob-map__booking-time {
+  padding: 0.125rem var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--ob-map-tone) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ob-map-tone) 28%, var(--color-surface-default));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ob-map__booking-code {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dòng 2: username + trạng thái (chấm màu + tên, không nền). */
+.ob-map__booking-user {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ob-map__booking-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .ob-map__row {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .ob-map__group {
+    flex-basis: auto;
+    padding-top: 0;
+  }
+
+  .ob-map__legend {
+    margin-left: 0;
+  }
+}
+
+/* Timeline lịch theo máy: trục ngang = giờ (ô 30 phút = --ob-tl-col), trục dọc = nhóm máy. */
+.ob-tl {
+  --ob-tl-col: 56px; /* phải khớp SLOT_PX trong MachineScheduleTimeline.tsx */
+  --ob-tl-label: 6.5rem;
+  position: relative;
+  max-height: 70vh;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  cursor: grab;
+  user-select: none;
+}
+
+.ob-tl.is-dragging {
+  cursor: grabbing;
+}
+
+.ob-tl__inner {
+  position: relative;
+  min-width: 100%;
+}
+
+/* Hàng tiêu đề (ngày + giờ) ghim trên cùng; cột nhóm máy ghim bên trái. */
+.ob-tl__head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-surface-default);
+}
+
+.ob-tl__corner {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex: 0 0 var(--ob-tl-label);
+  align-items: flex-end;
+  width: var(--ob-tl-label);
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-2);
+  border-right: 1px solid var(--color-border-strong);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.ob-tl__axis {
+  position: relative;
+  flex: none;
+}
+
+.ob-tl__days,
+.ob-tl__hours {
+  display: flex;
+}
+
+.ob-tl__day {
+  box-sizing: border-box;
+  flex: none;
+  padding: var(--space-1) 0;
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.ob-tl__day:first-child {
+  border-left: 0;
+}
+
+/* Nhãn ngày dính mép trái vùng giờ khi cuộn ngang, để luôn biết đang xem ngày nào. */
+.ob-tl__day-label {
+  position: sticky;
+  left: calc(var(--ob-tl-label) + var(--space-2));
+  display: inline-block;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.ob-tl__hour {
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+  padding: 2px var(--space-1);
+  border-left: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Vạch ngắn đánh dấu mốc 30 phút trong mỗi giờ. */
+.ob-tl__hour::after {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: 4px;
+  border-left: 1px solid var(--color-border-default);
+  content: "";
+}
+
+.ob-tl__now-label {
+  position: absolute;
+  top: 0;
+  z-index: 6;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text, #fff);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.ob-tl__row {
+  display: flex;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.ob-tl__group {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: 0 0 var(--ob-tl-label);
+  width: var(--ob-tl-label);
+  box-sizing: border-box;
+  padding: var(--space-2);
+  border-right: 1px solid var(--color-border-strong);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+/* Lưới nền: vạch 30 phút (mờ nhất) < vạch giờ < vạch ngày. */
+.ob-tl__area {
+  position: relative;
+  flex: none;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--ob-tl-col) * 48 - 1px),
+      var(--color-border-strong) calc(var(--ob-tl-col) * 48 - 1px),
+      var(--color-border-strong) calc(var(--ob-tl-col) * 48)
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--ob-tl-col) * 2 - 1px),
+      var(--color-border-default) calc(var(--ob-tl-col) * 2 - 1px),
+      var(--color-border-default) calc(var(--ob-tl-col) * 2)
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--ob-tl-col) - 1px),
+      color-mix(in srgb, var(--color-border-default) 45%, transparent) calc(var(--ob-tl-col) - 1px),
+      color-mix(in srgb, var(--color-border-default) 45%, transparent) var(--ob-tl-col)
+    );
+}
+
+/* Đường giờ hiện tại: nét đứt nhạt chạy hết chiều cao (tiêu đề và cột nhóm máy che phần đầu). */
+.ob-tl__now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 0;
+  border-left: 1px dashed color-mix(in srgb, var(--color-action-primary) 55%, transparent);
+  pointer-events: none;
+}
+
+.ob-tl__card {
+  position: absolute;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  box-sizing: border-box;
+  padding: 2px var(--space-2);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ob-map-tone) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ob-map-tone) 28%, var(--color-surface-default));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  line-height: 1.25;
+}
+
+/* Dòng 1: [⚠] tên máy + trạng thái máy hiện tại (và người đang dùng nếu có). */
+.ob-tl__card-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ob-tl__card-pc {
+  flex: none;
+}
+
+.ob-tl__card-warn {
+  flex: none;
+  color: var(--color-danger-text);
+}
+
+.ob-tl__card-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.ob-tl__card-live svg {
+  flex: none;
+}
+
+.ob-tl__card-live-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ob-tl__card-live--on_idle svg {
+  color: var(--color-success);
+}
+
+.ob-tl__card-live--in_use svg {
+  color: var(--color-info);
+}
+
+/* Dòng 2: #mã đơn · username · trạng thái — thẻ hẹp thì phần cuối bị cắt, đủ nội dung ở tooltip. */
+.ob-tl__card-code {
+  flex: none;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ob-tl__card-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ob-tl__card-user {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ob-tl__card-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Khung cố định: lớp ẩn (bản "Tất cả") và lớp hiện chung một ô lưới → chiều cao = bản cao nhất, không giật khi đổi bộ lọc. */
+.ob-map__stack {
+  display: grid;
+}
+
+.ob-map__layer {
+  display: grid;
+  grid-area: 1 / 1;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ob-map__layer--ghost {
+  pointer-events: none;
+  user-select: none;
+  visibility: hidden;
+}
+/* Đơn chờ duyệt trên timeline: split button [Chi tiết | ▾ Duyệt, Từ chối] canh phải thẻ. Thẻ hẹp (is-compact): chỉ hiện khi rê / focus. */
+.ob-tl__card--actions {
+  overflow: visible;
+}
+
+.ob-tl__card--actions:not(.is-compact) .ob-tl__card-main,
+.ob-tl__card--actions:not(.is-compact) .ob-tl__card-sub {
+  padding-right: 6.5rem;
+}
+
+.ob-tl__acts {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  z-index: 1;
+  display: flex;
+  gap: 2px;
+  transform: translateY(-50%);
+}
+
+/* Split button: [Chi tiết | ▾] — mũi tên mở menu Duyệt / Từ chối. */
+.ob-split {
+  display: inline-flex;
+  align-items: stretch;
+  height: 1.375rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-default);
+  overflow: hidden;
+}
+
+.ob-split__main,
+.ob-split__caret {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ob-split__main {
+  gap: 3px;
+  padding: 0 var(--space-2) 0 var(--space-1);
+  white-space: nowrap;
+}
+
+.ob-split__caret {
+  justify-content: center;
+  width: 1.25rem;
+  padding: 0;
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.ob-split__main:hover,
+.ob-split__caret:hover,
+.ob-split__caret[aria-expanded='true'] {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.ob-split__main:focus-visible,
+.ob-split__caret:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* Menu vẽ qua portal vào <body> (position: fixed, toạ độ do component tính). */
+.ob-split__menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  min-width: 7.5rem;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated, var(--color-surface-default));
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+}
+
+.ob-split__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ob-split__item:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ob-split__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ob-split__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.ob-split__item--approve svg {
+  color: var(--color-success);
+}
+
+.ob-split__item--reject svg {
+  color: var(--color-danger-text);
+}
+
+.ob-tl__card--actions.is-compact .ob-tl__acts {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ob-tl__card--actions.is-compact:hover,
+.ob-tl__card--actions.is-compact:focus-within {
+  z-index: 3;
+}
+
+.ob-tl__card--actions.is-compact:hover .ob-tl__acts,
+.ob-tl__card--actions.is-compact:focus-within .ob-tl__acts {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .ob-tl__card--actions.is-compact .ob-tl__acts {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* "Chi tiết" từ Lịch hẹn: thẻ đơn được nhảy tới VÀ nhóm ô tìm kiếm (chứa mã đơn) sáng viền rồi tắt dần.
+   Hai tên keyframes giống hệt nhau, đổi luân phiên (--0 / --1) theo mỗi lần nhảy để hiệu ứng chạy lại được. */
+.ob-jump-glow {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  animation-duration: 3.6s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.ob-jump-glow--0 {
+  animation-name: ob-jump-glow-0;
+}
+
+.ob-jump-glow--1 {
+  animation-name: ob-jump-glow-1;
+}
+
+@keyframes ob-jump-glow-0 {
+  0% {
+    outline-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  12%,
+  55% {
+    outline-color: var(--color-action-primary);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--color-action-primary) 45%, transparent);
+  }
+  100% {
+    outline-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes ob-jump-glow-1 {
+  0% {
+    outline-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  12%,
+  55% {
+    outline-color: var(--color-action-primary);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--color-action-primary) 45%, transparent);
+  }
+  100% {
+    outline-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-jump-glow {
+    animation: none;
+    outline-color: var(--color-action-primary);
+  }
+}
+/* Đích cuộn của "Chi tiết" từ Lịch hẹn: chừa chỗ cho topbar dính trên cùng (cao 4rem, App.css) để thanh bộ lọc không bị che. */
+.ob-section--jump {
+  scroll-margin-top: calc(4rem + var(--space-4));
+}
+/* Theo máy: hàng nút (Chi tiết / Duyệt) dưới đơn chờ duyệt hoặc đã duyệt. */
+.ob-map__booking-actions {
+  display: flex;
+  margin-top: 2px;
+}
+/* Nút X của ô tìm kiếm khi mã đơn do "Chi tiết" đặt: biểu tượng đỏ để biết bấm vào đây là thoát lọc. */
+.ds-search-input__clear.ob-search-clear--jump {
+  color: var(--color-danger-text);
 }

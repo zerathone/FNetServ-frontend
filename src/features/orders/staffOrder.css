@@ -452,9 +452,13 @@
   padding-left: 1.1rem;
 }
 
-/* Đơn đã hoàn thành chưa có cột hành động -- thêm 1 cột hẹp cho nút "In phiếu". */
-.order-card--completed.order-card--printable {
-  grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) auto;
+/* Đơn đã hoàn thành: danh tính | món | đã thu | tiến trình | nút "In phiếu" (cột cuối). Chỉ cột tiến trình
+   giãn theo chỗ trống, các cột còn lại có trần. Rule này (2 class) thắng `.order-card--completed` của
+   orders.css nên phải bọc min-width: màn hẹp (<=1120px) để orders.css tự xếp lại thành nhiều hàng. */
+@media (min-width: 1121px) {
+  .order-card--completed.order-card--printable {
+    grid-template-columns: minmax(10rem, 14rem) minmax(15rem, 22rem) minmax(9rem, 11rem) minmax(14rem, 1fr) 7.5rem;
+  }
 }
 
 @media (max-width: 720px) {

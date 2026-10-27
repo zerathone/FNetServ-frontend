@@ -576,7 +576,9 @@
 .order-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: 2rem minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr) 10rem;
+  /* Cột món (thứ 3) có TRẦN 22rem -- không giãn chiếm hết chỗ trống; phần dư chia cho danh tính, tổng đơn
+     và tiến trình (các cột nhiều thông tin) bằng fr. */
+  grid-template-columns: 2rem minmax(10rem, 1fr) minmax(15rem, 22rem) minmax(9rem, 0.8fr) minmax(12rem, 1fr) 10rem;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -604,7 +606,8 @@
 
 /* Đơn hoàn thành -- chỉ xem, không checkbox/không actions (đã đóng, không còn thao tác gì). */
 .order-card--completed {
-  grid-template-columns: minmax(9rem, 0.8fr) minmax(16rem, 1.8fr) minmax(8rem, 0.7fr);
+  /* Chỉ cột tiến trình (thứ 4) giãn theo chỗ trống; các cột còn lại có trần. Nút In phiếu nằm cột cuối. */
+  grid-template-columns: minmax(10rem, 14rem) minmax(15rem, 22rem) minmax(9rem, 11rem) minmax(14rem, 1fr) 7.5rem;
 }
 
 .order-card__paid-time {
@@ -751,6 +754,15 @@
   .order-card--combo .order-card__actions {
     grid-column: 1 / -1;
   }
+
+  /* Màn hẹp: tiến trình đứng riêng 1 hàng giữa hàng thông tin và hàng nút. */
+  .order-card__steps {
+    grid-column: 2 / -1;
+  }
+
+  .order-card--completed .order-card__steps {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 700px) {
@@ -866,4 +878,121 @@
 
 .order-card__total .ds-badge::before {
   display: none;
+}
+
+
+/* ===== Tiến trình đơn (OrderSteps) -- kiểu Ant Design Steps, 3 chấm nối nhau, nhãn bên dưới =====
+   done = dấu tích xanh, current = vòng + chấm màu chủ đạo, todo = vòng mờ. Đường nối giữa hai chấm
+   đổi sang xanh khi bước bên trái đã xong. Chỉ để xem đơn đang ở đâu, không phải nơi bấm. */
+.order-steps {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+}
+
+.order-steps__item {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+/* Đường nối từ mép chấm này tới mép chấm kế (chấm 1.5rem => chừa 0.75rem + 2px mỗi đầu). */
+.order-steps__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: calc(0.75rem - 1px);
+  left: calc(50% + 1rem);
+  right: calc(-50% + 1rem);
+  height: 2px;
+  background: var(--color-border-default);
+}
+
+.order-steps__item--done:not(:last-child)::after {
+  background: var(--color-success);
+}
+
+.order-steps__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-border-default);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  background: var(--color-surface-default);
+}
+
+.order-steps__item--done .order-steps__icon {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.order-steps__item--current .order-steps__icon {
+  border-color: var(--color-action-primary);
+}
+
+.order-steps__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.order-steps__item--current .order-steps__dot {
+  background: var(--color-action-primary);
+}
+
+.order-steps__label {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-steps__item--done .order-steps__label {
+  color: var(--color-text-secondary);
+}
+
+.order-steps__item--current .order-steps__label {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+/* Người thực hiện bước (người đặt / người duyệt): dưới nhãn, tên dài thì cắt bằng dấu "…" (đủ tên ở tooltip). */
+.order-steps__person {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mốc giờ dưới nhãn bước (chỉ hiện khi có dữ liệu): nhỏ, mờ, số thẳng cột. */
+.order-steps__time {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Bước kết thúc không thành (huỷ / từ chối / khách không đến): vòng + dấu X đỏ, nhãn đỏ. Đường nối ra khỏi
+   bước này không có (nó là bước cuối hoặc các bước sau đó chỉ là "todo" mờ). */
+.order-steps__item--error .order-steps__icon {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.order-steps__item--error .order-steps__label {
+  color: var(--color-danger);
+  font-weight: 700;
 }

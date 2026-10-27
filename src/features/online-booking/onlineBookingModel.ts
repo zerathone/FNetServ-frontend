@@ -10,6 +10,7 @@ import type {
   SlotSource,
 } from '../../api/onlineBooking'
 import type { StatusTone } from '../../design-system/components'
+import type { StepItem, StepStatus } from '../orders/OrderSteps'
 
 /** Quyền mới của task OB (define.h, cạnh R_REMOTE_MACHINE 9415) — PLAN_ONLINE_BOOKING.md §3.0. */
 export const OB_RIGHTS = {
@@ -28,6 +29,65 @@ export const STATUS_LABEL: Record<BookingStatus, string> = {
   rejected: 'Bị từ chối / hết hạn duyệt',
 }
 
+/**
+ * Tiến trình của đơn đặt máy (cột kiểu Steps trên thẻ): Đặt máy -> Duyệt -> Sử dụng. Chỉ theo `status` của ĐƠN,
+ * không phụ thuộc máy đang bật hay tắt (`pcState`).
+ * Giờ từng bước: tạo đơn = `createdAt`; duyệt = `confirmedAt` (cả duyệt tay lẫn tự duyệt); vào máy = `loginAt`;
+ * huỷ = `cancelledAt`. Từ chối / hết hạn duyệt / khách không đến KHÔNG có cột riêng nên dùng `updatedAt` (lần ghi
+ * cuối, chỉ gần đúng). Server cũ chưa trả các field mới => bước đó không hiện giờ.
+ */
+export function bookingSteps(booking: Booking): StepItem[] {
+  const ms = (iso: string | null | undefined) => (iso ? Date.parse(iso) || undefined : undefined)
+  // Người đặt: đơn đặt hộ = nhân viên đã đặt; đơn FZone = chính hội viên. Người duyệt: chỉ có khi đã có người duyệt.
+  const booker = booking.channel === 'staff' && booking.createdBy ? describePerson(booking.createdBy) : booking.member.username
+  const approver = booking.approvedBy ? describePerson(booking.approvedBy) : undefined
+  const book: StepItem = { label: 'Đặt máy', status: 'done', time: ms(booking.createdAt), person: booker }
+  const approve = (status: StepStatus, label = 'Duyệt', time?: number): StepItem => ({
+    label,
+    status,
+    time,
+    person: status === 'current' ? undefined : approver,
+  })
+  const usage = (status: StepStatus, label = 'Sử dụng', time?: number, person?: string): StepItem => ({
+    label,
+    status,
+    time,
+    person,
+  })
+  const confirmed = ms(booking.confirmedAt)
+  const login = ms(booking.loginAt)
+  switch (booking.status) {
+    case 'pending':
+    case 'wait_approval':
+      return [book, approve('current'), usage('todo')]
+    case 'confirmed':
+    case 'in_use':
+      return [book, approve('done', 'Duyệt', confirmed), usage('current', 'Sử dụng', login)]
+    case 'done':
+      return [book, approve('done', 'Duyệt', confirmed), usage('done', 'Sử dụng', login)]
+    case 'no_show':
+      return [book, approve('done', 'Duyệt', confirmed), usage('error', 'Không đến', ms(booking.updatedAt))]
+    case 'cancelled':
+      // Chỉ huỷ được khi đơn đã duyệt (Confirmed) nên bước Duyệt luôn đã xong.
+      // 'none' (hoặc server cũ không trả cancelCredit) = huỷ không hoàn; credited / pending / failed = đã chọn huỷ có hoàn.
+      return [
+        book,
+        approve('done', 'Duyệt', confirmed),
+        usage(
+          'error',
+          booking.cancelCredit && booking.cancelCredit !== 'none' ? 'Huỷ có hoàn' : 'Huỷ không hoàn',
+          ms(booking.cancelledAt),
+          booking.cancelledBy ? describePerson(booking.cancelledBy) : undefined,
+        ),
+      ]
+    case 'rejected':
+      return [
+        book,
+        approve('error', booking.failCode === 'APPROVAL_TIMEOUT' ? 'Hết hạn' : 'Từ chối', ms(booking.updatedAt)),
+        usage('todo'),
+      ]
+  }
+}
 export const STATUS_TONE: Record<BookingStatus, StatusTone> = {
   pending: 'neutral',
   wait_approval: 'warning',
@@ -55,7 +115,7 @@ export const PC_STATE_TONE: Record<PcState, StatusTone> = {
 
 export const CHANNEL_LABEL: Record<BookingChannel, string> = {
   fzone: 'FZone',
-  staff: 'Thu ngân',
+  staff: 'Đặt hộ',
 }
 
 export const SLOT_SOURCE_LABEL: Record<SlotSource, string> = {
@@ -238,4 +298,84 @@ export function durationOptions(maxMinutes: number, stepMin: number, minMinutes 
   const first = Math.max(stepMin, Math.ceil(minMinutes / stepMin) * stepMin)
   for (let minutes = first; minutes <= maxMinutes; minutes += stepMin) options.push(minutes)
   return options
+}
+
+// ===== Sơ đồ lịch theo máy (view "Sơ đồ" của mục Lịch theo máy) =====
+
+/** Khoảng thời gian xem trên sơ đồ. Tuần tính Thứ Hai → Chủ Nhật. */
+export type ScheduleRange = 'today' | 'yesterday' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'lastWeek'
+
+/** Thứ tự hiện: ngày (hôm qua → ngày mai) | tuần (trước → sau). dividerBefore = vạch ngăn giữa nhóm ngày và nhóm tuần. */
+export const SCHEDULE_RANGE_OPTIONS: Array<{ value: ScheduleRange; label: string; dividerBefore?: boolean }> = [
+  { value: 'yesterday', label: 'Hôm qua' },
+  { value: 'today', label: 'Hôm nay' },
+  { value: 'tomorrow', label: 'Ngày mai' },
+  { value: 'lastWeek', label: 'Tuần trước', dividerBefore: true },
+  { value: 'thisWeek', label: 'Tuần này' },
+  { value: 'nextWeek', label: 'Tuần sau' },
+]
+
+/** Bộ lọc trạng thái đơn trên sơ đồ: đã duyệt (đơn còn hiệu lực + đã xong/không đến), huỷ/từ chối, tất cả. */
+export type ScheduleStatusFilter = 'approved' | 'closed' | 'all'
+
+export const SCHEDULE_STATUS_OPTIONS: Array<{ value: ScheduleStatusFilter; label: string; title: string }> = [
+  {
+    value: 'approved',
+    label: 'Đã duyệt',
+    title: 'Đơn chờ duyệt, đã duyệt, khách đang dùng, đã dùng xong và khách không đến',
+  },
+  { value: 'closed', label: 'Huỷ / từ chối', title: 'Đơn đã huỷ, bị từ chối hoặc hết hạn duyệt' },
+  { value: 'all', label: 'Tất cả', title: 'Mọi đơn trong khoảng thời gian đang xem' },
+]
+
+const CLOSED_STATUSES: ReadonlySet<BookingStatus> = new Set<BookingStatus>(['cancelled', 'rejected'])
+
+export function matchesScheduleFilter(status: BookingStatus, filter: ScheduleStatusFilter): boolean {
+  if (filter === 'all') return true
+  return filter === 'closed' ? CLOSED_STATUSES.has(status) : !CLOSED_STATUSES.has(status)
+}
+
+/** YYYY-MM-DD theo giờ máy (cùng định dạng `fromDate/toDate` của /onlinebook/list). */
+export function toYMD(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/** Đổi khoảng đang chọn thành [fromDate, toDate] (gồm cả hai đầu). */
+export function scheduleRangeDates(range: ScheduleRange, now: Date = new Date()): { fromDate: string; toDate: string } {
+  // Dựng Date từ (năm, tháng, ngày + n) để cộng ngày đúng cả khi qua tháng / đổi giờ.
+  const day = (offset: number) => toYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset))
+  const sinceMonday = (now.getDay() + 6) % 7
+  switch (range) {
+    case 'today':
+      return { fromDate: day(0), toDate: day(0) }
+    case 'yesterday':
+      return { fromDate: day(-1), toDate: day(-1) }
+    case 'tomorrow':
+      return { fromDate: day(1), toDate: day(1) }
+    case 'thisWeek':
+      return { fromDate: day(-sinceMonday), toDate: day(-sinceMonday + 6) }
+    case 'nextWeek':
+      return { fromDate: day(-sinceMonday + 7), toDate: day(-sinceMonday + 13) }
+    case 'lastWeek':
+      return { fromDate: day(-sinceMonday - 7), toDate: day(-sinceMonday - 1) }
+  }
+}
+
+/** Nhãn ngắn cho badge trên thẻ máy (thẻ hẹp); nhãn đầy đủ vẫn là STATUS_LABEL, hiện ở tooltip. */
+export const SCHEDULE_STATUS_SHORT: Record<BookingStatus, string> = {
+  pending: 'Đang xử lý',
+  wait_approval: 'Chờ duyệt',
+  confirmed: 'Đã duyệt',
+  in_use: 'Đang dùng',
+  done: 'Đã xong',
+  no_show: 'Không đến',
+  cancelled: 'Đã huỷ',
+  rejected: 'Từ chối',
+}
+/** Kênh của đơn kèm người đặt: đơn đặt hộ → "Đặt hộ → <nhân viên>", đơn khách tự đặt → "FZone". */
+export function describeChannel(booking: Pick<Booking, 'channel' | 'createdBy'>): string {
+  return booking.channel === 'staff' && booking.createdBy
+    ? `${CHANNEL_LABEL.staff} → ${describePerson(booking.createdBy)}`
+    : CHANNEL_LABEL[booking.channel]
 }

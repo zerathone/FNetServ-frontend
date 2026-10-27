@@ -19,6 +19,7 @@ import type {
   MachinePrice,
   PcState,
 } from './onlineBooking'
+import type { WorkstationRuntime, WorkstationRuntimeSession, WorkstationsRuntimeSnapshot } from './workstations'
 
 export const MIN = 60_000
 export const HOUR = 3_600_000
@@ -38,6 +39,13 @@ export function isoOffset(ms: number): string {
 
 /** `at(+45)` = 45 phút sau, `at(-90)` = 90 phút trước (so với MOCK_NOW). */
 const at = (minutes: number) => isoOffset(MOCK_NOW + minutes * MIN)
+
+/** Số phút từ MOCK_NOW tới hour:minute của ngày (hôm nay + dayOffset) — cho đơn có giờ cố định ở hôm qua / ngày mai. */
+const clock = (dayOffset: number, hour: number, minute = 0) => {
+  const base = new Date(MOCK_NOW)
+  const target = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset, hour, minute)
+  return Math.round((target.getTime() - MOCK_NOW) / MIN)
+}
 
 // ===== Hội viên (đặt hộ chỉ nhận cặp username + số điện thoại khớp một dòng ở đây) =====
 
@@ -99,9 +107,9 @@ export function createMockBoardMachines(): MockBoardMachine[] {
     m('PC-02', 2, 'Thường', 'in_use', PRICES_STD),
     m('PC-03', 2, 'Thường', 'off', PRICES_STD),
     m('PC-04', 2, 'Thường', 'off', PRICES_STD),
-    m('PC-05', 2, 'Thường', 'unknown', PRICES_STD),
+    m('PC-05', 2, 'Thường', 'in_use', PRICES_STD),
     m('PC-06', 2, 'Thường', 'off', PRICES_STD),
-    m('PC-07', 2, 'Thường', 'on_idle', PRICES_STD),
+    m('PC-07', 2, 'Thường', 'unknown', PRICES_STD),
     m('PC-08', 2, 'Thường', 'off', PRICES_STD),
     m('ST-01', 3, 'Streaming', 'off', PRICES_STREAM),
     m('ST-02', 3, 'Streaming', 'off', PRICES_STREAM),
@@ -153,6 +161,9 @@ type SeedExtra = Partial<
     | 'createdAt'
     | 'approvalDeadline'
     | 'loginAt'
+    | 'confirmedAt'
+    | 'cancelledAt'
+    | 'updatedAt'
     | 'createdBy'
     | 'approvedBy'
     | 'cancelledBy'
@@ -192,6 +203,25 @@ export function createMockBookings(board: MockBoardMachine[], fee: number): Book
     const orderFee = extra.fee ?? fee
     const id = nextId++
     const channel = extra.channel ?? 'fzone'
+    const createdAt = extra.createdAt ?? at(Math.min(startMin, 0) - 20)
+    const createdMs = Date.parse(createdAt)
+    const plus = (ms: number, minutes: number) => isoOffset(ms + minutes * MIN)
+    // Mốc cho cột tiến trình đơn (khớp server thật): confirmedAt = lúc thành "Đã duyệt" (đặt hộ = duyệt ngay lúc
+    // tạo, FZone = sau vài phút chờ thu ngân); cancelledAt = lúc huỷ; updatedAt = lần ghi cuối -- Web chỉ dùng nó
+    // làm giờ gần đúng cho từ chối / hết hạn duyệt / khách không đến. Sửa từng đơn qua `extra` để thử cách hiện.
+    const wasConfirmed =
+      status === 'confirmed' || status === 'in_use' || status === 'done' || status === 'no_show' || status === 'cancelled'
+    const confirmedAt = extra.confirmedAt ?? (wasConfirmed ? plus(createdMs, channel === 'staff' ? 0 : 4) : null)
+    const cancelledAt = extra.cancelledAt ?? (status === 'cancelled' ? plus(createdMs, 50) : null)
+    const updatedAt =
+      extra.updatedAt ??
+      (status === 'rejected'
+        ? plus(createdMs, extra.failCode === 'APPROVAL_TIMEOUT' ? 15 : 10)
+        : status === 'no_show'
+          ? at(startMin + 30) // = giờ bắt đầu + late_hold (30 phút)
+          : status === 'cancelled'
+            ? cancelledAt
+            : createdAt)
     return {
       bookId: id,
       bookCode: code,
@@ -209,9 +239,12 @@ export function createMockBookings(board: MockBoardMachine[], fee: number): Book
       total: pricePerHour * hours + orderFee,
       status,
       failCode: extra.failCode ?? null,
-      createdAt: extra.createdAt ?? at(Math.min(startMin, 0) - 20),
+      createdAt,
       approvalDeadline: extra.approvalDeadline ?? null,
       loginAt: extra.loginAt ?? null,
+      confirmedAt,
+      cancelledAt,
+      updatedAt,
       createdBy: extra.createdBy ?? (channel === 'staff' ? STAFF_LAN : null),
       approvedBy: extra.approvedBy ?? null,
       cancelledBy: extra.cancelledBy ?? null,
@@ -223,6 +256,9 @@ export function createMockBookings(board: MockBoardMachine[], fee: number): Book
   }
 
   return [
+    // ---- ĐANG XỬ LÝ (server vừa nhận, chưa chạy xong luật / trừ ví) ----
+    make('DM0PEND', 2, 'PC-07', +100, 1, 'pending', { createdAt: at(-1) }),
+
     // ---- CHỜ DUYỆT (hiện ở khối "Chờ duyệt", có nút Duyệt / Từ chối) ----
     make('DM7K3QX', 0, 'VIP-01', +45, 2, 'wait_approval', {
       createdAt: at(-3),
@@ -339,5 +375,100 @@ export function createMockBookings(board: MockBoardMachine[], fee: number): Book
       failCode: 'REJECTED_BY_STAFF',
       cancelReason: 'Máy đã có người đặt trước',
     }),
+
+    // ---- CẢNH BÁO TRÊN TIMELINE: đơn đã duyệt đã vào cửa sổ khoá (lock_window 180') mà máy vẫn có người ----
+    // PC-02: khách vãng lai đang chơi (không biết giờ hết) → cảnh báo.
+    make('DMWARN1', 0, 'PC-02', +30, 2, 'confirmed', { createdAt: at(-45), approvedBy: STAFF_LAN }),
+    // PC-05: admin đang dùng → cảnh báo.
+    make('DMWARN3', 3, 'PC-05', +45, 1, 'confirmed', { createdAt: at(-30), approvedBy: MANAGER }),
+    // ST-03: hội viên còn 20 phút, đơn bắt đầu sau 2 giờ → KHÔNG cảnh báo (kịp trống).
+    make('DMWARN2', 5, 'ST-03', +120, 1, 'confirmed', { createdAt: at(-20), approvedBy: MANAGER }),
+
+    // ---- HÔM QUA (giờ cố định, thử kéo timeline về trước; một đơn qua nửa đêm sang hôm nay) ----
+    make('DMYD001', 1, 'VIP-01', clock(-1, 9), 2, 'done', { createdAt: at(clock(-1, 9) - 120), loginAt: at(clock(-1, 9) + 2), approvedBy: MANAGER }),
+    make('DMYD002', 2, 'PC-01', clock(-1, 14), 3, 'done', { createdAt: at(clock(-1, 14) - 90), loginAt: at(clock(-1, 14) + 3), approvedBy: STAFF_LAN }),
+    make('DMYD003', 4, 'ST-02', clock(-1, 19), 1, 'no_show', { createdAt: at(clock(-1, 19) - 80), approvedBy: MANAGER }),
+    make('DMNIGHT', 6, 'VIP-03', clock(-1, 22), 4, 'done', {
+      channel: 'staff',
+      createdAt: at(clock(-1, 22) - 200),
+      loginAt: at(clock(-1, 22) + 1),
+      approvedBy: STAFF_LAN,
+    }),
+
+    // ---- NGÀY MAI (đơn chờ duyệt / đã duyệt, 3 máy nhóm Thường trùng giờ để thử xếp nhiều dòng) ----
+    make('DMTM001', 7, 'VIP-01', clock(1, 10), 2, 'confirmed', { createdAt: at(-200), approvedBy: MANAGER }),
+    make('DMTM002', 8, 'PC-01', clock(1, 14), 3, 'wait_approval', { createdAt: at(-5), approvalDeadline: at(+10) }),
+    make('DMTM003', 9, 'ST-01', clock(1, 20), 2, 'confirmed', {
+      channel: 'staff',
+      createdAt: at(-90),
+      approvedBy: STAFF_LAN,
+    }),
+    make('DMTM004', 0, 'PC-02', clock(1, 19), 2, 'confirmed', { createdAt: at(-150), approvedBy: MANAGER }),
+    make('DMTM005', 1, 'PC-03', clock(1, 19, 30), 2, 'confirmed', { createdAt: at(-140), approvedBy: STAFF_LAN }),
+    make('DMTM006', 2, 'PC-04', clock(1, 20), 2, 'wait_approval', { createdAt: at(-2), approvalDeadline: at(+13) }),
   ]
+}
+
+// ===== Ai đang dùng máy (GET /workstations/runtime) — chỉ cho Timeline, khớp pcState 'in_use' ở bảng máy trên =====
+
+function usedStation(
+  hostName: string,
+  machineGroupId: number,
+  machineGroupName: string,
+  who: Pick<WorkstationRuntime, 'userId' | 'userName' | 'userGroupType'>,
+  session: Partial<WorkstationRuntimeSession>,
+  index: number,
+): WorkstationRuntime {
+  return {
+    hostName,
+    ip: `192.168.1.${20 + index}`,
+    status: 3, // ONLINE
+    flagMask: 0,
+    version: '2.1.5',
+    verNew: false,
+    machineGroupId,
+    machineGroupName,
+    ...who,
+    note: null,
+    lockLogin: false,
+    session: {
+      sessionId: 9000 + index,
+      loginType: 0,
+      prepaid: false,
+      startedAt: null,
+      usedSeconds: 30 * 60,
+      remainingSeconds: null,
+      totalAmount: null,
+      remainingMoney: null,
+      comboName: null,
+      anonymId: null,
+      ...session,
+    },
+    winLicense: null,
+    updatedAtMs: Date.now(),
+  }
+}
+
+/** userGroupType: 1 vãng lai · 2 hội viên · 5 combo; userId 0 = admin (giống trang Máy trạm). */
+export function createMockWorkstationsRuntime(): WorkstationsRuntimeSnapshot {
+  return {
+    serverTimeMs: Date.now(),
+    items: [
+      // Vãng lai trả sau: không biết giờ hết.
+      usedStation('PC-02', 2, 'Thường', { userId: 9001, userName: null, userGroupType: 1 }, {}, 1),
+      // Admin.
+      usedStation('PC-05', 2, 'Thường', { userId: 0, userName: 'Quản lý', userGroupType: 0 }, {}, 2),
+      // Hội viên còn 20 phút → kịp trống trước đơn DMWARN2.
+      usedStation('ST-03', 3, 'Streaming', { userId: 508, userName: 'quocdat', userGroupType: 2 }, { remainingSeconds: 20 * 60 }, 3),
+      // Combo (chủ đơn đặt máy DM4VIP9 đang chơi).
+      usedStation(
+        'VIP-04',
+        1,
+        'VIP',
+        { userId: 9100, userName: 'ob-dm4vip9', userGroupType: 5 },
+        { comboName: 'Đặt máy DM4VIP9', remainingSeconds: 160 * 60 },
+        4,
+      ),
+    ],
+  }
 }

@@ -1931,3 +1931,32 @@ input[type="radio"]:disabled {
   border-color: var(--color-action-primary);
   color: var(--color-action-primary);
 }
+
+/* Segmented: dòng phụ mờ dưới nhãn + vạch ngăn nhóm. */
+.ds-segmented {
+  align-items: stretch;
+}
+
+.ds-segmented__item.has-sublabel {
+  padding-block: 0.1875rem;
+}
+
+.ds-segmented__text {
+  display: grid;
+  justify-items: center;
+  line-height: 1.2;
+}
+
+.ds-segmented__sub {
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.ds-segmented__divider {
+  flex: none;
+  width: 1px;
+  margin: 0.25rem 0.125rem;
+  background: var(--color-border-strong);
+}
