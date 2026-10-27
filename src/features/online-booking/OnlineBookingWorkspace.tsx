@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowLineDown,
+  ArrowLineUp,
   ArrowsLeftRight,
   CheckCircle,
   HandCoins,
@@ -138,6 +140,12 @@ export function OnlineBookingWorkspace() {
   const [jumpCode, setJumpCode] = useState<string | null>(null)
   // Đích cuộn của "Chi tiết" = thanh bộ lọc (thấy ngay ô tìm mã đơn + nút X để thoát).
   const jumpTargetRef = useRef<HTMLElement>(null)
+  // Nút nổi "Lịch hẹn": chỉ hiện khi mục Lịch hẹn nằm HOÀN TOÀN dưới khung nhìn (danh sách đơn phía trên dài đẩy nó xuống).
+  // Ngược lại: danh sách đơn nằm HOÀN TOÀN phía trên khung nhìn (đang xem lịch hẹn) thì hiện nút nổi cuộn lên.
+  const calendarRef = useRef<HTMLElement>(null)
+  const listSectionRef = useRef<HTMLElement>(null)
+  const [calendarBelow, setCalendarBelow] = useState(false)
+  const [listAbove, setListAbove] = useState(false)
   // Bộ lọc trước lần nhảy đầu tiên + giá trị lần nhảy gần nhất: bấm X trên ô tìm kiếm thì trả về như cũ.
   const jumpRestoreRef = useRef<{
     before: { fromDate: string; toDate: string; status: string; channel: string; searchField: SearchField; searchText: string }
@@ -157,6 +165,32 @@ export function OnlineBookingWorkspace() {
   }, [])
 
   useEffect(() => setPage(0), [fromDate, toDate, status, pc, channel, q])
+
+  useEffect(() => {
+    const calendar = calendarRef.current
+    const list = listSectionRef.current
+    if (!calendar || !list) return
+    const calendarObserver = new IntersectionObserver(
+      ([entry]) => {
+        const viewportBottom = entry.rootBounds?.bottom ?? window.innerHeight
+        setCalendarBelow(!entry.isIntersecting && entry.boundingClientRect.top >= viewportBottom)
+      },
+      { threshold: 0 },
+    )
+    const listObserver = new IntersectionObserver(
+      ([entry]) => {
+        const viewportTop = entry.rootBounds?.top ?? 0
+        setListAbove(!entry.isIntersecting && entry.boundingClientRect.bottom <= viewportTop)
+      },
+      { threshold: 0 },
+    )
+    calendarObserver.observe(calendar)
+    listObserver.observe(list)
+    return () => {
+      calendarObserver.disconnect()
+      listObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     if (jumpTick === 0) return
@@ -892,7 +926,7 @@ export function OnlineBookingWorkspace() {
         </div>
       </section>
 
-      <section className="ob-section">
+      <section className="ob-section" ref={listSectionRef}>
         <header className="ob-queue__header">
           <strong>Danh sách đơn</strong>
           <StatusBadge tone="neutral">{total} đơn</StatusBadge>
@@ -925,7 +959,7 @@ export function OnlineBookingWorkspace() {
         />
       </section>
 
-      <section className="ob-calendar">
+      <section className="ob-calendar ob-section--jump" ref={calendarRef}>
         <header>
           <strong>Lịch hẹn</strong>
           {scheduleView === 'list' ? (
@@ -1013,6 +1047,28 @@ export function OnlineBookingWorkspace() {
           </div>
         )}
       </section>
+
+      {calendarBelow ? (
+        <button
+          type="button"
+          className="ob-fab"
+          title="Cuộn xuống Lịch hẹn"
+          onClick={() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          <ArrowLineDown size={24} weight="bold" aria-hidden="true" />
+          Lịch hẹn
+        </button>
+      ) : listAbove ? (
+        <button
+          type="button"
+          className="ob-fab"
+          title="Cuộn lên Danh sách đơn"
+          onClick={() => jumpTargetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          <ArrowLineUp size={24} weight="bold" aria-hidden="true" />
+          Danh sách
+        </button>
+      ) : null}
 
       <MoveMachineDialog
         open={moveTarget !== null}

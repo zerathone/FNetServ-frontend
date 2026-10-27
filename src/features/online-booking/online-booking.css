@@ -1793,3 +1793,54 @@ input[type="checkbox"].ob-switch:focus-visible {
 .ds-search-input__clear.ob-search-clear--jump {
   color: var(--color-danger-text);
 }
+/* Nút nổi tròn (biểu tượng trên, chữ dưới): "Lịch hẹn" ↓ khi mục Lịch hẹn nằm dưới khung nhìn, "Danh sách" ↑ khi danh sách đơn đã khuất phía trên; chỉ có trong DOM khi cần. Dưới topbar / hộp thoại (z-sticky). */
+.ob-fab {
+  position: fixed;
+  right: var(--space-6, 1.5rem);
+  bottom: var(--space-6, 1.5rem);
+  z-index: var(--z-sticky);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 4.25rem;
+  height: 4.25rem;
+  padding: 0;
+  /* Secondary outline: nền bề mặt, viền dày trung tính, chữ/biểu tượng màu chính; bóng đổ để nổi hẳn lên khỏi nội dung. */
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  box-shadow:
+    0 6px 16px rgb(0 0 0 / 0.35),
+    0 2px 4px rgb(0 0 0 / 0.25);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: ob-fab-in 0.18s ease-out;
+}
+
+.ob-fab:hover {
+  background: var(--color-surface-hover);
+}
+
+.ob-fab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@keyframes ob-fab-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-fab {
+    animation: none;
+  }
+}
