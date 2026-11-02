@@ -1137,6 +1137,12 @@ input[type="checkbox"].ob-switch:focus-visible {
   background: var(--ob-map-tone);
 }
 
+/* Icon trạng thái (đã duyệt / đang dùng / từ chối - huỷ) thay cho chấm tròn — cùng màu tone với chấm. */
+.ob-map__status-icon {
+  flex: 0 0 auto;
+  color: var(--ob-map-tone);
+}
+
 .ob-map__row {
   display: flex;
   align-items: flex-start;

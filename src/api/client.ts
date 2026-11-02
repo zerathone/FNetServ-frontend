@@ -157,7 +157,38 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
   return payload.data === '' ? (undefined as T) : payload.data
 }
 
+// ===== Mock dev — chỉ `npm run dev` VÀ có biến trong `.env.development.local` =====
+//   VITE_ORDERS_MOCK       trang Đơn dịch vụ (1 | empty | error | slow)
+//   VITE_WORKSTATIONS_MOCK danh sách máy đang chạy /workstations/runtime (1 | empty | error | slow)
+// Chi tiết + dữ liệu giả: ./ordersMock.ts. Bản build luôn là undefined nên nhánh này không bao giờ chạy.
+// Endpoint không có trong bảng mock vẫn đi ra server thật.
+function readMockFlag(raw: string | undefined): string | undefined {
+  return raw && raw !== '0' ? raw : undefined
+}
+const ORDERS_MOCK = readMockFlag(import.meta.env.DEV ? (import.meta.env.VITE_ORDERS_MOCK as string | undefined) : undefined)
+const WORKSTATIONS_MOCK = readMockFlag(
+  import.meta.env.DEV ? (import.meta.env.VITE_WORKSTATIONS_MOCK as string | undefined) : undefined,
+)
+
+async function tryOrdersMock<T>(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+): Promise<{ hit: true; data: T } | { hit: false }> {
+  if (!ORDERS_MOCK && !WORKSTATIONS_MOCK) return { hit: false }
+  const { mockOrdersRequest } = await import('./ordersMock')
+  const result = await mockOrdersRequest(
+    { orders: ORDERS_MOCK, workstations: WORKSTATIONS_MOCK },
+    method,
+    path,
+    body,
+  )
+  return result.handled ? { hit: true, data: result.data as T } : { hit: false }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
+  const mock = await tryOrdersMock<T>('GET', path)
+  if (mock.hit) return mock.data
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { ...authHeaders() },
   })
@@ -165,6 +196,8 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function apiPost<TResponse, TBody>(path: string, body: TBody): Promise<TResponse> {
+  const mock = await tryOrdersMock<TResponse>('POST', path, body)
+  if (mock.hit) return mock.data
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     headers: {

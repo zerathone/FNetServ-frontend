@@ -14,6 +14,7 @@ import { LicenseButton } from '../features/license/LicenseButton'
 import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
+import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
 import { NavItemBadges } from './NavItemBadges'
 import {
   Desktop, Users, CallBell, ArrowsLeftRight, TerminalWindow,
@@ -495,6 +496,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
               ) : null}
             </div>
           </div>
+          {/* Chỉ ở vai trò Thu ngân (pos); sang Quản lý / Phân tích thì widget không hiện. */}
+          {workspaceId === 'pos' ? <ShiftIncomeWidget /> : null}
         </div>
 
         <nav className="workspace-nav">

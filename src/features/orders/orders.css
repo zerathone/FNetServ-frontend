@@ -928,9 +928,11 @@
   background: var(--color-surface-default);
 }
 
+/* Bước xong: hình tròn xanh đặc, dấu tích tối bên trong. */
 .order-steps__item--done .order-steps__icon {
   border-color: var(--color-success);
-  color: var(--color-success);
+  background: var(--color-success);
+  color: #0b2e1a;
 }
 
 .order-steps__item--current .order-steps__icon {

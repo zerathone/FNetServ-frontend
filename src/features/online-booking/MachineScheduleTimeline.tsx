@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useQuery } from '@tanstack/react-query'
 import { Desktop, WarningOctagon } from '@phosphor-icons/react'
 import { getBookingWorkstationsRuntime, type BoardResponse, type Booking, type PcState } from '../../api/onlineBooking'
+import { BookingStatusDot } from './BookingStatusDot'
 import { PendingBookingActions } from './PendingBookingActions'
 import { Button, Segmented, StateView } from '../../design-system/components'
 import {
@@ -367,7 +368,7 @@ export function MachineScheduleTimeline({
                             <span className="ob-tl__card-code">#{booking.bookCode}</span>
                             <span className="ob-tl__card-user">{booking.member.username}</span>
                             <span className="ob-tl__card-status">
-                              <i className="ob-map__dot" aria-hidden="true" />
+                              <BookingStatusDot status={booking.status} />
                               {SCHEDULE_STATUS_SHORT[booking.status]}
                             </span>
                           </div>

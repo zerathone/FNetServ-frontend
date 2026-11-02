@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { BoardResponse, Booking, BookingStatus } from '../../api/onlineBooking'
 import { Segmented, StateView } from '../../design-system/components'
+import { BookingStatusDot } from './BookingStatusDot'
 import { PendingBookingActions } from './PendingBookingActions'
 import {
   describeBookingError,
@@ -102,7 +103,7 @@ function MapGroups({
                           <div className="ob-map__booking-foot">
                             <span className="ob-map__booking-user">{booking.member.username}</span>
                             <span className="ob-map__booking-status" title={STATUS_LABEL[booking.status]}>
-                              <i className="ob-map__dot" aria-hidden="true" />
+                              <BookingStatusDot status={booking.status} />
                               {SCHEDULE_STATUS_SHORT[booking.status]}
                             </span>
                           </div>

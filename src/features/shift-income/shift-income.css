@@ -1,0 +1,776 @@
+/* Widget "Nguồn thu ca" — nằm dưới ô "Vai trò" trong .app-sidebar__header (sidebar 15rem / 4.5rem khi thu gọn). */
+.shift-income {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) 0.625rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+}
+
+/* Widget dính liền ô "Vai trò" phía trên thành một khối: bỏ khe của .app-sidebar__header, bo góc vuông ở chỗ tiếp
+   giáp, và chỉ giữ MỘT đường kẻ (viền dưới của ô Vai trò) ngăn cách hai phần. */
+.workspace-switcher:has(+ .shift-income) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.workspace-switcher + .shift-income {
+  margin-top: calc(-1 * var(--space-2));
+  border-top-width: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.si-m-cash { --si-mc: var(--color-success); }
+.si-m-bank { --si-mc: var(--color-info); }
+.si-m-qr { --si-mc: var(--color-warning); }
+.si-m-deduct { --si-mc: var(--color-chart-4); }
+
+/* Nguồn thu: 3 màu cố định theo từng nguồn (user chốt 2026-11-01): Nạp tiền tím, Combo cam, Dịch vụ hồng.
+   Hồng chưa có token trong design system nên pha từ hồng cố định + danger của theme để hợp từng theme. */
+.si-s-topup { --si-mc: var(--color-chart-4); }
+.si-s-combo { --si-mc: var(--color-chart-3); }
+.si-s-service { --si-mc: color-mix(in srgb, #e0479e 75%, var(--color-danger)); }
+
+.shift-income__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.shift-income__title {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Dòng ngay dưới tổng tiền: "từ <bắt đầu ca>" bên trái (nhỏ, nét mảnh, mờ), "N lượt thu" canh phải. Kéo sát lên
+   tổng tiền bằng cách triệt khoảng cách lưới. */
+.shift-income__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.shift-income__since {
+  color: var(--color-text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 300;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.shift-income__count {
+  color: var(--color-text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 300;
+  opacity: 0.75;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.shift-income__total {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* Nút xổ danh sách hình thức tính vào tổng thu (tiền mặt, chuyển khoản, QR, cấn trừ). */
+.shift-income__filter {
+  position: relative;
+  flex: none;
+}
+
+.shift-income__filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Nút vuông 1.75rem (không phải 2rem) để hàng tổng tiền không cao hơn số tiền quá nhiều, dòng "từ ..." mới sát
+     được lên. */
+  width: 1.75rem;
+  height: 1.75rem;
+  /* Bình thường hòa chung với nền widget: không viền, không nền riêng. Viền trong suốt giữ nguyên kích thước
+     để lúc mở không bị xê dịch. */
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.shift-income__filter-btn:hover {
+  color: var(--color-action-primary);
+}
+
+/* Chỉ khi đang xổ mới có nền + viền màu chủ đạo, icon đặc. */
+.shift-income__filter-btn[aria-expanded="true"] {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 16%, var(--color-surface-default));
+  color: var(--color-action-primary);
+}
+
+.shift-income__popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-2));
+  /* Mép phải bằng mép phải của widget (bù padding 0.625rem + viền 1px), rộng đúng bằng widget (13.5rem = sidebar
+     15rem trừ lề 2 bên) nên không tràn ra ngoài sidebar. */
+  right: calc(-0.625rem - 1px);
+  display: grid;
+  gap: 2px;
+  width: 13.5rem;
+  max-height: min(70vh, 30rem);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-overlay);
+}
+
+.shift-income__popover-title {
+  margin: 0;
+  padding: 2px 4px var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shift-income__popover-title--next {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* Mỗi hàng của bảng xổ là <label> có ô check. Design-system/controls.css có luật toàn cục
+   `label:has(input[type="checkbox"])` (inline-flex, font-weight 500) và `label:has(input:disabled)` (opacity .58),
+   độ ưu tiên cao hơn một lớp đơn. Vì vậy các luật dưới đây viết `.x.x` (tăng độ ưu tiên) để lưới áp dụng được:
+   nếu không hàng co theo chữ, số tiền dính sát tên và hàng bắt buộc bị mờ cả dòng. */
+.shift-income__check.shift-income__check {
+  display: grid;
+  /* Cột số tiền RỘNG CỐ ĐỊNH để mọi dòng dùng chung một mép phải. */
+  grid-template-columns: 1rem 1rem minmax(0, 1fr) 4.25rem;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0 2px;
+  border-radius: 4px;
+  font-size: 0.78125rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+/* Nguồn thu không có biểu tượng, chỉ có ô check + tên + số. */
+.shift-income__check.shift-income__check--source {
+  --si-mc: var(--color-action-primary);
+  grid-template-columns: 1rem minmax(0, 1fr) 4.25rem;
+}
+
+/* Nguồn gộp (Nạp tiền): dòng đầu nhóm có chấm màu + tổng, các khoản con thụt vào dưới nó. */
+.shift-income__group-head {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) 4.25rem;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 2px 0;
+  font-size: 0.78125rem;
+  font-weight: 600;
+}
+
+.shift-income__group-head .shift-income__row-dot {
+  justify-self: center;
+  margin-right: 0;
+}
+
+.shift-income__group-head .shift-income__check-amount {
+  justify-self: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-income__check.shift-income__check--source.is-child {
+  padding-left: 1.125rem;
+  min-height: 1.75rem;
+}
+
+/* Mục bắt buộc: chỉ ô check mờ và không bấm được, chữ và số vẫn rõ như các dòng khác. */
+.shift-income__check.shift-income__check.is-locked {
+  opacity: 1;
+  cursor: default;
+}
+
+.shift-income__check.is-locked input {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shift-income__check.is-locked:hover {
+  background: transparent;
+}
+
+.shift-income__check:hover {
+  background: color-mix(in srgb, var(--si-mc) 12%, transparent);
+}
+
+/* Ô check thu về 1rem (mặc định toàn cục 1.25rem) cho vừa cột. */
+.shift-income__check.shift-income__check input {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  cursor: inherit;
+}
+
+.shift-income__check-label {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-income__check-amount {
+  justify-self: end;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.shift-income__total strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 1.5rem;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-income__total small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.shift-income__stack {
+  display: grid;
+}
+
+.shift-income__bar {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-text-muted) 22%, transparent);
+}
+
+.shift-income__bar > span {
+  display: block;
+  height: 100%;
+  background: var(--si-mc);
+}
+
+/* Thanh dày: số % nằm TRONG từng đoạn. Chữ trắng có viền bóng đen nhiều lớp (quầng sát chữ + bóng đổ + quầng
+   rộng) nên đọc rõ trên cả màu sáng (xanh lá, cam) lẫn màu tối của mọi theme; đoạn quá hẹp thì không có chữ
+   (xem MIN_LABEL_SHARE). */
+.shift-income__bar--thick {
+  height: 1.375rem;
+  border-radius: 5px;
+}
+
+.shift-income__bar--thick > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 0 1px rgb(0 0 0 / 90%),
+    0 1px 2px rgb(0 0 0 / 75%),
+    0 0 5px rgb(0 0 0 / 55%);
+  white-space: nowrap;
+}
+
+/* Thanh DÀY là thanh nguồn thu (tím / cam / hồng). Đoạn màu SÁNG → số % màu TỐI (không cần bóng); mặc định chữ trắng
+   + bóng giữ cho đoạn đậm: tím và hồng ở mọi theme, cam ở theme Ấm và Classic (cam đậm).
+   Cam (Combo) chỉ sáng ở theme Sáng và Tối. */
+:root[data-theme="light"] .shift-income__bar--thick > .si-s-combo,
+:root[data-theme="dark"] .shift-income__bar--thick > .si-s-combo {
+  color: #072330;
+  text-shadow: none;
+}
+
+.shift-income__icon {
+  flex: none;
+  color: var(--si-mc);
+}
+
+/* Lưới chung cho cả danh sách: 2 cột cuối (số tiền, số lượt) có bề rộng "auto" = theo dòng rộng nhất, các dòng dùng
+   chung (subgrid) nên số tiền và số lượt đều canh phải thẳng hàng mà khoảng cách giữa chúng chỉ là khe 6px. */
+.shift-income__methods {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  column-gap: 6px;
+  row-gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shift-income__methods li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 3px 4px;
+  margin-inline: -4px;
+  border-radius: 4px;
+  font-size: 0.78125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-income__methods li:hover {
+  background: color-mix(in srgb, var(--si-mc) 12%, transparent);
+}
+
+/* Biểu đồ tròn (trái) + dòng phương thức (phải) cùng một hàng. */
+.shift-income__summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shift-income__pie {
+  flex: none;
+  /* Cao xấp xỉ một dòng chữ + icon của dòng phương thức bên cạnh. */
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.shift-income__pie-track {
+  fill: color-mix(in srgb, var(--color-text-muted) 22%, transparent);
+}
+
+/* Khe hở giữa các mảnh: viền cùng màu nền widget (.shift-income) nên đường chia trông như bị cắt rời ra. */
+.shift-income__pie-seg {
+  fill: var(--si-mc);
+  stroke: var(--color-surface-hover);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* Các cặp <icon> <số> nằm trên MỘT dòng (số rút gọn để vừa sidebar); quá hẹp mới xuống dòng. */
+.shift-income__method-line {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  /* Canh về mép phải (pie canh trái): ẩn bớt một phương thức thì các cặp còn lại dồn sát nhau bên phải thay vì
+     bị kéo giãn ra hai đầu. */
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shift-income__method-line li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px;
+  border-radius: 4px;
+  font-size: 0.78125rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* Tên phương thức (khi chỉ có 1-2 cặp) nằm giữa icon và số tiền: mờ, không màu; chỉ icon mang màu phương thức. */
+.shift-income__method-name {
+  color: var(--color-text-tertiary);
+  font-size: 0.71875rem;
+  font-weight: 300;
+  opacity: 0.85;
+}
+
+.shift-income__method-line li:hover {
+  background: color-mix(in srgb, var(--si-mc) 12%, transparent);
+}
+
+/* Số tiền vừa đổi: chớp "thở" như chấm số ở menu trái (keyframes nav-heartbeat khai báo ở App.css; class do
+   useNavBadge gỡ sau 10 giây). */
+.shift-income__method-line li.is-pulsing,
+.shift-income__methods li.is-pulsing {
+  animation: nav-heartbeat 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shift-income__method-line li.is-pulsing,
+  .shift-income__methods li.is-pulsing {
+    animation: none;
+  }
+}
+
+.shift-income__method-label {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-income__method-amount {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+/* Cột số tiền của danh sách nguồn thu: canh phải để hàng đơn vị thẳng hàng giữa các dòng. */
+.shift-income__methods .shift-income__method-amount {
+  text-align: right;
+}
+
+/* Số lượt thu của từng nguồn (thay cột % cũ: tỷ trọng đã có trên thanh). */
+.shift-income__method-count {
+  color: var(--color-text-tertiary);
+  font-size: 0.6875rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Khối Nguồn thu: thanh tỷ trọng chiếm hết bề ngang, nút bung chi tiết nằm cạnh bên phải; vạch kẻ ngăn với khối
+   phương thức phía trên. */
+.shift-income__src-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.shift-income__src-bar .shift-income__stack {
+  flex: 1;
+  min-width: 0;
+}
+
+.shift-income__toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.shift-income__toggle:hover,
+.shift-income__toggle[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  color: var(--color-text-primary);
+}
+
+/* Danh sách nguồn thu dùng lại lưới của danh sách phương thức; cột đầu là chấm màu thay vì biểu tượng. */
+.shift-income__methods .shift-income__row-dot {
+  justify-self: center;
+  margin-right: 0;
+}
+
+.shift-income__caret {
+  transition: transform 0.18s ease-out;
+}
+
+.shift-income__toggle[aria-expanded="true"] .shift-income__caret {
+  transform: rotate(180deg);
+}
+
+.shift-income button:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+/* ---- ma trận nhiệt: nguồn thu x hình thức ---- */
+.shift-income__matrix {
+  display: grid;
+  gap: 6px;
+}
+
+.shift-income__sorts {
+  display: grid;
+  grid-template-columns: repeat(var(--si-cols, 3), 1fr);
+  gap: 3px;
+}
+
+.shift-income__sort {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 2rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  padding: 0;
+  background: var(--color-surface-default);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.shift-income__sort:hover {
+  border-color: var(--si-mc);
+}
+
+.shift-income__sort[aria-pressed="true"] {
+  border-color: var(--si-mc);
+  background: color-mix(in srgb, var(--si-mc) 16%, var(--color-surface-default));
+  color: var(--color-text-primary);
+}
+
+.shift-income__arrow {
+  font-size: 0.625rem;
+  line-height: 1;
+}
+
+.shift-income__rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shift-income__row {
+  display: grid;
+  gap: 2px;
+}
+
+.shift-income__row-line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.78125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chấm màu = chú thích cho thanh tỷ trọng nguồn thu phía trên. */
+.shift-income__row-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--si-mc);
+}
+
+.shift-income__row-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-income__row-total {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+/* Nút mở rộng nhỏ cạnh tên nguồn gộp. Vùng bấm 1.25rem nhưng chỉ vẽ mũi tên, không viền, không nền khi nghỉ. */
+.shift-income__expand.shift-income__expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.shift-income__expand:hover {
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  color: var(--color-text-primary);
+}
+
+.shift-income__expand svg {
+  transition: transform 0.15s;
+}
+
+.shift-income__expand[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+/* Các khoản đã gộp: thụt vào, vạch dọc màu của nguồn cha, chữ và ô nhỏ hơn dòng cha. */
+.shift-income__parts {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0 0 3px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid color-mix(in srgb, var(--si-mc) 60%, transparent);
+  list-style: none;
+}
+
+.shift-income__part {
+  display: grid;
+  gap: 2px;
+}
+
+.shift-income__part .shift-income__row-line {
+  font-size: 0.71875rem;
+}
+
+.shift-income__part .shift-income__row-total {
+  font-weight: 600;
+}
+
+.shift-income__part .shift-income__cell {
+  height: 1.125rem;
+  font-size: 0.65625rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shift-income__expand svg {
+    transition: none;
+  }
+}
+
+.shift-income__cells {
+  display: grid;
+  grid-template-columns: repeat(var(--si-cols, 3), 1fr);
+  gap: 3px;
+}
+
+.shift-income__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--si-mc) var(--heat, 0%), var(--color-surface-default));
+  color: var(--color-text-primary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-income__cell.is-nil {
+  border: 1px dashed var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+}
+
+/* ---- đang tải / lỗi ---- */
+.shift-income__skeleton {
+  height: 5.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+}
+
+.shift-income__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.78125rem;
+}
+
+.shift-income__retry {
+  min-height: 2rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  padding: 0 var(--space-3);
+  background: var(--color-surface-default);
+  color: var(--color-action-primary);
+  font-size: 0.78125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- sidebar thu nhỏ: chỉ còn tổng rút gọn + 3 hình thức ---- */
+.shift-income__mini {
+  display: none;
+}
+
+.app-shell--collapsed .shift-income {
+  justify-items: center;
+  padding: var(--space-2) 6px;
+  text-align: center;
+}
+
+.app-shell--collapsed .shift-income > *:not(.shift-income__mini) {
+  display: none;
+}
+
+.app-shell--collapsed .shift-income__mini {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.shift-income__mini-title {
+  color: var(--color-text-muted);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.shift-income__mini strong {
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-income__mini-method {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--color-text-primary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shift-income__caret,
+  .shift-income__filter-btn,
+  .shift-income__sort {
+    transition: none;
+  }
+}
