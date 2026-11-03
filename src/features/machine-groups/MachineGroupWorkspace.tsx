@@ -273,7 +273,6 @@ export function MachineGroupWorkspace() {
       <PageHeader
         eyebrow="Cấu hình phòng máy"
         title="Nhóm máy"
-        description="Theo dõi nhóm máy và giá vãng lai; thay đổi được bảo vệ theo ma trận giá đang cấu hình."
         actions={
           <>
             <Button

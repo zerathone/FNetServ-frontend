@@ -1,7 +1,7 @@
 .transaction-workspace {
   min-width: 0;
   display: grid;
-  gap: var(--space-4);
+  gap: var(--page-gap);
 }
 
 .transaction-filters {

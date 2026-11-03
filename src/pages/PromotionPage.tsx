@@ -17,7 +17,7 @@ import { getUserGroups } from '../api/user-groups';
 import { getMachineGroups } from '../api/machine-groups';
 import { supportsUserGroupPricingAndPromotion } from '../features/user-groups/userGroupModel';
 import { pushToast } from '../store/toast';
-import { DatePicker, Select } from '../design-system/components';
+import { DatePicker, PageHeader, Select } from '../design-system/components';
 
 export function PromotionPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -46,67 +46,61 @@ export function PromotionPage() {
   const selectedGroup = filteredUserGroups.find(g => g.id === selectedGroupId);
 
   return (
-    <section className="page-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
-      <div className="page-header" style={{ padding: '2rem 2rem 0' }}>
-        <div>
-          <p className="eyebrow">Thiết lập khuyến mãi</p>
-          <h2 className="section-title">Khuyến mãi hệ thống</h2>
+    <div className="page-fill">
+      <PageHeader eyebrow="Thiết lập khuyến mãi" title="Khuyến mãi hệ thống" />
+      <section className="page-card">
+        <div style={{ padding: '0 0 var(--space-3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <label style={{ fontWeight: 500 }}>Chọn nhóm người dùng:</label>
+            <Select 
+              value={selectedGroupId || ''} 
+              onChange={e => setSelectedGroupId(Number(e.target.value))}
+              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', minWidth: '200px' }}
+            >
+              {filteredUserGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name} ({g.type})</option>
+              ))}
+            </Select>
+          </div>
         </div>
-      </div>
 
-      <div style={{ padding: '0 2rem 1rem' }}>
-        <p className="page-description">Quản lý khuyến mãi nạp tiền, khung giờ vàng và chiết khấu cho từng nhóm người dùng.</p>
-        
-        <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <label style={{ fontWeight: 500 }}>Chọn nhóm người dùng:</label>
-          <Select 
-            value={selectedGroupId || ''} 
-            onChange={e => setSelectedGroupId(Number(e.target.value))}
-            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', minWidth: '200px' }}
+        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border)', padding: '0 2rem' }}>
+          <button 
+            className={`tab-button ${activeTab === 'member' ? 'active' : ''}`}
+            onClick={() => setActiveTab('member')}
+            style={{ padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'member' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'member' ? 'var(--primary)' : 'var(--text-secondary)' }}
           >
-            {filteredUserGroups.map(g => (
-              <option key={g.id} value={g.id}>{g.name} ({g.type})</option>
-            ))}
-          </Select>
+            Khuyến mãi Nạp tiền
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'time' ? 'active' : ''}`}
+            onClick={() => setActiveTab('time')}
+            style={{ padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'time' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'time' ? 'var(--primary)' : 'var(--text-secondary)' }}
+          >
+            Khung giờ vàng
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'discount' ? 'active' : ''}`}
+            onClick={() => setActiveTab('discount')}
+            style={{ padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'discount' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'discount' ? 'var(--primary)' : 'var(--text-secondary)' }}
+          >
+            Chiết khấu theo mức/kỳ hạn
+          </button>
         </div>
-      </div>
 
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border)', padding: '0 2rem' }}>
-        <button 
-          className={`tab-button ${activeTab === 'member' ? 'active' : ''}`}
-          onClick={() => setActiveTab('member')}
-          style={{ padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'member' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'member' ? 'var(--primary)' : 'var(--text-secondary)' }}
-        >
-          Khuyến mãi Nạp tiền
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'time' ? 'active' : ''}`}
-          onClick={() => setActiveTab('time')}
-          style={{ padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'time' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'time' ? 'var(--primary)' : 'var(--text-secondary)' }}
-        >
-          Khung giờ vàng
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'discount' ? 'active' : ''}`}
-          onClick={() => setActiveTab('discount')}
-          style={{ padding: '1rem 1.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'discount' ? '2px solid var(--primary)' : '2px solid transparent', cursor: 'pointer', fontWeight: 500, color: activeTab === 'discount' ? 'var(--primary)' : 'var(--text-secondary)' }}
-        >
-          Chiết khấu theo mức/kỳ hạn
-        </button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
-        {!selectedGroup ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Vui lòng chọn một nhóm người dùng</div>
-        ) : (
-          <>
-            {activeTab === 'member' && <PromotionMemberTab priceId={selectedGroupId!} />}
-            {activeTab === 'time' && <PromotionTimeTab priceId={selectedGroupId!} machineGroups={machineGroups || []} />}
-            {activeTab === 'discount' && <PromotionDiscountTab priceId={selectedGroupId!} machineGroups={machineGroups || []} />}
-          </>
-        )}
-      </div>
-    </section>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
+          {!selectedGroup ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Vui lòng chọn một nhóm người dùng</div>
+          ) : (
+            <>
+              {activeTab === 'member' && <PromotionMemberTab priceId={selectedGroupId!} />}
+              {activeTab === 'time' && <PromotionTimeTab priceId={selectedGroupId!} machineGroups={machineGroups || []} />}
+              {activeTab === 'discount' && <PromotionDiscountTab priceId={selectedGroupId!} machineGroups={machineGroups || []} />}
+            </>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 

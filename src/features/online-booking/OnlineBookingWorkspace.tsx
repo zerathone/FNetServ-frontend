@@ -664,7 +664,6 @@ export function OnlineBookingWorkspace() {
       <PageHeader
         eyebrow="Đặt máy online"
         title="Quản lý đặt máy"
-        description="Duyệt đơn, theo dõi khách đến/không đến, đặt máy và huỷ đơn."
         actions={
           <>
             <Button

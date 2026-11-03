@@ -570,7 +570,6 @@ export function UsersPage() {
       <PageHeader
         eyebrow="Thu ngân"
         title="Quản lý Tài khoản"
-        description="Danh sách hội viên, nhân viên và thẻ combo — nạp tiền, khóa/mở thẻ, cấp lại mật khẩu."
         actions={
           <>
             {activeTab === 'member' && (

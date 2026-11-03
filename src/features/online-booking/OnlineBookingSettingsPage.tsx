@@ -482,7 +482,6 @@ export function OnlineBookingSettingsPage() {
       <PageHeader
         eyebrow="Đặt máy online"
         title="Thiết lập đặt máy"
-        description="Chỉ admin chỉnh được. Mỗi lần lưu, máy chủ kiểm ràng buộc chéo trên cả ba bộ số trước khi ghi."
       />
 
       {configQuery.isLoading ? <StateView title="Đang tải cấu hình…" /> : null}

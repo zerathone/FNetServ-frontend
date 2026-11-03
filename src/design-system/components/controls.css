@@ -963,44 +963,94 @@ input[type="radio"]:disabled {
   font-weight: 650;
 }
 
+/* Header gọn 1 hàng: [NHÃN / Tiêu đề] [mô tả] ........ [thao tác]. Cao ~ 1 hàng nút thay vì 3 tầng chữ. */
 .ds-page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  gap: var(--space-2) var(--space-4);
 }
 
+/* Khung trang là grid/flex có gap = --page-gap nên header KHÔNG tự thêm margin (tránh cộng dồn). Chỉ khi cha là
+   khối thường (không gap) mới bù margin để cách phần nội dung đúng bằng gap. */
+.app-content > .ds-page-header,
+.settings-page > .ds-page-header,
+.catalog-page > .ds-page-header {
+  margin-bottom: var(--page-gap);
+}
+
+/* Hàng đầu cao đúng 1 control (2.25rem) và bám mép trên header -> tâm chữ tiêu đề luôn nằm cách mép nội dung
+   0.75rem + 1.125rem, TRÙNG tâm hàng "ngày giờ / tên phòng máy" ở đầu sidebar (.app-sidebar__header-row,
+   padding 0.75rem + cùng 2.25rem), dù cụm thao tác bên phải cao thấp thế nào. Đổi 1 trong 2 phải đổi cả 2. */
 .ds-page-header__copy {
+  min-width: 0;
+  min-height: var(--control-height-compact);
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 0 var(--space-4);
+}
+
+/* Nhãn + tiêu đề luôn đi cùng nhau, không tách dòng. */
+.ds-page-header__heading {
+  display: flex;
+  align-items: baseline;
+  line-height: 1;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
+/* Kiểu breadcrumb: "Thu ngân > Máy trạm" cùng cỡ chữ, mục cha mờ + thường, trang hiện tại đậm. */
 .ds-page-header__eyebrow {
-  margin: 0 0 var(--space-1);
-  color: var(--color-action-primary);
-  font-size: var(--font-size-xs);
-  font-weight: 750;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* Dấu ">" ngăn mục cha và tiêu đề; trang trí thuần nên bản thay thế rỗng để trình đọc màn hình bỏ qua. */
+.ds-page-header__eyebrow::after {
+  content: '>';
+  content: '>' / '';
+  margin: 0 var(--space-2);
+  font-size: 0.875em;
 }
 
 .ds-page-header__title {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
   line-height: var(--line-height-tight);
 }
 
+/* Mô tả nằm cạnh tiêu đề khi đủ chỗ, tự xuống dòng khi hẹp; tối đa 2 dòng (đủ cho mô tả dài nhất hiện có). */
 .ds-page-header__description {
+  flex: 1 1 18rem;
+  min-width: 0;
   max-width: 70ch;
-  margin: var(--space-2) 0 0;
+  margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .ds-page-header__actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: var(--control-height-compact);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
@@ -1434,6 +1484,10 @@ input[type="radio"]:disabled {
   .ds-page-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .ds-page-header__description {
+    flex-basis: 100%;
   }
 
   .ds-page-header__actions {

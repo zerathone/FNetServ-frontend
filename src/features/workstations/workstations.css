@@ -1,7 +1,7 @@
 .ws-workspace {
   min-width: 0;
   display: grid;
-  gap: var(--space-4);
+  gap: var(--page-gap);
 }
 
 /* Nut "Nang cap" o dong Phien ban -- noi bat bang gradient thuong hieu thay vi outline
@@ -56,6 +56,20 @@
   border-radius: var(--radius-lg);
   padding: var(--space-3);
   background: var(--color-surface-raised);
+}
+
+/* Trang Máy trạm: thẻ thống kê (Máy trạm, Sử dụng) co theo nội dung; thẻ "Khu vực" giữ mặc định 1 1 20rem nên
+   giãn lấp phần còn lại của hàng. Các trang báo cáo dùng chung .ws-summary__card nên KHÔNG đổi mặc định. */
+.ws-summary__card--fit {
+  flex: 0 1 auto;
+}
+
+/* Thẻ "Khu vực": nằm chung dòng với 2 thẻ trên và giãn lấp phần còn lại; chỉ khi dòng không còn đủ 26rem mới xuống
+   NGUYÊN thẻ xuống dòng dưới. min-width: 0 để độ rộng tối thiểu của nội dung (cả dải khu vực) không tự ép thẻ xuống dòng
+   -- dải bên trong tự cuộn ngang + nút ‹ › khi thiếu chỗ. */
+.ws-summary__card--zones {
+  flex: 1 1 26rem;
+  min-width: 0;
 }
 
 .ws-summary__card button {
@@ -294,7 +308,7 @@ button.ws-fleet__seg.is-active { box-shadow: inset 0 0 0 2px color-mix(in srgb, 
   display: flex;
   align-items: center;
   min-width: 0;
-  max-width: 28rem;
+  flex: 1 1 auto;
   border-left: 1px solid var(--color-border-default);
   padding-left: var(--space-3);
 }
@@ -649,6 +663,50 @@ button.ws-fleet__seg.is-active { box-shadow: inset 0 0 0 2px color-mix(in srgb, 
   min-height: 26rem;
   display: grid;
   grid-template-rows: 2.75rem minmax(0, 1fr);
+}
+
+/* Trang Máy trạm: khung vừa đúng màn hình (như .page-fill ở App.css: 5.5rem = topbar + padding .app-content; classic 7.9rem).
+   Bảng chiếm phần còn lại sau header/thống kê/toolbar nên thu gọn hay mở rộng thống kê bảng đều nằm gọn trong khung,
+   không còn chiều cao cố định. Chỉ 1 thanh cuộn ngang (ở vùng thân, tiêu đề trượt theo) nên .ws-content không tự cuộn. */
+.ws-workspace--fill {
+  height: calc(100vh - 5.5rem);
+  display: flex;
+  flex-direction: column;
+}
+
+:root[data-theme="classic"] .ws-workspace--fill {
+  height: calc(100vh - 7.9rem);
+}
+
+.ws-workspace--fill > * {
+  flex: none;
+}
+
+.ws-workspace--fill > .ws-content--table {
+  flex: 1 1 0;
+  min-height: 14rem;
+}
+
+/* Cột lưới phải là minmax(0, 1fr): cột auto sẽ nở theo max-content của tiêu đề (rộng hơn khung) kéo cả vùng thân rộng theo,
+   thanh cuộn dọc của vùng thân bị đẩy ra ngoài mép và bị .ws-content cắt mất. */
+.ws-content--table {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.ws-content--table > .ws-table {
+  height: auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Tiêu đề rộng đúng bằng tổng cột để nền phủ hết khi trượt ngang (JS dịch bằng translateX theo vùng thân). */
+.ws-content--table .ws-table__header {
+  position: relative;
+  z-index: 2; /* translateX tạo stacking context -> không nâng lên thì menu lọc của cột bị các hàng (position:absolute) đè */
+  width: max-content;
+  min-width: 100%;
 }
 
 .ws-columns {
@@ -1899,6 +1957,10 @@ button.ws-fleet__seg.is-active { box-shadow: inset 0 0 0 2px color-mix(in srgb, 
   .ws-summary__card {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .ws-summary__card--fit {
+    flex: 1 1 100%;
   }
 
   /* Hàng trên của card đầu xếp dọc như các card khác (breakdown đã có style border-top ở dưới). */

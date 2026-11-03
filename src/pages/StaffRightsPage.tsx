@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useEffect } from 'react';
 import { staffRightsApi } from '../api/staffRights';
 import { getUsers } from '../api/users';
-import { Button, ListPagination } from '../design-system/components';
+import { Button, ListPagination, PageHeader } from '../design-system/components';
 import { pushToast as showToast } from '../store/toast';
 
 const STAFF_PAGE_SIZE = 50
@@ -210,13 +210,11 @@ export function StaffRightsPage() {
   };
 
   return (
-    <section className="page-card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">Phase 3 · Task 4</p>
-          <h2 className="section-title">Phân Quyền Nhân Viên</h2>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+    <div className="page-fill">
+      <PageHeader
+        eyebrow="Quản trị"
+        title="Phân quyền nhân viên"
+        actions={
           <Button
             type="button"
             variant="primary"
@@ -224,113 +222,112 @@ export function StaffRightsPage() {
             loading={updateMutation.isPending}
             disabled={!selectedStaffId}
           >
-            {updateMutation.isPending ? 'Đang lưu...' : 'Lưu Phân Quyền'}
+            {updateMutation.isPending ? 'Đang lưu...' : 'Lưu phân quyền'}
           </Button>
-        </div>
-      </div>
-
-      <p className="page-description">Chọn nhân viên từ danh sách và tích các quyền hạn tương ứng.</p>
-
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: '2rem', marginTop: '1.5rem' }}>
+        }
+      />
+      <section className="page-card">
+        <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: '2rem' }}>
         
-        {/* Cột 1: Danh sách nhân viên */}
-        <div style={{ display: 'flex', flexDirection: 'column', width: '300px' }}>
-          <label className="field compact-field" style={{ marginBottom: '1rem' }}>
-            <span>Tìm kiếm tài khoản / tên</span>
-            <input 
-              type="text" 
-              placeholder="Nhập tên đăng nhập..." 
-              value={searchTerm} 
-              onChange={e => {
-                setSearchTerm(e.target.value);
-                setStaffPage(0);
+          {/* Cột 1: Danh sách nhân viên */}
+          <div style={{ display: 'flex', flexDirection: 'column', width: '300px' }}>
+            <label className="field compact-field" style={{ marginBottom: '1rem' }}>
+              <span>Tìm kiếm tài khoản / tên</span>
+              <input 
+                type="text" 
+                placeholder="Nhập tên đăng nhập..." 
+                value={searchTerm} 
+                onChange={e => {
+                  setSearchTerm(e.target.value);
+                  setStaffPage(0);
+                  setSelectedStaffId(null);
+                }}
+              />
+            </label>
+            <ListPagination
+              page={staffPage}
+              canNext={staffData.length >= STAFF_PAGE_SIZE}
+              onPrevious={() => {
+                setStaffPage((page) => Math.max(0, page - 1));
+                setSelectedStaffId(null);
+              }}
+              onNext={() => {
+                setStaffPage((page) => page + 1);
                 setSelectedStaffId(null);
               }}
             />
-          </label>
-          <ListPagination
-            page={staffPage}
-            canNext={staffData.length >= STAFF_PAGE_SIZE}
-            onPrevious={() => {
-              setStaffPage((page) => Math.max(0, page - 1));
-              setSelectedStaffId(null);
-            }}
-            onNext={() => {
-              setStaffPage((page) => page + 1);
-              setSelectedStaffId(null);
-            }}
-          />
-          <div className="table-card" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            <table className="data-table">
-            <thead>
-              <tr>
-                <th>Chọn Nhân Viên</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isStaffLoading ? (
-                <tr><td style={{ padding: '1rem', textAlign: 'center' }}>Đang tải...</td></tr>
-              ) : staffData.length > 0 ? (
-                staffData.map((staff: any) => (
-                  <tr 
-                    key={staff.userId} 
-                    style={{ 
-                      cursor: 'pointer', 
-                      backgroundColor: selectedStaffId === staff.userId ? 'var(--bg-active)' : 'transparent',
-                      borderLeft: selectedStaffId === staff.userId ? '3px solid var(--primary)' : '3px solid transparent'
-                    }}
-                    onClick={() => setSelectedStaffId(staff.userId)}
-                  >
-                    <td>
-                      <div style={{ fontWeight: 500, color: selectedStaffId === staff.userId ? 'var(--primary)' : 'inherit' }}>
-                        {staff.userName}
-                      </div>
-                      <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                        Nhóm: {staff.groupName || 'Staff'}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>Không có nhân viên</td></tr>
-              )}
-            </tbody>
-          </table>
-          </div>
-        </div>
-
-        {/* Cột 2: Bảng phân quyền */}
-        <div className="table-card" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          {!selectedStaffId ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Vui lòng chọn một nhân viên ở danh sách bên trái
-            </div>
-          ) : isRightsLoading ? (
-            <div style={{ padding: '3rem', textAlign: 'center' }}>Đang tải quyền hạn...</div>
-          ) : rightsData ? (
-            <div>
-              <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600 }}>Cấp quyền cho: <span style={{ color: 'var(--primary)' }}>{staffData.find((s:any) => s.userId === selectedStaffId)?.userName}</span></div>
-              </div>
+            <div className="table-card" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '100px' }}>Chọn</th>
-                    <th style={{ width: '100px' }}>Mã Quyền</th>
-                    <th>Tên Quyền Hạn</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {renderTreeRows()}
-                </tbody>
-              </table>
+              <thead>
+                <tr>
+                  <th>Chọn Nhân Viên</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isStaffLoading ? (
+                  <tr><td style={{ padding: '1rem', textAlign: 'center' }}>Đang tải...</td></tr>
+                ) : staffData.length > 0 ? (
+                  staffData.map((staff: any) => (
+                    <tr 
+                      key={staff.userId} 
+                      style={{ 
+                        cursor: 'pointer', 
+                        backgroundColor: selectedStaffId === staff.userId ? 'var(--bg-active)' : 'transparent',
+                        borderLeft: selectedStaffId === staff.userId ? '3px solid var(--primary)' : '3px solid transparent'
+                      }}
+                      onClick={() => setSelectedStaffId(staff.userId)}
+                    >
+                      <td>
+                        <div style={{ fontWeight: 500, color: selectedStaffId === staff.userId ? 'var(--primary)' : 'inherit' }}>
+                          {staff.userName}
+                        </div>
+                        <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                          Nhóm: {staff.groupName || 'Staff'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>Không có nhân viên</td></tr>
+                )}
+              </tbody>
+            </table>
             </div>
-          ) : (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-error)' }}>Lỗi khi tải dữ liệu</div>
-          )}
-        </div>
+          </div>
 
-      </div>
-    </section>
+          {/* Cột 2: Bảng phân quyền */}
+          <div className="table-card" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {!selectedStaffId ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Vui lòng chọn một nhân viên ở danh sách bên trái
+              </div>
+            ) : isRightsLoading ? (
+              <div style={{ padding: '3rem', textAlign: 'center' }}>Đang tải quyền hạn...</div>
+            ) : rightsData ? (
+              <div>
+                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 600 }}>Cấp quyền cho: <span style={{ color: 'var(--primary)' }}>{staffData.find((s:any) => s.userId === selectedStaffId)?.userName}</span></div>
+                </div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '100px' }}>Chọn</th>
+                      <th style={{ width: '100px' }}>Mã Quyền</th>
+                      <th>Tên Quyền Hạn</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {renderTreeRows()}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-error)' }}>Lỗi khi tải dữ liệu</div>
+            )}
+          </div>
+
+        </div>
+      </section>
+    </div>
   );
 }

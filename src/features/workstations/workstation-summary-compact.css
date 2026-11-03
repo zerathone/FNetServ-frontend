@@ -1,0 +1,294 @@
+/* Thanh thống kê THU GỌN của trang Máy trạm (WorkstationSummaryCompact). Chấm màu dùng lại .ws-summary__dot--* ở
+   workstations.css để màu trạng thái / loại khách chỉ có 1 nguồn. */
+
+.ws-sumc {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+/* :where() = độ đặc tả 0 -> reset nút không đè border/background của chip, khu vực, nút mở rộng bên dưới. */
+:where(.ws-sumc) button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ws-sumc__group {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ws-sumc__group + .ws-sumc__group {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--color-border-default);
+}
+
+/* Cụm Khu vực nuốt phần còn lại của hàng; min-width 0 để dải chip bên trong cuộn được thay vì đẩy tràn. */
+.ws-sumc__group--zones {
+  flex: 1 1 0;
+}
+
+.ws-sumc__title {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: 2px var(--space-1);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ws-sumc__title strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-sumc__title--button:hover,
+.ws-sumc__chip:not(.ws-sumc__chip--static):hover {
+  background: var(--color-surface-hover);
+}
+
+.ws-sumc__title--button.is-active {
+  color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-surface-default));
+}
+
+.ws-sumc__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: 2px var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.ws-sumc__chip strong {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-sumc__chip.is-active {
+  color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-surface-default));
+}
+
+.ws-sumc__chip.is-active strong {
+  color: inherit;
+}
+
+/* Biểu đồ tròn tỉ lệ trạng thái cả phòng máy (không bấm được -- đã có chip ngay cạnh). Mỗi mảnh là 1 circle nét
+   dày phủ kín tâm (xem FleetPie), màu nằm ở stroke. */
+.ws-sumc__pie {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: var(--space-2);
+}
+
+.ws-sumc__slice {
+  fill: none;
+  stroke-width: 16;
+}
+
+.ws-sumc__slice--playing { stroke: var(--color-info); }
+.ws-sumc__slice--available { stroke: var(--color-success); }
+.ws-sumc__slice--disconnected { stroke: var(--color-danger); }
+.ws-sumc__slice--other { stroke: var(--color-warning); }
+.ws-sumc__slice--off { stroke: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-surface-default)); }
+
+/* Dải khu vực cuộn ngang. .ws-sumc__zones-wrap là mốc định vị cho 2 nút cuộn; mép nào còn nội dung bị che thì
+   phủ mờ mép đó + hiện nút ở mép đó (cùng kiểu nút của bản đầy đủ). */
+.ws-sumc__zones-wrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.ws-sumc__zones {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ws-sumc__scroll {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.ws-sumc__scroll--left { left: var(--space-1); }
+.ws-sumc__scroll--right { right: var(--space-1); }
+
+.ws-sumc__scroll:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.ws-sumc__zones::-webkit-scrollbar {
+  display: none;
+}
+
+.ws-sumc__zones.is-fade-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+
+.ws-sumc__zones.is-fade-left {
+  mask-image: linear-gradient(to right, transparent, #000 2rem);
+}
+
+.ws-sumc__zones.is-fade-left.is-fade-right {
+  mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent);
+}
+
+/* Mỗi khu vực = 1 chip: tên + số máy, bên dưới (nằm trong chip) là thanh usage mảnh theo % đang dùng. */
+.ws-sumc__zone {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: 2px var(--space-2) 9px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  transition: border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.ws-sumc__zone-bar {
+  position: absolute;
+  right: var(--space-2);
+  bottom: 4px;
+  left: var(--space-2);
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-text-muted) 28%, transparent);
+  overflow: hidden;
+}
+
+.ws-sumc__zone-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-info);
+  transition: width var(--motion-normal) ease;
+}
+
+.ws-sumc__zone:hover {
+  border-color: var(--color-border-strong);
+}
+
+.ws-sumc__zone strong {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-sumc__zone-name {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-sumc__zone.is-active {
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+.ws-sumc__zone.is-active strong {
+  color: inherit;
+}
+
+.ws-sumc__toggle,
+.ws-summary-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.ws-sumc__toggle:hover,
+.ws-summary-toggle:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+}
+
+/* Bản đầy đủ: nút thu gọn cưỡi lên viền trên, sát góc trái của khối thống kê (cùng phía với nút mở rộng ở bản thu gọn). */
+.ws-summary-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.ws-summary-toggle {
+  position: absolute;
+  top: 0;
+  left: var(--space-4);
+  z-index: 2;
+  margin: 0;
+  transform: translateY(-50%);
+}
+
+/* Màn hẹp: bản thu gọn xuống nhiều dòng thay vì ép 1 hàng; cụm Khu vực cuộn ngang trong dòng của nó. */
+@media (max-width: 900px) {
+  .ws-sumc {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  .ws-sumc__group + .ws-sumc__group {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .ws-sumc__group--zones {
+    flex: 1 1 100%;
+  }
+}

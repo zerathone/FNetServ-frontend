@@ -77,7 +77,7 @@ const SERVICES: ServiceItem[] = [
   { id: 8, name: 'Snack khoai tây', price: 12_000, unit: 'gói', inventory: 30, inventoryManagement: 1, active: 1, groupId: 3, groupName: 'Ăn vặt' },
 ]
 
-function station(
+export function station(
   hostName: string,
   status: number,
   who: { userId: number; userName: string | null; userGroupType: number },
@@ -115,7 +115,7 @@ function station(
   }
 }
 
-function workstations(): WorkstationsRuntimeSnapshot {
+export function workstations(): WorkstationsRuntimeSnapshot {
   return {
     serverTimeMs: Date.now(),
     items: [

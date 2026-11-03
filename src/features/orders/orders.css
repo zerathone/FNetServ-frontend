@@ -1,7 +1,7 @@
 .order-workspace {
   min-width: 0;
   display: grid;
-  gap: var(--space-4);
+  gap: var(--page-gap);
 }
 
 /* Parity .ws-summary (WorkstationWorkspace): 1 card "tổng + breakdown theo dot màu".

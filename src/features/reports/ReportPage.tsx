@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchDynamicReport } from '../../api/dynamic-reports'
 import { getStaffList } from '../../api/staff'
 import { useAuthStore } from '../../store/auth'
-import { Button, DateRangePicker, InlineAlert, Select } from '../../design-system/components'
+import { Button, DateRangePicker, InlineAlert, PageHeader, Select } from '../../design-system/components'
 import { ReportResultView } from './ReportResultView'
 import { IncomeSummaryStats } from './IncomeSummaryStats'
 import { ShiftReportStats } from './IncomeByStaffStats'
@@ -258,24 +258,19 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
     setSubmitted(next)
   }
 
-  const header = (
-    <div className="page-header">
-      <div>
-        <p className="eyebrow">Phân tích</p>
-        <h2 className="section-title">{def.title}</h2>
-      </div>
-    </div>
-  )
+  const header = <PageHeader eyebrow="Phân tích" title={def.title} description={def.description} />
 
   if (!canView) {
     return (
-      <section className="page-card">
+      <>
         {header}
+        <section className="page-card">
         <InlineAlert tone="danger">
           Bạn không có quyền xem báo cáo này. Vui lòng liên hệ quản trị viên. (Nếu vừa được cấp quyền, hãy đăng
           nhập lại.)
         </InlineAlert>
-      </section>
+        </section>
+      </>
     )
   }
 
@@ -322,151 +317,151 @@ export function ReportPage({ def }: { def: ReportPageDef }) {
   }
 
   return (
-    <section className="page-card">
+    <>
       {header}
-      <p className="page-description">{def.description}</p>
+      <section className="page-card">
+        <div className="report-filter-bar">
+          <DateRangePicker
+            fromDate={fromDate}
+            toDate={toDate}
+            onFromDateChange={setFromDate}
+            onToDateChange={setToDate}
+          />
 
-      <div className="report-filter-bar">
-        <DateRangePicker
-          fromDate={fromDate}
-          toDate={toDate}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-        />
+          {hasStaffControl ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Nhân viên</span>
+              <Select
+                value={effectiveStaff ?? ''}
+                disabled={!canAll || lockedAll}
+                onChange={(event) => setStaffSel(String(event.target.value))}
+              >
+                {staffOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
 
-        {hasStaffControl ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Nhân viên</span>
-            <Select
-              value={effectiveStaff ?? ''}
-              disabled={!canAll || lockedAll}
-              onChange={(event) => setStaffSel(String(event.target.value))}
-            >
-              {staffOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {def.controls.includes('display') ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Hiển thị</span>
+              <Select value={effectiveDisplay} onChange={(event) => setDisplay(String(event.target.value))}>
+                {displayOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+
+          {def.controls.includes('revenueSource') ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Nguồn thu</span>
+              <Select
+                value={lockedAll ? '0' : revenueSource}
+                disabled={lockedAll}
+                onChange={(event) => setRevenueSource(String(event.target.value))}
+              >
+                {REVENUE_SOURCE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+
+          {def.controls.includes('paymentMethod') ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Phương thức</span>
+              <Select
+                value={lockedAll ? '0' : paymentMethod}
+                disabled={lockedAll}
+                onChange={(event) => setPaymentMethod(String(event.target.value))}
+              >
+                {PAYMENT_METHOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+
+          {def.controls.includes('paymentType') ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Hình thức nạp</span>
+              <Select value={paymentType} onChange={(event) => setPaymentType(String(event.target.value))}>
+                {MEMBER_PAYMENT_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
+
+          {def.controls.includes('timeUsed') ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Thời gian tối thiểu (phút)</span>
+              <input
+                className="ds-input"
+                inputMode="numeric"
+                maxLength={9}
+                value={timeUsed}
+                onChange={(event) => setTimeUsed(event.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+          ) : null}
+
+          {def.controls.includes('moneyUsed') ? (
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Tiền tối thiểu</span>
+              <input
+                className="ds-input"
+                inputMode="numeric"
+                maxLength={9}
+                value={moneyUsed}
+                onChange={(event) => setMoneyUsed(event.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+          ) : null}
+
+          <Button
+            variant="primary"
+            loading={query.isFetching}
+            disabled={isPenalized}
+            icon={<PaperPlaneRight size={18} weight="bold" aria-hidden="true" />}
+            onClick={submit}
+          >
+            {isPenalized ? `Xem báo cáo (${penaltySec}s)` : 'Xem báo cáo'}
+          </Button>
+          {isPenalized ? (
+            <InlineAlert tone="warning">
+              Phát hiện nhiều yêu cầu liên tiếp. Chờ {penaltySec}s để bảo vệ hệ thống.
+            </InlineAlert>
+          ) : null}
+        </div>
+
+        {hasStaffControl && !canAll ? (
+          <p className="status-text">Bạn chỉ xem được báo cáo của chính mình (chưa có quyền xem tất cả).</p>
         ) : null}
-
-        {def.controls.includes('display') ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Hiển thị</span>
-            <Select value={effectiveDisplay} onChange={(event) => setDisplay(String(event.target.value))}>
-              {displayOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+        {hiddenDisplays > 0 ? (
+          <p className="status-text">
+            Hiển thị hằng tuần/hằng tháng cần quyền xem tất cả của báo cáo này nên không hiện trong danh sách.
+          </p>
         ) : null}
-
-        {def.controls.includes('revenueSource') ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Nguồn thu</span>
-            <Select
-              value={lockedAll ? '0' : revenueSource}
-              disabled={lockedAll}
-              onChange={(event) => setRevenueSource(String(event.target.value))}
-            >
-              {REVENUE_SOURCE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+        {hasStaffControl && canAll && staffQuery.isError ? (
+          <p className="status-text error-text">Không tải được danh sách nhân viên: {(staffQuery.error as Error).message}</p>
         ) : null}
+        {formError ? <InlineAlert tone="warning">{formError}</InlineAlert> : null}
 
-        {def.controls.includes('paymentMethod') ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Phương thức</span>
-            <Select
-              value={lockedAll ? '0' : paymentMethod}
-              disabled={lockedAll}
-              onChange={(event) => setPaymentMethod(String(event.target.value))}
-            >
-              {PAYMENT_METHOD_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-        ) : null}
-
-        {def.controls.includes('paymentType') ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Hình thức nạp</span>
-            <Select value={paymentType} onChange={(event) => setPaymentType(String(event.target.value))}>
-              {MEMBER_PAYMENT_TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-        ) : null}
-
-        {def.controls.includes('timeUsed') ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Thời gian tối thiểu (phút)</span>
-            <input
-              className="ds-input"
-              inputMode="numeric"
-              maxLength={9}
-              value={timeUsed}
-              onChange={(event) => setTimeUsed(event.target.value.replace(/\D/g, ''))}
-            />
-          </div>
-        ) : null}
-
-        {def.controls.includes('moneyUsed') ? (
-          <div className="ds-input-group">
-            <span className="ds-input-group-separator">Tiền tối thiểu</span>
-            <input
-              className="ds-input"
-              inputMode="numeric"
-              maxLength={9}
-              value={moneyUsed}
-              onChange={(event) => setMoneyUsed(event.target.value.replace(/\D/g, ''))}
-            />
-          </div>
-        ) : null}
-
-        <Button
-          variant="primary"
-          loading={query.isFetching}
-          disabled={isPenalized}
-          icon={<PaperPlaneRight size={18} weight="bold" aria-hidden="true" />}
-          onClick={submit}
-        >
-          {isPenalized ? `Xem báo cáo (${penaltySec}s)` : 'Xem báo cáo'}
-        </Button>
-        {isPenalized ? (
-          <InlineAlert tone="warning">
-            Phát hiện nhiều yêu cầu liên tiếp. Chờ {penaltySec}s để bảo vệ hệ thống.
-          </InlineAlert>
-        ) : null}
-      </div>
-
-      {hasStaffControl && !canAll ? (
-        <p className="status-text">Bạn chỉ xem được báo cáo của chính mình (chưa có quyền xem tất cả).</p>
-      ) : null}
-      {hiddenDisplays > 0 ? (
-        <p className="status-text">
-          Hiển thị hằng tuần/hằng tháng cần quyền xem tất cả của báo cáo này nên không hiện trong danh sách.
-        </p>
-      ) : null}
-      {hasStaffControl && canAll && staffQuery.isError ? (
-        <p className="status-text error-text">Không tải được danh sách nhân viên: {(staffQuery.error as Error).message}</p>
-      ) : null}
-      {formError ? <InlineAlert tone="warning">{formError}</InlineAlert> : null}
-
-      <div style={{ marginTop: '24px' }}>{renderResult()}</div>
-    </section>
+        <div style={{ marginTop: 'var(--page-gap)' }}>{renderResult()}</div>
+      </section>
+    </>
   )
 }

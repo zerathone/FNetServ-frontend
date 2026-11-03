@@ -218,7 +218,6 @@ export function CardWorkspace() {
       <PageHeader
         eyebrow="Quản trị"
         title="Thẻ nạp"
-        description="Quản lý vòng đời thẻ và tạo mã mới. Mã bí mật chỉ được trả một lần sau khi tạo."
         actions={
           <>
             <Button type="button" variant="secondary" onClick={() => navigate('/card-sale')}>

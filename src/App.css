@@ -567,8 +567,11 @@
   border-bottom: 1px solid var(--color-border-default);
 }
 
+/* Cao đúng 1 control (2.25rem) + padding trên 0.75rem của .app-sidebar__header: tâm hàng này trùng tâm hàng
+   tiêu đề trang (.ds-page-header__copy, padding trên .app-content 0.75rem). Đổi 1 trong 2 phải đổi cả 2. */
 .app-sidebar__header-row {
   min-width: 0;
+  min-height: var(--control-height-compact);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1178,7 +1181,9 @@
   min-width: 0;
   min-height: calc(100vh - 4rem);
   overflow: auto;
-  padding: var(--space-4);
+  /* Padding 0.75rem 4 phía: phía trên khớp padding trên của .app-sidebar__header để hàng tiêu đề trang thẳng hàng
+     ngang với hàng ngày giờ ở sidebar; 3 phía còn lại cùng nhịp với --page-gap. */
+  padding: var(--space-3);
   background: var(--color-canvas);
 }
 
@@ -1193,6 +1198,28 @@
   border-radius: var(--card-radius);
   padding: var(--space-4);
   box-shadow: var(--card-shadow);
+}
+
+/* Trang cao đúng khung nhìn: <PageHeader> ở trên, .page-card (bảng/bộ lọc) lấp phần còn lại và tự cuộn bên trong.
+   5.5rem = topbar 4rem + padding .app-content (0.75rem trên + 0.75rem dưới). Theme classic: thanh trên + thanh ngang
+   cao 6.9rem, padding 0.5rem mỗi bên -> 7.9rem. */
+.page-fill {
+  min-width: 0;
+  height: calc(100vh - 5.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-gap);
+}
+
+.page-fill > .page-card {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+:root[data-theme="classic"] .page-fill {
+  height: calc(100vh - 7.9rem);
 }
 
 .login-shell {
@@ -1501,8 +1528,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 16px;
-  margin-top: 20px;
+  gap: var(--space-3);
 }
 
 .report-filter-bar > .ds-date-range {
@@ -1530,9 +1556,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-3);
+  margin-bottom: var(--page-gap);
 }
 
 .log-table-card {

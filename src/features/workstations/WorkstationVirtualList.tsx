@@ -53,7 +53,7 @@ export type ColumnDefinition = {
 }
 
 export const COLUMNS: ColumnDefinition[] = [
-  { id: 'machine', label: 'Tên máy', width: 'minmax(8.5rem, 1.15fr)', required: true },
+  { id: 'machine', label: 'Tên máy', width: 'minmax(6rem, 0.6fr)', required: true },
   { id: 'ip', label: 'Địa chỉ IP', width: '8.5rem' },
   { id: 'status', label: 'Tình trạng', width: 'minmax(9.5rem, 1.2fr)', required: true },
   { id: 'user', label: 'Người dùng', width: 'minmax(8rem, 1fr)', required: true },
@@ -127,6 +127,7 @@ export function WorkstationVirtualList({
   const { theme } = useTheme()
   const rowHeight = theme === 'classic' ? CLASSIC_ROW_HEIGHT : DEFAULT_ROW_HEIGHT
   const viewportRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(480)
   const groupOptions: FilterMenuOption<number>[] = [
@@ -145,6 +146,11 @@ export function WorkstationVirtualList({
   }, [])
 
   useEffect(() => {
+    // Danh sách rỗng -> vùng thân bị gỡ (scrollLeft về 0 mà không có sự kiện cuộn) nên trả tiêu đề về đầu.
+    if (machines.length === 0 && headerRef.current) headerRef.current.style.transform = ''
+  }, [machines.length])
+
+  useEffect(() => {
     const maximumScroll = Math.max(0, machines.length * rowHeight - viewportHeight)
     if (scrollTop > maximumScroll) {
       setScrollTop(maximumScroll)
@@ -153,7 +159,7 @@ export function WorkstationVirtualList({
   }, [machines.length, rowHeight, scrollTop, viewportHeight])
 
   const gridStyle = {
-    '--ws-table-columns': `2.5rem ${visibleColumns.map((column) => column.width).join(' ')}`,
+    '--ws-table-columns': `2rem ${visibleColumns.map((column) => column.width).join(' ')}`,
   } as CSSProperties
   const start = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN)
   const visibleCount = Math.ceil(viewportHeight / rowHeight) + OVERSCAN * 2
@@ -201,7 +207,7 @@ export function WorkstationVirtualList({
 
   return (
     <div className="ws-table" role="table" aria-rowcount={machines.length + 1}>
-      <div className="ws-table__header ws-table__grid" role="row" style={gridStyle}>
+      <div ref={headerRef} className="ws-table__header ws-table__grid" role="row" style={gridStyle}>
         <div role="columnheader"><input type="checkbox" aria-label={allSelected ? 'Bỏ chọn tất cả máy đang hiển thị' : 'Chọn tất cả máy đang hiển thị'} checked={allSelected} onChange={onSelectAll} /></div>
         {visibleColumns.map((column) => {
           if (column.id === 'group') {
@@ -246,7 +252,15 @@ export function WorkstationVirtualList({
       {machines.length === 0 ? (
         <div className="ws-table__empty">{emptyState}</div>
       ) : (
-        <div ref={viewportRef} className="ws-table__viewport" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
+        <div
+          ref={viewportRef}
+          className="ws-table__viewport"
+          onScroll={(event) => {
+            setScrollTop(event.currentTarget.scrollTop)
+            // Thanh cuộn ngang chỉ có ở vùng thân; tiêu đề trượt theo để cột luôn thẳng hàng.
+            if (headerRef.current) headerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`
+          }}
+        >
           <div className="ws-table__canvas" style={{ height: `${machines.length * rowHeight}px` }}>
             {visibleMachines.map((machine, index) => {
               const selectedRow = selected.has(machine.hostName)

@@ -189,7 +189,6 @@ export function AnonymWorkspace() {
       <PageHeader
         eyebrow="Quản trị"
         title="Khách vãng lai"
-        description="Quản lý hồ sơ CCCD và gắn danh tính vào đúng phiên máy vãng lai đang online."
         actions={
           <Button type="button" variant="primary" onClick={openCreate}>
             Thêm khách

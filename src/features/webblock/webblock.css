@@ -1,7 +1,7 @@
 .web-policy-workspace {
   min-width: 0;
   display: grid;
-  gap: var(--space-4);
+  gap: var(--page-gap);
 }
 
 .web-policy-filters {

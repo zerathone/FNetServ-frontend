@@ -511,11 +511,6 @@ export function CustomerWorkspace() {
       <PageHeader
         eyebrow="Thu ngân"
         title="Tài khoản"
-        description={
-          userType === 'member'
-            ? `Tìm theo đầu ${SEARCH_FIELD_LABELS[searchField].toLowerCase()}; xác minh đúng người trước giao dịch.`
-            : 'Tìm theo đầu tên đăng nhập; xác minh đúng người trước giao dịch.'
-        }
         actions={
           canCreateAccount || isAdmin ? (
             <>

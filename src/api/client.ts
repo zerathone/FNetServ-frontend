@@ -160,6 +160,7 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
 // ===== Mock dev — chỉ `npm run dev` VÀ có biến trong `.env.development.local` =====
 //   VITE_ORDERS_MOCK       trang Đơn dịch vụ (1 | empty | error | slow)
 //   VITE_WORKSTATIONS_MOCK danh sách máy đang chạy /workstations/runtime (1 | empty | error | slow)
+//   VITE_HEALTH_MONITOR_MOCK trang Theo dõi hoạt động: /workstations/runtime + phần cứng (xem ./healthMonitorMock.ts)
 // Chi tiết + dữ liệu giả: ./ordersMock.ts. Bản build luôn là undefined nên nhánh này không bao giờ chạy.
 // Endpoint không có trong bảng mock vẫn đi ra server thật.
 function readMockFlag(raw: string | undefined): string | undefined {
@@ -169,6 +170,17 @@ const ORDERS_MOCK = readMockFlag(import.meta.env.DEV ? (import.meta.env.VITE_ORD
 const WORKSTATIONS_MOCK = readMockFlag(
   import.meta.env.DEV ? (import.meta.env.VITE_WORKSTATIONS_MOCK as string | undefined) : undefined,
 )
+
+const HEALTH_MONITOR_MOCK = readMockFlag(
+  import.meta.env.DEV ? (import.meta.env.VITE_HEALTH_MONITOR_MOCK as string | undefined) : undefined,
+)
+
+async function tryHealthMock<T>(path: string): Promise<{ hit: true; data: T } | { hit: false }> {
+  if (!HEALTH_MONITOR_MOCK) return { hit: false }
+  const { mockHealthRequest } = await import('./healthMonitorMock')
+  const result = await mockHealthRequest(HEALTH_MONITOR_MOCK, path)
+  return result.handled ? { hit: true, data: result.data as T } : { hit: false }
+}
 
 async function tryOrdersMock<T>(
   method: 'GET' | 'POST',
@@ -187,6 +199,9 @@ async function tryOrdersMock<T>(
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
+  // Mock trang Theo dõi hoạt động đứng TRƯỚC mock Đơn dịch vụ: danh sách máy của nó là tập cha của 6 máy bên kia.
+  const healthMock = await tryHealthMock<T>(path)
+  if (healthMock.hit) return healthMock.data
   const mock = await tryOrdersMock<T>('GET', path)
   if (mock.hit) return mock.data
   const response = await fetch(`${API_BASE_URL}${path}`, {

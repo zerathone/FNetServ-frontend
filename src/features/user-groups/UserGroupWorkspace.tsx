@@ -193,7 +193,6 @@ export function UserGroupWorkspace() {
       <PageHeader
         eyebrow="Thiết lập giá"
         title="Nhóm khách hàng & bảng giá"
-        description="Quản lý nhóm hội viên/vãng lai và giá giờ theo từng nhóm máy."
         actions={
           <>
             <Button

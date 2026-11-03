@@ -142,6 +142,7 @@ import { PrintTicketDialog } from '../orders/PrintTicketDialog'
 import { StaffOrderDialog } from '../orders/StaffOrderDialog'
 import { CallBellIcon } from './CallBellIcon'
 import { InspectorGroup } from './InspectorGroup'
+import { WorkstationSummaryCompact } from './WorkstationSummaryCompact'
 import { MachineActivityDialog } from './MachineActivityDialog'
 import {
   MachineOrderList,
@@ -430,6 +431,17 @@ function getInitialGroupChartOrientation(): 'donut' | 'row' {
   }
 }
 
+// Khối thống kê đầu trang: false = 3 thẻ đầy đủ (mặc định), true = thanh thu gọn 1 hàng (WorkstationSummaryCompact).
+const SUMMARY_COMPACT_STORAGE_KEY = 'fnet.workstations.summary-compact.v1'
+
+function getInitialSummaryCompact(): boolean {
+  try {
+    return window.localStorage.getItem(SUMMARY_COMPACT_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 const DONUT_RADIUS = 15.9155
 const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
 
@@ -480,6 +492,7 @@ export function WorkstationWorkspace() {
   const [groupId, setGroupId] = useState(0)
   const [optionalColumns, setOptionalColumns] = useState(getInitialOptionalColumns)
   const [groupChartOrientation, setGroupChartOrientation] = useState<'donut' | 'row'>(getInitialGroupChartOrientation)
+  const [summaryCompact, setSummaryCompact] = useState(getInitialSummaryCompact)
   const groupScrollRef = useRef<HTMLDivElement | null>(null)
   const [groupScrollState, setGroupScrollState] = useState({ canLeft: false, canRight: false })
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -558,6 +571,14 @@ export function WorkstationWorkspace() {
   useEffect(() => {
     window.localStorage.setItem(GROUP_CHART_ORIENTATION_STORAGE_KEY, groupChartOrientation)
   }, [groupChartOrientation])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SUMMARY_COMPACT_STORAGE_KEY, summaryCompact ? '1' : '0')
+    } catch {
+      // Trình duyệt chặn lưu trữ: vẫn dùng được, chỉ không nhớ lựa chọn sau lần tải lại.
+    }
+  }, [summaryCompact])
 
   const toggleColumn = (id: ColumnId) => {
     setOptionalColumns((current) => {
@@ -1342,7 +1363,8 @@ export function WorkstationWorkspace() {
       resizeObserver.disconnect()
       window.removeEventListener('resize', handleChange)
     }
-  }, [groupChartOrientation, groupUsage.length, updateGroupScrollState])
+    // summaryCompact: dải khu vực của bản đầy đủ bị gỡ khỏi DOM khi thu gọn -> gắn lại listener khi mở rộng.
+  }, [groupChartOrientation, groupUsage.length, summaryCompact, updateGroupScrollState])
 
   const scrollGroupUsage = (direction: 1 | -1) => {
     const el = groupScrollRef.current
@@ -1415,7 +1437,7 @@ export function WorkstationWorkspace() {
       : 0
 
   return (
-    <section className="ws-workspace">
+    <section className="ws-workspace ws-workspace--fill">
       <PageHeader
         eyebrow="Thu ngân"
         title="Máy trạm"
@@ -1464,239 +1486,269 @@ export function WorkstationWorkspace() {
         }
       />
 
-      <div className="ws-summary" aria-label="Tổng quan máy trạm">
-        <div className="ws-summary__card ws-summary__card--stacked">
-          <div className="ws-summary__top">
-          <button type="button" className={`ws-summary__total ${filter === 'all' ? 'is-active' : ''}`} onClick={() => setFilter('all')}>
-            <span>Máy trạm</span>
-            <strong>{allMachines.length}</strong>
-          </button>
-          <div className="ws-summary__breakdown">
-            <button type="button" className={`ws-summary__row ws-summary__playing ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
-              <span className="ws-summary__dot ws-summary__dot--playing" aria-hidden="true" />
-              <span className="ws-summary__label">Sử dụng</span>
-              <strong>{counts.playing}</strong>
+      <div className="ws-summary-wrap">
+      {summaryCompact ? (
+        <WorkstationSummaryCompact
+          total={allMachines.length}
+          counts={counts}
+          fleetSegments={fleetSegments}
+          fleetTotal={fleetTotal}
+          filter={filter}
+          onFilterChange={setFilter}
+          zones={groupUsage}
+          overallUsagePercent={overallUsagePercent}
+          zoneId={groupId}
+          onZoneToggle={(id) => setGroupId((current) => (current === id ? 0 : id))}
+          onExpand={() => setSummaryCompact(false)}
+        />
+      ) : (
+        <div className="ws-summary" aria-label="Tổng quan máy trạm">
+          <div className="ws-summary__card ws-summary__card--fit ws-summary__card--stacked">
+            <div className="ws-summary__top">
+            <button type="button" className={`ws-summary__total ${filter === 'all' ? 'is-active' : ''}`} onClick={() => setFilter('all')}>
+              <span>Máy trạm</span>
+              <strong>{allMachines.length}</strong>
             </button>
-            <button type="button" className={`ws-summary__row ws-summary__available ${filter === 'available' ? 'is-active' : ''}`} onClick={() => setFilter('available')}>
-              <span className="ws-summary__dot ws-summary__dot--available" aria-hidden="true" />
-              <span className="ws-summary__label">Sẵn sàng</span>
-              <strong>{counts.available}</strong>
-            </button>
-            <button type="button" className={`ws-summary__row ws-summary__disconnected ${filter === 'disconnected' ? 'is-active' : ''}`} onClick={() => setFilter('disconnected')}>
-              <span className="ws-summary__dot ws-summary__dot--disconnected" aria-hidden="true" />
-              <span className="ws-summary__label">Mất kết nối</span>
-              <strong>{counts.disconnected}</strong>
-            </button>
-          </div>
-          </div>
-          {fleetTotal > 0 ? (
-            <div className="ws-fleet">
-              <div className="ws-fleet__col">
-                {/* Dòng % tách riêng khỏi track màu bên dưới -- bo tròn chỉ áp cho track (cao 6px), không áp
-                    cho cả khối gồm chữ % (cao hơn nhiều) thì bán kính mới thấy rõ được. */}
-                <div className="ws-fleet__labels" aria-hidden="true">
-                  {fleetSegments.map((segment) => {
-                    const isZero = segment.value <= 0
-                    const percent = Math.round((segment.value / fleetTotal) * 100)
-                    return (
-                      <span
-                        key={segment.key}
-                        className={`ws-fleet__pct ws-fleet__pct--${segment.key}`}
-                        style={isZero ? { flex: '0 0 2px', minWidth: 2 } : { flexGrow: segment.value }}
-                      >
-                        {isZero ? '' : `${percent}%`}
-                      </span>
-                    )
-                  })}
+            <div className="ws-summary__breakdown">
+              <button type="button" className={`ws-summary__row ws-summary__playing ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
+                <span className="ws-summary__dot ws-summary__dot--playing" aria-hidden="true" />
+                <span className="ws-summary__label">Sử dụng</span>
+                <strong>{counts.playing}</strong>
+              </button>
+              <button type="button" className={`ws-summary__row ws-summary__available ${filter === 'available' ? 'is-active' : ''}`} onClick={() => setFilter('available')}>
+                <span className="ws-summary__dot ws-summary__dot--available" aria-hidden="true" />
+                <span className="ws-summary__label">Sẵn sàng</span>
+                <strong>{counts.available}</strong>
+              </button>
+              <button type="button" className={`ws-summary__row ws-summary__disconnected ${filter === 'disconnected' ? 'is-active' : ''}`} onClick={() => setFilter('disconnected')}>
+                <span className="ws-summary__dot ws-summary__dot--disconnected" aria-hidden="true" />
+                <span className="ws-summary__label">Mất kết nối</span>
+                <strong>{counts.disconnected}</strong>
+              </button>
+            </div>
+            </div>
+            {fleetTotal > 0 ? (
+              <div className="ws-fleet">
+                <div className="ws-fleet__col">
+                  {/* Dòng % tách riêng khỏi track màu bên dưới -- bo tròn chỉ áp cho track (cao 6px), không áp
+                      cho cả khối gồm chữ % (cao hơn nhiều) thì bán kính mới thấy rõ được. */}
+                  <div className="ws-fleet__labels" aria-hidden="true">
+                    {fleetSegments.map((segment) => {
+                      const isZero = segment.value <= 0
+                      const percent = Math.round((segment.value / fleetTotal) * 100)
+                      return (
+                        <span
+                          key={segment.key}
+                          className={`ws-fleet__pct ws-fleet__pct--${segment.key}`}
+                          style={isZero ? { flex: '0 0 2px', minWidth: 2 } : { flexGrow: segment.value }}
+                        >
+                          {isZero ? '' : `${percent}%`}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <div className="ws-fleet__bar" role="img" aria-label={`Tình trạng ${fleetTotal} máy trạm của phòng máy: ${fleetSegments.map((s) => `${s.label} ${s.value}`).join(', ')}`}>
+                    {fleetSegments.map((segment) => {
+                      const segFilter = segment.filter
+                      const isZero = segment.value <= 0
+                      const title = `${segment.label}: ${segment.value}/${fleetTotal}`
+                      const segClassName = `ws-fleet__seg ws-fleet__seg--${segment.key}${isZero ? ' ws-fleet__seg--zero' : ''}`
+                      const segStyle = isZero ? undefined : { flexGrow: segment.value }
+                      return segFilter ? (
+                        <button
+                          key={segment.key}
+                          type="button"
+                          className={`${segClassName} ${filter === segFilter ? 'is-active' : ''}`}
+                          style={segStyle}
+                          title={title}
+                          onClick={() => setFilter(segFilter)}
+                        />
+                      ) : (
+                        <span key={segment.key} className={segClassName} style={segStyle} title={title} />
+                      )
+                    })}
+                  </div>
                 </div>
-                <div className="ws-fleet__bar" role="img" aria-label={`Tình trạng ${fleetTotal} máy trạm của phòng máy: ${fleetSegments.map((s) => `${s.label} ${s.value}`).join(', ')}`}>
-                  {fleetSegments.map((segment) => {
-                    const segFilter = segment.filter
-                    const isZero = segment.value <= 0
-                    const title = `${segment.label}: ${segment.value}/${fleetTotal}`
-                    const segClassName = `ws-fleet__seg ws-fleet__seg--${segment.key}${isZero ? ' ws-fleet__seg--zero' : ''}`
-                    const segStyle = isZero ? undefined : { flexGrow: segment.value }
-                    return segFilter ? (
-                      <button
-                        key={segment.key}
-                        type="button"
-                        className={`${segClassName} ${filter === segFilter ? 'is-active' : ''}`}
-                        style={segStyle}
-                        title={title}
-                        onClick={() => setFilter(segFilter)}
-                      />
-                    ) : (
-                      <span key={segment.key} className={segClassName} style={segStyle} title={title} />
-                    )
-                  })}
-                </div>
-              </div>
-              <strong className="ws-fleet__total" title="Tổng số máy">{fleetTotal}</strong>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="ws-summary__card">
-          <button type="button" className={`ws-summary__total ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
-            <span>Sử dụng</span>
-            <strong>{counts.playing}</strong>
-          </button>
-          <div className="ws-summary__breakdown">
-            <div className="ws-summary__row">
-              <span className="ws-summary__dot ws-summary__dot--member" aria-hidden="true" />
-              <span className="ws-summary__label">Hội viên</span>
-              <strong>{counts.member}</strong>
-            </div>
-            <div className="ws-summary__row">
-              <span className="ws-summary__dot ws-summary__dot--anonym" aria-hidden="true" />
-              <span className="ws-summary__label">Vãng lai</span>
-              <strong>{counts.anonym}</strong>
-            </div>
-            <div className="ws-summary__row">
-              <span className="ws-summary__dot ws-summary__dot--combo" aria-hidden="true" />
-              <span className="ws-summary__label">Combo</span>
-              <strong>{counts.combo}</strong>
-            </div>
-            {counts.admin > 0 ? (
-              <div className="ws-summary__row">
-                <span className="ws-summary__dot ws-summary__dot--admin" aria-hidden="true" />
-                <span className="ws-summary__label">Admin</span>
-                <strong>{counts.admin}</strong>
+                <strong className="ws-fleet__total" title="Tổng số máy">{fleetTotal}</strong>
               </div>
             ) : null}
           </div>
-        </div>
 
-        {groupUsage.length > 0 ? (
-          <div className="ws-summary__card">
-            <div className="ws-summary__total ws-summary__total--static">
-              <span>Khu vực</span>
-              <strong>{overallUsagePercent}%</strong>
-              <div className="ws-group-usage__orientation" role="group" aria-label="Kiểu biểu đồ khu vực">
-                <button
-                  type="button"
-                  className={`ws-group-usage__orientationBtn ${groupChartOrientation === 'row' ? 'is-active' : ''}`}
-                  aria-pressed={groupChartOrientation === 'row'}
-                  title="Biểu đồ thanh ngang"
-                  onClick={() => setGroupChartOrientation('row')}
-                >
-                  <ChartBarHorizontal size={18} weight="bold" />
-                </button>
-                <button
-                  type="button"
-                  className={`ws-group-usage__orientationBtn ${groupChartOrientation === 'donut' ? 'is-active' : ''}`}
-                  aria-pressed={groupChartOrientation === 'donut'}
-                  title="Biểu đồ donut"
-                  onClick={() => setGroupChartOrientation('donut')}
-                >
-                  <ChartDonut size={18} weight="bold" />
-                </button>
+          <div className="ws-summary__card ws-summary__card--fit">
+            <button type="button" className={`ws-summary__total ${filter === 'playing' ? 'is-active' : ''}`} onClick={() => setFilter('playing')}>
+              <span>Sử dụng</span>
+              <strong>{counts.playing}</strong>
+            </button>
+            <div className="ws-summary__breakdown">
+              <div className="ws-summary__row">
+                <span className="ws-summary__dot ws-summary__dot--member" aria-hidden="true" />
+                <span className="ws-summary__label">Hội viên</span>
+                <strong>{counts.member}</strong>
               </div>
-            </div>
-            <div className="ws-group-usage__scrollWrap">
-              {groupScrollState.canLeft ? (
-                <button
-                  type="button"
-                  className="ws-group-usage__scrollBtn ws-group-usage__scrollBtn--left"
-                  aria-label="Cuộn sang trái"
-                  onClick={() => scrollGroupUsage(-1)}
-                >
-                  <CaretLeft size={16} weight="bold" />
-                </button>
-              ) : null}
-              {groupChartOrientation === 'donut' ? (
-                <div className="ws-group-usage__breakdown" ref={groupScrollRef}>
-                  {groupUsage.map((group) => {
-                    const dashArray = `${(group.percent / 100) * DONUT_CIRCUMFERENCE} ${DONUT_CIRCUMFERENCE}`
-                    return (
-                      <button
-                        key={group.id}
-                        type="button"
-                        className={`ws-group-usage__donutItem ${groupId === group.id ? 'is-active' : ''} ${group.percent >= 100 ? 'is-full' : ''}`}
-                        aria-pressed={groupId === group.id}
-                        aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
-                        title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
-                        onClick={() => setGroupId((current) => (current === group.id ? 0 : group.id))}
-                      >
-                        <span className="ws-group-usage__donutCount">
-                          {group.inUse}/{group.total}
-                        </span>
-                        <div className="ws-group-usage__donut">
-                          <svg viewBox="0 0 36 36">
-                            <circle className="ws-group-usage__donutTrack" cx="18" cy="18" r={DONUT_RADIUS} />
-                            <circle
-                              className="ws-group-usage__donutFill"
-                              cx="18"
-                              cy="18"
-                              r={DONUT_RADIUS}
-                              strokeDasharray={dashArray}
-                            />
-                          </svg>
-                          <span className="ws-group-usage__donutLabel">
-                            {group.percent >= 100 ? (
-                              <Check size={11} weight="bold" aria-hidden="true" />
-                            ) : (
-                              `${group.percent}%`
-                            )}
-                          </span>
-                        </div>
-                        <span className="ws-group-usage__donutName" title={group.name}>
-                          {group.name}
-                        </span>
-                      </button>
-                    )
-                  })}
+              <div className="ws-summary__row">
+                <span className="ws-summary__dot ws-summary__dot--anonym" aria-hidden="true" />
+                <span className="ws-summary__label">Vãng lai</span>
+                <strong>{counts.anonym}</strong>
+              </div>
+              <div className="ws-summary__row">
+                <span className="ws-summary__dot ws-summary__dot--combo" aria-hidden="true" />
+                <span className="ws-summary__label">Combo</span>
+                <strong>{counts.combo}</strong>
+              </div>
+              {counts.admin > 0 ? (
+                <div className="ws-summary__row">
+                  <span className="ws-summary__dot ws-summary__dot--admin" aria-hidden="true" />
+                  <span className="ws-summary__label">Admin</span>
+                  <strong>{counts.admin}</strong>
                 </div>
-              ) : (
-                <div className="ws-group-usage__breakdown ws-group-usage__breakdown--row" ref={groupScrollRef}>
-                  {groupUsage.map((group) => (
-                    <button
-                      key={group.id}
-                      type="button"
-                      className={`ws-group-usage__row ${groupId === group.id ? 'is-active' : ''}`}
-                      aria-pressed={groupId === group.id}
-                      title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
-                      onClick={() => setGroupId((current) => (current === group.id ? 0 : group.id))}
-                    >
-                      <span
-                        className="ws-summary__dot ws-group-usage__dot"
-                        style={{ opacity: 0.16 + (group.percent / 100) * 0.84 }}
-                        aria-hidden="true"
-                      />
-                      <span className="ws-summary__label ws-group-usage__name" title={group.name}>
-                        {group.name}
-                      </span>
-                      <strong className="ws-group-usage__count">{group.inUse}/{group.total}</strong>
-                      <div
-                        className="ws-group-usage__track"
-                        role="img"
-                        aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
-                      >
-                        <div className="ws-group-usage__fill" style={{ width: `${group.percent}%` }} />
-                        <span
-                          className={`ws-group-usage__trackLabel ${group.percent >= 50 ? 'ws-group-usage__trackLabel--full' : ''}`}
-                        >
-                          {group.percent >= 100 ? 'Đầy' : `${group.percent}%`}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {groupScrollState.canRight ? (
-                <button
-                  type="button"
-                  className="ws-group-usage__scrollBtn ws-group-usage__scrollBtn--right"
-                  aria-label="Cuộn sang phải"
-                  onClick={() => scrollGroupUsage(1)}
-                >
-                  <CaretRight size={16} weight="bold" />
-                </button>
               ) : null}
             </div>
           </div>
-        ) : null}
 
+          {groupUsage.length > 0 ? (
+            <div className="ws-summary__card ws-summary__card--zones">
+              <div className="ws-summary__total ws-summary__total--static">
+                <span>Khu vực</span>
+                <strong>{overallUsagePercent}%</strong>
+                <div className="ws-group-usage__orientation" role="group" aria-label="Kiểu biểu đồ khu vực">
+                  <button
+                    type="button"
+                    className={`ws-group-usage__orientationBtn ${groupChartOrientation === 'row' ? 'is-active' : ''}`}
+                    aria-pressed={groupChartOrientation === 'row'}
+                    title="Biểu đồ thanh ngang"
+                    onClick={() => setGroupChartOrientation('row')}
+                  >
+                    <ChartBarHorizontal size={18} weight="bold" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`ws-group-usage__orientationBtn ${groupChartOrientation === 'donut' ? 'is-active' : ''}`}
+                    aria-pressed={groupChartOrientation === 'donut'}
+                    title="Biểu đồ donut"
+                    onClick={() => setGroupChartOrientation('donut')}
+                  >
+                    <ChartDonut size={18} weight="bold" />
+                  </button>
+                </div>
+              </div>
+              <div className="ws-group-usage__scrollWrap">
+                {groupScrollState.canLeft ? (
+                  <button
+                    type="button"
+                    className="ws-group-usage__scrollBtn ws-group-usage__scrollBtn--left"
+                    aria-label="Cuộn sang trái"
+                    onClick={() => scrollGroupUsage(-1)}
+                  >
+                    <CaretLeft size={16} weight="bold" />
+                  </button>
+                ) : null}
+                {groupChartOrientation === 'donut' ? (
+                  <div className="ws-group-usage__breakdown" ref={groupScrollRef}>
+                    {groupUsage.map((group) => {
+                      const dashArray = `${(group.percent / 100) * DONUT_CIRCUMFERENCE} ${DONUT_CIRCUMFERENCE}`
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          className={`ws-group-usage__donutItem ${groupId === group.id ? 'is-active' : ''} ${group.percent >= 100 ? 'is-full' : ''}`}
+                          aria-pressed={groupId === group.id}
+                          aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
+                          title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
+                          onClick={() => setGroupId((current) => (current === group.id ? 0 : group.id))}
+                        >
+                          <span className="ws-group-usage__donutCount">
+                            {group.inUse}/{group.total}
+                          </span>
+                          <div className="ws-group-usage__donut">
+                            <svg viewBox="0 0 36 36">
+                              <circle className="ws-group-usage__donutTrack" cx="18" cy="18" r={DONUT_RADIUS} />
+                              <circle
+                                className="ws-group-usage__donutFill"
+                                cx="18"
+                                cy="18"
+                                r={DONUT_RADIUS}
+                                strokeDasharray={dashArray}
+                              />
+                            </svg>
+                            <span className="ws-group-usage__donutLabel">
+                              {group.percent >= 100 ? (
+                                <Check size={11} weight="bold" aria-hidden="true" />
+                              ) : (
+                                `${group.percent}%`
+                              )}
+                            </span>
+                          </div>
+                          <span className="ws-group-usage__donutName" title={group.name}>
+                            {group.name}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="ws-group-usage__breakdown ws-group-usage__breakdown--row" ref={groupScrollRef}>
+                    {groupUsage.map((group) => (
+                      <button
+                        key={group.id}
+                        type="button"
+                        className={`ws-group-usage__row ${groupId === group.id ? 'is-active' : ''}`}
+                        aria-pressed={groupId === group.id}
+                        title={`${group.name}: ${group.inUse}/${group.total} (${group.percent}%)`}
+                        onClick={() => setGroupId((current) => (current === group.id ? 0 : group.id))}
+                      >
+                        <span
+                          className="ws-summary__dot ws-group-usage__dot"
+                          style={{ opacity: 0.16 + (group.percent / 100) * 0.84 }}
+                          aria-hidden="true"
+                        />
+                        <span className="ws-summary__label ws-group-usage__name" title={group.name}>
+                          {group.name}
+                        </span>
+                        <strong className="ws-group-usage__count">{group.inUse}/{group.total}</strong>
+                        <div
+                          className="ws-group-usage__track"
+                          role="img"
+                          aria-label={`${group.name}: ${group.inUse}/${group.total} máy đang dùng (${group.percent}%)`}
+                        >
+                          <div className="ws-group-usage__fill" style={{ width: `${group.percent}%` }} />
+                          <span
+                            className={`ws-group-usage__trackLabel ${group.percent >= 50 ? 'ws-group-usage__trackLabel--full' : ''}`}
+                          >
+                            {group.percent >= 100 ? 'Đầy' : `${group.percent}%`}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {groupScrollState.canRight ? (
+                  <button
+                    type="button"
+                    className="ws-group-usage__scrollBtn ws-group-usage__scrollBtn--right"
+                    aria-label="Cuộn sang phải"
+                    onClick={() => scrollGroupUsage(1)}
+                  >
+                    <CaretRight size={16} weight="bold" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+        </div>
+      )}
+      {summaryCompact ? null : (
+        <button
+          type="button"
+          className="ws-summary-toggle"
+          aria-label="Thu gọn thống kê"
+          title="Thu gọn thống kê"
+          aria-expanded
+          onClick={() => setSummaryCompact(true)}
+        >
+          <CaretUp size={16} weight="bold" aria-hidden="true" />
+        </button>
+      )}
       </div>
 
       {Math.abs(serverClockDrift) > 120_000 ? (
@@ -1843,7 +1895,7 @@ export function WorkstationWorkspace() {
         </div>
       ) : null}
 
-      <div className="ws-content">
+      <div className="ws-content ws-content--table">
         {snapshotQuery.isLoading ? (
           <StateView title="Đang tải danh sách máy" description="Đang lấy snapshot vận hành từ máy chủ." />
         ) : snapshotQuery.isError ? (
