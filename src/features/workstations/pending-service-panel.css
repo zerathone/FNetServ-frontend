@@ -1,0 +1,664 @@
+/* Khung "Dịch vụ chờ" bên phải danh sách máy trạm — chỉ 4 cột: Tên máy · Dịch vụ · SL · Chờ. */
+.ws-body {
+  min-width: 0;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.ws-workspace--fill > .ws-body {
+  flex: 1 1 0;
+  min-height: 14rem;
+}
+
+.ws-body > .ws-content--table {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ws-pending {
+  flex: 0 0 19.25rem;
+  width: 19.25rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.ws-pending.is-collapsed {
+  flex-basis: 2.75rem;
+  width: 2.75rem;
+}
+
+.ws-pending__rail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ws-pending__rail:hover,
+.ws-pending__rail:focus-visible {
+  color: var(--color-action-primary);
+  background: var(--color-surface-hover);
+}
+
+.ws-pending__rail-count,
+.ws-pending__count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  color: white;
+  background: var(--color-danger);
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+
+.ws-pending__rail-label {
+  writing-mode: vertical-rl;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ws-pending__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-1) 0 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.ws-pending__header h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ws-pending__collapse,
+.ws-pending__more {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.375rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.ws-pending__collapse:hover,
+.ws-pending__collapse:focus-visible,
+.ws-pending__more:hover,
+.ws-pending__more:focus-visible {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.ws-pending__cols,
+.ws-pending__row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) 3.5rem 1.25rem 2.25rem 1.25rem;
+  align-items: center;
+  column-gap: 0.25rem;
+  padding: 0 0.125rem 0 var(--space-1);
+}
+
+.ws-pending__cols {
+  min-height: 1.375rem;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.ws-pending__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ws-pending__row {
+  min-height: 1.5rem;
+  padding-top: 0.0625rem;
+  padding-bottom: 0.0625rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-default) 60%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: default;
+}
+
+.ws-pending__row:hover {
+  background: var(--color-surface-hover);
+}
+
+.ws-pending__row:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ws-pending__row.is-selected {
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+}
+
+.ws-pending__host {
+  min-width: 0;
+  display: grid;
+  line-height: 1.2;
+}
+
+.ws-pending__host > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dòng mờ dưới tên máy: tên hội viên / "vãng lai". */
+.ws-pending__host small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis; /* tên dài quá thì cắt, hiện "…" */
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  font-weight: 400;
+}
+
+/* Tên dịch vụ dài thì xuống dòng (tối đa 2 dòng) thay vì nới rộng khung. */
+.ws-pending__name {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ws-pending__host {
+  font-weight: 700;
+}
+
+.is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Icon hình thức thanh toán + số tiền, canh phải ngay cạnh cột Yêu cầu. */
+.ws-pending__money {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ws-pending__money .is-cash {
+  color: var(--color-success);
+}
+
+.ws-pending__money .is-deduct {
+  color: var(--color-info);
+}
+
+.ws-pending__money .is-request {
+  color: var(--color-warning-text, var(--color-warning));
+}
+
+.ws-pending__row .is-changed {
+  color: var(--color-warning-text, var(--color-warning));
+  font-weight: 800;
+}
+
+.ws-pending__wait {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.ws-pending__wait--info {
+  color: var(--color-text-muted);
+}
+
+.ws-pending__wait--warning {
+  color: var(--color-warning-text, var(--color-warning));
+}
+
+.ws-pending__wait--danger {
+  color: var(--color-danger-text, var(--color-danger));
+}
+
+.ws-pending__empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.ws-pending__empty.is-compact {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+/* Tab "Chờ duyệt" / "Đã duyệt" nằm ngay trên thanh tiêu đề của khung (thay cho tiêu đề). */
+.ws-pending__tabs {
+  align-self: stretch;
+  display: flex;
+  min-width: 0;
+}
+
+.ws-pending__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 1.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 var(--space-2);
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ws-pending__tab:hover {
+  background: var(--color-surface-hover);
+}
+
+.ws-pending__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ws-pending__tab.is-active {
+  color: var(--color-action-primary);
+  border-bottom-color: var(--color-action-primary);
+}
+
+/* Huy hiệu "Đã duyệt nhưng chưa thu tiền": màu cảnh báo thay vì đỏ (đỏ dành cho đơn đang chờ duyệt). */
+.ws-pending__count.is-warning {
+  color: var(--color-warning-contrast, #1f1500);
+  background: var(--color-warning);
+}
+
+/* Huy hiệu "Hoàn thành": trung tính, không đòi xử lý. */
+.ws-pending__count.is-neutral {
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-muted) 28%, transparent);
+}
+
+/* Tiêu đề nhóm trong tab "Đã duyệt". */
+.ws-pending__section {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.375rem;
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--color-border-default);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.ws-pending__section strong {
+  color: var(--color-text-primary);
+}
+
+.ws-pending__section.is-unpaid strong {
+  color: var(--color-warning-text, var(--color-warning));
+}
+
+.ws-pending__section.is-done strong {
+  color: var(--color-success-text, var(--color-success));
+}
+
+.ws-pending__section-count {
+  min-width: 1.125rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-muted) 22%, transparent);
+  font-weight: 800;
+  text-align: center;
+}
+
+.ws-pending__section-hint {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+/* Đơn đã xong: dịu hơn để mắt dồn vào đơn còn phải xử lý. */
+.ws-pending__row.is-done {
+  color: var(--color-text-secondary);
+}
+
+.ws-pending__link {
+  border: 0;
+  padding: 0;
+  color: var(--color-action-primary);
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ws-pending__alert {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.ws-pending__alert > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ws-pending__qty {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.ws-pending__qty small {
+  color: var(--color-text-muted);
+}
+
+/* Menu chuột phải — vẽ qua portal, neo theo con trỏ. */
+.ws-pending__menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  width: 14rem;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated, var(--color-surface-default));
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+}
+
+.ws-pending__menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.4rem var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ws-pending__menu-item svg {
+  color: var(--color-text-muted);
+}
+
+.ws-pending__menu-item:hover:not(:disabled),
+.ws-pending__menu-item:focus-visible {
+  background: var(--color-surface-hover);
+  outline: none;
+}
+
+.ws-pending__menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.ws-pending__menu-item--danger svg {
+  color: var(--color-danger-text, var(--color-danger));
+}
+
+.ws-pending__menu-sep {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--color-border-default);
+}
+
+@media (max-width: 900px) {
+  .ws-body {
+    flex-direction: column;
+  }
+
+  .ws-pending,
+  .ws-pending.is-collapsed {
+    flex-basis: auto;
+    width: auto;
+    max-height: 16rem;
+  }
+
+  .ws-pending.is-collapsed {
+    max-height: none;
+  }
+
+  .ws-pending__rail {
+    flex-direction: row;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .ws-pending__rail-label {
+    writing-mode: horizontal-tb;
+  }
+}
+
+/* Nhóm nút ở tiêu đề khung: chuyển sang dạng thẻ + thu gọn. */
+.ws-pending__header-end {
+  display: flex;
+  align-items: center;
+}
+
+/* ===== Kiểu hiển thị "thẻ": dãy thẻ ngang trên cùng hàng thanh công cụ (giữa ô tìm kiếm và nút Cột hiển thị). ===== */
+.ws-tags {
+  flex: 1 1 18rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-tags__switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-default);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ws-tags__switch:hover,
+.ws-tags__switch:focus-visible {
+  color: var(--color-action-primary);
+  border-color: var(--color-action-primary);
+}
+
+/* Vùng chứa dãy thẻ + 2 nút nổi cuộn trái/phải (nút đè lên mép dãy, không chiếm chỗ). */
+.ws-tags__scroller {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.ws-tags__scroll {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  margin-top: -0.75rem;
+  border: 1px solid var(--color-border-strong, var(--color-border-default));
+  border-radius: 999px;
+  padding: 0;
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-surface-elevated, var(--color-surface-default)) 94%, transparent);
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+  cursor: pointer;
+}
+
+.ws-tags__scroll:hover,
+.ws-tags__scroll:focus-visible {
+  color: var(--color-action-primary);
+  border-color: var(--color-action-primary);
+}
+
+.ws-tags__scroll--left {
+  left: 0.125rem;
+}
+
+.ws-tags__scroll--right {
+  right: 0.125rem;
+}
+
+.ws-tags__list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.ws-tags__list::-webkit-scrollbar {
+  display: none;
+}
+
+.ws-tags__empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.ws-tag {
+  flex: none;
+  max-width: 17rem;
+  height: var(--control-height-compact);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 0.125rem 0 var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-left: 3px solid var(--color-info);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: var(--color-surface-default);
+  font-size: var(--font-size-sm);
+  cursor: default;
+}
+
+.ws-tag--warning {
+  border-left-color: var(--color-warning);
+}
+
+.ws-tag--danger {
+  border-left-color: var(--color-danger);
+}
+
+.ws-tag:hover {
+  background: var(--color-surface-hover);
+}
+
+.ws-tag:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.ws-tag.is-selected {
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+}
+
+.ws-tag__host {
+  min-width: 0;
+  max-width: 5rem;
+  display: grid;
+  line-height: 1.15;
+}
+
+.ws-tag__host > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-tag__host small {
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  font-weight: 400;
+}
+
+.ws-tag__main {
+  min-width: 0;
+  display: grid;
+  line-height: 1.15;
+}
+
+.ws-tag__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ws-tag__name em {
+  font-style: normal;
+  color: var(--color-text-muted);
+}
+
+.ws-tag__name em.is-changed {
+  color: var(--color-warning-text, var(--color-warning));
+  font-weight: 800;
+}
+
+.ws-tag__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

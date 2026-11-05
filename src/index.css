@@ -45,7 +45,7 @@ button {
   position: fixed;
   inset: 0;
   background-color: var(--color-overlay);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(1px);
   display: flex;
   align-items: center;
   justify-content: center;

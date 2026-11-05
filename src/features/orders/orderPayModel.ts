@@ -161,6 +161,27 @@ export function payGates(
   return { accept: machineBase, cash, deduct }
 }
 
+/**
+ * Lý do khóa Thanh toán / Cấn trừ của đơn ĐÃ DUYỆT còn nợ tiền (`undefined` = bật). Hình thức khách đã chọn tại máy
+ * khóa nút còn lại (user chốt 2026-10-05, BE kiểm lại). Dùng chung /orders và khung "Chờ duyệt" ở Máy trạm.
+ */
+export function acceptedUnpaidGates(
+  group: { lockedMethod: 'cash' | 'deduct' | null; hostName: string | null },
+  hasDeductRight: boolean,
+) {
+  const cashReason =
+    group.lockedMethod === 'deduct' ? 'Khách đã chọn cấn trừ tại máy — dùng nút Cấn trừ.' : undefined
+  const deductReason =
+    group.lockedMethod === 'cash'
+      ? 'Khách đã chọn tiền mặt tại máy — dùng nút Thanh toán.'
+      : !hasDeductRight
+        ? `Thiếu quyền cấn trừ dịch vụ (${SERVICE_EXCEPT_RIGHT}).`
+        : !group.hostName
+          ? 'Hội viên không online tại máy nào — không cấn trừ được.'
+          : undefined
+  return { cashReason, deductReason }
+}
+
 /** Dòng gửi `/service/payrequest`: món chính + topping cùng một lần (parity Qt `expandSelectedRows`). */
 export function payItems(order: GroupedOrder, overrides: QtyOverrides = {}) {
   return [order, ...order.children].map((line) => ({

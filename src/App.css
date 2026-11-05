@@ -1692,8 +1692,12 @@
 }
 
 .data-table th {
+  padding-block: var(--table-header-padding-y);
   color: var(--text-muted);
-  font-weight: 600;
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  letter-spacing: var(--table-header-letter-spacing);
+  line-height: var(--table-header-line-height);
   position: sticky;
   top: 0;
   background: var(--bg-card);
@@ -1702,6 +1706,37 @@
 
 .data-table td {
   color: var(--text-primary);
+}
+
+/* Ô ghi chú dài của bảng nhật ký: width:100% + max-width:0 để ô nhận phần rộng còn lại của bảng và cho phép cắt "…". */
+.data-table .log-note-cell {
+  width: 100%;
+  max-width: 0;
+}
+
+/* Ô ghi chú ăn hết phần rộng còn lại nên các cột kia không được co: ngày/giờ/ID/trạng thái luôn 1 dòng. */
+.data-table:has(.log-note-cell) td:not(.log-note-cell) {
+  white-space: nowrap;
+}
+
+.log-note {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.log-note.is-open {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Classic MFC: familiar desktop toolbar, crisp grid and compact information density. */
@@ -1822,26 +1857,23 @@
   }
 
   :root[data-theme="classic"] .customer-table__header {
-    min-height: 2.25rem;
     color: var(--color-text-primary);
-    text-transform: none;
   }
 
   :root[data-theme="classic"] .customer-table__header > button {
-    min-height: 2.25rem;
     padding: 0 var(--space-2);
   }
 
   :root[data-theme="classic"] .customer-table__row {
-    min-height: 2.75rem;
+    min-height: calc(var(--table-row-min-height) + 0.25rem);
   }
 
   :root[data-theme="classic"] .customer-table__row > div {
-    padding: var(--space-1) var(--space-2);
+    padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   }
 
   :root[data-theme="classic"] .ws-table {
-    grid-template-rows: auto 2.25rem minmax(0, 1fr);
+    grid-template-rows: auto var(--table-header-height) minmax(0, 1fr);
   }
 
   :root[data-theme="classic"] .ws-table__grid {

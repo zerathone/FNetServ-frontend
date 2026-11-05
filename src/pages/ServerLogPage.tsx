@@ -2,7 +2,37 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import { getServerLogs } from '../api/logs'
-import { DateRangePicker, ListPagination, ListToolbar, PageHeader, RefreshButton } from '../design-system/components'
+import { DateRangePicker, ListPagination, ListToolbar, PageHeader, RefreshButton, StatusBadge, type StatusTone } from '../design-system/components'
+
+// ServerLogTb.Status = tên hành động do server ghi (define.h SL_*: "Thêm ứng dụng", "Xóa tài khoản", "Đổi mật khẩu máy trạm"…,
+// có dòng cũ viết thường) nên phân tone theo ĐỘNG TỪ ĐẦU CÂU: xóa = danger, thêm/nạp/mua = success,
+// sửa/đổi/làm gọn dữ liệu = warning (thay đổi cấu hình hoặc dọn dữ liệu), đăng nhập/khởi động/tiền = info,
+// đăng xuất/thoát và còn lại = neutral.
+function getActionTone(status: string): StatusTone {
+  const s = status.trim().toLowerCase()
+  if (s.startsWith('xóa') || s.startsWith('xoá')) return 'danger'
+  if (s.startsWith('thêm') || s.startsWith('nạp') || s.startsWith('mua')) return 'success'
+  if (s.startsWith('sửa') || s.startsWith('đổi') || s.startsWith('làm gọn')) return 'warning'
+  if (s.startsWith('đăng nhập') || s.startsWith('khởi động') || s.startsWith('tính tiền') || s.startsWith('thanh toán') || s.startsWith('ghi giờ')) return 'info'
+  return 'neutral'
+}
+
+// Nội dung log có thể rất dài (câu mô tả đủ tên nhóm/giá tiền): mặc định 1 dòng + dấu "…", bấm vào để xem hết/thu lại.
+function LogNote({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  if (!text) return null
+  return (
+    <button
+      type="button"
+      className={`log-note${open ? ' is-open' : ''}`}
+      aria-expanded={open}
+      title={open ? 'Thu gọn' : text}
+      onClick={() => setOpen((value) => !value)}
+    >
+      {text}
+    </button>
+  )
+}
 
 export function ServerLogPage() {
   const [fromDate, setFromDate] = useState(() => {
@@ -105,20 +135,10 @@ export function ServerLogPage() {
                       <td>{log.recordDate}</td>
                       <td>{log.recordTime}</td>
                       <td>
-                        <span
-                          style={{
-                            padding: '0.25rem 0.5rem',
-                            borderRadius: '4px',
-                            fontSize: '0.85em',
-                            fontWeight: 'bold',
-                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                            color: 'var(--primary)',
-                          }}
-                        >
-                          {log.status || 'Info'}
-                        </span>
+                        {/* Nhật ký = hành động đã xảy ra, không phải đang diễn ra -> không chấm tròn. */}
+                        {log.status ? <StatusBadge tone={getActionTone(log.status)} dot={false}>{log.status}</StatusBadge> : null}
                       </td>
-                      <td>{log.note}</td>
+                      <td className="log-note-cell"><LogNote text={log.note} /></td>
                     </tr>
                   ))
                 ) : (

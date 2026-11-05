@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CaretDown, CaretLeft, CaretRight, Desktop, SquaresFour, UsersThree } from '@phosphor-icons/react'
+import { Check, CaretDown, CaretLeft, CaretRight, Desktop, SquaresFour, UsersThree } from '@phosphor-icons/react'
 import type { WorkstationFilter } from './workstationModel'
 import './workstation-summary-compact.css'
 
@@ -70,6 +70,19 @@ const PIE_GAP = 3
 function FleetPie({ segments, total }: { segments: SummaryFleetSegment[]; total: number }) {
   const visible = segments.filter((segment) => segment.value > 0)
   if (visible.length === 0 || total <= 0) return null
+  // Toàn bộ máy đang được sử dụng (chỉ còn 1 mảnh 'playing' = 100%): thay hình tròn đặc bằng dấu tick success cho gọn mắt.
+  if (visible.length === 1 && visible[0].key === 'playing') {
+    return (
+      <span
+        className="ws-sumc__done"
+        role="img"
+        aria-label={`Tất cả ${total} máy trạm đang được sử dụng`}
+        title={`Sử dụng: ${total}/${total}`}
+      >
+        <Check size={12} weight="bold" aria-hidden="true" />
+      </span>
+    )
+  }
   const gap = visible.length > 1 ? PIE_GAP : 0
   let start = 0
   return (
@@ -212,25 +225,40 @@ export function WorkstationSummaryCompact({
               </button>
             ) : null}
             <div className={`ws-sumc__zones${fadeClass}`} ref={zonesRef}>
-              {zones.map((zone) => (
-                <button
-                  key={zone.id}
-                  type="button"
-                  className={`ws-sumc__zone${zoneId === zone.id ? ' is-active' : ''}`}
-                  aria-pressed={zoneId === zone.id}
-                  aria-label={`${zone.name}: ${zone.inUse}/${zone.total} máy đang dùng (${zone.percent}%)`}
-                  title={`${zone.name}: ${zone.inUse}/${zone.total} (${zone.percent}%)`}
-                  onClick={() => onZoneToggle(zone.id)}
-                >
-                  <span className="ws-sumc__zone-name">{zone.name}</span>
-                  <strong>
-                    {zone.inUse}/{zone.total}
-                  </strong>
-                  <span className="ws-sumc__zone-bar" aria-hidden="true">
-                    <span className="ws-sumc__zone-fill" style={{ width: `${zone.percent}%` }} />
-                  </span>
-                </button>
-              ))}
+              {zones.map((zone) => {
+                // Khu vực đã kín máy: thanh chuyển màu success + dấu tick thay cho số %.
+                const isFull = zone.total > 0 && zone.inUse >= zone.total
+                return (
+                  <button
+                    key={zone.id}
+                    type="button"
+                    className={`ws-sumc__zone${zoneId === zone.id ? ' is-active' : ''}${isFull ? ' is-full' : ''}`}
+                    aria-pressed={zoneId === zone.id}
+                    aria-label={`${zone.name}: ${zone.inUse}/${zone.total} máy đang dùng (${zone.percent}%)${isFull ? ', đã kín máy' : ''}`}
+                    title={`${zone.name}: ${zone.inUse}/${zone.total} (${zone.percent}%)`}
+                    onClick={() => onZoneToggle(zone.id)}
+                  >
+                    <span className="ws-sumc__zone-head">
+                      <span className="ws-sumc__zone-name">{zone.name}</span>
+                      <strong>
+                        {zone.inUse}/{zone.total}
+                      </strong>
+                    </span>
+                    <span className="ws-sumc__zone-foot" aria-hidden="true">
+                      <span className="ws-sumc__zone-bar">
+                        <span className="ws-sumc__zone-fill" style={{ width: `${zone.percent}%` }} />
+                      </span>
+                      {isFull ? (
+                        <span className="ws-sumc__zone-done">
+                          <Check size={8} weight="bold" />
+                        </span>
+                      ) : (
+                        <span className="ws-sumc__zone-pct">{zone.percent}%</span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
             {edges.right ? (
               <button

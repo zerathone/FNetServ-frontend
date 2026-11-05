@@ -29,12 +29,12 @@ export const NOTIFICATION_GROUPS: NotificationGroupDef[] = [
   {
     id: 'payment',
     label: 'Thanh toán & tiền',
-    hint: 'Nạp QR, giao dịch ghi sổ, khách nợ, xin nạp tiền',
+    hint: 'Nạp QR, giao dịch ghi sổ, khách nợ, nạp tiền',
     types: [
       { type: 'qr_payment_failed', label: 'Giao dịch QR bị lỗi', hint: 'Tín hiệu QR về nhưng xử lý lỗi — có thể đã ghi một phần', severities: ['urgent', 'critical'] },
       { type: 'qr_no_signal', label: 'Đơn QR không có tín hiệu về', hint: 'Đơn QR quá hạn mà cổng thanh toán chưa báo', severities: ['attention'] },
       { type: 'service_debit', label: 'Khách rời máy còn nợ dịch vụ', hint: 'Dịch vụ đã duyệt nhưng chưa thu tiền', severities: ['urgent'] },
-      { type: 'charge_request', label: 'Khách xin nạp tiền', hint: 'Khách bấm xin nạp tiền từ máy trạm', severities: ['attention'] },
+      { type: 'charge_request', label: 'Khách nạp tiền', hint: 'Khách bấm nạp tiền từ máy trạm', severities: ['attention'] },
       { type: 'qr_payment_success', label: 'Nạp QR thành công', hint: 'Tần suất cao — thường nên tắt', severities: ['info'] },
       { type: 'qr_manual_confirmed', label: 'QR xác nhận thủ công', hint: 'Thu ngân đã xác nhận nhận tiền bằng tay', severities: ['info'] },
       { type: 'payment_recorded', label: 'Có giao dịch mới được ghi sổ', hint: 'Tin gộp mọi giao dịch ghi phiếu, kể cả tiền mặt', severities: ['info'] },

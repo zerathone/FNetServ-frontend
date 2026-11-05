@@ -208,7 +208,8 @@ export function notificationTitle(notification: OperationNotification) {
   // thị đúng mà không phải sửa file này nữa. Bảng dưới chỉ còn là fallback cho các `type` cũ
   // (2.26) và cho Server.exe bản cũ chưa có field `title`.
   const serverTitle = notification.title?.trim()
-  if (serverTitle) return serverTitle
+  // Server gửi "Khách xin nạp tiền - PC01" (chuỗi cứng ở C++, Qt cũng dùng) — Web UI gọi gọn là "nạp tiền".
+  if (serverTitle) return notification.type === 'charge_request' ? serverTitle.replace(/xin nạp tiền/i, 'nạp tiền') : serverTitle
 
   switch (notification.type) {
     case 'client_message':
@@ -232,7 +233,7 @@ export function notificationTitle(notification: OperationNotification) {
     case 'qr_manual_confirmed':
       return 'Giao dịch QR đã xác nhận thủ công'
     case 'charge_request':
-      return 'Khách xin nạp tiền'
+      return 'Khách nạp tiền'
     case 'fnet_system':
       return 'Thông báo từ FNet'
     case 'partner_notice':

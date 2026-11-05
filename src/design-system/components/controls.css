@@ -738,6 +738,29 @@ label:has(input[type="radio"]) {
   color: var(--color-text-primary);
 }
 
+/* Ô tìm có datalist: ẩn mũi tên gốc của trình duyệt (vẽ lệch), dùng <SearchListButton> thẳng hàng với nút ✕. */
+.ds-search-input .ds-input[list]::-webkit-calendar-picker-indicator {
+  display: none;
+  opacity: 0;
+}
+
+.ds-search-input__list {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: var(--space-1);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.ds-search-input__list:hover {
+  color: var(--color-text-primary);
+}
 /* FILTER HEADER CELL â€” cá»™t header báº£ng má»Ÿ dropdown lá»c táº¡i chá»— (vd MÃ¡y tráº¡m, Tháº» náº¡p) */
 .ds-filter-header {
   position: relative;
@@ -1186,6 +1209,10 @@ input[type="radio"]:disabled {
   background: currentColor;
 }
 
+.ds-badge.ds-badge--no-dot::before {
+  display: none;
+}
+
 .ds-badge.ds-badge--neutral {
   color: var(--color-text-secondary);
   background: var(--color-surface-hover);
@@ -1220,8 +1247,9 @@ input[type="radio"]:disabled {
   display: grid;
   padding: var(--space-4);
   background: var(--color-overlay);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* Mờ nhẹ: vẫn nhận ra được nội dung trang phía sau form/drawer. */
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
 }
 
 .ds-overlay {

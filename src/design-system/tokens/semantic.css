@@ -48,8 +48,18 @@
   --card-radius: var(--radius-lg);
   --card-shadow: var(--shadow-sm);
   --nav-item-radius: var(--radius-lg);
-  --table-cell-padding-x: 0.875rem;
-  --table-cell-padding-y: 0.75rem;
+  /* Mật độ cao: ô bảng sát nhất có thể để một màn hình chứa nhiều dòng/cột; dòng chỉ cao thêm khi nội dung cần (2 dòng chữ, 2 badge). */
+  --table-cell-padding-x: 0.625rem;
+  --table-cell-padding-y: 0.3125rem;
+  --table-row-min-height: 2.25rem; /* bảng dạng lưới (customer-table, hm-row) */
+  /* Header bảng dùng chung mọi trang: nhãn cột nhỏ hơn nội dung ô để thanh tiêu đề gọn, nhường chỗ cho dữ liệu. */
+  --table-header-font-size: var(--font-size-xs);
+  --table-header-font-weight: 600;
+  --table-header-letter-spacing: 0.01em;
+  --table-header-line-height: 1.25; /* không thừa hưởng line-height của body (~1.6) -> th thấp hơn rõ rệt */
+  --table-header-text-transform: none; /* không IN HOA: chữ hoa trông lớn hơn cỡ thật và không đồng bộ giữa các bảng */
+  --table-header-padding-y: 0.375rem;
+  --table-header-height: 2.125rem; /* bảng dạng lưới (ws-table, customer-table, hm-head) cần chiều cao cố định */
 }
 
 :root[data-theme="dark"] {

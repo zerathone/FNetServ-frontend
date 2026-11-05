@@ -62,23 +62,31 @@
   overflow-x: auto;
 }
 
+/* Header bảng liền ngay dưới đường kẻ của toolbar (bù gap của panel). */
+.web-policy-panel > .ds-list-toolbar + .web-policy-table-wrap {
+  margin-top: calc(var(--space-3) * -1);
+}
+
 .web-policy-table {
   width: 100%;
   min-width: 62rem;
   border-collapse: collapse;
 }
 
-/* Đồng bộ với .data-table th (trang Nhật ký hệ thống, App.css) — kế thừa font-size gốc thay vì ép nhỏ. */
+/* Đồng bộ với .data-table th (App.css) — dùng token header bảng dùng chung (--table-header-*). */
 .web-policy-table th {
-  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+  padding: var(--table-header-padding-y) var(--table-cell-padding-x);
   border-bottom: 1px solid var(--color-surface-hover);
   color: var(--color-text-muted);
-  font-weight: 600;
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  letter-spacing: var(--table-header-letter-spacing);
+  line-height: var(--table-header-line-height);
   text-align: left;
 }
 
 .web-policy-table td {
-  padding: var(--space-3);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-secondary);
   vertical-align: middle;

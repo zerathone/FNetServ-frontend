@@ -5,7 +5,7 @@
   --color-surface-subtle: #eef4f6;
   --color-surface-hover: #dce9ee;
   --color-surface-elevated: #ffffff;
-  --color-overlay: rgb(14 39 52 / 0.58);
+  --color-overlay: rgb(14 39 52 / 0.28);
 
   --color-text-primary: #173444;
   --color-text-secondary: #405d6c;
@@ -57,8 +57,11 @@
   --card-radius: 0.1875rem;
   --card-shadow: 0 1px 1px rgb(23 52 68 / 0.06);
   --nav-item-radius: 0.125rem;
-  --table-cell-padding-x: 0.625rem;
-  --table-cell-padding-y: 0.5rem;
+  --table-cell-padding-x: 0.5rem;
+  --table-cell-padding-y: 0.25rem;
+  --table-row-min-height: 2rem;
+  --table-header-padding-y: 0.3125rem;
+  --table-header-height: 2rem;
   --control-height-compact: 2.125rem;
   --control-height-default: 2.375rem;
   --motion-fast: 100ms;

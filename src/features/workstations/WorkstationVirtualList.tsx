@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { CaretLeft, CaretRight, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { CallBellIcon } from './CallBellIcon'
 import type { MachineGroup } from '../../api/machine-groups'
 import type { WorkstationRuntime } from '../../api/workstations'
 import { FilterHeaderCell, StatusBadge, type FilterMenuOption } from '../../design-system/components'
@@ -23,8 +25,12 @@ const STATUS_FILTER_OPTIONS: FilterMenuOption<WorkstationFilter>[] = [
   { value: 'all', label: 'Tất cả' },
 ]
 
-const DEFAULT_ROW_HEIGHT = 68
-const CLASSIC_ROW_HEIGHT = 48
+// Dòng thường chỉ 1 badge ⇒ thấp nhất có thể (badge 24px + 5px mỗi phía). Chỉ khi ô Tình trạng có hàng thứ 2
+// (cờ dịch vụ/nợ/tạm dừng… xếp dưới badge) mới dùng chiều cao STACKED (24 + 4 gap + 24 + lề).
+const ROW_HEIGHTS = {
+  default: { compact: 34, stacked: 60 },
+  classic: { compact: 30, stacked: 56 },
+} as const
 const OVERSCAN = 6
 export const COLUMN_STORAGE_KEY = 'fnet.workstations.visible-columns.v1'
 
@@ -105,6 +111,11 @@ type WorkstationVirtualListProps = {
   visibleColumns: ColumnDefinition[]
   /** Máy đã thu hết nợ dịch vụ ⇒ bỏ badge "Đã nhận món" (cờ server còn sót). */
   isServiceAcceptCleared?: (machine: WorkstationRuntime) => boolean
+  /**
+   * Bấm nút icon cờ dịch vụ: 'orders' = Có gọi món (xem đơn của máy), 'collect' = Đã nhận món (thu tiền).
+   * Không truyền ⇒ hai cờ này vẫn hiện dạng badge như cũ.
+   */
+  onOpenOrders?: (machine: WorkstationRuntime, target: 'orders' | 'collect') => void
   emptyState?: ReactNode
 }
 
@@ -122,14 +133,30 @@ export function WorkstationVirtualList({
   onFilterChange,
   visibleColumns,
   isServiceAcceptCleared,
+  onOpenOrders,
   emptyState,
 }: WorkstationVirtualListProps) {
   const { theme } = useTheme()
-  const rowHeight = theme === 'classic' ? CLASSIC_ROW_HEIGHT : DEFAULT_ROW_HEIGHT
+  const heights = theme === 'classic' ? ROW_HEIGHTS.classic : ROW_HEIGHTS.default
+  const showStatusColumn = visibleColumns.some((column) => column.id === 'status')
+  // tops[i] = vị trí đỉnh dòng i; tops[n] = tổng chiều cao. Dòng cao/thấp tuỳ có hàng cờ thứ 2 hay không.
+  const { tops, totalHeight } = useMemo(() => {
+    const offsets = new Array<number>(machines.length + 1)
+    let sum = 0
+    for (let index = 0; index < machines.length; index += 1) {
+      offsets[index] = sum
+      const machine = machines[index]
+      const stacked = showStatusColumn && getWorkstationFlags(machine, { hideServiceAccept: isServiceAcceptCleared?.(machine) }).length > 0
+      sum += stacked ? heights.stacked : heights.compact
+    }
+    offsets[machines.length] = sum
+    return { tops: offsets, totalHeight: sum }
+  }, [machines, showStatusColumn, isServiceAcceptCleared, heights])
   const viewportRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(480)
+  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
   const groupOptions: FilterMenuOption<number>[] = [
     { value: 0, label: 'Tất cả nhóm' },
     ...groups.map((group) => ({ value: group.id, label: group.name })),
@@ -145,25 +172,65 @@ export function WorkstationVirtualList({
     return () => observer.disconnect()
   }, [])
 
+  // Nút nổi cuộn ngang ở tiêu đề: chỉ hiện khi còn nội dung bị che ở phía đó (khỏi phải kéo thanh cuộn dưới đáy).
+  const updateScrollEdges = () => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      setScrollEdges((current) => (current.left || current.right ? { left: false, right: false } : current))
+      return
+    }
+    const left = viewport.scrollLeft > 1
+    const right = viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1
+    setScrollEdges((current) => (current.left === left && current.right === right ? current : { left, right }))
+  }
+
+  useEffect(() => {
+    updateScrollEdges()
+    const viewport = viewportRef.current
+    if (!viewport) return
+    // Đổi cỡ khung hoặc bật/tắt cột làm thay đổi chiều rộng nội dung ⇒ tính lại.
+    const observer = new ResizeObserver(updateScrollEdges)
+    observer.observe(viewport)
+    if (viewport.firstElementChild) observer.observe(viewport.firstElementChild)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machines.length, visibleColumns.length])
+
+  const scrollHorizontally = (direction: -1 | 1) => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    viewport.scrollBy({ left: direction * Math.max(160, viewport.clientWidth * 0.7), behavior: 'smooth' })
+  }
+
   useEffect(() => {
     // Danh sách rỗng -> vùng thân bị gỡ (scrollLeft về 0 mà không có sự kiện cuộn) nên trả tiêu đề về đầu.
     if (machines.length === 0 && headerRef.current) headerRef.current.style.transform = ''
   }, [machines.length])
 
   useEffect(() => {
-    const maximumScroll = Math.max(0, machines.length * rowHeight - viewportHeight)
+    const maximumScroll = Math.max(0, totalHeight - viewportHeight)
     if (scrollTop > maximumScroll) {
       setScrollTop(maximumScroll)
       viewportRef.current?.scrollTo({ top: maximumScroll })
     }
-  }, [machines.length, rowHeight, scrollTop, viewportHeight])
+  }, [totalHeight, scrollTop, viewportHeight])
 
   const gridStyle = {
     '--ws-table-columns': `2rem ${visibleColumns.map((column) => column.width).join(' ')}`,
   } as CSSProperties
-  const start = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN)
-  const visibleCount = Math.ceil(viewportHeight / rowHeight) + OVERSCAN * 2
-  const end = Math.min(machines.length, start + visibleCount)
+  // Tìm nhị phân dòng đầu tiên còn nằm (một phần) trong khung nhìn, rồi lấy thêm OVERSCAN dòng mỗi phía.
+  const findRowAt = (offset: number) => {
+    let low = 0
+    let high = machines.length - 1
+    while (low < high) {
+      const mid = (low + high + 1) >> 1
+      if (tops[mid] <= offset) low = mid
+      else high = mid - 1
+    }
+    return low
+  }
+  const start = machines.length === 0 ? 0 : Math.max(0, findRowAt(scrollTop) - OVERSCAN)
+  const end = machines.length === 0 ? 0 : Math.min(machines.length, findRowAt(scrollTop + viewportHeight) + 1 + OVERSCAN)
   const visibleMachines = machines.slice(start, end)
   const allSelected = machines.length > 0 && machines.every((item) => selected.has(item.hostName))
 
@@ -174,7 +241,40 @@ export function WorkstationVirtualList({
     if (column.id === 'status') {
       const status = getWorkstationStatus(machine)
       const flags = getWorkstationFlags(machine, { hideServiceAccept: isServiceAcceptCleared?.(machine) })
-      return <div className="ws-table__status" role="cell"><StatusBadge tone={status.tone}>{status.label}</StatusBadge>{flags.map((flag) => <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>)}</div>
+      // Hai cờ dịch vụ là NÚT: bấm sang trang Đơn dịch vụ (lọc sẵn theo máy), xếp ở hàng thứ 2 dưới badge tình trạng.
+      // Một nút ⇒ icon + chữ; từ hai nút trở lên ⇒ chỉ icon (cho gọn, tooltip nói rõ). Các cờ khác vẫn là badge.
+      const serviceFlags = onOpenOrders ? flags.filter((flag) => flag.id) : []
+      const iconOnly = serviceFlags.length >= 2
+      return (
+        <div className="ws-table__status" role="cell">
+          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          {flags.length > 0 ? (
+            <div className="ws-flag-row">
+              {flags
+                .filter((flag) => !serviceFlags.includes(flag))
+                .map((flag) => (
+                  <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>
+                ))}
+              {serviceFlags.map((flag) => {
+                const collect = flag.id === 'service_accept'
+                return (
+                  <button
+                    key={flag.label}
+                    type="button"
+                    className={`ws-flag-btn ws-flag-btn--${collect ? 'success' : flag.tone}${iconOnly ? ' ws-flag-btn--icon' : ''}`}
+                    title={collect ? 'Đã nhận món, chờ thu tiền — mở Đơn dịch vụ của máy này' : 'Có gọi món — mở Đơn dịch vụ của máy này'}
+                    aria-label={`${collect ? 'Thu tiền' : 'Gọi món'}: mở Đơn dịch vụ của ${machine.hostName}`}
+                    onClick={() => onOpenOrders?.(machine, collect ? 'collect' : 'orders')}
+                  >
+                    {collect ? <CurrencyCircleDollar size={16} weight="bold" aria-hidden="true" /> : <CallBellIcon size={16} />}
+                    {iconOnly ? null : <span>{collect ? 'Thu tiền' : 'Gọi món'}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
+      )
     }
     if (column.id === 'user') return <div className="ws-table__user" role="cell"><strong>{machine.userName || '—'}</strong></div>
     if (column.id === 'combo') return <div className="ws-table__truncate" role="cell">{machine.session?.comboName || '—'}</div>
@@ -249,6 +349,28 @@ export function WorkstationVirtualList({
           )
         })}
       </div>
+      {scrollEdges.left ? (
+        <button
+          type="button"
+          className="ws-table__scroll-btn ws-table__scroll-btn--left"
+          aria-label="Cuộn bảng sang trái"
+          title="Cuộn sang trái"
+          onClick={() => scrollHorizontally(-1)}
+        >
+          <CaretLeft size={16} weight="bold" aria-hidden="true" />
+        </button>
+      ) : null}
+      {scrollEdges.right ? (
+        <button
+          type="button"
+          className="ws-table__scroll-btn ws-table__scroll-btn--right"
+          aria-label="Cuộn bảng sang phải"
+          title="Cuộn sang phải"
+          onClick={() => scrollHorizontally(1)}
+        >
+          <CaretRight size={16} weight="bold" aria-hidden="true" />
+        </button>
+      ) : null}
       {machines.length === 0 ? (
         <div className="ws-table__empty">{emptyState}</div>
       ) : (
@@ -259,12 +381,14 @@ export function WorkstationVirtualList({
             setScrollTop(event.currentTarget.scrollTop)
             // Thanh cuộn ngang chỉ có ở vùng thân; tiêu đề trượt theo để cột luôn thẳng hàng.
             if (headerRef.current) headerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`
+            updateScrollEdges()
           }}
         >
-          <div className="ws-table__canvas" style={{ height: `${machines.length * rowHeight}px` }}>
+          <div className="ws-table__canvas" style={{ height: `${totalHeight}px` }}>
             {visibleMachines.map((machine, index) => {
               const selectedRow = selected.has(machine.hostName)
-              return <div key={machine.hostName} className={`ws-table__row ws-table__grid${selectedRow ? ' ws-table__row--selected' : ''}`} role="row" aria-rowindex={start + index + 2} style={{ ...gridStyle, height: `${rowHeight}px`, transform: `translateY(${(start + index) * rowHeight}px)` }} onDoubleClick={() => onOpen(machine)}>
+              const rowIndex = start + index
+              return <div key={machine.hostName} className={`ws-table__row ws-table__grid${selectedRow ? ' ws-table__row--selected' : ''}`} role="row" aria-rowindex={rowIndex + 2} style={{ ...gridStyle, height: `${tops[rowIndex + 1] - tops[rowIndex]}px`, transform: `translateY(${tops[rowIndex]}px)` }} onDoubleClick={() => onOpen(machine)}>
                 <div role="cell"><input type="checkbox" aria-label={`Chọn ${machine.hostName}`} checked={selectedRow} onChange={() => onToggle(machine.hostName)} /></div>
                 {visibleColumns.map((column) => <div key={column.id} className="ws-table__cell-wrap">{renderCell(column, machine)}</div>)}
               </div>

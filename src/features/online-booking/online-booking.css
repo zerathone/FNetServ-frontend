@@ -213,7 +213,7 @@
   align-self: stretch;
   border-left: 1px solid var(--color-border-default);
   border-radius: 0;
-  padding-left: var(--space-3);
+  padding-left: var(--space-2);
 }
 
 .order-summary__breakdown .order-summary__row.ob-sum--cancelled::before,
@@ -302,7 +302,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3) var(--space-4);
+  gap: var(--space-2) var(--space-3);
+  /* Thanh lọc không còn khung riêng (border/nền/bóng/lề) để đỡ tốn chỗ: các bộ lọc nằm thẳng trên nền trang. */
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Mỗi bộ lọc là một khung liền dùng control có sẵn của design system: ds-input-group + ds-input-group-separator. */
@@ -335,17 +341,19 @@
 }
 
 .ob-table th {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--table-header-padding-y) var(--space-3);
   border-bottom: 1px solid var(--color-border-strong);
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 750;
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  letter-spacing: var(--table-header-letter-spacing);
+  line-height: var(--table-header-line-height);
   text-align: left;
   white-space: nowrap;
 }
 
 .ob-table td {
-  padding: var(--space-3);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-secondary);
   vertical-align: top;

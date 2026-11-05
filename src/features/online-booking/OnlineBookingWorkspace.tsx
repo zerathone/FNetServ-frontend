@@ -28,6 +28,7 @@ import {
   ListPagination,
   PageHeader,
   PollingStatus,
+  SearchListButton,
   Segmented,
   Select,
   StateView,
@@ -88,7 +89,7 @@ function slotKey(pc: string, from: string, to: string): string {
 
 type SearchField = 'member' | 'code' | 'pc'
 const SEARCH_PLACEHOLDER: Record<SearchField, string> = {
-  member: 'Nhập tên đăng nhập hội viên',
+  member: 'Nhập hoặc chọn hội viên',
   code: 'Nhập mã đơn, vd DM7K3QX',
   pc: 'Nhập hoặc chọn tên máy',
 }
@@ -124,6 +125,7 @@ export function OnlineBookingWorkspace() {
   // máy → tham số `pc` (khớp đúng tên máy, không phân biệt hoa thường; có gợi ý tên máy).
   const [searchField, setSearchField] = useState<SearchField>('member')
   const [searchText, setSearchText] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const keyword = searchText.trim()
   const pc = searchField === 'pc' ? keyword : ''
   const q = searchField === 'pc' ? '' : keyword
@@ -445,6 +447,22 @@ export function OnlineBookingWorkspace() {
     const pcs = (boardQuery.data?.machines ?? []).map((m) => m.pc)
     return Array.from(new Set(pcs))
   }, [boardQuery.data])
+
+  // Gợi ý hội viên: tên đăng nhập có trong các danh sách đơn đã tải (chờ duyệt, đã duyệt, thống kê, danh sách đang xem)
+  // — tập kết quả cố định từ API, không phải gõ mò. Tính thẳng mỗi lần render (vài trăm dòng, rẻ).
+  const memberOptionSet = new Set<string>()
+  for (const items of [
+    queueQuery.data?.items,
+    confirmedQuery.data?.items,
+    listQuery.data?.items,
+    ...statQueries.map((query) => query.data?.items),
+  ]) {
+    for (const booking of items ?? []) {
+      const name = booking.member?.username?.trim()
+      if (name) memberOptionSet.add(name)
+    }
+  }
+  const memberOptions = [...memberOptionSet].sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }))
 
   const isBusy = approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending
 
@@ -895,13 +913,20 @@ export function OnlineBookingWorkspace() {
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
               <input
+                ref={searchInputRef}
                 className="ds-input"
                 type="search"
-                list={searchField === 'pc' ? PC_LIST_ID : undefined}
+                list={searchField === 'code' ? undefined : PC_LIST_ID}
                 placeholder={SEARCH_PLACEHOLDER[searchField]}
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}
               />
+              {searchField === 'code' ? null : (
+                <SearchListButton
+                  inputRef={searchInputRef}
+                  label={searchField === 'member' ? 'Chọn hội viên' : 'Chọn tên máy'}
+                />
+              )}
               {searchText ? (
                 <button
                   type="button"
@@ -918,7 +943,7 @@ export function OnlineBookingWorkspace() {
             </div>
           </div>
           <datalist id={PC_LIST_ID}>
-            {pcOptions.map((value) => (
+            {(searchField === 'member' ? memberOptions : searchField === 'pc' ? pcOptions : []).map((value) => (
               <option key={value} value={value} />
             ))}
           </datalist>

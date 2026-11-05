@@ -9,16 +9,17 @@
 .order-summary {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
+/* Mật độ cao: thẻ thống kê chỉ cao bằng nội dung (2 dòng chữ), lề và khoảng cách sát nhất. */
 .order-summary__card {
   display: flex;
   align-items: stretch;
-  gap: var(--space-3);
+  gap: var(--space-2);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
   background: var(--color-surface-raised, var(--color-surface-default));
   box-shadow: var(--shadow-sm);
 }
@@ -28,10 +29,10 @@
   flex-direction: row;
   align-items: center;
   gap: var(--space-2);
-  min-width: 6.5rem;
+  min-width: 5.5rem;
   border: 0;
   border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -72,7 +73,7 @@
   margin-left: auto;
   padding-left: var(--space-2);
   color: var(--color-text-primary);
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-xl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -86,10 +87,10 @@
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px var(--space-2);
+  gap: 2px var(--space-1);
   flex: 1;
   border-left: 1px solid var(--color-border-default);
-  padding-left: var(--space-3);
+  padding-left: var(--space-2);
 }
 
 /* Hint số tiền tổng bên dưới label "Đơn chờ" */
@@ -120,15 +121,29 @@
   gap: var(--space-2);
 }
 
+/* Compact: 2 hàng — nhãn trên, dưới là số tiền + số đơn (+ "Ca từ…") cùng một dòng thay vì xếp 4 dòng. */
 .order-summary__total-completed-text {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-flow: row wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
   min-width: 0;
+}
+
+/* Nhãn chiếm riêng 1 hàng nhưng KHÔNG góp vào độ rộng tự nhiên của ô (width:0 + min-width:100%); nếu để flex-basis:100%
+   thì độ rộng ô = nhãn + số tiền + số đơn cộng dồn một hàng -> thừa một khoảng trống lớn bên phải. */
+.order-summary__total-completed-text > .order-summary__total-label {
+  flex: 0 0 auto;
+  width: 0;
+  min-width: 100%;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .order-summary__total-icon {
   flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
   color: var(--color-success);
 }
 
@@ -141,7 +156,7 @@
   padding-left: 0;
   align-self: auto;
   color: var(--color-success);
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -175,10 +190,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-width: 9rem;
+  min-width: 7rem;
   border: 0;
   border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   color: var(--color-text-secondary);
   background: transparent;
   text-align: left;
@@ -197,8 +212,8 @@
 }
 
 .order-summary__dot {
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 0.5rem;
+  height: 0.5rem;
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--color-text-secondary);
@@ -232,8 +247,11 @@
 /* Icon hình thức thu nằm cố định góc phải dưới, làm nền mờ phía sau label/số tiền/số đơn. */
 .order-summary__row-icon-bg {
   position: absolute;
-  right: 6px;
-  bottom: 4px;
+  right: 4px;
+  bottom: 50%;
+  transform: translateY(50%);
+  width: 1.375rem;
+  height: 1.375rem;
   opacity: 0.3;
   pointer-events: none;
 }
@@ -268,9 +286,9 @@
 
 .order-summary__row strong {
   margin-left: auto;
-  padding-left: var(--space-3);
+  padding-left: var(--space-2);
   color: var(--color-text-primary);
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -311,11 +329,19 @@
 .order-summary__completed-method {
   position: relative;
   overflow: hidden;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  /* Cụm này cố định (5 hình thức + "Đã hủy") nên cho rộng hẳn, số tiền lớn không làm lệch hàng. */
-  min-width: 10rem;
+  /* Compact: 2 hàng — nhãn trên; dưới là số tiền + số thẻ/đơn cùng một dòng (trước đây 3 dòng). Checkbox cấn trừ là absolute nên không chiếm ô. */
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  row-gap: 0;
+  /* Cụm này cố định (5 hình thức + "Đã hủy") nên chừa chỗ cho số tiền lớn, không làm lệch hàng. */
+  min-width: 8.5rem;
+}
+
+.order-summary__completed-method > .order-summary__row-label-line {
+  grid-column: 1 / -1;
 }
 
 .order-summary__row-label-line {
@@ -329,7 +355,7 @@
   padding-left: 0;
   align-self: auto;
   color: var(--color-success);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
@@ -375,7 +401,7 @@
   align-self: stretch;
   border-left: 1px solid var(--color-border-default);
   border-radius: 0;
-  padding-left: var(--space-3);
+  padding-left: var(--space-2);
 }
 
 .order-summary__row--static:hover {

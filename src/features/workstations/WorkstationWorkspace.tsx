@@ -7,6 +7,7 @@ import {
   ArrowsClockwise,
   ArrowsLeftRight,
   CaretDown,
+  TextColumns,
   CaretLeft,
   CaretRight,
   CaretUp,
@@ -50,6 +51,7 @@ import { getMachineGroups } from '../../api/machine-groups'
 import { describeApiErrorCode } from '../../lib/apiErrorText'
 import { getPaymentWaitLogs, type PaymentWaitLog } from '../../api/logs'
 import { getUsers, usersApi, type UserAccount } from '../../api/users'
+import { OPERATIONS_NOTIFICATIONS_QUERY_KEY, updateOperationNotificationState } from '../../api/notifications'
 import { anonymsApi, type AnonymousDetailPayload } from '../../api/anonyms'
 import { maskIdCard, validateAnonymousDetail } from '../anonyms/anonymModel'
 import {
@@ -88,6 +90,7 @@ import {
   type WorkstationApp,
 } from '../../api/workstationRealtime'
 import { Select,
+  SearchListButton,
   Button,
   ConfirmAction,
   Dialog,
@@ -155,6 +158,9 @@ import {
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
 import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
 import { WakeupGroupPanel } from './WakeupGroupPanel'
+import { PendingServicePanel } from './PendingServicePanel'
+import { PendingServiceChips } from './PendingServiceChips'
+import { usePendingServices } from './usePendingServices'
 import { ScreenCaptureDialog } from './ScreenCaptureDialog'
 import { RemoteDesktopDialog } from './RemoteDesktopDialog'
 import { NoVncViewer } from './NoVncViewer'
@@ -214,7 +220,7 @@ const USER_KIND_LABEL: Record<UserKind, string> = {
 type WsSearchField = 'pc' | 'user' | 'note'
 const WS_SEARCH_PLACEHOLDER: Record<WsSearchField, string> = {
   pc: 'Nhập hoặc chọn tên máy',
-  user: 'Nhập tên đăng nhập',
+  user: 'Nhập hoặc chọn tài khoản',
   note: 'Nhập nội dung ghi chú',
 }
 const WS_PC_LIST_ID = 'ws-pc-options'
@@ -461,6 +467,7 @@ export function WorkstationWorkspace() {
       : null
   const setOrderHost = useOrderQueueStore((state) => state.setHostName)
   const setOrderCustomerName = useOrderQueueStore((state) => state.setCustomerNameFilter)
+  const setOrderInitialView = useOrderQueueStore((state) => state.setInitialView)
 
   const snapshotQuery = useQuery({
     queryKey: ['workstations'],
@@ -489,6 +496,7 @@ export function WorkstationWorkspace() {
   const [filter, setFilter] = useState<WorkstationFilter>('all')
   const [searchField, setSearchField] = useState<WsSearchField>('pc')
   const [search, setSearch] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [groupId, setGroupId] = useState(0)
   const [optionalColumns, setOptionalColumns] = useState(getInitialOptionalColumns)
   const [groupChartOrientation, setGroupChartOrientation] = useState<'donut' | 'row'>(getInitialGroupChartOrientation)
@@ -508,6 +516,8 @@ export function WorkstationWorkspace() {
   const [showLockScreen, setShowLockScreen] = useState(false)
   const [moneyAction, setMoneyAction] = useState<MoneyAction | null>(null)
   const [moneyAmount, setMoneyAmount] = useState<number | null>(null)
+  // Id thông báo "xin nạp tiền" đang được xử lý bằng hộp Nạp tiền này (rỗng = nạp tay từ bảng máy).
+  const [depositRequestIds, setDepositRequestIds] = useState<string[]>([])
   const [depositMethod, setDepositMethod] = useState<DepositMethod>('cash')
   const [depositQrActive, setDepositQrActive] = useState(false)
   const [moneyNote, setMoneyNote] = useState('')
@@ -599,6 +609,14 @@ export function WorkstationWorkspace() {
 
   const pcNameOptions = useMemo(
     () => Array.from(new Set(allMachines.map((machine) => machine.hostName))),
+    [allMachines],
+  )
+  // Gợi ý tài khoản: những tài khoản đang có trên các máy (tập cố định từ snapshot, không phải gõ mò).
+  const userNameOptions = useMemo(
+    () =>
+      Array.from(new Set(allMachines.map((machine) => machine.userName?.trim()).filter((name): name is string => Boolean(name)))).sort(
+        (a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }),
+      ),
     [allMachines],
   )
 
@@ -937,6 +955,14 @@ export function WorkstationWorkspace() {
           machine: inspectedMachine?.hostName,
         })
       }
+      // Nạp xong từ dòng "Khách xin nạp tiền" ở khung Dịch vụ chờ ⇒ đánh dấu thông báo đã xử lý (best-effort:
+      // tiền đã ghi, lỗi đồng bộ trạng thái thông báo không được làm hỏng kết quả).
+      if (moneyAction === 'deposit' && depositRequestIds.length > 0) {
+        updateOperationNotificationState('resolve', depositRequestIds)
+          .catch(() => undefined)
+          .finally(() => void queryClient.invalidateQueries({ queryKey: OPERATIONS_NOTIFICATIONS_QUERY_KEY }))
+      }
+      setDepositRequestIds([])
       moneyIntent.clearKey()
       setMoneyAction(null)
       setMoneyAmount(null)
@@ -1270,12 +1296,33 @@ export function WorkstationWorkspace() {
       return
     }
     moneyIntent.clearKey()
+    setDepositRequestIds([])
     setMoneyAction(null)
     setMoneyAmount(null)
     setDepositMethod('cash')
     setDepositQrActive(false)
     setMoneyNote('')
   }
+
+  // Từ dòng "Khách xin nạp tiền" ở khung Dịch vụ chờ: mở bảng máy ở bước Nạp tiền hội viên, điền sẵn số tiền khách xin.
+  // Vẫn là luồng nạp tiền sẵn có (usersApi.deposit, idem) — thu ngân kiểm tra rồi mới xác nhận.
+  const openDepositForRequest = (hostName: string, suggestMoney: number, notificationIds: string[]) => {
+    moneyIntent.clearKey()
+    setDepositRequestIds(notificationIds)
+    setInspectorHost(hostName)
+    setMoneyAmount(suggestMoney > 0 ? suggestMoney : null)
+    setDepositMethod('cash')
+    setDepositQrActive(false)
+    setMoneyNote('')
+    setMoneyAction('deposit')
+  }
+
+  // "Dịch vụ chờ": một nguồn dữ liệu + menu + hộp xác nhận, hiển thị ở khung bên phải HOẶC thẻ trên thanh công cụ.
+  const pending = usePendingServices({
+    machines: allMachines,
+    onOpenMachine: setInspectorHost,
+    onDeposit: openDepositForRequest,
+  })
 
   // may dang ONLINE nhung userId===0 = admin dang nhap bao tri (xem getWorkstationStatus)
   const playingMachines = allMachines.filter((machine) => machine.status === WORKSTATION_STATUS.ONLINE)
@@ -1758,6 +1805,9 @@ export function WorkstationWorkspace() {
         </InlineAlert>
       ) : null}
 
+      {/* Kiểu "thẻ" không có khung bên phải để chứa cảnh báo cấn trừ lỗi ⇒ hiện ngay trên thanh công cụ. */}
+      {pending.mode === 'tags' ? pending.alerts : null}
+
       <div className="ws-toolbar">
         <div className="ds-field ws-search">
           <span className="ds-field__label ds-visually-hidden">Tìm nhanh</span>
@@ -1768,34 +1818,52 @@ export function WorkstationWorkspace() {
               onChange={(event) => setSearchField(event.target.value as WsSearchField)}
             >
               <option value="pc">Máy</option>
-              <option value="user">Tên đăng nhập</option>
+              <option value="user">Tài khoản</option>
               <option value="note">Ghi chú</option>
             </Select>
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
               <input
+                ref={searchInputRef}
                 className="ds-input"
                 type="search"
-                list={searchField === 'pc' ? WS_PC_LIST_ID : undefined}
+                list={searchField === 'note' ? undefined : WS_PC_LIST_ID}
                 value={search}
                 placeholder={WS_SEARCH_PLACEHOLDER[searchField]}
                 onChange={(event) => setSearch(event.target.value)}
               />
+              {searchField === 'note' ? null : (
+                <SearchListButton
+                  inputRef={searchInputRef}
+                  label={searchField === 'user' ? 'Chọn tài khoản' : 'Chọn tên máy'}
+                />
+              )}
+              {search ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  title="Xóa bộ lọc"
+                  onClick={() => setSearch('')}
+                >
+                  <XCircle size={17} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
           </div>
           <datalist id={WS_PC_LIST_ID}>
-            {pcNameOptions.map((value) => (
+            {(searchField === 'user' ? userNameOptions : searchField === 'pc' ? pcNameOptions : []).map((value) => (
               <option key={value} value={value} />
             ))}
           </datalist>
         </div>
+        <PendingServiceChips pending={pending} />
         <div className="ws-toolbar__end">
-          <div className="ws-toolbar__count" aria-live="polite">
-            <strong>{filteredMachines.length}</strong>
-            <span>/ {allMachines.length} máy</span>
-          </div>
           <details className="ws-columns">
-            <summary aria-label="Chọn cột hiển thị">Cột hiển thị</summary>
+            <summary aria-label="Chọn cột hiển thị" title="Chọn cột hiển thị">
+              <TextColumns size={18} weight="bold" aria-hidden="true" />
+              <CaretDown size={12} weight="bold" aria-hidden="true" />
+            </summary>
             <div className="ws-columns__menu">
               <strong>Hiển thị cột</strong>
               {COLUMNS.map((column) => (
@@ -1895,6 +1963,7 @@ export function WorkstationWorkspace() {
         </div>
       ) : null}
 
+      <div className="ws-body">
       <div className="ws-content ws-content--table">
         {snapshotQuery.isLoading ? (
           <StateView title="Đang tải danh sách máy" description="Đang lấy snapshot vận hành từ máy chủ." />
@@ -1919,6 +1988,14 @@ export function WorkstationWorkspace() {
             onFilterChange={setFilter}
             visibleColumns={visibleColumns}
             isServiceAcceptCleared={isServiceAcceptCleared}
+            onOpenOrders={(machine, target) => {
+              // Chỉ ĐIỀU HƯỚNG sang /orders (lọc sẵn theo máy): thu tiền / hủy là money-core, làm ở trang đó.
+              setOrderHost(machine.hostName)
+              setOrderCustomerName('')
+              // "Đã nhận món" = đơn đã duyệt còn nợ ⇒ mở thẳng nhóm "Đã chấp nhận" của máy này.
+              setOrderInitialView(target === 'collect' ? 'accepted-unpaid' : null)
+              navigate('/orders')
+            }}
             emptyState={
               hasActiveFilter ? (
                 <StateView
@@ -1933,6 +2010,9 @@ export function WorkstationWorkspace() {
           />
         )}
       </div>
+      <PendingServicePanel pending={pending} />
+      </div>
+      {pending.overlays}
 
       <Drawer
         open={Boolean(inspectedMachine)}
@@ -2645,10 +2725,6 @@ export function WorkstationWorkspace() {
         onClose={() => setPaymentWaitOpen(false)}
       >
         <div className="ws-wait-panel">
-          <InlineAlert tone="info">
-            Khi thu tiền, máy chủ tính lại phí thời gian và dịch vụ. Số bên dưới chỉ là
-            snapshot để đối chiếu.
-          </InlineAlert>
           {paymentWaitQuery.isLoading ? (
             <StateView title="Đang tải phiên chờ" />
           ) : paymentWaitQuery.isError ? (

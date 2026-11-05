@@ -31,6 +31,11 @@
   overflow-x: auto;
 }
 
+/* Header bảng liền ngay dưới đường kẻ của toolbar (bù gap của panel). */
+.user-group-panel > .ds-list-toolbar + .user-group-table-wrap {
+  margin-top: calc(var(--space-3) * -1);
+}
+
 .user-group-table {
   width: max-content;
   min-width: 100%;
@@ -40,16 +45,18 @@
 
 .user-group-table th {
   min-width: 9rem;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--table-header-padding-y) var(--space-3);
   border-bottom: 1px solid var(--color-border-strong);
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 750;
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  letter-spacing: var(--table-header-letter-spacing);
+  line-height: var(--table-header-line-height);
   text-align: left;
 }
 
 .user-group-table td {
-  padding: var(--space-3);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-secondary);
   vertical-align: middle;

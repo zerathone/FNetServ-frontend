@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { MagnifyingGlass, XCircle } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { getSystemLogs } from '../api/logs'
-import { DateRangePicker, ListPagination, ListToolbar, PageHeader, RefreshButton, Select } from '../design-system/components';
+import { DateRangePicker, ListPagination, ListToolbar, PageHeader, RefreshButton, Select, StatusBadge, type StatusTone } from '../design-system/components';
 
 function formatMinutes(totalMinutes: number | undefined | null) {
   if (totalMinutes == null) return '00:00';
@@ -11,23 +11,22 @@ function formatMinutes(totalMinutes: number | undefined | null) {
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 }
 
-function getStatusStyle(status: string) {
+// Cùng bảng tone với cột Tình trạng trang Máy trạm: đang dùng = info, sẵn sàng = success, mất kết nối/tắt = danger.
+function getStatusTone(status: string): StatusTone {
   const s = (status || '').toLowerCase()
   if (s.includes('bật') || s.includes('on') || s.includes('start') || s.includes('login') || s.includes('đăng nhập') || s.includes('đang sử dụng') || s.includes('đang dùng')) {
-    return { color: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' } // ONLINE (Blue)
+    return 'info'
   }
   if (s.includes('tắt') || s.includes('off') || s.includes('stop') || s.includes('logout') || s.includes('đăng xuất') || s.includes('mất kết nối')) {
-    return { color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)' } // DISCONNECT (Red)
+    return 'danger'
   }
   if (s.includes('sẵn sàng') || s.includes('ready') || s.includes('ok')) {
-    return { color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)' } // AVAILABLE (Green)
+    return 'success'
   }
-  // Cảnh báo (Warning - Orange)
   if (s.includes('cảnh báo') || s.includes('warn') || s.includes('lỗi') || s.includes('error')) {
-    return { color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }
+    return 'warning'
   }
-  // Default (Init/Unknown - Gray)
-  return { color: '#64748b', backgroundColor: 'rgba(100, 116, 139, 0.1)', border: '1px solid rgba(100, 116, 139, 0.2)' }
+  return 'neutral'
 }
 
 export function SystemLogPage() {
@@ -141,15 +140,8 @@ export function SystemLogPage() {
                       <td>{log.enterDate}</td>
                       <td>{log.enterTime}</td>
                       <td>
-                        <span style={{
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '4px',
-                          fontSize: '0.85em',
-                          fontWeight: 'bold',
-                          ...getStatusStyle(log.status)
-                        }}>
-                          {log.status}
-                        </span>
+                        {/* Nhật ký = trạng thái đã xảy ra, không phải đang diễn ra -> không chấm tròn. */}
+                        {log.status ? <StatusBadge tone={getStatusTone(log.status)} dot={false}>{log.status}</StatusBadge> : null}
                       </td>
                       <td>{formatMinutes(log.timeUsed)}</td>
                       <td>{log.note}</td>

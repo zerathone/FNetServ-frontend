@@ -73,7 +73,7 @@ const RIGHTS = {
 // FIXBUG 2026-09-23: tìm theo ĐÚNG 1 trường. Gộp 3 trường = 3 lượt quét bảng hội viên ở BE.
 // Tab staff/combo BE lọc in-memory theo tên đã giải mã, không nhận tham số `qby`.
 const SEARCH_FIELD_LABELS: Record<UserSearchField, string> = {
-  username: 'Tên đăng nhập',
+  username: 'Đăng nhập',
   phone: 'Số điện thoại',
   idnumber: 'CCCD',
 }
@@ -675,7 +675,7 @@ export function UsersPage() {
                   setSelectedSeed(null)
                 }}
               >
-                <option value="username">Tên đăng nhập</option>
+                <option value="username">Đăng nhập</option>
                 <option value="phone">Số điện thoại</option>
                 <option value="idnumber">CCCD</option>
               </Select>

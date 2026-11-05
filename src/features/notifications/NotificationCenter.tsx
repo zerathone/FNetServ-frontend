@@ -3,11 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowsClockwise,
   Bell,
-  Check,
   Checks,
   CheckCircle,
   GearSix,
-  ArrowSquareOut,
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react'
@@ -27,7 +25,6 @@ import {
   InlineAlert,
   Select,
   StateView,
-  StatusBadge,
 } from '../../design-system/components'
 import { useOrderQueueStore } from '../../store/orderQueue'
 import { pushToast } from '../../store/toast'
@@ -67,12 +64,6 @@ function relativeTime(value: number) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(value)
-}
-
-function severityTone(notification: OperationNotification) {
-  if (notification.severity === 'critical' || notification.severity === 'urgent') return 'danger'
-  if (notification.severity === 'attention') return 'warning'
-  return 'info'
 }
 
 function stateLabel(notification: OperationNotification) {
@@ -225,6 +216,7 @@ export function NotificationCenter() {
       <Drawer
         open={open}
         title="Thông báo vận hành"
+        className="notification-drawer"
         // Esc/click nền khi đang mở hộp thoại xác nhận chỉ được đóng hộp thoại, không đóng luôn drawer.
         onClose={() => {
           if (!confirmTarget && !cancelTarget) setOpen(false)
@@ -233,15 +225,16 @@ export function NotificationCenter() {
           <>
             <Button
               type="button"
-              variant="ghost"
-              icon={<GearSix size={18} weight="bold" />}
+              variant="secondary"
+              className="ds-icon-button"
+              icon={<GearSix size={18} weight="bold" aria-hidden="true" />}
+              title="Thiết lập"
+              aria-label="Thiết lập"
               onClick={() => {
                 setOpen(false)
                 navigate('/notification-settings')
               }}
-            >
-              Thiết lập
-            </Button>
+            />
             <div className="notification-header-end">
               {visibleNewItems.length ? (
                 <Button
@@ -358,6 +351,7 @@ export function NotificationCenter() {
           <div className="notification-list" role="list" aria-live="polite">
             {visibleItems.map((notification) => {
               const target = notificationTarget(notification)
+              const MainTag = target ? 'button' : 'div'
               const qrOrder = qrOrderMeta(notification)
               const qrActions = notification.actions.filter(
                 (action) => action.id === QR_ACTION_CONFIRM || action.id === QR_ACTION_CANCEL,
@@ -376,15 +370,36 @@ export function NotificationCenter() {
                 >
                   <div className="notification-item__marker" aria-hidden="true" />
                   <div className="notification-item__content">
-                    <div className="notification-item__topline">
-                      <StatusBadge tone={severityTone(notification)}>{stateLabel(notification)}</StatusBadge>
-                      <time dateTime={new Date(notification.updatedAtMs).toISOString()}>
-                        {relativeTime(notification.updatedAtMs)}
-                      </time>
+                    {/* Dòng gọn kiểu danh sách thông báo: bấm cả dòng = mở chi tiết (khi có trang đích),
+                        chấm xanh bên phải = "chưa xem", bấm để đánh dấu đã xem. */}
+                    <div className="notification-item__row">
+                      <MainTag
+                        {...(target
+                          ? { type: 'button' as const, onClick: () => openTarget(notification), title: 'Mở chi tiết' }
+                          : {})}
+                        className={`notification-item__main${target ? ' is-link' : ''}`}
+                      >
+                        <span className="notification-item__title">{notificationTitle(notification)}</span>
+                        <span className="notification-item__desc">{notificationDescription(notification)}</span>
+                        <span className="notification-item__meta">
+                          <time dateTime={new Date(notification.updatedAtMs).toISOString()}>
+                            {relativeTime(notification.updatedAtMs)}
+                          </time>
+                          {notification.state !== 'new' ? <span>· {stateLabel(notification)}</span> : null}
+                          {notification.memberId ? <span>· Hội viên</span> : null}
+                        </span>
+                      </MainTag>
+                      {notification.state === 'new' ? (
+                        <button
+                          type="button"
+                          className="notification-item__unread"
+                          title="Đánh dấu đã xem"
+                          aria-label="Đánh dấu đã xem"
+                          disabled={stateMutation.isPending}
+                          onClick={() => runStateAction('ack', [notification.id])}
+                        />
+                      ) : null}
                     </div>
-                    <h3>{notificationTitle(notification)}</h3>
-                    <p>{notificationDescription(notification)}</p>
-                    {notification.memberId ? <small>Hội viên</small> : null}
                     {qrActions.length ? (
                       <div className="notification-item__actions notification-item__actions--qr">
                         {qrActions.map((action) =>
@@ -423,32 +438,7 @@ export function NotificationCenter() {
                       </div>
                     ) : null}
                     {/* Quy trình "Nhận xử lý → Hoàn tất" tạm bỏ (user chốt 2026-10-23: không có
-                        quy trình này cho mọi sự kiện). Chỉ còn Mở chi tiết (khi có trang đích) + Đã xem. */}
-                    {target || notification.state === 'new' ? (
-                    <div className="notification-item__actions">
-                      {target ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          icon={<ArrowSquareOut size={17} />}
-                          onClick={() => openTarget(notification)}
-                        >
-                          Mở chi tiết
-                        </Button>
-                      ) : null}
-                      {notification.state === 'new' ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          icon={<Check size={17} />}
-                          disabled={stateMutation.isPending}
-                          onClick={() => runStateAction('ack', [notification.id])}
-                        >
-                          Đã xem
-                        </Button>
-                      ) : null}
-                    </div>
-                    ) : null}
+                        quy trình này cho mọi sự kiện). Còn lại: bấm dòng = Mở chi tiết, chấm xanh = Đã xem. */}
                   </div>
                 </article>
               )

@@ -104,6 +104,20 @@
   margin-left: var(--space-2);
 }
 
+/* Toàn bộ máy đang dùng: thay biểu đồ tròn bằng huy hiệu tick success (nhỏ hơn .ws-sumc__pie vì chỉ là dấu hiệu trạng thái). */
+.ws-sumc__done {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: var(--space-2);
+  border-radius: 50%;
+  color: #fff;
+  background: var(--color-success);
+}
+
 .ws-sumc__slice {
   fill: none;
   stroke-width: 16;
@@ -183,22 +197,35 @@
   position: relative;
   display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: var(--space-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
-  padding: 2px var(--space-2) 9px;
+  padding: 2px var(--space-2) 3px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   white-space: nowrap;
   transition: border-color var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 
+/* Hàng trên: tên + số máy. Hàng dưới: thanh usage + (số % | tick khi kín máy) nằm cùng hàng với thanh. */
+.ws-sumc__zone-head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-sumc__zone-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 0.75rem;
+}
+
 .ws-sumc__zone-bar {
-  position: absolute;
-  right: var(--space-2);
-  bottom: 4px;
-  left: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 2.5rem;
   height: 3px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-text-muted) 28%, transparent);
@@ -211,6 +238,31 @@
   border-radius: inherit;
   background: var(--color-info);
   transition: width var(--motion-normal) ease;
+}
+
+/* Chưa kín: số % ngay sau số máy; kín máy: thanh + dấu tick đổi sang màu success. */
+.ws-sumc__zone-pct {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: 0.5625rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-sumc__zone-done {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--color-success);
+}
+
+.ws-sumc__zone.is-full .ws-sumc__zone-fill {
+  background: var(--color-success);
 }
 
 .ws-sumc__zone:hover {

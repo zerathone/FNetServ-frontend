@@ -143,19 +143,20 @@
 }
 
 .customer-table__header {
-  min-height: 2.75rem;
+  min-height: var(--table-header-height);
   border-bottom: 1px solid var(--color-border-default);
   color: var(--color-text-muted);
   background: var(--color-surface-subtle);
-  font-size: var(--font-size-xs);
-  font-weight: 750;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  line-height: var(--table-header-line-height);
+  letter-spacing: var(--table-header-letter-spacing);
+  text-transform: var(--table-header-text-transform);
 }
 
 .customer-table__header > button {
   min-width: 0;
-  min-height: 2.75rem;
+  min-height: var(--table-header-height);
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -190,12 +191,12 @@
 .customer-sort-mark {
   flex: none;
   color: var(--color-action-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--table-header-font-size);
 }
 
 .customer-table__row {
   width: 100%;
-  min-height: 3.25rem;
+  min-height: calc(var(--table-row-min-height) + 0.25rem); /* 2 dòng chữ (tên + phụ) nên cao hơn dòng 1 badge một chút */
   border: 0;
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-secondary);
@@ -217,7 +218,7 @@
   align-content: center;
   align-self: stretch;
   border-right: 1px solid var(--color-border-subtle);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1456,16 +1457,19 @@
 
 .customer-history-dialog__table th,
 .customer-history-dialog__table td {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   border-bottom: 1px solid var(--color-border-default);
   text-align: left;
   vertical-align: top;
 }
 
 .customer-history-dialog__table th {
+  padding-block: var(--table-header-padding-y);
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  letter-spacing: var(--table-header-letter-spacing);
+  line-height: var(--table-header-line-height);
 }
 
 .customer-history-dialog__table tbody tr:last-child td {
@@ -2025,7 +2029,7 @@
 
 .user-admin__table th,
 .user-admin__table td {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   text-align: left;
   white-space: nowrap;
 }
@@ -2036,8 +2040,11 @@
   z-index: 1;
   background: var(--bg-card-alt);
   border-bottom: 1px solid var(--color-border-default);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+  padding-block: var(--table-header-padding-y);
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
+  letter-spacing: var(--table-header-letter-spacing);
+  line-height: var(--table-header-line-height);
   color: var(--text-secondary);
 }
 

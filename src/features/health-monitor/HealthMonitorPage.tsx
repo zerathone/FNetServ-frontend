@@ -17,13 +17,16 @@ import {
   Thermometer,
   Warning,
   X,
+  XCircle,
 } from '@phosphor-icons/react'
 import {
   getWorkstationsHardwareAll,
   getWorkstationsRuntime,
   type WorkstationHardware,
 } from '../../api/workstations'
-import { Button, PageHeader, StateView, type StatusTone } from '../../design-system/components'
+import { Button, PageHeader, SearchListButton, StateView, type StatusTone } from '../../design-system/components'
+
+const HM_PC_LIST_ID = 'hm-pc-options'
 import {
   dataVolume,
   FAN_DANGER_PCT,
@@ -509,6 +512,7 @@ function hardwareDetailItems(hw: WorkstationHardware | null) {
 
 export function HealthMonitorPage() {
   const [search, setSearch] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set())
   const toggleExpand = (hostName: string) =>
     setExpandedHosts((current) => {
@@ -721,14 +725,33 @@ export function HealthMonitorPage() {
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
               <input
+                ref={searchInputRef}
                 className="ds-input"
                 type="search"
+                list={HM_PC_LIST_ID}
                 value={search}
                 placeholder="Tên máy hoặc IP"
                 onChange={(event) => setSearch(event.target.value)}
               />
+              <SearchListButton inputRef={searchInputRef} label="Chọn tên máy" />
+              {search ? (
+                <button
+                  type="button"
+                  className="ds-search-input__clear"
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  title="Xóa bộ lọc"
+                  onClick={() => setSearch('')}
+                >
+                  <XCircle size={17} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
           </div>
+          <datalist id={HM_PC_LIST_ID}>
+            {allRows.map(({ machine }) => (
+              <option key={machine.hostName} value={machine.hostName} />
+            ))}
+          </datalist>
         </div>
         <div className="ws-toolbar__end">
           <div className="ws-toolbar__count" aria-live="polite">

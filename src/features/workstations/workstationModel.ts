@@ -134,15 +134,16 @@ export function getWinLicenseView(machine: WorkstationRuntime): WinLicenseView |
  * `useServiceAcceptCleared`) — server bật cờ này vô điều kiện cho máy còn giữ user của khách trước.
  */
 export function getWorkstationFlags(machine: WorkstationRuntime, options: { hideServiceAccept?: boolean } = {}) {
-  const flags: Array<{ label: string; tone: StatusTone }> = []
+  // `id` chỉ có ở cờ mà UI cần xử lý riêng (bảng máy hiện hai cờ dịch vụ thành nút icon dẫn sang trang Đơn dịch vụ).
+  const flags: Array<{ label: string; tone: StatusTone; id?: 'service_order' | 'service_accept' }> = []
   if (machine.flagMask & WORKSTATION_FLAGS.HAVE_NOT_PAID) {
     flags.push({ label: 'Còn nợ', tone: 'danger' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ORDER) {
-    flags.push({ label: 'Có gọi món', tone: 'warning' })
+    flags.push({ label: 'Có gọi món', tone: 'warning', id: 'service_order' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT && !options.hideServiceAccept) {
-    flags.push({ label: 'Đã nhận món', tone: 'info' })
+    flags.push({ label: 'Đã nhận món', tone: 'info', id: 'service_accept' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.TRANSFER_PAYMENT) {
     flags.push({ label: 'Đợi chuyển phí', tone: 'warning' })
