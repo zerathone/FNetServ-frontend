@@ -562,7 +562,7 @@
 }
 
 .order-list-region {
-  max-height: min(56vh, 44rem);
+  max-height: min(72vh, 64rem);
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -596,22 +596,39 @@
 
 .order-list {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .order-card {
   min-width: 0;
   display: grid;
-  /* Cột món (thứ 3) có TRẦN 22rem -- không giãn chiếm hết chỗ trống; phần dư chia cho danh tính, tổng đơn
+  /* Cột món (thứ 3) có TRẦN 16rem -- không giãn chiếm hết chỗ trống; phần dư chia cho danh tính, tổng đơn
      và tiến trình (các cột nhiều thông tin) bằng fr. */
-  grid-template-columns: 2rem minmax(10rem, 1fr) minmax(15rem, 22rem) minmax(9rem, 0.8fr) minmax(12rem, 1fr) 10rem;
+  grid-template-columns: 1.25rem minmax(6.5rem, 9rem) minmax(12rem, 16rem) minmax(9rem, 10rem) minmax(12rem, 1fr) 7.5rem;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-default);
   box-shadow: var(--shadow-sm);
+}
+
+/* Ô chọn: cột đúng bằng bề rộng checkbox toàn cục (1.25rem, controls.css); cột danh tính kéo sang trái
+   0.125rem nên còn khe hở nhỏ 0.375rem giữa checkbox và nội dung (màn hẹp giữ lưới cũ nên chỉ áp rule kéo ở màn rộng). */
+.order-card__check {
+  display: flex;
+  align-items: center;
+}
+
+.order-card__check input {
+  margin: 0;
+}
+
+@media (min-width: 1121px) {
+  .order-card__check + .order-card__identity {
+    margin-left: -0.125rem;
+  }
 }
 
 /* Combo không có checkbox (không bulk-select) -- bỏ cột 2rem đầu. */
@@ -633,7 +650,7 @@
 /* Đơn hoàn thành -- chỉ xem, không checkbox/không actions (đã đóng, không còn thao tác gì). */
 .order-card--completed {
   /* Chỉ cột tiến trình (thứ 4) giãn theo chỗ trống; các cột còn lại có trần. Nút In phiếu nằm cột cuối. */
-  grid-template-columns: minmax(10rem, 14rem) minmax(15rem, 22rem) minmax(9rem, 11rem) minmax(14rem, 1fr) 7.5rem;
+  grid-template-columns: minmax(6.5rem, 9rem) minmax(12rem, 16rem) minmax(9rem, 10rem) minmax(14rem, 1fr);
 }
 
 .order-card__paid-time {
@@ -648,6 +665,11 @@
 .order-card__actions {
   min-width: 0;
   display: grid;
+  gap: 2px;
+}
+
+/* Riêng cột nút: các nút cách nhau rộng hơn các cột khác. */
+.order-card__actions {
   gap: var(--space-1);
 }
 
@@ -665,6 +687,19 @@
 .order-card__total span {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+}
+
+/* Nút thao tác gọn: thấp + đệm ngang nhỏ hơn mặc định (2.25rem) để cột nút hẹp lại, card thấp lại. */
+.order-card__actions .ds-button {
+  height: 1.5rem;
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+}
+
+.order-card__actions .ds-button__icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .order-card__identity .ds-badge {
@@ -702,7 +737,7 @@
 }
 
 .order-card__items {
-  padding-left: var(--space-3);
+  padding-left: var(--space-2);
   border-left: 1px solid var(--color-border-default);
 }
 
@@ -723,8 +758,35 @@
 
 .order-card__total {
   justify-items: end;
-  padding-left: var(--space-3);
+  padding-left: var(--space-2);
   border-left: 1px solid var(--color-border-default);
+}
+
+/* Nút In phiếu dạng icon: cột trái của khối tổng tiền, căn giữa theo chiều dọc; nội dung tiền ở cột phải. */
+.order-card__total--print {
+  /* auto + auto + justify-content:start: cột tiền chỉ rộng bằng nội dung, dính sát nút In -- không giãn
+     khoảng trống giữa nút và số tiền (trước đây `1fr` đẩy tiền sang mép phải cột). */
+  grid-template-columns: auto auto;
+  justify-content: start;
+  column-gap: var(--space-2);
+  align-items: center;
+}
+
+.order-card__total--print > :not(.order-card__print) {
+  grid-column: 2;
+}
+
+.order-card__total--print > .order-card__print {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: center;
+}
+
+/* Nút vuông icon-only, có viền (variant neutral: viền border-default, hover viền đậm hơn). */
+.order-card__print.ds-button {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
 }
 
 .order-card__total strong {
@@ -924,16 +986,16 @@
   min-width: 0;
   display: grid;
   justify-items: center;
-  gap: 4px;
+  gap: 1px;
 }
 
-/* Đường nối từ mép chấm này tới mép chấm kế (chấm 1.5rem => chừa 0.75rem + 2px mỗi đầu). */
+/* Đường nối từ mép chấm này tới mép chấm kế (chấm 1.25rem => chừa 0.625rem + 2px mỗi đầu). */
 .order-steps__item:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: calc(0.75rem - 1px);
-  left: calc(50% + 1rem);
-  right: calc(-50% + 1rem);
+  top: calc(0.625rem - 1px);
+  left: calc(50% + 0.875rem);
+  right: calc(-50% + 0.875rem);
   height: 2px;
   background: var(--color-border-default);
 }
@@ -943,8 +1005,8 @@
 }
 
 .order-steps__icon {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;

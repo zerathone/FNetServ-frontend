@@ -164,7 +164,7 @@ function columnValue(user: UserAccount, col: CustomerColumn): string | number {
 function columnDisplay(user: UserAccount, col: CustomerColumn) {
   switch (col) {
     case 'userName':    return user.userName
-    case 'name':        return displayName(user)
+    case 'name':        return `${user.lastName || ''} ${user.firstName || ''}`.trim() || '—'
     case 'idNumber':    return maskSensitive(user.idNumber)
     case 'phone':       return maskSensitive(user.phone)
     case 'moneyPaid':   return formatMoney(user.moneyPaid)

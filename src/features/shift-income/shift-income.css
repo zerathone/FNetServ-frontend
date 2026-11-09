@@ -419,11 +419,17 @@
   background: color-mix(in srgb, var(--si-mc) 12%, transparent);
 }
 
-/* Số tiền vừa đổi: chớp "thở" như chấm số ở menu trái (keyframes nav-heartbeat khai báo ở App.css; class do
-   useNavBadge gỡ sau 10 giây). */
+/* Số tiền vừa đổi: nhịp "thở" cùng chu kỳ 1.4s với chấm số ở menu trái (nav-heartbeat ở App.css), nhưng chỉ
+   nhấp nháy NỀN của thành phần (màu phương thức/nguồn --si-mc), chữ và icon giữ nguyên độ rõ. Class do
+   useNavBadge gỡ sau 10 giây. */
+@keyframes si-bg-heartbeat {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: color-mix(in srgb, var(--si-mc) 32%, transparent); }
+}
+
 .shift-income__method-line li.is-pulsing,
 .shift-income__methods li.is-pulsing {
-  animation: nav-heartbeat 1.4s ease-in-out infinite;
+  animation: si-bg-heartbeat 1.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

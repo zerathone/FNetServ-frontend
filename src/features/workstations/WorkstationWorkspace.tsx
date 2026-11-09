@@ -2346,8 +2346,8 @@ export function WorkstationWorkspace() {
                       </dl>
                     ) : null}
                     <div className="ws-action-grid">
-                      <Button icon={<UserPlus {...ICON} />} type="button" variant="secondary" disabled={isPaused || Boolean(assignedAnonymId)} onClick={openAnonymInfo}>
-                        {assignedAnonymId ? 'Đã gán thông tin khách vãng lai' : 'Gán thông tin khách vãng lai'}
+                      <Button icon={<UserPlus {...ICON} />} type="button" variant="secondary" disabled={isPaused || Boolean(assignedAnonymId)} title="Gán thông tin khách vãng lai" onClick={openAnonymInfo}>
+                        {assignedAnonymId ? 'Đã gán thông tin' : 'Gán thông tin'}
                       </Button>
                       <Button
                         icon={<Gift {...ICON} />}

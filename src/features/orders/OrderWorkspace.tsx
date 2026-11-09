@@ -437,14 +437,14 @@ export function OrderWorkspace() {
   const renderPrintButton = (detailIds: number[]) => (
     <Button
       type="button"
-      variant="ghost"
+      variant="neutral"
+      className="order-card__print"
       icon={<Printer {...actionIconProps} />}
       disabled={pendingMutation}
       title="In phiếu dịch vụ ra máy in bếp/quầy"
+      aria-label="In phiếu"
       onClick={() => setPrintDetailIds(detailIds)}
-    >
-      In phiếu
-    </Button>
+    />
   )
 
   // Badge hình thức thanh toán khách đã chọn tại máy, dưới số tiền của thẻ đơn (cùng kiểu thẻ ở trang Đặt máy
@@ -498,7 +498,8 @@ export function OrderWorkspace() {
           </div>
         ))}
       </div>
-      <div className="order-card__total">
+      <div className="order-card__total order-card__total--print">
+        {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
         <span>Đã thu</span>
         <strong>{formatMoney(group.paidTotal)}</strong>
       </div>
@@ -521,7 +522,6 @@ export function OrderWorkspace() {
         >
           Hủy
         </Button>
-        {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
       </div>
     </article>
   )
@@ -552,7 +552,8 @@ export function OrderWorkspace() {
           </div>
         ))}
       </div>
-      <div className="order-card__total">
+      <div className="order-card__total order-card__total--print">
+        {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
         <span>Đã thu</span>
         <strong>{formatMoney(group.paidTotal)}</strong>
         {/* Hình thức thu: badge có icon, in đậm, đứng dưới số tiền (cùng kiểu thẻ đơn ở trang Đặt máy). */}
@@ -569,9 +570,6 @@ export function OrderWorkspace() {
         })()}
       </div>
       <OrderSteps kind="completed" times={[group.createdAtMs, undefined, group.paidAtMs]} />
-      <div className="order-card__actions">
-        {renderPrintButton(group.lines.map((line) => line.serviceDetailId))}
-      </div>
     </article>
   )
 
@@ -614,7 +612,8 @@ export function OrderWorkspace() {
           </div>
         ))}
       </div>
-      <div className="order-card__total">
+      <div className="order-card__total order-card__total--print">
+        {renderPrintButton(acceptedUnpaidDetailIds(group))}
         <span>Chưa thu</span>
         <strong>{formatMoney(group.total)}</strong>
         {renderChosenMethodBadge(group.servicePaid)}
@@ -654,7 +653,6 @@ export function OrderWorkspace() {
         >
           Hủy
         </Button>
-        {renderPrintButton(acceptedUnpaidDetailIds(group))}
       </div>
     </article>
     )
@@ -744,7 +742,8 @@ export function OrderWorkspace() {
             </div>
           ))}
         </div>
-        <div className="order-card__total">
+        <div className="order-card__total order-card__total--print">
+          {renderPrintButton([order.serviceDetailId, ...order.children.map((child) => child.serviceDetailId)])}
           <span>Tổng đơn</span>
           <strong>{formatMoney(orderAmount(order, qtyOverrides))}</strong>
           {renderChosenMethodBadge(order.servicePaid)}
@@ -794,7 +793,6 @@ export function OrderWorkspace() {
           >
             Từ chối
           </Button>
-          {renderPrintButton([order.serviceDetailId, ...order.children.map((child) => child.serviceDetailId)])}
         </div>
       </article>
     )

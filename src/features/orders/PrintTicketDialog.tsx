@@ -114,7 +114,7 @@ export function PrintTicketDialog({ detailIds, onClose }: Props) {
       open={open}
       title="In phiếu dịch vụ"
       description="Gửi phiếu tới máy in bếp/quầy được gán cho từng món."
-      size="lg"
+      size="md"
       onClose={close}
       footer={
         <>

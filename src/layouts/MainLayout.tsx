@@ -144,10 +144,10 @@ const workspaces: readonly Workspace[] = [
     label: 'Quản lý',
     shortLabel: 'QL',
     icon: <UsersThree size={20} weight="duotone" />,
-    landing: '/users',
+    landing: '/users/legacy',
     adminOnly: true,
     items: [
-      { to: '/users', label: 'Tài khoản', shortLabel: 'HV', icon: <Users size={24} weight="duotone" /> },
+      { to: '/users/legacy', label: 'Tài khoản', shortLabel: 'HV', icon: <Users size={24} weight="duotone" /> },
       { to: '/cards', label: 'Thẻ nạp', shortLabel: 'Thẻ', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/anonyms', label: 'Khách vãng lai', shortLabel: 'Khách', icon: <Detective size={24} weight="duotone" /> },
       { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <Storefront size={24} weight="duotone" /> },

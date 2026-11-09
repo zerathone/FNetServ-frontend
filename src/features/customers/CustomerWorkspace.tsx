@@ -140,7 +140,7 @@ function customerColumnValue(user: UserAccount, column: CustomerColumn): string 
 function customerColumnDisplay(user: UserAccount, column: CustomerColumn) {
   switch (column) {
     case 'userName': return user.userName
-    case 'name': return displayName(user)
+    case 'name': return `${user.lastName || ''} ${user.firstName || ''}`.trim() || '—'
     case 'idNumber': return maskSensitive(user.idNumber)
     case 'phone': return maskSensitive(user.phone)
     case 'moneyPaid': return formatMoney(user.moneyPaid)
