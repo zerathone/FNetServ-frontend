@@ -1,0 +1,501 @@
+/* Khung chat Messenger (task chat-v2 / C3). Chỉ dùng token của design-system — theme sáng/tối/ấm tự theo. */
+
+/* ---- Drawer ---------------------------------------------------------------------------------- */
+.chat-drawer.ds-drawer {
+  width: min(100%, 27rem);
+}
+
+.chat-drawer .ds-drawer__header {
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.chat-drawer .ds-drawer__header > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  min-width: 0;
+}
+
+.chat-drawer .ds-drawer__header h2 {
+  font-size: var(--font-size-lg);
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-drawer .ds-drawer__header-actions {
+  flex: 1;
+  justify-content: flex-end;
+  margin-top: 0;
+  gap: var(--space-1);
+}
+
+.chat-drawer .ds-drawer__header .ds-button {
+  min-height: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  font-size: var(--font-size-sm);
+}
+
+.chat-drawer .ds-drawer__header .ds-icon-button {
+  width: 2rem;
+  min-width: 2rem;
+  padding: 0;
+}
+
+/* Thân drawer = khung flex đầy chiều cao: danh sách/luồng cuộn riêng, ô nhập dính đáy. */
+.chat-drawer .ds-drawer__body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* ---- Danh sách hội thoại --------------------------------------------------------------------- */
+.chat-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
+}
+
+.chat-list__toolbar {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.chat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chat-tabs button {
+  min-height: 1.9rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  padding: 0 0.7rem;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-default);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.chat-tabs button.is-active {
+  border-color: var(--color-action-primary);
+  color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 10%, transparent);
+  font-weight: 700;
+}
+
+.chat-list__note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.chat-list__items {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-conv {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  color: var(--color-text-primary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-conv:hover,
+.chat-conv:focus-visible {
+  border-color: var(--color-border-default);
+  background: var(--color-surface-hover);
+}
+
+.chat-conv.is-unread {
+  background: color-mix(in srgb, var(--color-action-primary) 7%, transparent);
+}
+
+.chat-conv__avatar {
+  position: relative;
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+}
+
+/* Chấm xanh = đang ngồi máy (online). */
+.chat-conv__avatar.is-online::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--color-surface-default);
+  border-radius: 50%;
+  background: var(--color-success);
+  content: '';
+}
+
+.chat-conv__main {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.chat-conv__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.chat-conv__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-conv.is-unread .chat-conv__title {
+  font-weight: 800;
+}
+
+.chat-conv__time,
+.chat-conv__sub {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 0.75rem);
+  white-space: nowrap;
+}
+
+.chat-conv__last {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-conv.is-unread .chat-conv__last {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.chat-conv__badge {
+  display: grid;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  color: white;
+  background: var(--color-danger);
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+
+/* ---- Luồng chat ------------------------------------------------------------------------------ */
+.chat-thread {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.chat-thread__scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
+  overscroll-behavior: contain;
+}
+
+.chat-thread__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-thread__older {
+  display: flex;
+  justify-content: center;
+  padding-bottom: var(--space-2);
+}
+
+.chat-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0.15rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+.chat-divider::before,
+.chat-divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--color-border-default);
+  content: '';
+}
+
+.chat-divider--unread {
+  color: var(--color-danger-text);
+  font-weight: 800;
+}
+
+.chat-divider--unread::before,
+.chat-divider--unread::after {
+  background: var(--color-danger);
+  opacity: 0.55;
+}
+
+/* Tin của tôi (nhân viên đang đăng nhập) bên PHẢI; khách + nhân viên khác bên TRÁI. */
+.chat-row {
+  display: flex;
+}
+
+.chat-row--right {
+  justify-content: flex-end;
+}
+
+.chat-row--left {
+  justify-content: flex-start;
+}
+
+.chat-bubble {
+  display: grid;
+  max-width: 82%;
+  gap: 0.15rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 1rem 1rem 1rem 0.25rem;
+  padding: 0.45rem 0.7rem;
+  color: var(--color-text-primary);
+  background: var(--color-surface-subtle);
+}
+
+.chat-bubble--own {
+  border-color: transparent;
+  border-radius: 1rem 1rem 0.25rem 1rem;
+  color: var(--color-text-inverse);
+  background: var(--color-action-primary);
+}
+
+.chat-bubble__sender {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 700;
+}
+
+.chat-bubble__text {
+  margin: 0;
+  /* Giữ xuống dòng người gõ; từ dài/URL không làm vỡ khung. */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.chat-bubble__note {
+  opacity: 0.8;
+}
+
+.chat-bubble__time {
+  justify-self: end;
+  font-size: 0.6875rem;
+  opacity: 0.7;
+}
+
+/* Thẻ lệnh hệ thống (K2): chỉ hiển thị. */
+.chat-card {
+  display: grid;
+  width: min(100%, 20rem);
+  gap: var(--space-1);
+  border: 1px solid var(--color-border-default);
+  border-left: 4px solid var(--color-action-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-default);
+}
+
+.chat-card--cash_request {
+  border-left-color: var(--color-success);
+}
+
+.chat-card--order_check {
+  border-left-color: var(--color-danger);
+}
+
+.chat-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chat-card__body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.chat-card__body dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+.chat-card__body dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.chat-card__time {
+  justify-self: end;
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+}
+
+/* ---- Ô nhập ----------------------------------------------------------------------------------- */
+.chat-composer {
+  position: relative;
+  display: grid;
+  gap: 0.25rem;
+  border-top: 1px solid var(--color-border-default);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-elevated);
+}
+
+.chat-composer__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-1);
+}
+
+.chat-composer__input {
+  min-height: 2.25rem;
+  max-height: 8.25rem;
+  resize: none;
+  line-height: 1.4;
+}
+
+.chat-composer__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 1rem;
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+.chat-composer__hint {
+  color: var(--color-text-muted);
+}
+
+.chat-composer__error {
+  color: var(--color-danger-text);
+  font-weight: 700;
+}
+
+.chat-composer__count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chat-composer__count.is-over {
+  color: var(--color-danger-text);
+  font-weight: 800;
+}
+
+/* ---- Bảng emoji ------------------------------------------------------------------------------- */
+.chat-emoji {
+  position: absolute;
+  right: var(--space-3);
+  bottom: calc(100% + 0.25rem);
+  left: var(--space-3);
+  z-index: 2;
+  display: grid;
+  max-height: 14rem;
+  gap: var(--space-1);
+  overflow-y: auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+
+.chat-emoji__label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 700;
+}
+
+.chat-emoji__grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.15rem;
+}
+
+.chat-emoji__item {
+  display: grid;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm, 0.375rem);
+  background: transparent;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.chat-emoji__item:hover,
+.chat-emoji__item:focus-visible {
+  background: var(--color-surface-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-emoji {
+    animation: chat-pop 0.12s ease-out;
+  }
+}
+
+@keyframes chat-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.chat-list__more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-1) 0 var(--space-2);
+}

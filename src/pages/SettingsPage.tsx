@@ -37,6 +37,7 @@ import {
   RETENTION_FIELDS,
   validateSystemSettings,
 } from '../features/settings/settingsModel'
+import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
 import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
 import { ScheduledShutdownDialog } from '../features/workstations/ScheduledShutdownDialog'
 import './settings.css'
@@ -640,6 +641,9 @@ export function SettingsPage() {
               </footer>
             </form>
           ) : null}
+
+          {/* Kênh chat Messenger: form riêng (PUT /settings/chat riêng, chỉ admin) nên KHÔNG lồng trong form máy trạm. */}
+          {section === 'workstation' ? <ChatSettingsSection isAdmin={isAdmin} /> : null}
 
           {section === 'security' ? (
             <div className="settings-security">

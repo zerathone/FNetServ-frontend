@@ -9,6 +9,7 @@ import type { ThemeId } from '../design-system/theme/themeRegistry'
 import { useAuthStore } from '../store/auth'
 import { useWsStatusStore } from '../store/wsStatus'
 import { describeWsCloseCode } from '../lib/wsErrorText'
+import { ChatCenter } from '../features/chat/ChatCenter'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { LicenseButton } from '../features/license/LicenseButton'
 import { useLicenseInfo } from '../features/license/useLicenseInfo'
@@ -395,6 +396,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
             </StatusBadge>
             {wsCloseText ? <span className="app-topbar__ws-status-error">{wsCloseText}</span> : null}
           </span>
+          <ChatCenter />
           <NotificationCenter />
           <div className="theme-switcher" ref={themeMenuRef}>
             <button

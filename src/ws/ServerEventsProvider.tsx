@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { wsClient } from './wsClient'
+import { CHAT_QUERY_KEY } from '../api/chat'
 import { useAuthStore } from '../store/auth'
 import {
   OPERATIONS_NOTIFICATIONS_QUERY_KEY,
@@ -24,6 +25,7 @@ import { pushToast } from '../store/toast'
 // invalidate. KHONG debounce `hello` (reconnect phai invalidate ALL ngay -- flow_websocket.md muc 2.3).
 const WS_UPDATE_DEBOUNCE_MS = 1500
 const ORDER_CHANGED_DEBOUNCE_MS = 1000
+const CHAT_INVALIDATE_DEBOUNCE_MS = 300
 const SUBSCRIBED_DOMAINS = [
   'workstation',
   'order',
@@ -41,6 +43,7 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
   const helloCountRef = useRef(0)
   const wsUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orderChangedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const chatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (token) {
@@ -79,6 +82,14 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
         // Nhóm "Đơn hàng" ở drawer chi tiết máy (trang Máy trạm): GET /workstations/orders.
         void queryClient.invalidateQueries({ queryKey: ['workstation-orders'] })
       }, ORDER_CHANGED_DEBOUNCE_MS)
+    }
+
+    const scheduleChatInvalidate = () => {
+      if (chatTimerRef.current) clearTimeout(chatTimerRef.current)
+      chatTimerRef.current = setTimeout(() => {
+        chatTimerRef.current = null
+        void queryClient.invalidateQueries({ queryKey: CHAT_QUERY_KEY })
+      }, CHAT_INVALIDATE_DEBOUNCE_MS)
     }
 
     const unsubscribe = wsClient.subscribe((msg) => {
@@ -160,6 +171,14 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           break
         }
 
+        case 'chat.message':
+        case 'chat.read':
+          // Kênh chat Messenger (task chat-v2/C3): payload chỉ là tín hiệu nhẹ {convId,id,dir,kind} /
+          // {convId,who,upToId}; danh sách + luồng + badge lấy lại qua REST. Gom debounce vì khách có thể
+          // gõ liên tục. `client.message` cũ vẫn chạy song song (xem case bên dưới).
+          scheduleChatInvalidate()
+          break
+
         case 'tab.notification':
         case 'client.message':
         case 'pong':
@@ -185,8 +204,10 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
       unsubscribe()
       if (wsUpdateTimerRef.current) clearTimeout(wsUpdateTimerRef.current)
       if (orderChangedTimerRef.current) clearTimeout(orderChangedTimerRef.current)
+      if (chatTimerRef.current) clearTimeout(chatTimerRef.current)
       wsUpdateTimerRef.current = null
       orderChangedTimerRef.current = null
+      chatTimerRef.current = null
     }
   }, [queryClient])
 
