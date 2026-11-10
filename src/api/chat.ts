@@ -1,3 +1,4 @@
+import { retryAfterSecOf } from '../features/chat/chatModel'
 import { ApiError, apiGet, apiPost, apiPut } from './client'
 
 // Kênh chat Messenger mới (task chat-v2 / C3) — hợp đồng server: handoff/HANDOFF_chat_C2.md "Hợp đồng API".
@@ -30,6 +31,19 @@ export type ChatConversationPage = {
 export type ChatCardKind = 'cash_request' | 'online_request' | 'order_check'
 export type ChatMessageKind = 'chat' | ChatCardKind
 
+// ---- Phản ứng (tim / like / cười) + trả lời (task chat-C9; server: handoff/HANDOFF_chat_C7.md mục 4) ----
+export type ChatReactionKind = 'heart' | 'thumb' | 'laugh'
+/** `n` = tổng mọi người; `mine` = của tôi (❤️ 0–10; 👍/😂 0–1). Server CHỈ trả khoá có n > 0 (không trả tên ai thả). */
+export type ChatReactionCount = { n: number; mine: number }
+export type ChatReactions = Partial<Record<ChatReactionKind, ChatReactionCount>>
+/** `all` + `count: 0` = xoá MỌI phản ứng của chính tôi lên tin đó. */
+export type ChatReactEmoji = ChatReactionKind | 'all'
+
+/** Khối trích dẫn của tin trả lời — ảnh chụp lúc gửi, do SERVER tự cắt (≤ 80 ký tự). `dir` 1 = thu ngân, 2 = khách. */
+export type ChatReplyTo = { id: number; dir: 1 | 2; who: string; text: string }
+
+export type ChatCaps = { react?: boolean; reply?: boolean }
+
 export type ChatMessage = {
   id: number
   ts: number
@@ -50,12 +64,16 @@ export type ChatMessage = {
   sess: number
   text: string
   truncated?: boolean
+  /** Server mới luôn có (object rỗng khi chưa ai thả); Server cũ không có khoá này. */
+  reactions?: ChatReactions
 }
 
 export type ChatMessagePage = {
   items: ChatMessage[]
   hasMore: boolean
   staffRead: number
+  /** Thiếu `caps` ⇒ Server cũ chưa có thả tim / trả lời ⇒ UI ẨN các nút đó. */
+  caps?: ChatCaps
 }
 
 export type ChatSendResult = {
@@ -63,7 +81,10 @@ export type ChatSendResult = {
   channel: 'v2' | 'legacy'
   delivered: boolean
   duplicate?: boolean
+  replyTo?: ChatReplyTo
 }
+
+export type ChatReactResult = { reactions: ChatReactions; changed: boolean }
 
 export type ChatConversationFilter = 'all' | 'accounts' | 'hosts' | 'unread'
 
@@ -92,8 +113,17 @@ export const listChatConversations = (body: {
 export const listChatMessages = (body: { convId: string; beforeId?: number; limit?: number }) =>
   apiPost<ChatMessagePage, typeof body>('/chat/messages', body)
 
-export const sendChatMessage = (body: { convId: string; text: string; clientMsgId: string }) =>
+export const sendChatMessage = (body: { convId: string; text: string; clientMsgId: string; replyToId?: number }) =>
   apiPost<ChatSendResult, typeof body>('/chat/send', body)
+
+/** Gửi số phản ứng MONG MUỐN (trạng thái tuyệt đối) — gửi lại do retry không cộng đôi. */
+export const reactToChatMessage = (body: { convId: string; targetId: number; emoji: ChatReactEmoji; count: number }) =>
+  apiPost<ChatReactResult, typeof body>('/chat/react', body)
+
+/** `retryAfterSec` của `BURST_LOCKED` / `RATE_LIMITED` (server nhét ở `data`). `null` = lỗi khác hoặc thiếu số. */
+export function chatRetryAfterSec(error: unknown): number | null {
+  return error instanceof ApiError ? retryAfterSecOf(error.message, error.details) : null
+}
 
 export const markChatRead = (body: { convId: string; upToId: number }) =>
   apiPost<{ staffRead: number; unread: number }, typeof body>('/chat/read', body)

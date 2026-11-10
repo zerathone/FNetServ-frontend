@@ -26,6 +26,8 @@ import { pushToast } from '../store/toast'
 const WS_UPDATE_DEBOUNCE_MS = 1500
 const ORDER_CHANGED_DEBOUNCE_MS = 1000
 const CHAT_INVALIDATE_DEBOUNCE_MS = 300
+/** Phản ứng (tim) không cần nhanh: gom ≥ 2 s để không dồn tải server khi nhiều người thả liên tục (D5). */
+const CHAT_REACTION_DEBOUNCE_MS = 2000
 const SUBSCRIBED_DOMAINS = [
   'workstation',
   'order',
@@ -44,6 +46,7 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
   const wsUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const orderChangedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const chatReactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (token) {
@@ -90,6 +93,17 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
         chatTimerRef.current = null
         void queryClient.invalidateQueries({ queryKey: CHAT_QUERY_KEY })
       }, CHAT_INVALIDATE_DEBOUNCE_MS)
+    }
+
+    // task chat-C9: gom tín hiệu `chat.reaction` rồi chỉ invalidate luồng tin. THROTTLE (không đặt lại timer khi
+    // đã có timer): nếu debounce trượt thì người khác bật/tắt 👍 liên tục sẽ làm luồng tin KHÔNG BAO GIỜ được tươi.
+    // Tối đa 1 lần tải / 2 s, chậm nhất 2 s sau tín hiệu đầu (D5: ưu tiên an toàn hơn tốc độ).
+    const scheduleChatReactionInvalidate = () => {
+      if (chatReactTimerRef.current) return
+      chatReactTimerRef.current = setTimeout(() => {
+        chatReactTimerRef.current = null
+        void queryClient.invalidateQueries({ queryKey: [...CHAT_QUERY_KEY, 'messages'] })
+      }, CHAT_REACTION_DEBOUNCE_MS)
     }
 
     const unsubscribe = wsClient.subscribe((msg) => {
@@ -179,6 +193,12 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           scheduleChatInvalidate()
           break
 
+        case 'chat.reaction':
+          // task chat-C9 (D4/D5): thả tim chỉ là tín hiệu nhẹ — chỉ làm tươi các luồng tin ĐANG MỞ, sau ≥ 2 s
+          // (gộp nhiều tín hiệu; ưu tiên an toàn hơn tốc độ). KHÔNG đụng danh sách hội thoại / badge / nút topbar.
+          scheduleChatReactionInvalidate()
+          break
+
         case 'tab.notification':
         case 'client.message':
         case 'pong':
@@ -205,6 +225,8 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
       if (wsUpdateTimerRef.current) clearTimeout(wsUpdateTimerRef.current)
       if (orderChangedTimerRef.current) clearTimeout(orderChangedTimerRef.current)
       if (chatTimerRef.current) clearTimeout(chatTimerRef.current)
+      if (chatReactTimerRef.current) clearTimeout(chatReactTimerRef.current)
+      chatReactTimerRef.current = null
       wsUpdateTimerRef.current = null
       orderChangedTimerRef.current = null
       chatTimerRef.current = null

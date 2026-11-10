@@ -2,22 +2,36 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { ChatConversation, ChatMessage } from '../src/api/chat.ts'
 import {
+  applyReactionRequest,
   badgeText,
   buildTimeline,
+  canReact,
+  canReply,
   cardOf,
   checkDraft,
+  chipLabel,
   conversationMatches,
   conversationTag,
   countCodePoints,
+  describeChatError,
   describeChatSettingsError,
+  detectBurst,
   formatChatTime,
+  formatCountdown,
   groupTimeline,
   insertAtSelection,
   isOwnMessage,
   latestInboundId,
   mergeMessages,
+  myReactionTotal,
   newClientMsgId,
   normalizeDraft,
+  reactionChips,
+  reactionRequestFor,
+  remainingLockSec,
+  replyOf,
+  replyWho,
+  retryAfterSecOf,
   searchSuggestions,
   senderLabel,
   sessionKey,
@@ -277,4 +291,161 @@ test('validateChatRetention + describeChatSettingsError', () => {
   assert.match(describeChatSettingsError('storagePath invalid: network_drive'), /ổ cục bộ/)
   assert.match(describeChatSettingsError('storagePath not usable: write_failed'), /write_failed/)
   assert.equal(describeChatSettingsError('boom'), 'boom')
+})
+
+// ---- task chat-C9: phan ung, tra loi, khoa chong don tin ---------------------------------------------------
+
+test('reactionChips: thu tu co dinh tim/like/cuoi, bo n<=0 va so hong', () => {
+  assert.deepEqual(reactionChips(undefined), [])
+  assert.deepEqual(reactionChips({}), [])
+  const chips = reactionChips({ laugh: { n: 2, mine: 0 }, heart: { n: 7, mine: 3 }, thumb: { n: 0, mine: 0 } })
+  assert.deepEqual(chips.map((c) => [c.kind, c.n, c.mine]), [['heart', 7, 3], ['laugh', 2, 0]])
+  // mine khong duoc vuot n; so am / NaN bi bo
+  assert.equal(reactionChips({ heart: { n: 2, mine: 9 } })[0].mine, 2)
+  assert.deepEqual(reactionChips({ heart: { n: -1, mine: 0 }, thumb: { n: Number.NaN, mine: 0 } }), [])
+})
+
+test('myReactionTotal + chipLabel', () => {
+  assert.equal(myReactionTotal({ heart: { n: 7, mine: 3 }, thumb: { n: 1, mine: 1 } }), 4)
+  assert.equal(myReactionTotal(undefined), 0)
+  assert.equal(chipLabel({ kind: 'heart', emoji: '❤️', n: 7, mine: 2 }), 'Thả tim: 7 (bạn 2)')
+  assert.equal(chipLabel({ kind: 'thumb', emoji: '👍', n: 1, mine: 0 }), 'Thích: 1')
+})
+
+test('reactionRequestFor: tim +1 toi tran 10; like/cuoi bat-tat; xoa chi khi co phan ung cua toi', () => {
+  assert.deepEqual(reactionRequestFor(undefined, 'heart'), { emoji: 'heart', count: 1 })
+  assert.deepEqual(reactionRequestFor({ heart: { n: 9, mine: 4 } }, 'heart'), { emoji: 'heart', count: 5 })
+  assert.equal(reactionRequestFor({ heart: { n: 12, mine: 10 } }, 'heart'), null) // tran 10
+  assert.deepEqual(reactionRequestFor(undefined, 'thumb'), { emoji: 'thumb', count: 1 })
+  assert.deepEqual(reactionRequestFor({ thumb: { n: 3, mine: 1 } }, 'thumb'), { emoji: 'thumb', count: 0 }) // bam lai = bo
+  assert.deepEqual(reactionRequestFor({ thumb: { n: 3, mine: 0 } }, 'thumb'), { emoji: 'thumb', count: 1 }) // nguoi khac thich, minh chua
+  assert.deepEqual(reactionRequestFor({ laugh: { n: 1, mine: 1 } }, 'laugh'), { emoji: 'laugh', count: 0 })
+  assert.equal(reactionRequestFor({ heart: { n: 5, mine: 0 } }, 'clear'), null) // chua tha gi => khong co gi de xoa
+  assert.deepEqual(reactionRequestFor({ heart: { n: 5, mine: 2 } }, 'clear'), { emoji: 'all', count: 0 })
+})
+
+test('applyReactionRequest: lac quan khop luat server, khong doi ban goc', () => {
+  const base = { heart: { n: 7, mine: 2 }, thumb: { n: 1, mine: 1 } }
+  const snapshot = JSON.stringify(base)
+  assert.deepEqual(applyReactionRequest(base, { emoji: 'heart', count: 3 }), { heart: { n: 8, mine: 3 }, thumb: { n: 1, mine: 1 } })
+  assert.deepEqual(applyReactionRequest(base, { emoji: 'thumb', count: 0 }), { heart: { n: 7, mine: 2 } }) // n ve 0 => bo khoa
+  assert.deepEqual(applyReactionRequest(base, { emoji: 'all', count: 0 }), { heart: { n: 5, mine: 0 } }) // chi tru phan cua toi
+  assert.deepEqual(applyReactionRequest(undefined, { emoji: 'laugh', count: 1 }), { laugh: { n: 1, mine: 1 } })
+  assert.deepEqual(applyReactionRequest({}, { emoji: 'all', count: 0 }), {})
+  assert.equal(JSON.stringify(base), snapshot)
+})
+
+test('thao tac lien tiep tinh theo trang thai lac quan (bam tim nhieu lan)', () => {
+  let state: Parameters<typeof reactionChips>[0] = {}
+  const sent: number[] = []
+  for (let i = 0; i < 12; i += 1) {
+    const req = reactionRequestFor(state, 'heart')
+    if (!req) break
+    sent.push(req.count)
+    state = applyReactionRequest(state, req)
+  }
+  assert.deepEqual(sent, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) // dung o tran 10, moi lan gui SO TUYET DOI
+  assert.deepEqual(state, { heart: { n: 10, mine: 10 } })
+})
+
+test('mergeMessages: tin da tai truoc do duoc cap nhat reactions tu ban moi nhat', () => {
+  const old = msg({ id: 10, reactions: { heart: { n: 1, mine: 0 } } })
+  const fresh = msg({ id: 10, reactions: { heart: { n: 4, mine: 2 } } })
+  const merged = mergeMessages([old, msg({ id: 5 })], [fresh])
+  assert.equal(merged.length, 2)
+  assert.deepEqual(merged[1].reactions, { heart: { n: 4, mine: 2 } })
+})
+
+test('replyOf: doc meta.replyTo hop le; thieu/hong => null', () => {
+  assert.equal(replyOf(msg({ id: 1 })), null)
+  assert.equal(replyOf(msg({ id: 1, meta: { amount: 5 } })), null)
+  assert.equal(replyOf(msg({ id: 1, meta: { replyTo: 'x' } })), null)
+  assert.equal(replyOf(msg({ id: 1, meta: { replyTo: { id: 0, who: 'a', text: 'b' } } })), null)
+  assert.deepEqual(replyOf(msg({ id: 1, meta: { replyTo: { id: 99, dir: 1, who: 'Lan', text: 'chao ban' } } })), {
+    id: 99,
+    dir: 1,
+    who: 'Lan',
+    text: 'chao ban',
+  })
+  // thieu field => mac dinh an toan
+  assert.deepEqual(replyOf(msg({ id: 1, meta: { replyTo: { id: 7 } } })), { id: 7, dir: 2, who: '', text: '' })
+  assert.equal(replyWho({ dir: 2, who: '' }), 'Khách')
+  assert.equal(replyWho({ dir: 1, who: '' }), 'Thu ngân')
+  assert.equal(replyWho({ dir: 1, who: 'Lan' }), 'Lan')
+})
+
+test('canReact / canReply: thieu caps (Server cu) => an', () => {
+  assert.equal(canReact(undefined), false)
+  assert.equal(canReply(undefined), false)
+  assert.equal(canReact({}), false)
+  assert.equal(canReact({ react: true }), true)
+  assert.equal(canReply({ react: true }), false)
+  assert.equal(canReply({ reply: true }), true)
+})
+
+test('detectBurst: lan gui thu 3 trong 1 s bi khoa; 2 lan/giay thi khong', () => {
+  let h: number[] = []
+  let r = detectBurst(h, 1000)
+  assert.equal(r.burst, false)
+  h = r.history
+  r = detectBurst(h, 1100)
+  assert.equal(r.burst, false)
+  h = r.history
+  r = detectBurst(h, 1200) // lan thu 3 trong 200 ms
+  assert.equal(r.burst, true)
+  assert.deepEqual(r.history, []) // sau khoa xoa lich su
+
+  // cach deu 550 ms: khong bao gio du 3 lan trong 1 s
+  h = []
+  let blocked = false
+  for (let i = 0; i < 40; i += 1) {
+    const res = detectBurst(h, i * 550)
+    h = res.history
+    blocked = blocked || res.burst
+  }
+  assert.equal(blocked, false)
+
+  // dung bien: tin 1 cach tin 3 dung 1000 ms => da roi cua so (khop server: now - t >= 1000)
+  r = detectBurst(detectBurst(detectBurst([], 0).history, 500).history, 1000)
+  assert.equal(r.burst, false)
+  r = detectBurst(detectBurst(detectBurst([], 0).history, 500).history, 999)
+  assert.equal(r.burst, true)
+})
+
+test('retryAfterSecOf: chi BURST_LOCKED/RATE_LIMITED, doc object hoac chuoi JSON, lam tron len', () => {
+  assert.equal(retryAfterSecOf('BURST_LOCKED', { retryAfterSec: 58 }), 58)
+  assert.equal(retryAfterSecOf('RATE_LIMITED', { retryAfterSec: 59.2 }), 60)
+  assert.equal(retryAfterSecOf('BURST_LOCKED', '{"retryAfterSec":120}'), 120)
+  assert.equal(retryAfterSecOf('BURST_LOCKED', 'khong phai json'), null)
+  assert.equal(retryAfterSecOf('BURST_LOCKED', undefined), null)
+  assert.equal(retryAfterSecOf('BURST_LOCKED', { retryAfterSec: 0 }), null)
+  assert.equal(retryAfterSecOf('BURST_LOCKED', { retryAfterSec: 'abc' }), null)
+  assert.equal(retryAfterSecOf('store_error', { retryAfterSec: 30 }), null)
+})
+
+test('remainingLockSec + formatCountdown', () => {
+  assert.equal(remainingLockSec(0, 5000), 0)
+  assert.equal(remainingLockSec(5000, 5000), 0)
+  assert.equal(remainingLockSec(65_000, 5000), 60)
+  assert.equal(remainingLockSec(5001, 5000), 1) // lam tron len
+  assert.equal(formatCountdown(180), '3:00')
+  assert.equal(formatCountdown(61), '1:01')
+  assert.equal(formatCountdown(0), '0:00')
+  assert.equal(formatCountdown(-5), '0:00')
+})
+
+test('describeChatError: ma loi moi cua C8 ra tieng Viet', () => {
+  for (const code of ['BURST_LOCKED', 'RATE_LIMITED', 'REACT_LIMIT', 'REACT_TARGET_NOT_FOUND', 'REACT_TARGET_EXPIRED', 'REPLY_TARGET_NOT_FOUND']) {
+    const text = describeChatError(code)
+    assert.notEqual(text, code)
+    assert.match(text, /[a-zà-ỹ]/i)
+  }
+  assert.equal(describeChatError('mot loi la'), 'mot loi la') // khong khop => giu nguyen
+})
+test('describeChatError: loi validate cua server => cau chung tieng Viet, khong de nguyen tieng Anh', () => {
+  for (const code of ['count invalid', 'targetId invalid', 'replyToId invalid', 'react_invalid', 'emoji invalid (heart|thumb|laugh|all)']) {
+    assert.equal(describeChatError(code), 'Yêu cầu không hợp lệ.')
+  }
+  assert.equal(describeChatError('convId invalid'), 'Hội thoại không hợp lệ.') // da co cau rieng
+  assert.equal(describeChatError('invalid_utf8'), 'Tin nhắn chứa ký tự không hợp lệ.')
 })

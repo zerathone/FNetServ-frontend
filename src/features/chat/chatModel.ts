@@ -1,7 +1,12 @@
 import type {
+  ChatCaps,
   ChatCardKind,
   ChatConversation,
   ChatMessage,
+  ChatReactEmoji,
+  ChatReactionKind,
+  ChatReactions,
+  ChatReplyTo,
 } from '../../api/chat'
 
 // Logic thuần của khung chat (kênh chat Messenger mới, task chat-v2 / C3) — không import React,
@@ -61,7 +66,23 @@ export function describeChatError(message: string) {
       return 'Máy chủ không lưu được tin nhắn (kho chat lỗi). Kiểm tra thư mục lưu trong Cài đặt.'
     case 'convId invalid':
       return 'Hội thoại không hợp lệ.'
+    // task chat-C9: chống spam + phản ứng + trả lời (server: handoff C7 mục 0.2 / 4.5)
+    case 'BURST_LOCKED':
+      return 'Bạn gửi tin quá nhanh nên tạm bị khoá gửi tin.'
+    case 'RATE_LIMITED':
+      return 'Bạn thao tác quá nhiều trong 1 phút, vui lòng chờ một chút rồi thử lại.'
+    case 'REACT_LIMIT':
+      return 'Tin này đã có quá nhiều phản ứng (giới hạn của máy chủ).'
+    case 'REACT_TARGET_NOT_FOUND':
+      return 'Không tìm thấy tin để thả phản ứng.'
+    case 'REACT_TARGET_EXPIRED':
+      return 'Tin này đã quá hạn lưu trữ nên không thả phản ứng được.'
+    case 'REPLY_TARGET_NOT_FOUND':
+      return 'Không tìm thấy tin gốc để trả lời (có thể đã bị xoá do quá hạn lưu).'
     default:
+      // Lỗi validate của server (`count invalid`, `targetId invalid`, `replyToId invalid`, `react_invalid`…) chỉ xảy ra
+      // khi có bug phía gọi — thay vì hiện nguyên tiếng Anh trong toast thì nói chung chung.
+      if (/\binvalid\b|react_invalid/i.test(message) && !/json|body/i.test(message)) return 'Yêu cầu không hợp lệ.'
       // fetch() ném TypeError tiếng Anh khi mất mạng/server tắt.
       if (/failed to fetch|networkerror|load failed|network request failed/i.test(message)) {
         return 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'
@@ -123,7 +144,11 @@ export function senderLabel(message: ChatMessage) {
 
 // ---- Danh sách tin ---------------------------------------------------------------------------
 
-/** Gộp các trang (đã tải sau/trước), bỏ trùng theo `id`, xếp tăng dần theo `id`. */
+/**
+ * Gộp các trang (đã tải sau/trước), bỏ trùng theo `id`, xếp tăng dần theo `id`.
+ * Cùng `id` ở nhiều nhóm ⇒ nhóm ĐỨNG SAU thắng (truyền trang mới nhất ở cuối) — nhờ vậy `reactions` mới
+ * nhất của tin đã tải trước đó được cập nhật, không giữ số tim cũ.
+ */
 export function mergeMessages(...groups: ReadonlyArray<ReadonlyArray<ChatMessage>>): ChatMessage[] {
   const byId = new Map<number, ChatMessage>()
   for (const group of groups) for (const message of group) byId.set(message.id, message)
@@ -403,4 +428,162 @@ export function insertAtSelection(text: string, insert: string, start: number, e
 /** `clientMsgId` chống gửi trùng (server: `^[A-Za-z0-9_.:-]{1,64}$`). */
 export function newClientMsgId(random: () => number = Math.random, now: number = Date.now()) {
   return `w${now.toString(36)}-${Math.floor(random() * 0xffffffff).toString(36)}`
+}
+
+// ---- Phản ứng (❤️ 👍 😂) + trả lời + khoá chống dồn tin (task chat-C9) -----------------------------------------
+// Luật server: handoff/HANDOFF_chat_C7.md mục 0.1 (D1–D6), 0.2 (burst lock), 4 (API). Mọi hàm thuần (test: tests/chat-model.test.ts).
+
+export const REACTION_ORDER: readonly ChatReactionKind[] = ['heart', 'thumb', 'laugh']
+export const REACTION_EMOJI: Readonly<Record<ChatReactionKind, string>> = { heart: '❤️', thumb: '👍', laugh: '😂' }
+export const REACTION_LABEL: Readonly<Record<ChatReactionKind, string>> = {
+  heart: 'Thả tim',
+  thumb: 'Thích',
+  laugh: 'Cười',
+}
+/** Trần ❤️ mỗi người mỗi tin (D1). 👍/😂 mỗi người một lần. */
+export const MAX_HEART_PER_USER = 10
+
+export type ReactionChip = { kind: ChatReactionKind; emoji: string; n: number; mine: number }
+
+function wholeNumber(value: unknown) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
+
+/** Chip hiển thị dưới dòng tin: thứ tự cố định ❤️ 👍 😂, chỉ loại có n > 0 (số hỏng/âm bị bỏ). */
+export function reactionChips(reactions: ChatReactions | undefined | null): ReactionChip[] {
+  if (!reactions) return []
+  const out: ReactionChip[] = []
+  for (const kind of REACTION_ORDER) {
+    const entry = reactions[kind]
+    const n = wholeNumber(entry?.n)
+    if (n <= 0) continue
+    out.push({ kind, emoji: REACTION_EMOJI[kind], n, mine: Math.min(wholeNumber(entry?.mine), n) })
+  }
+  return out
+}
+
+/** Tổng số phản ứng của TÔI trên tin (quyết định có hiện nút "Xoá" hay không). */
+export function myReactionTotal(reactions: ChatReactions | undefined | null) {
+  return reactionChips(reactions).reduce((sum, chip) => sum + chip.mine, 0)
+}
+
+/** Một thao tác của người dùng: ❤️ = +1; 👍/😂 = bật/tắt; `clear` = xoá hết của tôi. */
+export type ReactionAction = ChatReactionKind | 'clear'
+export type ReactionRequest = { emoji: ChatReactEmoji; count: number }
+
+/**
+ * Đổi thao tác thành SỐ MONG MUỐN gửi server (trạng thái tuyệt đối ⇒ retry không cộng đôi).
+ * `null` = không có gì để gửi (❤️ đã chạm trần 10; "Xoá" khi tôi chưa thả gì).
+ */
+export function reactionRequestFor(
+  reactions: ChatReactions | undefined | null,
+  action: ReactionAction,
+): ReactionRequest | null {
+  if (action === 'clear') return myReactionTotal(reactions) > 0 ? { emoji: 'all', count: 0 } : null
+  const mine = reactionChips(reactions).find((chip) => chip.kind === action)?.mine ?? 0
+  if (action === 'heart') return mine >= MAX_HEART_PER_USER ? null : { emoji: 'heart', count: mine + 1 }
+  return { emoji: action, count: mine > 0 ? 0 : 1 }
+}
+
+/** Áp lạc quan yêu cầu lên bản sao `reactions` (không đổi bản gốc). Server vẫn là bên quyết định. */
+export function applyReactionRequest(
+  reactions: ChatReactions | undefined | null,
+  request: ReactionRequest,
+): ChatReactions {
+  const next: ChatReactions = {}
+  for (const chip of reactionChips(reactions)) {
+    if (request.emoji === 'all') {
+      const n = chip.n - chip.mine
+      if (n > 0) next[chip.kind] = { n, mine: 0 }
+    } else if (chip.kind === request.emoji) {
+      const n = chip.n - chip.mine + request.count
+      if (n > 0) next[chip.kind] = { n, mine: request.count }
+    } else {
+      next[chip.kind] = { n: chip.n, mine: chip.mine }
+    }
+  }
+  if (request.emoji !== 'all' && request.count > 0 && !next[request.emoji]) {
+    next[request.emoji] = { n: request.count, mine: request.count }
+  }
+  return next
+}
+
+/** Nhãn đọc-màn-hình cho chip, vd "Thả tim: 7 (bạn 2)". */
+export function chipLabel(chip: ReactionChip) {
+  return `${REACTION_LABEL[chip.kind]}: ${chip.n}${chip.mine > 0 ? ` (bạn ${chip.mine})` : ''}`
+}
+
+/** Khối trích dẫn hợp lệ của tin trả lời (`meta.replyTo`); thiếu/hỏng ⇒ `null`. */
+export function replyOf(message: Pick<ChatMessage, 'meta'>): ChatReplyTo | null {
+  const raw = message.meta?.replyTo
+  if (!raw || typeof raw !== 'object') return null
+  const reply = raw as Record<string, unknown>
+  const id = Number(reply.id)
+  if (!Number.isFinite(id) || id <= 0) return null
+  return {
+    id,
+    dir: reply.dir === 1 ? 1 : 2,
+    who: typeof reply.who === 'string' ? reply.who : '',
+    text: typeof reply.text === 'string' ? reply.text : '',
+  }
+}
+
+/** Tên người gửi tin gốc để hiển thị trong trích dẫn / ô "Đang trả lời". */
+export function replyWho(reply: Pick<ChatReplyTo, 'dir' | 'who'>) {
+  return reply.who || (reply.dir === 2 ? 'Khách' : 'Thu ngân')
+}
+
+/** Server cũ không có `caps` ⇒ ẩn nút (dùng chung cho thả tim và trả lời). */
+export function canReact(caps: ChatCaps | undefined | null) {
+  return caps?.react === true
+}
+export function canReply(caps: ChatCaps | undefined | null) {
+  return caps?.reply === true
+}
+
+// ---- Khoá chống dồn tin (D3 / 0.2): ≥ 3 lần gửi trong 1 s là không chấp nhận được -------------------------------
+
+export const BURST_COUNT = 3
+export const BURST_WINDOW_MS = 1000
+/** Mức khoá thấp nhất của server (60 s). Khi server trả `retryAfterSec` thì theo số đó. */
+export const BURST_CLIENT_LOCK_SEC = 60
+
+/**
+ * Ghi nhận 1 lần gửi lúc `now`. Lần thứ `BURST_COUNT` trong cửa sổ `BURST_WINDOW_MS` ⇒ `burst: true`
+ * (lần đó KHÔNG được gửi; caller khoá khung soạn). Chỉ để khoá NGAY phía khách — server mới là bên quyết định.
+ */
+export function detectBurst(history: readonly number[], now: number): { history: number[]; burst: boolean } {
+  const recent = history.filter((time) => now - time < BURST_WINDOW_MS && now >= time)
+  if (recent.length + 1 >= BURST_COUNT) return { history: [], burst: true }
+  return { history: [...recent, now], burst: false }
+}
+
+/**
+ * `retryAfterSec` mà server nhét ở `data` của lỗi `BURST_LOCKED` / `RATE_LIMITED` (object, hoặc chuỗi JSON tuỳ
+ * đường trả). `null` = lỗi khác / thiếu số / số hỏng ⇒ caller dùng mức mặc định.
+ */
+export function retryAfterSecOf(message: string, details: unknown): number | null {
+  if (message !== 'BURST_LOCKED' && message !== 'RATE_LIMITED') return null
+  let data: unknown = details
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data)
+    } catch {
+      return null
+    }
+  }
+  const sec = Number((data as { retryAfterSec?: unknown } | null | undefined)?.retryAfterSec)
+  return Number.isFinite(sec) && sec > 0 ? Math.ceil(sec) : null
+}
+
+/** Số giây còn lại của khoá (làm tròn lên); 0 = đã mở. */
+export function remainingLockSec(lockedUntil: number, now: number) {
+  return lockedUntil > now ? Math.ceil((lockedUntil - now) / 1000) : 0
+}
+
+/** `m:ss` cho đồng hồ đếm ngược. */
+export function formatCountdown(totalSec: number) {
+  const sec = Math.max(0, Math.floor(totalSec))
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }

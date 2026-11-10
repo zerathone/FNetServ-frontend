@@ -468,6 +468,200 @@
   opacity: 0.8;
 }
 
+/* ---- Thả tim / trả lời (task chat-C9) ----------------------------------------------------------------- */
+.chat-bubble__line {
+  position: relative;
+  border-radius: 0.5rem;
+}
+
+.chat-bubble__line.has-actions:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Tin gốc được nhảy tới: nháy nền nhẹ. */
+.chat-bubble__line.is-flash {
+  animation: chat-flash 1.6s ease-out;
+}
+
+@keyframes chat-flash {
+  0%,
+  40% {
+    background: color-mix(in srgb, var(--color-warning) 35%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Khối trích dẫn của tin trả lời — bấm để nhảy tới tin gốc. */
+.chat-quote {
+  display: grid;
+  width: 100%;
+  margin: 0 0 0.2rem;
+  border: 0;
+  border-left: 3px solid currentColor;
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.chat-quote:hover {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.chat-quote__who {
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 700;
+}
+
+.chat-quote__text {
+  overflow: hidden;
+  font-size: var(--font-size-xs, 0.75rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chip phản ứng dưới dòng tin: `❤️ 7`; chip có phần của tôi có viền primary. */
+.chat-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+}
+
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 1.5rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1;
+  color: var(--color-text-primary);
+  background: var(--color-surface-default);
+  cursor: pointer;
+}
+
+.chat-chip:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.chat-chip.is-mine {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+}
+
+/* Thanh thao tác nổi phía trên dòng: hiện khi rê chuột / Tab / chạm vào dòng. */
+.chat-actions {
+  position: absolute;
+  top: -1.85rem;
+  z-index: 1;
+  display: none;
+  gap: 0.1rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  padding: 0.1rem 0.25rem;
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.chat-actions--left {
+  left: 0;
+}
+
+.chat-actions--right {
+  right: 0;
+}
+
+.chat-bubble__line.has-actions:hover > .chat-actions,
+.chat-bubble__line.has-actions:focus-within > .chat-actions {
+  display: inline-flex;
+}
+
+.chat-actions__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.chat-actions__btn:hover,
+.chat-actions__btn:focus-visible {
+  background: var(--color-surface-subtle);
+}
+
+/* Chip / trích dẫn trong bong bóng của tôi (nền primary): đổi màu cho đọc được. */
+.chat-bubble--own .chat-chip {
+  border-color: color-mix(in srgb, var(--color-text-inverse) 55%, transparent);
+  color: var(--color-text-inverse);
+  background: color-mix(in srgb, var(--color-text-inverse) 16%, transparent);
+}
+
+.chat-bubble--own .chat-chip.is-mine {
+  border-color: var(--color-text-inverse);
+  background: color-mix(in srgb, var(--color-text-inverse) 30%, transparent);
+}
+
+/* Ô "Đang trả lời" phía trên khung soạn + trạng thái khoá gửi tin. */
+.chat-composer__reply {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-left: 3px solid var(--color-action-primary);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+}
+
+.chat-composer__reply-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chỉ trình đọc màn hình thấy. */
+.chat-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.chat-composer__box.is-locked {
+  opacity: 0.7;
+  background: var(--color-surface-subtle);
+}
+
 .chat-bubble__time {
   justify-self: end;
   font-size: 0.6875rem;
