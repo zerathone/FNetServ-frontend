@@ -93,6 +93,27 @@
   cursor: pointer;
 }
 
+.chat-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Cộng dồn số TIN chưa đọc trên tab "Chưa đọc". */
+.chat-tabs__badge {
+  display: grid;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  color: white;
+  background: var(--color-danger);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .chat-tabs button.is-active {
   border-color: var(--color-action-primary);
   color: var(--color-action-primary);

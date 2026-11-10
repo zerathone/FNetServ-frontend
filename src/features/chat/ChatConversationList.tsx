@@ -8,8 +8,10 @@ import {
   type ChatConversationFilter,
 } from '../../api/chat'
 import { Button, SearchListButton, Select, StateView } from '../../design-system/components'
+import { useChatSummary } from './useChatSummary'
 import {
   badgeText,
+  GUEST_LABEL,
   conversationMatches,
   conversationTag,
   describeChatError,
@@ -22,7 +24,7 @@ import {
 const PAGE_SIZE = 100
 const CHAT_SEARCH_LIST_ID = 'chat-search-options'
 const SEARCH_PLACEHOLDER: Record<ChatSearchField, string> = {
-  user: 'Nhập hoặc chọn tài khoản',
+  user: 'Nhập hoặc chọn hội viên',
   pc: 'Nhập hoặc chọn tên máy',
   text: 'Nhập nội dung tin nhắn',
   any: 'Tìm hội thoại',
@@ -31,8 +33,8 @@ const SEARCH_PLACEHOLDER: Record<ChatSearchField, string> = {
 const FILTERS: ReadonlyArray<{ id: ChatConversationFilter; label: string }> = [
   { id: 'all', label: 'Tất cả' },
   { id: 'unread', label: 'Chưa đọc' },
-  { id: 'accounts', label: 'Tài khoản' },
-  { id: 'hosts', label: 'Khách vãng lai' },
+  { id: 'accounts', label: 'Hội viên' },
+  { id: 'hosts', label: GUEST_LABEL },
 ]
 
 type Props = {
@@ -44,6 +46,9 @@ export function ChatConversationList({ onOpen }: Props) {
   const [search, setSearch] = useState('')
   const [searchField, setSearchField] = useState<ChatSearchField>('user')
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // Tổng TIN chưa đọc (cộng dồn mọi hội thoại) — cùng nguồn với badge ở nút chat trên topbar.
+  const { unreadTotal } = useChatSummary()
+  const unreadBadge = badgeText(unreadTotal)
 
   // Phân trang theo `offset` (server giới hạn 100/trang). Refetch (WS) tải lại ĐỦ các trang đang mở.
   const query = useInfiniteQuery({
@@ -82,6 +87,11 @@ export function ChatConversationList({ onOpen }: Props) {
               onClick={() => setFilter(item.id)}
             >
               {item.label}
+              {item.id === 'unread' && unreadBadge ? (
+                <span className="chat-tabs__badge" aria-label={`${unreadTotal} tin chưa đọc`}>
+                  {unreadBadge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -92,7 +102,7 @@ export function ChatConversationList({ onOpen }: Props) {
             aria-label="Tìm theo"
             onChange={(event) => setSearchField(event.target.value as ChatSearchField)}
           >
-            <option value="user">Tài khoản</option>
+            <option value="user">Hội viên</option>
             <option value="pc">Máy</option>
             <option value="text">Nội dung</option>
           </Select>
@@ -111,7 +121,7 @@ export function ChatConversationList({ onOpen }: Props) {
             {searchField !== 'text' ? (
               <SearchListButton
                 inputRef={searchInputRef}
-                label={searchField === 'pc' ? 'Chọn tên máy' : 'Chọn tài khoản'}
+                label={searchField === 'pc' ? 'Chọn tên máy' : 'Chọn hội viên'}
               />
             ) : null}
             {search ? (

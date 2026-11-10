@@ -253,6 +253,12 @@ export function foldVietnamese(text: string) {
     .toLowerCase()
 }
 
+/**
+ * Nhãn nhóm hội thoại theo MÁY (không phải theo tài khoản hội viên): khách vãng lai, và combo/admin đăng nhập
+ * trực tiếp — server gom chung vào `g<HOST>` (DESIGN 3.2, C0(b)).
+ */
+export const GUEST_LABEL = 'Khách vãng lai & combo'
+
 /** Trường tìm kiếm (giống ô tìm ở trang Máy trạm / Đơn dịch vụ): tài khoản · máy · nội dung tin cuối; `any` = mọi trường. */
 export type ChatSearchField = 'user' | 'pc' | 'text' | 'any'
 
@@ -292,7 +298,7 @@ export function searchSuggestions(conversations: ReadonlyArray<ChatConversation>
  * khách vãng lai (title đã là tên máy) ⇒ "Khách vãng lai"; tài khoản offline ⇒ rỗng.
  */
 export function conversationTag(conversation: ChatConversation) {
-  if (conversation.kind === 'host') return 'Khách vãng lai'
+  if (conversation.kind === 'host') return GUEST_LABEL
   return conversation.hostName ?? ''
 }
 

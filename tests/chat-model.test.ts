@@ -186,7 +186,7 @@ test('searchSuggestions + conversationTag', () => {
   assert.deepEqual(searchSuggestions([account], 'text'), [])
   assert.equal(conversationTag(account), 'PC-01')
   assert.equal(conversationTag(offline), '')
-  assert.equal(conversationTag(guest), 'Khách vãng lai')
+  assert.equal(conversationTag(guest), 'Khách vãng lai & combo')
 })
 
 test('badgeText: 0 an, >99 thanh 99+', () => {
