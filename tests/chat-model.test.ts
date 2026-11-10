@@ -141,6 +141,27 @@ test('groupTimeline: gom tin gan nhau cua cung nguoi vao 1 bong bong, ngat dung 
   assert.equal(groups([guest(1, 0, { sess: 1 }), guest(2, 1_000, { sess: 2 })]).length, 2)
 })
 
+test('groupTimeline: bong bong ke tiep cua cung nguoi danh dau continued (UI khong lap ten)', () => {
+  const T = 1_700_000_000_000
+  const gap = 121_000
+  const flags = (items: ChatMessage[], staffRead = 999_999_999_999_999) =>
+    groupTimeline(buildTimeline(items, staffRead, T), 5).flatMap((e) => (e.type === 'group' ? [e.continued] : []))
+  const g = (id: number, dt: number, extra: Partial<ChatMessage> = {}) => msg({ id, ts: T + dt, ...extra })
+  // cung nguoi, cach >2 phut: bong bong 1 co ten, 2 va 3 chi noi dung
+  assert.deepEqual(flags([g(1, 0), g(2, gap), g(3, gap * 2)]), [false, true, true])
+  // doi nguoi => co ten lai
+  assert.deepEqual(
+    flags([g(1, 0), msg({ id: 2, ts: T + gap, dir: 1, src: 2, staffId: 5 }), g(3, gap * 2)]),
+    [false, false, false],
+  )
+  // co vach (doi phien / Tin moi) xen giua => hien ten lai
+  assert.deepEqual(flags([g(1, 0, { sess: 1 }), g(2, gap, { sess: 2 })]), [false, false])
+  assert.deepEqual(flags([g(1, 0), g(2, gap)], 1), [false, false])
+  // the lenh xen giua => hien ten lai
+  const card = msg({ id: 2, ts: T + 1_000, kind: 'cash_request', meta: { amount: 1 }, src: 3 })
+  assert.deepEqual(flags([g(1, 0), card, g(3, 2_000)]), [false, false])
+})
+
 test('groupTimeline: the lenh khong gop vao bong bong va ngat nhom', () => {
   const T = 1_700_000_000_000
   const card = msg({ id: 2, ts: T + 1_000, kind: 'cash_request', meta: { amount: 20000 }, src: 3 })

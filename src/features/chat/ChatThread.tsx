@@ -297,9 +297,15 @@ export function ChatThread({ conversation }: Props) {
             // rê chuột lên từng dòng xem giờ riêng.
             const lastMessage = entry.messages[entry.messages.length - 1]
             return (
-              <li key={entry.key} className={`chat-row ${entry.own ? 'chat-row--right' : 'chat-row--left'}`}>
+              <li
+                key={entry.key}
+                className={`chat-row ${entry.own ? 'chat-row--right' : 'chat-row--left'}${
+                  entry.continued ? ' chat-row--continued' : ''
+                }`}
+              >
                 <div className={`chat-bubble${entry.own ? ' chat-bubble--own' : ''}`}>
-                  {!entry.own ? <span className="chat-bubble__sender">{entry.sender}</span> : null}
+                  {/* Tên người chat chỉ ở bong bóng ĐẦU của chuỗi liền nhau; các bong bóng kế tiếp chỉ có nội dung. */}
+                  {!entry.own && !entry.continued ? <span className="chat-bubble__sender">{entry.sender}</span> : null}
                   {entry.messages.map((message) => (
                     <div key={message.id} className="chat-bubble__line" title={formatChatTime(message.ts)}>
                       <p className="chat-bubble__text">{message.text}</p>

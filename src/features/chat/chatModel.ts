@@ -201,7 +201,15 @@ export const GROUP_GAP_MS = 2 * 60 * 1000
 export type DisplayEntry =
   | Exclude<TimelineEntry, { type: 'message' }>
   | { type: 'card'; key: string; message: ChatMessage }
-  | { type: 'group'; key: string; own: boolean; sender: string; messages: ChatMessage[] }
+  | {
+      type: 'group'
+      key: string
+      own: boolean
+      sender: string
+      /** Bong bóng ngay sau bong bóng của CHÍNH người này (chỉ tách vì quá `gapMs`) ⇒ UI không lặp lại tên. */
+      continued: boolean
+      messages: ChatMessage[]
+    }
 
 /** Người gửi để so "cùng một người": tin của tôi; khách (tên tài khoản/máy); thu ngân/nhân viên khác (tên + nguồn). */
 function senderKey(message: ChatMessage, own: boolean) {
@@ -235,14 +243,26 @@ export function groupTimeline(
     const own = isOwnMessage(message, staffId)
     const key = senderKey(message, own)
     const last = out[out.length - 1]
+    let continued = false
     if (last?.type === 'group') {
       const prev = last.messages[last.messages.length - 1]
-      if (senderKey(prev, last.own) === key && Math.abs(message.ts - prev.ts) <= gapMs) {
-        last.messages.push(message)
-        continue
+      if (senderKey(prev, last.own) === key) {
+        if (Math.abs(message.ts - prev.ts) <= gapMs) {
+          last.messages.push(message)
+          continue
+        }
+        // Cùng người nhưng cách quá lâu ⇒ bong bóng mới, song liền kề bong bóng trước (không có vạch/thẻ xen giữa).
+        continued = true
       }
     }
-    out.push({ type: 'group', key: `group-${message.id}`, own, sender: senderLabel(message), messages: [message] })
+    out.push({
+      type: 'group',
+      key: `group-${message.id}`,
+      own,
+      sender: senderLabel(message),
+      continued,
+      messages: [message],
+    })
   }
   return out
 }
