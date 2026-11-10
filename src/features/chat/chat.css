@@ -447,6 +447,15 @@
   font-weight: 700;
 }
 
+/* Tên tài khoản (khách/hội viên) = primary; tài khoản quản lý (ADMIN, thu ngân, nhân viên khác) = warning. */
+.chat-bubble__sender--member {
+  color: var(--color-action-primary);
+}
+
+.chat-bubble__sender--staff {
+  color: var(--color-warning);
+}
+
 .chat-bubble__text {
   margin: 0;
   line-height: 1.3;

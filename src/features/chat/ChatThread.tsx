@@ -305,7 +305,16 @@ export function ChatThread({ conversation }: Props) {
               >
                 <div className={`chat-bubble${entry.own ? ' chat-bubble--own' : ''}`}>
                   {/* Tên người chat chỉ ở bong bóng ĐẦU của chuỗi liền nhau; các bong bóng kế tiếp chỉ có nội dung. */}
-                  {!entry.own && !entry.continued ? <span className="chat-bubble__sender">{entry.sender}</span> : null}
+                  {/* Màu tên: tài khoản khách nhắn (dir=2) = primary; ADMIN/thu ngân/nhân viên (dir=1) = warning. */}
+                  {!entry.own && !entry.continued ? (
+                    <span
+                      className={`chat-bubble__sender ${
+                        entry.messages[0].dir === 2 ? 'chat-bubble__sender--member' : 'chat-bubble__sender--staff'
+                      }`}
+                    >
+                      {entry.sender}
+                    </span>
+                  ) : null}
                   {entry.messages.map((message) => (
                     <div key={message.id} className="chat-bubble__line" title={formatChatTime(message.ts)}>
                       <p className="chat-bubble__text">{message.text}</p>
