@@ -6,6 +6,7 @@ import { Button, Drawer } from '../../design-system/components'
 import { badgeText } from './chatModel'
 import { ChatConversationList } from './ChatConversationList'
 import { ChatThread } from './ChatThread'
+import { useChatPulse } from './useChatPulse'
 import { useChatSummary } from './useChatSummary'
 import '../notifications/notifications.css'
 import './chat.css'
@@ -19,6 +20,8 @@ export function ChatCenter() {
   const { available, unreadTotal } = useChatSummary()
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<ChatConversation | null>(null)
+  // Nút quan trọng: tin mới tới (số chưa đọc tăng) ⇒ nhịp tim 10 giây. Đang mở khung chat thì không chớp.
+  const pulsing = useChatPulse(available ? unreadTotal : null)
 
   // Cờ bị tắt khi Drawer đang mở: đóng + bỏ hội thoại đang chọn, kẻo bật lại cờ thì Drawer tự bật lên.
   useEffect(() => {
@@ -40,13 +43,16 @@ export function ChatCenter() {
     <>
       <button
         type="button"
-        className="notification-trigger chat-trigger"
+        className={`notification-trigger chat-trigger${unreadTotal ? ' has-unread' : ''}${
+          pulsing && !open ? ' is-pulsing' : ''
+        }`}
         aria-label={`Tin nhắn${unreadTotal ? `, ${unreadTotal} tin chưa đọc` : ''}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
         <ChatCircleDots size={21} weight={unreadTotal ? 'fill' : 'regular'} aria-hidden="true" />
+        <span className="chat-trigger__label">Tin nhắn</span>
         {badge ? (
           <span className="notification-trigger__count" aria-hidden="true">
             {badge}

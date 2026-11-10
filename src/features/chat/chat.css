@@ -1,5 +1,74 @@
 /* Khung chat Messenger (task chat-v2 / C3). Chỉ dùng token của design-system — theme sáng/tối/ấm tự theo. */
 
+/* ---- Nút tin nhắn trên topbar (icon + nhãn) ----------------------------------------------------- */
+/* Dùng lại khung/badge của `.notification-trigger` (notifications.css) nhưng rộng theo nhãn thay vì vuông. */
+.chat-trigger.notification-trigger {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.85rem;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.chat-trigger__label {
+  white-space: nowrap;
+}
+
+/* Có tin chưa đọc: viền + chữ chuyển sang màu cảnh báo để nút nổi hơn chuông. */
+.chat-trigger.has-unread {
+  border-color: color-mix(in srgb, var(--color-danger) 65%, var(--color-border-default));
+  color: var(--color-danger-text);
+}
+
+/* Màn hẹp: chỉ còn icon (+ badge) để không đẩy topbar tràn. */
+@media (max-width: 1100px) {
+  .chat-trigger__label {
+    display: none;
+  }
+
+  .chat-trigger.notification-trigger {
+    width: 2.75rem;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+/* Tin mới tới: nhịp tim "lub-dub" (2 nhịp phình + vòng sáng lan ra) lặp theo chu kỳ 1.4s như chấm số menu trái,
+   trong 10 giây (class do useChatPulse gỡ). Reduced-motion: bỏ animation, vẫn còn viền/màu của `.has-unread`. */
+@keyframes chat-heartbeat {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 55%, transparent);
+  }
+  14% {
+    transform: scale(1.1);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.06);
+  }
+  70%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-danger) 0%, transparent);
+  }
+}
+
+.chat-trigger.is-pulsing {
+  animation: chat-heartbeat 1.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-trigger.is-pulsing {
+    animation: none;
+  }
+}
+
 /* ---- Drawer ---------------------------------------------------------------------------------- */
 .chat-drawer.ds-drawer {
   width: min(100%, 27rem);
