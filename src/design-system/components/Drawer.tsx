@@ -6,10 +6,13 @@ import { lockBodyScroll } from './bodyScrollLock'
 
 export type DrawerProps = {
   open: boolean
-  title: string
+  /** Chuỗi, hoặc node inline (vd avatar + tên + huy hiệu) — nằm trong <h2> nên chỉ dùng phần tử inline. */
+  title: ReactNode
   description?: string
   /** Hàng điều khiển hiển thị ngay dưới tiêu đề (chỗ của description). */
   headerActions?: ReactNode
+  /** Phần tử đứng TRƯỚC tiêu đề, cùng hàng (vd nút quay lại). Không áp dụng cho `compactHeader`. */
+  headerLeading?: ReactNode
   children: ReactNode
   footer?: ReactNode
   size?: 'default' | 'wide'
@@ -23,6 +26,7 @@ export function Drawer({
   title,
   description,
   headerActions,
+  headerLeading,
   children,
   footer,
   size = 'default',
@@ -115,6 +119,7 @@ export function Drawer({
           ) : (
             <>
               <div>
+                {headerLeading}
                 <h2 id={titleId}>{title}</h2>
                 {description ? <p id={descriptionId}>{description}</p> : null}
                 {headerActions ? <div className="ds-drawer__header-actions">{headerActions}</div> : null}

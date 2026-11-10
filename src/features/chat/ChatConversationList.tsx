@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Desktop, MagnifyingGlass, User, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import {
   CHAT_QUERY_KEY,
   listChatConversations,
@@ -8,6 +8,7 @@ import {
   type ChatConversationFilter,
 } from '../../api/chat'
 import { Button, SearchListButton, Select, StateView } from '../../design-system/components'
+import { ConversationAvatar, GroupBadge } from './ConversationIdentity'
 import { useChatSummary } from './useChatSummary'
 import {
   badgeText,
@@ -172,7 +173,6 @@ export function ChatConversationList({ onOpen }: Props) {
         {items.map((conversation) => {
           const badge = badgeText(conversation.unread)
           const tag = conversationTag(conversation)
-          const Icon = conversation.kind === 'host' ? Desktop : User
           return (
             <li key={conversation.convId}>
               <button
@@ -180,19 +180,23 @@ export function ChatConversationList({ onOpen }: Props) {
                 className={`chat-conv${conversation.unread > 0 ? ' is-unread' : ''}`}
                 onClick={() => onOpen(conversation)}
               >
-                <span className={`chat-conv__avatar${conversation.online ? ' is-online' : ''}`} aria-hidden="true">
-                  <Icon size={20} weight="duotone" />
-                </span>
+                <ConversationAvatar conversation={conversation} />
                 <span className="chat-conv__main">
-                  <span className="chat-conv__top">
-                    <span className="chat-conv__name">
-                      <strong className="chat-conv__title">{conversation.title}</strong>
-                      {tag ? <span className="chat-conv__tag">{tag}</span> : null}
-                    </span>
+                  <span className="chat-conv__name">
+                    <strong className="chat-conv__title">{conversation.title}</strong>
+                    <GroupBadge conversation={conversation} />
+                  </span>
+                  {/* Cột phải canh phải: giờ ở trên, tên máy ngay dưới giờ (ngang dòng tin cuối). */}
+                  <span className="chat-conv__side">
                     {conversation.lastAt > 0 ? (
                       <time className="chat-conv__time" dateTime={isoOf(conversation.lastAt)}>
                         {formatChatTime(conversation.lastAt)}
                       </time>
+                    ) : null}
+                    {tag ? (
+                      <span className="chat-conv__tag" title={tag}>
+                        {tag}
+                      </span>
                     ) : null}
                   </span>
                   <span className="chat-conv__last">{conversation.lastText || 'Chưa có tin nhắn'}</span>

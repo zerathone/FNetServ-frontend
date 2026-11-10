@@ -12,6 +12,8 @@ import {
   chipLabel,
   conversationMatches,
   conversationTag,
+  peerSubtitle,
+  machineConversation,
   countCodePoints,
   describeChatError,
   describeChatSettingsError,
@@ -200,7 +202,7 @@ test('latestInboundId: chi tin khach', () => {
 test('cardOf: the lenh chi dung khi du meta; chat thuong va meta hong => null', () => {
   assert.equal(cardOf({ kind: 'chat', meta: null }), null)
   const cash = cardOf({ kind: 'cash_request', meta: { amount: 20000 } })
-  assert.equal(cash?.title, 'Khách nhờ nạp tiền mặt')
+  assert.equal(cash?.title, 'Yêu cầu nạp tiền mặt')
   assert.equal(cash?.amount, 20000)
   assert.equal(cardOf({ kind: 'cash_request', meta: null }), null)
   assert.equal(cardOf({ kind: 'online_request', meta: { amount: 'abc' } }), null)
@@ -261,6 +263,38 @@ test('searchSuggestions + conversationTag', () => {
   assert.equal(conversationTag(account), 'PC-01')
   assert.equal(conversationTag(offline), '')
   assert.equal(conversationTag(guest), 'Khách vãng lai & combo')
+})
+
+test('machineConversation: hội viên/nhân viên => u<uid>; vãng lai/combo/admin => g<MÁY IN HOA>; tên máy lạ => null', () => {
+  const m = { hostName: 'pc-05', userId: 77, userName: 'HVMOI', userGroupType: 2 }
+  const member = machineConversation(m)
+  assert.equal(member?.convId, 'u77')
+  assert.equal(member?.kind, 'account')
+  assert.equal(member?.title, 'HVMOI')
+  assert.equal(member?.hostName, 'PC-05')
+  assert.equal(member?.online, true)
+  assert.equal(machineConversation({ ...m, userGroupType: 4 })?.utype, 'staff')
+  const anonym = machineConversation({ ...m, userId: 0, userName: null, userGroupType: 1 })
+  assert.equal(anonym?.convId, 'gPC-05')
+  assert.equal(anonym?.kind, 'host')
+  assert.equal(machineConversation({ ...m, userGroupType: 5 })?.convId, 'gPC-05') // combo => theo máy dù userId > 0
+  assert.equal(machineConversation({ ...m, userId: 0, userGroupType: 2 })?.convId, 'gPC-05') // admin (userId 0)
+  assert.equal(machineConversation({ ...m, hostName: 'PC 05' }), null)
+  assert.equal(machineConversation({ ...m, hostName: '..' }), null)
+  assert.equal(machineConversation(null), null)
+})
+
+test('peerSubtitle: dòng phụ của máy trong "Nhắn tin mới"', () => {
+  const member: ChatConversation = {
+    convId: 'u1', kind: 'account', title: 'HV1', hostName: 'PC-01', online: true, utype: 'member',
+    lastText: '', lastAt: 0, lastId: 0, unread: 0,
+  }
+  assert.equal(peerSubtitle(member), 'PC-01')
+  assert.equal(peerSubtitle({ ...member, utype: 'staff' }), 'PC-01 · Nhân viên')
+  const guest: ChatConversation = { ...member, convId: 'gPC-09', kind: 'host', title: 'PC-09', utype: 'anonym' }
+  assert.equal(peerSubtitle(guest), 'Khách vãng lai')
+  assert.equal(peerSubtitle({ ...guest, utype: 'combo' }), 'Combo')
+  assert.equal(peerSubtitle({ ...guest, utype: undefined }), 'Khách vãng lai & combo')
 })
 
 test('badgeText: 0 an, >99 thanh 99+', () => {

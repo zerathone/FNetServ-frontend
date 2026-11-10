@@ -110,6 +110,8 @@ import { useAuthStore } from '../../store/auth'
 import { useOrderQueueStore } from '../../store/orderQueue'
 import { pushToast } from '../../store/toast'
 import { useWsStatusStore } from '../../store/wsStatus'
+import { UnreadBadge } from '../chat/ConversationIdentity'
+import { useMachineChat } from '../chat/useMachineChat'
 import { DepositMethodSelector } from '../payments/DepositMethodSelector'
 import { DepositAmountPanel } from '../payments/DepositAmountPanel'
 import { DepositQrFlow } from '../payments/DepositQrFlow'
@@ -642,6 +644,8 @@ export function WorkstationWorkspace() {
   )
   const inspectedMachine =
     allMachines.find((machine) => machine.hostName === inspectorHost) ?? null
+  // Nhắn tin MỘT máy qua Chat Center (chat v2); `ready=false` (cờ tắt / server cũ) ⇒ dùng hộp thoại tin nhắn cũ.
+  const machineChat = useMachineChat(inspectedMachine)
   const status = inspectedMachine ? getWorkstationStatus(inspectedMachine) : null
   const flags = inspectedMachine
     ? getWorkstationFlags(inspectedMachine, { hideServiceAccept: isServiceAcceptCleared(inspectedMachine) })
@@ -1222,6 +1226,12 @@ export function WorkstationWorkspace() {
     setMessageTargets(hostNames)
     setMessageText('')
     setMessageDialogOpen(true)
+  }
+
+  // Nút "Nhắn tin" trong drawer một máy: mở Chat Center vào thread của máy; không có chat v2 thì hộp thoại cũ.
+  const messageInspectedMachine = (hostName: string) => {
+    if (machineChat.ready) machineChat.open()
+    else openMessageDialog([hostName])
   }
 
   const openAnonymLoginDialog = (mode: 'prepaid' | 'payLater') => {
@@ -2095,9 +2105,10 @@ export function WorkstationWorkspace() {
                     type="button"
                     variant="primary"
                     disabled={isPaused}
-                    onClick={() => openMessageDialog([inspectedMachine.hostName])}
+                    onClick={() => messageInspectedMachine(inspectedMachine.hostName)}
                   >
                     Nhắn tin
+                    <UnreadBadge count={machineChat.unread} />
                   </Button>
                 ) : null
               }
@@ -2207,9 +2218,10 @@ export function WorkstationWorkspace() {
                     type="button"
                     variant="primary"
                     disabled={isPaused}
-                    onClick={() => openMessageDialog([inspectedMachine.hostName])}
+                    onClick={() => messageInspectedMachine(inspectedMachine.hostName)}
                   >
                     Nhắn tin
+                    <UnreadBadge count={machineChat.unread} />
                   </Button>
                   {inspectedMachine.session && !isAdminSession ? (
                   <>

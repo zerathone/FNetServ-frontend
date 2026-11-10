@@ -4,7 +4,6 @@ import { ArrowBendUpLeft, CurrencyCircleDollar, QrCode, Receipt, XCircle } from 
 import {
   CHAT_QUERY_KEY,
   chatRetryAfterSec,
-  listChatConversations,
   listChatMessages,
   markChatRead,
   reactToChatMessage,
@@ -21,6 +20,7 @@ import { useWsStatusStore } from '../../store/wsStatus'
 import { formatVnd } from '../orders/orderPayModel'
 import { ChatComposer } from './ChatComposer'
 import { useChatLockStore } from './chatLockStore'
+import { useLiveConversation } from './useLiveConversation'
 import {
   applyReactionRequest,
   BURST_CLIENT_LOCK_SEC,
@@ -71,14 +71,18 @@ function CommandCard({ message, card }: { message: ChatMessage; card: CardView }
   return (
     <div className={`chat-card chat-card--${card.kind}`}>
       <div className="chat-card__head">
-        <Icon size={20} weight="duotone" aria-hidden="true" />
+        <Icon size={16} weight="duotone" aria-hidden="true" />
         <strong>{card.title}</strong>
       </div>
       <dl className="chat-card__body">
         {card.amount !== null ? (
-          <div>
+          <div className="chat-card__amount-group">
             <dt>Số tiền</dt>
-            <dd>{formatVnd(card.amount)}</dd>
+            <dd className="chat-card__amount">{formatVnd(card.amount)}</dd>
+            {/* Tên máy: không nhãn, in mờ ngay dưới số tiền (bỏ "Hội viên" vì đang chat với chính hội viên đó). */}
+            <dd className="chat-card__host" title={message.host || undefined}>
+              {message.host || '—'}
+            </dd>
           </div>
         ) : null}
         {card.orderId ? (
@@ -87,18 +91,12 @@ function CommandCard({ message, card }: { message: ChatMessage; card: CardView }
             <dd>{card.orderId}</dd>
           </div>
         ) : null}
-        <div>
-          <dt>Hội viên</dt>
-          <dd>{message.user || '—'}</dd>
-        </div>
-        <div>
-          <dt>Máy</dt>
-          <dd>{message.host || '—'}</dd>
-        </div>
       </dl>
-      <time className="chat-card__time" dateTime={isoOf(message.ts)}>
-        {formatChatTime(message.ts)}
-      </time>
+      <div className="chat-card__footer">
+        <time className="chat-card__time" dateTime={isoOf(message.ts)}>
+          {formatChatTime(message.ts)}
+        </time>
+      </div>
     </div>
   )
 }
@@ -179,15 +177,8 @@ export function ChatThread({ conversation }: Props) {
     })
   }, [latestStartedAt, latestIds])
 
-  // Trạng thái SỐNG của hội thoại (đang ngồi máy nào / online) — `conversation` truyền vào chỉ là ảnh chụp
-  // lúc bấm. Server chưa có lọc theo convId nên hỏi theo `q` rồi chọn đúng mục.
-  const liveQuery = useQuery({
-    queryKey: [...CHAT_QUERY_KEY, 'conversations', 'one', convId],
-    queryFn: () => listChatConversations({ q: convId, limit: 20 }),
-    retry: false,
-    staleTime: 5_000,
-  })
-  const live = liveQuery.data?.items.find((item) => item.convId === convId) ?? conversation
+  // Trạng thái SỐNG của hội thoại (đang ngồi máy nào / online) — dùng chung với header khung chat (ChatCenter).
+  const live = useLiveConversation(conversation) ?? conversation
 
   // Mốc "đã đọc" để vẽ vạch "Tin mới" — CHỐT lúc mở hội thoại, không đuổi theo con trỏ vừa đánh dấu
   // (nếu không vạch biến mất ngay khi mở, khách đã gửi gì không biết).
@@ -530,7 +521,6 @@ export function ChatThread({ conversation }: Props) {
             }
             // Nhóm tin gần nhau của cùng một người = 1 bong bóng nhiều dòng; giờ ghi theo tin cuối,
             // rê chuột lên từng dòng xem giờ riêng.
-            const lastMessage = entry.messages[entry.messages.length - 1]
             return (
               <li
                 key={entry.key}
@@ -550,11 +540,12 @@ export function ChatThread({ conversation }: Props) {
                       {entry.sender}
                     </span>
                   ) : null}
-                  {entry.messages.map((message) => {
+                  {entry.messages.map((message, index) => {
                     const reply = replyOf(message)
                     const chips = reactionChips(message.reactions)
                     const mineTotal = myReactionTotal(message.reactions)
                     const hasActions = reactEnabled || replyEnabled
+                    const isLast = index === entry.messages.length - 1
                     return (
                       <div
                         key={message.id}
@@ -581,23 +572,32 @@ export function ChatThread({ conversation }: Props) {
                         {message.truncated ? (
                           <small className="chat-bubble__note">(tin quá dài, đã cắt bớt)</small>
                         ) : null}
-                        {chips.length ? (
-                          <div className="chat-reactions" role="group" aria-label="Phản ứng">
-                            {chips.map((chip) => (
-                              <button
-                                key={chip.kind}
-                                type="button"
-                                className={`chat-chip${chip.mine > 0 ? ' is-mine' : ''}`}
-                                disabled={!reactEnabled}
-                                // ❤️ cộng dồn (không phải bật/tắt) nên không gắn aria-pressed; 👍/😂 là bật/tắt.
-                                aria-pressed={chip.kind === 'heart' ? undefined : chip.mine > 0}
-                                aria-label={chipLabel(chip)}
-                                title={chipLabel(chip)}
-                                onClick={() => reactOn(message, chip.kind)}
-                              >
-                                <span aria-hidden="true">{chip.emoji}</span> {chip.n}
-                              </button>
-                            ))}
+                        {chips.length || isLast ? (
+                          <div className="chat-bubble__footer">
+                            {isLast ? (
+                              <time className="chat-bubble__time" dateTime={isoOf(message.ts)}>
+                                {formatChatTime(message.ts)}
+                              </time>
+                            ) : null}
+                            {chips.length ? (
+                              <div className="chat-reactions" role="group" aria-label="Phản ứng">
+                                {chips.map((chip) => (
+                                  <button
+                                    key={chip.kind}
+                                    type="button"
+                                    className={`chat-chip${chip.mine > 0 ? ' is-mine' : ''}`}
+                                    disabled={!reactEnabled}
+                                    // ❤️ cộng dồn (không phải bật/tắt) nên không gắn aria-pressed; 👍/😂 là bật/tắt.
+                                    aria-pressed={chip.kind === 'heart' ? undefined : chip.mine > 0}
+                                    aria-label={chipLabel(chip)}
+                                    title={chipLabel(chip)}
+                                    onClick={() => reactOn(message, chip.kind)}
+                                  >
+                                    <span aria-hidden="true">{chip.emoji}</span> {chip.n}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                         {hasActions ? (
@@ -647,9 +647,6 @@ export function ChatThread({ conversation }: Props) {
                       </div>
                     )
                   })}
-                  <time className="chat-bubble__time" dateTime={isoOf(lastMessage.ts)}>
-                    {formatChatTime(lastMessage.ts)}
-                  </time>
                 </div>
               </li>
             )

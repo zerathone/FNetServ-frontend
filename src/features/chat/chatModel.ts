@@ -309,9 +309,9 @@ export type CardView = {
 }
 
 const CARD_TITLES: Record<ChatCardKind, string> = {
-  cash_request: 'Khách nhờ nạp tiền mặt',
-  online_request: 'Khách báo nạp online',
-  order_check: 'Khách nhờ kiểm tra đơn QR',
+  cash_request: 'Yêu cầu nạp tiền mặt',
+  online_request: 'Báo nạp online',
+  order_check: 'Kiểm tra đơn QR',
 }
 
 function metaAmount(meta: ChatMessage['meta']) {
@@ -355,6 +355,55 @@ export function foldVietnamese(text: string) {
  * trực tiếp — server gom chung vào `g<HOST>` (DESIGN 3.2, C0(b)).
  */
 export const GUEST_LABEL = 'Khách vãng lai & combo'
+
+/** Phần máy trạm cần để dựng hội thoại (khớp `WorkstationRuntime` của /workstations/runtime). */
+export type ChatMachineRef = { hostName: string; userId: number; userName: string | null; userGroupType: number }
+
+// UserGroupType phía server: MEMBER = 2, STAFF = 4 ⇒ hội thoại theo TÀI KHOẢN (u<uid>); còn lại (vãng lai 1, combo 5, admin)
+// ⇒ hội thoại theo MÁY (g<HOST>). Khớp `IsAccountSession` ở ChatBridge.cpp.
+const ACCOUNT_GROUP_TYPES: readonly number[] = [2, 4]
+const HOST_NAME_RE = /^[A-Za-z0-9_.-]{1,64}$/
+
+/**
+ * Dựng hội thoại chat của máy đang có phiên — cùng quy tắc `ConvId` của server (tên máy IN HOA, whitelist ký tự).
+ * Trả null khi tên máy server không nhận ⇒ nơi gọi dùng đường nhắn tin cũ.
+ */
+export function machineConversation(machine: ChatMachineRef | null | undefined): ChatConversation | null {
+  if (!machine) return null
+  const host = machine.hostName.trim().toUpperCase()
+  if (!HOST_NAME_RE.test(host) || host === '.' || host === '..' || host.endsWith('.')) return null
+  const rest = { online: true, lastText: '', lastAt: 0, lastId: 0, unread: 0, hostName: host }
+  if (Number.isInteger(machine.userId) && machine.userId > 0 && ACCOUNT_GROUP_TYPES.includes(machine.userGroupType)) {
+    return {
+      ...rest,
+      convId: `u${machine.userId}`,
+      kind: 'account',
+      title: machine.userName || `u${machine.userId}`,
+      uid: machine.userId,
+      utype: machine.userGroupType === 4 ? 'staff' : 'member',
+    }
+  }
+  return { ...rest, convId: `g${host}`, kind: 'host', title: host, utype: machine.userGroupType === 5 ? 'combo' : 'anonym' }
+}
+
+const UTYPE_LABEL: Record<string, string> = {
+  member: 'Hội viên',
+  staff: 'Nhân viên',
+  anonym: 'Khách vãng lai',
+  combo: 'Combo',
+  admin: 'Quản trị',
+}
+
+/**
+ * Dòng phụ của một máy trong danh sách "Nhắn tin mới": tài khoản ⇒ tên máy đang ngồi (nhân viên thêm nhãn);
+ * khách vãng lai / combo / quản trị (title đã là tên máy) ⇒ nhãn loại phiên.
+ */
+export function peerSubtitle(peer: ChatConversation) {
+  const label = UTYPE_LABEL[peer.utype ?? ''] ?? ''
+  if (peer.kind === 'host') return label || GUEST_LABEL
+  const host = peer.hostName ?? ''
+  return peer.utype === 'staff' && label ? [host, label].filter(Boolean).join(' · ') : host
+}
 
 /** Trường tìm kiếm (giống ô tìm ở trang Máy trạm / Đơn dịch vụ): tài khoản · máy · nội dung tin cuối; `any` = mọi trường. */
 export type ChatSearchField = 'user' | 'pc' | 'text' | 'any'

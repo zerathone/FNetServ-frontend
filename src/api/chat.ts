@@ -12,6 +12,10 @@ export type ChatConversation = {
   kind: ChatConvKind
   title: string
   uid?: number
+  /** Nhóm hội viên của tài khoản (chỉ hội thoại `account`; server cũ / khách vãng lai / nhóm trống ⇒ không có khoá). */
+  groupName?: string
+  /** Chỉ có ở `/chat/online-peers`: loại phiên đang ngồi máy (member / staff / anonym / admin / combo). */
+  utype?: string
   /** Máy đang ngồi (tài khoản) hoặc chính máy (khách vãng lai online); không có = offline. */
   hostName?: string
   online: boolean
@@ -110,7 +114,14 @@ export const listChatConversations = (body: {
   limit?: number
 }) => apiPost<ChatConversationPage, typeof body>('/chat/conversations', body)
 
-export const listChatMessages = (body: { convId: string; beforeId?: number; limit?: number }) =>
+/** Máy ĐANG online chưa có hội thoại nào (nhắn tin mới). Mục cùng hình dạng với `ChatConversation` (unread 0, lastAt 0). */
+export const listChatOnlinePeers = () =>
+  apiPost<{ items: ChatConversation[]; total: number; indexReady: boolean }, Record<string, never>>(
+    '/chat/online-peers',
+    {},
+  )
+
+export const listChatMessages =(body: { convId: string; beforeId?: number; limit?: number }) =>
   apiPost<ChatMessagePage, typeof body>('/chat/messages', body)
 
 export const sendChatMessage = (body: { convId: string; text: string; clientMsgId: string; replyToId?: number }) =>

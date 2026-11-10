@@ -6,6 +6,10 @@ import { Button, Drawer } from '../../design-system/components'
 import { badgeText } from './chatModel'
 import { ChatConversationList } from './ChatConversationList'
 import { ChatThread } from './ChatThread'
+import { ConversationHeading } from './ConversationIdentity'
+import { NewChatMenu } from './NewChatMenu'
+import { useChatOpenStore } from './chatOpenStore'
+import { useLiveConversation } from './useLiveConversation'
 import { useChatPulse } from './useChatPulse'
 import { useChatSummary } from './useChatSummary'
 import '../notifications/notifications.css'
@@ -22,6 +26,18 @@ export function ChatCenter() {
   const [selected, setSelected] = useState<ChatConversation | null>(null)
   // Nút quan trọng: tin mới tới (số chưa đọc tăng) ⇒ nhịp tim 10 giây. Đang mở khung chat thì không chớp.
   const pulsing = useChatPulse(available ? unreadTotal : null)
+  // Header khung chat: avatar + nhóm + tên máy lấy từ trạng thái SỐNG (ảnh chụp `selected` có thể đã cũ).
+  const liveSelected = useLiveConversation(selected)
+
+  // Nơi khác trong app (nút Nhắn tin ở drawer máy trạm) xin mở thẳng vào một thread.
+  const request = useChatOpenStore((state) => state.request)
+  const clearRequest = useChatOpenStore((state) => state.clear)
+  useEffect(() => {
+    if (!request || !available) return
+    setOpen(true)
+    setSelected(request.conversation)
+    clearRequest()
+  }, [request, available, clearRequest])
 
   // Cờ bị tắt khi Drawer đang mở: đóng + bỏ hội thoại đang chọn, kẻo bật lại cờ thì Drawer tự bật lên.
   useEffect(() => {
@@ -62,21 +78,25 @@ export function ChatCenter() {
 
       <Drawer
         open={open}
-        title={selected ? selected.title : 'Tin nhắn'}
+        title={selected && liveSelected ? <ConversationHeading conversation={liveSelected} /> : 'Tin nhắn'}
         className="chat-drawer"
         onClose={close}
+        headerLeading={
+          selected ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="ds-icon-button"
+              icon={<ArrowLeft size={18} weight="bold" aria-hidden="true" />}
+              title="Về danh sách hội thoại"
+              aria-label="Về danh sách hội thoại"
+              onClick={() => setSelected(null)}
+            />
+          ) : null
+        }
         headerActions={
           <>
-            {selected ? (
-              <Button
-                type="button"
-                variant="ghost"
-                icon={<ArrowLeft size={18} weight="bold" aria-hidden="true" />}
-                onClick={() => setSelected(null)}
-              >
-                Hội thoại
-              </Button>
-            ) : null}
+            {selected ? null : <NewChatMenu onPick={setSelected} />}
             <Button
               type="button"
               variant="secondary"
