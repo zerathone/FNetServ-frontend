@@ -11,6 +11,7 @@ import {
   countCodePoints,
   describeChatSettingsError,
   formatChatTime,
+  groupTimeline,
   insertAtSelection,
   isOwnMessage,
   latestInboundId,
@@ -111,6 +112,44 @@ test('buildTimeline: vach phien khi doi sess/may, vach Tin moi truoc tin khach d
   assert.equal(buildTimeline(items, 4, now).some((e) => e.type === 'unread'), false)
   // tin nhan vien gui (dir=1) co id > staffRead KHONG tinh la chua doc
   assert.equal(buildTimeline([msg({ id: 9, dir: 1, src: 2, staffId: 5 })], 0, now).some((e) => e.type === 'unread'), false)
+})
+
+test('groupTimeline: gom tin gan nhau cua cung nguoi vao 1 bong bong, ngat dung cho', () => {
+  const now = 1_700_000_100_000
+  const T = 1_700_000_000_000
+  const guest = (id: number, dt: number, extra: Partial<ChatMessage> = {}) => msg({ id, ts: T + dt, ...extra })
+  const mine = (id: number, dt: number) => msg({ id, ts: T + dt, dir: 1, src: 2, staffId: 5, staffName: 'A' })
+  const groups = (items: ChatMessage[], staffRead = 999_999_999_999_999) =>
+    groupTimeline(buildTimeline(items, staffRead, now), 5).filter((e) => e.type === 'group')
+
+  // 3 tin khach lien tiep trong 2 phut => 1 nhom; chuoi go lien tuc (moi tin cach <=2 phut) van dinh nhau
+  const g1 = groups([guest(1, 0), guest(2, 60_000), guest(3, 170_000)])
+  assert.equal(g1.length, 1)
+  assert.deepEqual(g1[0].type === 'group' && g1[0].messages.map((m) => m.id), [1, 2, 3])
+  assert.equal(g1[0].type === 'group' && g1[0].key, 'group-1') // key theo tin dau => on dinh khi them tin
+
+  // cach >2 phut => tach
+  assert.equal(groups([guest(1, 0), guest(2, 121_000)]).length, 2)
+  // doi nguoi gui => tach; tin cua toi ben phai
+  const g3 = groups([guest(1, 0), mine(2, 1_000), guest(3, 2_000)])
+  assert.deepEqual(g3.map((g) => g.type === 'group' && g.own), [false, true, false])
+  // 2 nhan vien khac nhau khong gop chung
+  const other = msg({ id: 4, ts: T + 3_000, dir: 1, src: 2, staffId: 6, staffName: 'B' })
+  assert.equal(groups([mine(1, 0), other]).length, 2)
+  // vach "Tin moi" va doi phien ngat nhom du cung nguoi, gan nhau
+  assert.equal(groups([guest(1, 0), guest(2, 1_000)], 1).length, 2) // staffRead=1 => vach Tin moi truoc tin 2
+  assert.equal(groups([guest(1, 0, { sess: 1 }), guest(2, 1_000, { sess: 2 })]).length, 2)
+})
+
+test('groupTimeline: the lenh khong gop vao bong bong va ngat nhom', () => {
+  const T = 1_700_000_000_000
+  const card = msg({ id: 2, ts: T + 1_000, kind: 'cash_request', meta: { amount: 20000 }, src: 3 })
+  const out = groupTimeline(buildTimeline([msg({ id: 1, ts: T }), card, msg({ id: 3, ts: T + 2_000 })], 999_999_999_999_999, T), 5)
+  assert.deepEqual(out.map((e) => e.type), ['session', 'group', 'card', 'group'])
+  // the lenh hong (thieu meta) => hien nhu tin chat thuong, gop nhom duoc
+  const broken = msg({ id: 2, ts: T + 1_000, kind: 'cash_request', meta: null })
+  const out2 = groupTimeline(buildTimeline([msg({ id: 1, ts: T }), broken], 999_999_999_999_999, T), 5)
+  assert.equal(out2.filter((e) => e.type === 'group').length, 1)
 })
 
 test('sessionKey: co sess thi theo sess, khong thi theo may', () => {

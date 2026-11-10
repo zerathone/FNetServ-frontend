@@ -20,12 +20,11 @@ import {
   cardOf,
   describeChatError,
   formatChatTime,
+  groupTimeline,
   isoOf,
-  isOwnMessage,
   latestInboundId,
   mergeMessages,
   newClientMsgId,
-  senderLabel,
   type CardView,
 } from './chatModel'
 
@@ -133,6 +132,8 @@ export function ChatThread({ conversation }: Props) {
     () => buildTimeline(messages, dividerReadRef.current ?? latestQuery.data?.staffRead ?? 0),
     [messages, latestQuery.data?.staffRead],
   )
+
+  const display = useMemo(() => groupTimeline(timeline, staffId), [timeline, staffId])
 
   // ---- Đánh dấu đã đọc khi đang xem thật (tab hiện) -------------------------------------------
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible')
@@ -269,7 +270,7 @@ export function ChatThread({ conversation }: Props) {
         ) : null}
 
         <ol className="chat-thread__list">
-          {timeline.map((entry) => {
+          {display.map((entry) => {
             if (entry.type === 'session') {
               return (
                 <li key={entry.key} className="chat-divider chat-divider--session" role="separator">
@@ -284,24 +285,31 @@ export function ChatThread({ conversation }: Props) {
                 </li>
               )
             }
-            const { message } = entry
-            const own = isOwnMessage(message, staffId)
-            const card = cardOf(message)
-            if (card) {
-              return (
+            if (entry.type === 'card') {
+              const card = cardOf(entry.message)
+              return card ? (
                 <li key={entry.key} className="chat-row chat-row--left">
-                  <CommandCard message={message} card={card} />
+                  <CommandCard message={entry.message} card={card} />
                 </li>
-              )
+              ) : null
             }
+            // Nhóm tin gần nhau của cùng một người = 1 bong bóng nhiều dòng; giờ ghi theo tin cuối,
+            // rê chuột lên từng dòng xem giờ riêng.
+            const lastMessage = entry.messages[entry.messages.length - 1]
             return (
-              <li key={entry.key} className={`chat-row ${own ? 'chat-row--right' : 'chat-row--left'}`}>
-                <div className={`chat-bubble${own ? ' chat-bubble--own' : ''}`}>
-                  {!own ? <span className="chat-bubble__sender">{senderLabel(message)}</span> : null}
-                  <p className="chat-bubble__text">{message.text}</p>
-                  {message.truncated ? <small className="chat-bubble__note">(tin quá dài, đã cắt bớt)</small> : null}
-                  <time className="chat-bubble__time" dateTime={isoOf(message.ts)}>
-                    {formatChatTime(message.ts)}
+              <li key={entry.key} className={`chat-row ${entry.own ? 'chat-row--right' : 'chat-row--left'}`}>
+                <div className={`chat-bubble${entry.own ? ' chat-bubble--own' : ''}`}>
+                  {!entry.own ? <span className="chat-bubble__sender">{entry.sender}</span> : null}
+                  {entry.messages.map((message) => (
+                    <div key={message.id} className="chat-bubble__line" title={formatChatTime(message.ts)}>
+                      <p className="chat-bubble__text">{message.text}</p>
+                      {message.truncated ? (
+                        <small className="chat-bubble__note">(tin quá dài, đã cắt bớt)</small>
+                      ) : null}
+                    </div>
+                  ))}
+                  <time className="chat-bubble__time" dateTime={isoOf(lastMessage.ts)}>
+                    {formatChatTime(lastMessage.ts)}
                   </time>
                 </div>
               </li>

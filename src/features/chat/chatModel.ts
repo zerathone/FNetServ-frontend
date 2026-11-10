@@ -195,6 +195,58 @@ export function buildTimeline(
   return out
 }
 
+/** Hai tin liên tiếp của cùng một người cách nhau không quá khoảng này thì gộp chung 1 bong bóng. */
+export const GROUP_GAP_MS = 2 * 60 * 1000
+
+export type DisplayEntry =
+  | Exclude<TimelineEntry, { type: 'message' }>
+  | { type: 'card'; key: string; message: ChatMessage }
+  | { type: 'group'; key: string; own: boolean; sender: string; messages: ChatMessage[] }
+
+/** Người gửi để so "cùng một người": tin của tôi; khách (tên tài khoản/máy); thu ngân/nhân viên khác (tên + nguồn). */
+function senderKey(message: ChatMessage, own: boolean) {
+  if (own) return 'own'
+  return message.dir === 2 ? `c:${message.user || message.host}` : `s:${message.src}:${message.staffId}:${message.staffName}`
+}
+
+/**
+ * Gộp các tin chat gần nhau của CÙNG một người thành một bong bóng nhiều dòng. Ngắt nhóm khi:
+ *  - đổi người gửi (kể cả đổi bên trái/phải),
+ *  - cách tin trước quá `gapMs` (tính giữa hai tin LIÊN TIẾP, nên chuỗi gõ liên tục vẫn dính một nhóm),
+ *  - gặp vạch "Phiên …" / "Tin mới" (khách thấy ranh giới đúng chỗ) hoặc một thẻ lệnh.
+ * Key nhóm = id tin ĐẦU nên không đổi khi có thêm tin vào nhóm (React không dựng lại bong bóng).
+ */
+export function groupTimeline(
+  timeline: ReadonlyArray<TimelineEntry>,
+  staffId: number | null,
+  gapMs: number = GROUP_GAP_MS,
+): DisplayEntry[] {
+  const out: DisplayEntry[] = []
+  for (const entry of timeline) {
+    if (entry.type !== 'message') {
+      out.push(entry)
+      continue
+    }
+    const { message } = entry
+    if (cardOf(message)) {
+      out.push({ type: 'card', key: entry.key, message })
+      continue
+    }
+    const own = isOwnMessage(message, staffId)
+    const key = senderKey(message, own)
+    const last = out[out.length - 1]
+    if (last?.type === 'group') {
+      const prev = last.messages[last.messages.length - 1]
+      if (senderKey(prev, last.own) === key && Math.abs(message.ts - prev.ts) <= gapMs) {
+        last.messages.push(message)
+        continue
+      }
+    }
+    out.push({ type: 'group', key: `group-${message.id}`, own, sender: senderLabel(message), messages: [message] })
+  }
+  return out
+}
+
 /** Id tin lớn nhất từ khách — mốc `upToId` khi đánh dấu đã đọc. 0 = không có tin khách. */
 export function latestInboundId(messages: ReadonlyArray<ChatMessage>) {
   let id = 0

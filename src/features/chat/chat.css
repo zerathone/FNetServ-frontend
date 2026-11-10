@@ -423,6 +423,11 @@
   background: var(--color-action-primary);
 }
 
+/* Nhiều tin của cùng một người trong một bong bóng: mỗi tin một khối, cách nhau một chút. */
+.chat-bubble__line + .chat-bubble__line {
+  margin-top: 0.25rem;
+}
+
 .chat-bubble__sender {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs, 0.75rem);
