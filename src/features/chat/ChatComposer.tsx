@@ -10,6 +10,8 @@ import {
   normalizeDraft,
 } from './chatModel'
 
+const MAX_INPUT_HEIGHT_PX = 132
+
 type Props = {
   /** Gửi bản đã chuẩn hoá. Trả Promise: resolve = đã gửi (xoá ô nhập), reject = giữ lại để gửi lại. */
   onSend: (text: string) => Promise<void>
@@ -41,7 +43,9 @@ export function ChatComposer({ onSend, disabled = false, hint, autoFocus = false
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 132)}px`
+    el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_HEIGHT_PX)}px`
+    // Chỉ hiện thanh cuộn khi nội dung thật sự vượt chiều cao tối đa.
+    el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT_PX ? 'auto' : 'hidden'
   }, [value])
 
   useEffect(() => {
@@ -155,12 +159,14 @@ export function ChatComposer({ onSend, disabled = false, hint, autoFocus = false
         </div>
       ) : null}
 
-      <div className="chat-composer__row">
+      {/* Khung soạn: biểu tượng · ô nhập · nút gửi nằm CÙNG MỘT khung viền. */}
+      <div className={`chat-composer__box${overLimit ? ' is-invalid' : ''}`}>
         <span data-chat-emoji-toggle>
           <IconButton
             type="button"
             label="Chèn biểu tượng"
             aria-expanded={emojiOpen}
+            className="chat-composer__emoji"
             icon={<Smiley size={22} weight="regular" />}
             disabled={disabled}
             onClick={() => setEmojiOpen((open) => !open)}
@@ -168,12 +174,12 @@ export function ChatComposer({ onSend, disabled = false, hint, autoFocus = false
         </span>
         <textarea
           ref={textareaRef}
-          className="ds-input chat-composer__input"
+          className="chat-composer__input"
           rows={1}
           value={value}
           disabled={disabled}
           readOnly={sending}
-          placeholder="Nhập tin nhắn… (Enter gửi · Shift+Enter xuống dòng)"
+          placeholder="Nhập tin nhắn…"
           aria-label="Nội dung tin nhắn"
           aria-invalid={overLimit}
           onChange={(event) => {
@@ -197,7 +203,7 @@ export function ChatComposer({ onSend, disabled = false, hint, autoFocus = false
 
       <div className="chat-composer__meta">
         <span className={error ? 'chat-composer__error' : 'chat-composer__hint'} role={error ? 'alert' : undefined}>
-          {error || hint || ''}
+          {error || hint || 'Enter gửi · Shift+Enter hoặc Alt+Enter xuống dòng'}
         </span>
         <span className={`chat-composer__count${overLimit ? ' is-over' : ''}`}>
           {length}/{CHAT_TEXT_LIMIT}

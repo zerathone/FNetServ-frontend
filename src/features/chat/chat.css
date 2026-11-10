@@ -51,7 +51,10 @@
 /* Thân drawer = khung flex đầy chiều cao: danh sách/luồng cuộn riêng, ô nhập dính đáy. */
 .chat-drawer .ds-drawer__body {
   display: flex;
+  /* Kéo thân Drawer cao hết cỡ (mặc định chỉ cao theo nội dung) để ô nhập dính đáy. */
+  flex: 1;
   min-height: 0;
+  overflow: hidden;
   flex-direction: column;
   padding: 0;
 }
@@ -391,18 +394,66 @@
   background: var(--color-surface-elevated);
 }
 
-.chat-composer__row {
+/* Một khung viền chung: [biểu tượng] [ô nhập] [gửi]. Ô nhập trong suốt, không viền riêng. */
+.chat-composer__box {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: end;
   gap: var(--space-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: 0.25rem;
+  background: var(--color-surface-default);
 }
 
-.chat-composer__input {
-  min-height: 2.25rem;
+.chat-composer__box:hover {
+  border-color: var(--color-border-strong);
+}
+
+.chat-composer__box:focus-within {
+  border-color: var(--color-focus);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 18%, transparent);
+}
+
+.chat-composer__box.is-invalid {
+  border-color: var(--color-danger);
+}
+
+/* Đè luật `textarea` toàn cục (viền, nền, min-height, outline) — viền do khung ngoài lo. */
+.chat-composer .chat-composer__input {
+  width: 100%;
+  min-height: 2rem;
   max-height: 8.25rem;
   resize: none;
+  overflow-y: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 0.35rem 0.25rem;
+  background: transparent;
+  outline: 0;
+  font: inherit;
   line-height: 1.4;
+}
+
+.chat-composer .chat-composer__input:hover,
+.chat-composer .chat-composer__input:focus {
+  border: 0;
+  outline: 0;
+}
+
+/* Placeholder nhỏ hơn chữ gõ một chút để không xuống 2 dòng. */
+.chat-composer__input::placeholder {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}
+
+.chat-composer__emoji.ds-icon-button,
+.chat-composer__send.ds-button {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  min-height: 2rem;
+  padding: 0;
 }
 
 .chat-composer__meta {
@@ -411,11 +462,13 @@
   justify-content: space-between;
   gap: var(--space-2);
   min-height: 1rem;
-  font-size: var(--font-size-xs, 0.75rem);
+  padding: 0 0.25rem;
+  font-size: 0.6875rem;
 }
 
 .chat-composer__hint {
   color: var(--color-text-muted);
+  font-size: 0.6875rem;
 }
 
 .chat-composer__error {
