@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Desktop, MagnifyingGlass, User, X } from '@phosphor-icons/react'
 import {
@@ -7,17 +7,26 @@ import {
   type ChatConversation,
   type ChatConversationFilter,
 } from '../../api/chat'
-import { Button, StateView } from '../../design-system/components'
+import { Button, SearchListButton, Select, StateView } from '../../design-system/components'
 import {
   badgeText,
   conversationMatches,
-  conversationSubtitle,
+  conversationTag,
   describeChatError,
   formatChatTime,
   isoOf,
+  searchSuggestions,
+  type ChatSearchField,
 } from './chatModel'
 
 const PAGE_SIZE = 100
+const CHAT_SEARCH_LIST_ID = 'chat-search-options'
+const SEARCH_PLACEHOLDER: Record<ChatSearchField, string> = {
+  user: 'Nhập hoặc chọn tài khoản',
+  pc: 'Nhập hoặc chọn tên máy',
+  text: 'Nhập nội dung tin nhắn',
+  any: 'Tìm hội thoại',
+}
 
 const FILTERS: ReadonlyArray<{ id: ChatConversationFilter; label: string }> = [
   { id: 'all', label: 'Tất cả' },
@@ -33,6 +42,8 @@ type Props = {
 export function ChatConversationList({ onOpen }: Props) {
   const [filter, setFilter] = useState<ChatConversationFilter>('all')
   const [search, setSearch] = useState('')
+  const [searchField, setSearchField] = useState<ChatSearchField>('user')
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Phân trang theo `offset` (server giới hạn 100/trang). Refetch (WS) tải lại ĐỦ các trang đang mở.
   const query = useInfiniteQuery({
@@ -51,9 +62,10 @@ export function ChatConversationList({ onOpen }: Props) {
   const total = query.data?.pages[0]?.total ?? 0
   const indexReady = query.data?.pages[0]?.indexReady ?? true
   const items = useMemo(
-    () => loadedItems.filter((conversation) => conversationMatches(conversation, search)),
-    [loadedItems, search],
+    () => loadedItems.filter((conversation) => conversationMatches(conversation, search, searchField)),
+    [loadedItems, search, searchField],
   )
+  const suggestions = useMemo(() => searchSuggestions(loadedItems, searchField), [loadedItems, searchField])
   const searching = search.trim() !== ''
 
   return (
@@ -73,26 +85,52 @@ export function ChatConversationList({ onOpen }: Props) {
             </button>
           ))}
         </div>
-        <div className="ds-search-input">
-          <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            placeholder="Tìm tài khoản, máy, nội dung"
-            aria-label="Tìm hội thoại"
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          {search ? (
-            <button
-              type="button"
-              className="ds-search-input__clear"
-              aria-label="Xóa tìm kiếm"
-              onClick={() => setSearch('')}
-            >
-              <X size={18} weight="fill" aria-hidden="true" />
-            </button>
-          ) : null}
+        {/* Cùng kiểu ô tìm của trang Máy trạm / Đơn dịch vụ: chọn trường + ô nhập có gợi ý + mũi tên + nút xoá. */}
+        <div className="ds-input-group ds-input-group--search">
+          <Select
+            value={searchField}
+            aria-label="Tìm theo"
+            onChange={(event) => setSearchField(event.target.value as ChatSearchField)}
+          >
+            <option value="user">Tài khoản</option>
+            <option value="pc">Máy</option>
+            <option value="text">Nội dung</option>
+          </Select>
+          <div className="ds-search-input">
+            <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+            <input
+              ref={searchInputRef}
+              className="ds-input"
+              type="search"
+              list={searchField === 'text' ? undefined : CHAT_SEARCH_LIST_ID}
+              value={search}
+              placeholder={SEARCH_PLACEHOLDER[searchField]}
+              aria-label="Tìm hội thoại"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            {searchField !== 'text' ? (
+              <SearchListButton
+                inputRef={searchInputRef}
+                label={searchField === 'pc' ? 'Chọn tên máy' : 'Chọn tài khoản'}
+              />
+            ) : null}
+            {search ? (
+              <button
+                type="button"
+                className="ds-search-input__clear"
+                aria-label="Xóa tìm kiếm"
+                title="Xóa từ khóa"
+                onClick={() => setSearch('')}
+              >
+                <X size={18} weight="fill" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          <datalist id={CHAT_SEARCH_LIST_ID}>
+            {suggestions.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
         </div>
       </div>
 
@@ -123,6 +161,7 @@ export function ChatConversationList({ onOpen }: Props) {
       <ul className="chat-list__items">
         {items.map((conversation) => {
           const badge = badgeText(conversation.unread)
+          const tag = conversationTag(conversation)
           const Icon = conversation.kind === 'host' ? Desktop : User
           return (
             <li key={conversation.convId}>
@@ -136,14 +175,16 @@ export function ChatConversationList({ onOpen }: Props) {
                 </span>
                 <span className="chat-conv__main">
                   <span className="chat-conv__top">
-                    <strong className="chat-conv__title">{conversation.title}</strong>
+                    <span className="chat-conv__name">
+                      <strong className="chat-conv__title">{conversation.title}</strong>
+                      {tag ? <span className="chat-conv__tag">{tag}</span> : null}
+                    </span>
                     {conversation.lastAt > 0 ? (
                       <time className="chat-conv__time" dateTime={isoOf(conversation.lastAt)}>
                         {formatChatTime(conversation.lastAt)}
                       </time>
                     ) : null}
                   </span>
-                  <span className="chat-conv__sub">{conversationSubtitle(conversation)}</span>
                   <span className="chat-conv__last">{conversation.lastText || 'Chưa có tin nhắn'}</span>
                 </span>
                 {badge ? (

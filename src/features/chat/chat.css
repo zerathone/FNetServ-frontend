@@ -177,6 +177,14 @@
   gap: var(--space-2);
 }
 
+/* Tên hội viên + tên máy in nhạt cùng dòng, ngăn bằng dấu chấm tròn. */
+.chat-conv__name {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
 .chat-conv__title {
   min-width: 0;
   overflow: hidden;
@@ -184,12 +192,26 @@
   white-space: nowrap;
 }
 
+.chat-conv__tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-conv__tag::before {
+  margin-right: 0.35rem;
+  content: '•';
+}
+
 .chat-conv.is-unread .chat-conv__title {
   font-weight: 800;
 }
 
-.chat-conv__time,
-.chat-conv__sub {
+.chat-conv__time {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs, 0.75rem);
   white-space: nowrap;

@@ -253,17 +253,47 @@ export function foldVietnamese(text: string) {
     .toLowerCase()
 }
 
-export function conversationMatches(conversation: ChatConversation, query: string) {
+/** Trường tìm kiếm (giống ô tìm ở trang Máy trạm / Đơn dịch vụ): tài khoản · máy · nội dung tin cuối; `any` = mọi trường. */
+export type ChatSearchField = 'user' | 'pc' | 'text' | 'any'
+
+export function conversationMatches(conversation: ChatConversation, query: string, field: ChatSearchField = 'any') {
   const needle = foldVietnamese(query.trim())
   if (!needle) return true
-  return [conversation.title, conversation.hostName ?? '', conversation.convId, conversation.lastText].some((field) =>
-    foldVietnamese(field).includes(needle),
-  )
+  // Hội thoại khách vãng lai đặt tên theo máy (title = tên máy) nên "máy" cũng khớp title của nó.
+  const pcNames = [conversation.hostName ?? '', conversation.kind === 'host' ? conversation.title : '']
+  const fields =
+    field === 'user'
+      ? [conversation.title]
+      : field === 'pc'
+        ? pcNames
+        : field === 'text'
+          ? [conversation.lastText]
+          : [conversation.title, ...pcNames, conversation.convId, conversation.lastText]
+  return fields.some((value) => foldVietnamese(value).includes(needle))
 }
 
-export function conversationSubtitle(conversation: ChatConversation) {
-  if (conversation.kind === 'host') return conversation.hostName ? 'Khách vãng lai · đang ngồi' : 'Khách vãng lai'
-  return conversation.hostName ? `Đang ngồi ${conversation.hostName}` : 'Ngoại tuyến'
+/** Gợi ý cho datalist của ô tìm: tên tài khoản hoặc tên máy trong các hội thoại đã tải (bỏ trùng, giữ thứ tự). */
+export function searchSuggestions(conversations: ReadonlyArray<ChatConversation>, field: ChatSearchField) {
+  if (field === 'text' || field === 'any') return []
+  const out = new Set<string>()
+  for (const conversation of conversations) {
+    if (field === 'user') {
+      if (conversation.kind === 'account' && conversation.title) out.add(conversation.title)
+    } else {
+      if (conversation.hostName) out.add(conversation.hostName)
+      if (conversation.kind === 'host' && conversation.title) out.add(conversation.title)
+    }
+  }
+  return [...out]
+}
+
+/**
+ * Phần mờ đặt cạnh tên hội thoại, ngăn bằng dấu chấm tròn ở UI: tài khoản đang ngồi máy ⇒ tên máy;
+ * khách vãng lai (title đã là tên máy) ⇒ "Khách vãng lai"; tài khoản offline ⇒ rỗng.
+ */
+export function conversationTag(conversation: ChatConversation) {
+  if (conversation.kind === 'host') return 'Khách vãng lai'
+  return conversation.hostName ?? ''
 }
 
 /** Badge đỏ: `99+` khi quá 99; rỗng khi 0. */

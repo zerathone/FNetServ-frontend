@@ -7,6 +7,7 @@ import {
   cardOf,
   checkDraft,
   conversationMatches,
+  conversationTag,
   countCodePoints,
   describeChatSettingsError,
   formatChatTime,
@@ -16,6 +17,7 @@ import {
   mergeMessages,
   newClientMsgId,
   normalizeDraft,
+  searchSuggestions,
   senderLabel,
   sessionKey,
   validateChatRetention,
@@ -160,6 +162,31 @@ test('conversationMatches: khong phan biet hoa thuong va dau tieng Viet', () => 
   assert.equal(conversationMatches(conv, 'nap tien'), true)
   assert.equal(conversationMatches(conv, 'pc-07'), true)
   assert.equal(conversationMatches(conv, 'xyz'), false)
+  // Theo truong (giong o tim trang May tram)
+  assert.equal(conversationMatches(conv, 'dat', 'user'), true)
+  assert.equal(conversationMatches(conv, 'pc-07', 'user'), false)
+  assert.equal(conversationMatches(conv, 'pc-07', 'pc'), true)
+  assert.equal(conversationMatches(conv, 'nap', 'pc'), false)
+  assert.equal(conversationMatches(conv, 'nap tien', 'text'), true)
+  assert.equal(conversationMatches(conv, 'dat', 'text'), false)
+  // Khach vang lai dat ten theo may: tim theo May cung khop title
+  const guest: ChatConversation = { ...conv, convId: 'gPC-09', kind: 'host', title: 'PC-09', hostName: undefined }
+  assert.equal(conversationMatches(guest, 'pc-09', 'pc'), true)
+  assert.equal(conversationMatches(guest, 'pc-09', 'user'), true)
+})
+
+test('searchSuggestions + conversationTag', () => {
+  const account: ChatConversation = {
+    convId: 'u1', kind: 'account', title: 'HV1', hostName: 'PC-01', online: true, lastText: '', lastAt: 0, lastId: 0, unread: 0,
+  }
+  const offline: ChatConversation = { ...account, convId: 'u2', title: 'HV2', hostName: undefined, online: false }
+  const guest: ChatConversation = { ...account, convId: 'gPC-09', kind: 'host', title: 'PC-09', hostName: undefined }
+  assert.deepEqual(searchSuggestions([account, offline, guest, account], 'user'), ['HV1', 'HV2'])
+  assert.deepEqual(searchSuggestions([account, offline, guest], 'pc'), ['PC-01', 'PC-09'])
+  assert.deepEqual(searchSuggestions([account], 'text'), [])
+  assert.equal(conversationTag(account), 'PC-01')
+  assert.equal(conversationTag(offline), '')
+  assert.equal(conversationTag(guest), 'Khách vãng lai')
 })
 
 test('badgeText: 0 an, >99 thanh 99+', () => {
