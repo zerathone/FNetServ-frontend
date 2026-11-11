@@ -149,8 +149,11 @@ test('zoom: toi da 5 muc, tang dan, mac dinh o muc giua (1x = kich thuoc goc), m
     assert.deepEqual([...levels], [...levels].sort((a, b) => a - b), 'muc tang dan')
   }
   assert.equal(VIEW_ZOOM_LEVELS[VIEW_ZOOM_DEFAULT_INDEX], 1, 'mac dinh thu ngan = kich thuoc goc cua hinh may')
-  assert.ok(VIEW_ZOOM_LEVELS[0] >= 0.5 && VIEW_ZOOM_LEVELS[VIEW_ZOOM_LEVELS.length - 1] <= 2, 'min/max thu ngan trong 50%-200%')
-  assert.ok(EDITOR_ZOOM_PX[0] >= 30 && EDITOR_ZOOM_PX[EDITOR_ZOOM_PX.length - 1] <= 120, 'co o editor 30-120px')
+  assert.equal(VIEW_ZOOM_LEVELS[0], 0.5, 'min thu ngan = 50%')
+  assert.equal(VIEW_ZOOM_LEVELS[VIEW_ZOOM_LEVELS.length - 1], 1.25, 'max thu ngan = 125%')
+  const base = EDITOR_ZOOM_PX[EDITOR_ZOOM_DEFAULT_INDEX]
+  assert.equal(EDITOR_ZOOM_PX[0] / base, 0.5, 'min editor = 50% so voi muc mac dinh')
+  assert.equal(EDITOR_ZOOM_PX[EDITOR_ZOOM_PX.length - 1] / base, 1.25, 'max editor = 125% so voi muc mac dinh')
   assert.ok(EDITOR_ZOOM_DEFAULT_INDEX >= 0 && EDITOR_ZOOM_DEFAULT_INDEX < EDITOR_ZOOM_PX.length)
 })
 

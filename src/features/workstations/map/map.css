@@ -120,7 +120,7 @@
   border-radius: 0.35rem;
   background: var(--ws-ic-inuse, #5d6485);
   color: #fff;
-  font-size: calc(var(--wsmap-cell) * 0.26);
+  font-size: max(9px, calc(var(--wsmap-cell) * 0.26)); /* sàn 9px: ô 28px (zoom 50%) vẫn đọc được tên máy */
   font-weight: 700;
   line-height: 1.1;
   overflow: hidden;
