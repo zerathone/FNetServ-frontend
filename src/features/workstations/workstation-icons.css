@@ -116,6 +116,7 @@
 .ws-machine-cell__flag {
   flex: none;
   display: inline-flex;
+  font-size: 1.25rem; /* icon Phosphor trong cột Tên máy lấy size theo đây (20px) */
 }
 
 /* Kép 2 class: thắng `.ws-table__machine span` (màu chữ mờ của dòng phụ) về độ ưu tiên. */
@@ -177,8 +178,8 @@
 
 .ws-icon-view__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(6.25rem, 1fr));
+  gap: 1.35rem; /* huy hiệu nhô ra 0,5rem mỗi bên ô ⇒ khoảng cách phải > 1rem để không chạm huy hiệu ô bên cạnh */
 }
 
 .ws-tile {
@@ -244,10 +245,10 @@
 
 .ws-tile__check {
   position: absolute;
-  left: -0.35rem;
-  top: -0.35rem;
-  width: 1.05rem;
-  height: 1.05rem;
+  left: -0.4rem;
+  bottom: 0.3rem; /* góc dưới trái: các góc còn lại dành cho icon kèm theo */
+  width: 1.2rem;
+  height: 1.2rem;
   margin: 0;
   opacity: 0;
   cursor: pointer;
@@ -260,24 +261,27 @@
 
 /* Chấm góc: tiền đỏ (còn nợ) / vé (đặt chỗ) ở góc trên phải; glyph cảnh báo / nâng cấp ở góc trên trái. */
 .ws-tile__corner {
+  --ws-corner-size: 1.9rem; /* chỉnh MỘT chỗ này để to/nhỏ cả bộ icon kèm theo (icon bên trong 20px, xem CORNER_ICON) */
   position: absolute;
-  top: -0.3rem;
+  top: -0.5rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: var(--ws-corner-size);
+  height: var(--ws-corner-size);
   border-radius: 999px;
   background: var(--ws-ic-badge-bg);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color-text-muted) 45%, transparent),
+    0 1px 3px rgb(0 0 0 / 0.25);
   pointer-events: none;
 }
 
-.ws-tile__corner--r1 { right: -0.3rem; }
-.ws-tile__corner--r2 { right: 1.2rem; }
-.ws-tile__corner--l { left: 1rem; }
+.ws-tile__corner--r1 { right: -0.5rem; }
+.ws-tile__corner--r2 { right: 1.2rem; } /* kề trái r1, chồng nhẹ */
+.ws-tile__corner--l { left: -0.5rem; }
 /* Góc dưới phải thân màn hình: icon học sinh (dưới 18) — tách khỏi hàng góc trên để không đè tiền / vé. */
-.ws-tile__corner--br { top: auto; bottom: 0.45rem; right: -0.3rem; }
+.ws-tile__corner--br { top: auto; bottom: 0.3rem; right: -0.5rem; }
 .ws-tile__corner--minor { color: var(--ws-ic-student); }
 .ws-tile__corner--money { color: var(--ws-ic-money); }
 .ws-tile__corner--reserved { color: var(--ws-ic-ticket); }

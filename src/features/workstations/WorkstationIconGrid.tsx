@@ -69,19 +69,19 @@ export function WorkstationIconGrid({
             </span>
           ))}
           <span className="ws-icon-view__legend-item ws-machine-cell__flag--minor">
-            <GraduationCap size={16} weight="fill" aria-hidden="true" />
+            <GraduationCap size={20} weight="fill" aria-hidden="true" />
             <span>Dưới 18 tuổi</span>
           </span>
           <span className="ws-icon-view__legend-item ws-machine-cell__flag--money">
-            <Money size={16} weight="fill" aria-hidden="true" />
+            <Money size={20} weight="fill" aria-hidden="true" />
             <span>Còn nợ</span>
           </span>
           <span className="ws-icon-view__legend-item ws-machine-cell__flag--reserved">
-            <Ticket size={16} weight="fill" aria-hidden="true" />
+            <Ticket size={20} weight="fill" aria-hidden="true" />
             <span>Có đặt chỗ</span>
           </span>
           <span className="ws-icon-view__legend-item ws-machine-cell__flag--late">
-            <Ticket size={16} weight="fill" aria-hidden="true" />
+            <Ticket size={20} weight="fill" aria-hidden="true" />
             <span>Khách đặt chỗ đến trễ</span>
           </span>
         </div>
