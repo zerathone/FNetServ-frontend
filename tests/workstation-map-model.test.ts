@@ -15,6 +15,13 @@ import {
   resizeLayout,
   unplacedHosts,
 } from '../src/features/workstations/map/mapModel.ts'
+import {
+  EDITOR_ZOOM_DEFAULT_INDEX,
+  EDITOR_ZOOM_PX,
+  VIEW_ZOOM_DEFAULT_INDEX,
+  VIEW_ZOOM_LEVELS,
+  clampZoomIndex,
+} from '../src/features/workstations/map/mapZoom.ts'
 
 test('placeItem: dat vao o trong, tu choi o da co / ngoai luoi / may da dat (khong phan biet hoa thuong)', () => {
   let layout = emptyLayout(4, 3)
@@ -134,4 +141,23 @@ test('parseLayout: du lieu server sai hinh dang => null; phan tu rac / ngoai luo
   assert.ok(parsed)
   assert.equal(parsed.items.length, 2)
   assert.deepEqual(itemAt(parsed, 2, 1), { t: 'ping_pong', c: 2, r: 1 })
+})
+
+test('zoom: toi da 5 muc, tang dan, mac dinh o muc giua (1x = kich thuoc goc), min/max hop ly', () => {
+  for (const levels of [VIEW_ZOOM_LEVELS, EDITOR_ZOOM_PX]) {
+    assert.ok(levels.length >= 2 && levels.length <= 5, 'thanh truot khong qua 5 muc')
+    assert.deepEqual([...levels], [...levels].sort((a, b) => a - b), 'muc tang dan')
+  }
+  assert.equal(VIEW_ZOOM_LEVELS[VIEW_ZOOM_DEFAULT_INDEX], 1, 'mac dinh thu ngan = kich thuoc goc cua hinh may')
+  assert.ok(VIEW_ZOOM_LEVELS[0] >= 0.5 && VIEW_ZOOM_LEVELS[VIEW_ZOOM_LEVELS.length - 1] <= 2, 'min/max thu ngan trong 50%-200%')
+  assert.ok(EDITOR_ZOOM_PX[0] >= 30 && EDITOR_ZOOM_PX[EDITOR_ZOOM_PX.length - 1] <= 120, 'co o editor 30-120px')
+  assert.ok(EDITOR_ZOOM_DEFAULT_INDEX >= 0 && EDITOR_ZOOM_DEFAULT_INDEX < EDITOR_ZOOM_PX.length)
+})
+
+test('clampZoomIndex: kep ve khoang hop le, gia tri rac => mac dinh', () => {
+  assert.equal(clampZoomIndex(-3, 5, 2), 0)
+  assert.equal(clampZoomIndex(99, 5, 2), 4)
+  assert.equal(clampZoomIndex(3, 5, 2), 3)
+  assert.equal(clampZoomIndex(Number.NaN, 5, 2), 2)
+  assert.equal(clampZoomIndex(1.5, 5, 2), 2)
 })

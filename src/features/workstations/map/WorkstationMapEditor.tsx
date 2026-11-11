@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eraser, FloppyDisk, MagnifyingGlassMinus, MagnifyingGlassPlus, Wall } from '@phosphor-icons/react'
+import { Eraser, FloppyDisk, Wall } from '@phosphor-icons/react'
 import {
   WORKSTATION_MAP_QUERY_KEY,
   getWorkstationMap,
@@ -8,11 +8,14 @@ import {
 } from '../../../api/workstationMap'
 import type { MapDecorType, MapLayout } from '../../../api/workstationMapTypes.ts'
 import { getRegisteredWorkstations } from '../../../api/workstations'
-import { Button, IconButton, InlineAlert, StateView } from '../../../design-system/components'
+import { Button, InlineAlert, StateView } from '../../../design-system/components'
 import { pushToast } from '../../../store/toast'
 import { MapCanvas } from './MapCanvas'
 import { writeDragPayload, type MapDragPayload } from './mapDrag.ts'
 import { MapDecorGlyph } from './MapDecorGlyph'
+import { MapZoomSlider } from './MapZoomSlider'
+import { EDITOR_ZOOM_DEFAULT_INDEX, EDITOR_ZOOM_PX, EDITOR_ZOOM_STORAGE_KEY } from './mapZoom.ts'
+import { useMapZoom } from './useMapZoom'
 import {
   DECOR_DEFS,
   DECOR_GROUP_LABEL,
@@ -46,8 +49,7 @@ type Tool =
   | { kind: 'decor'; type: MapDecorType }
 
 const SELECT_TOOL: Tool = { kind: 'select' }
-const ZOOM_STEPS_PX = [34, 42, 52, 64, 78, 96] as const
-const DEFAULT_ZOOM_INDEX = 2
+const ZOOM_LABELS = EDITOR_ZOOM_PX.map((px) => `${Math.round((px / EDITOR_ZOOM_PX[EDITOR_ZOOM_DEFAULT_INDEX]) * 100)}%`)
 const DECOR_GROUP_ORDER: DecorGroup[] = ['structure', 'furniture', 'game']
 
 function naturalSort(values: string[]) {
@@ -77,7 +79,7 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
   const [tool, setToolState] = useState<Tool>(SELECT_TOOL)
   const toolRef = useRef<Tool>(SELECT_TOOL)
   const [selected, setSelected] = useState<{ c: number; r: number } | null>(null)
-  const [zoomIndex, setZoomIndex] = useState(DEFAULT_ZOOM_INDEX)
+  const [zoomIndex, setZoomIndex] = useMapZoom(EDITOR_ZOOM_STORAGE_KEY, EDITOR_ZOOM_PX.length, EDITOR_ZOOM_DEFAULT_INDEX)
   const [error, setError] = useState('')
   const [conflict, setConflict] = useState(false)
   const painting = useRef(false)
@@ -279,7 +281,7 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
   const knownHosts = new Set(hosts.map(hostKey))
   const orphans = draft.items.filter((item) => isPc(item) && !knownHosts.has(hostKey(item.host)))
   const minSize = minimumSize(draft)
-  const cellPx = ZOOM_STEPS_PX[zoomIndex]
+  const cellPx = EDITOR_ZOOM_PX[zoomIndex]
   const editable = isAdmin
   const activeKey =
     tool.kind === 'pc' ? `pc:${tool.host}` : tool.kind === 'decor' ? `decor:${tool.type}` : tool.kind
@@ -347,22 +349,7 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
           />
         </label>
         <div className="wsmap-editor__bar-end">
-          <IconButton
-            type="button"
-            label="Thu nhỏ"
-            title="Thu nhỏ"
-            disabled={zoomIndex === 0}
-            onClick={() => setZoomIndex((index) => Math.max(0, index - 1))}
-            icon={<MagnifyingGlassMinus size={18} weight="bold" aria-hidden="true" />}
-          />
-          <IconButton
-            type="button"
-            label="Phóng to"
-            title="Phóng to"
-            disabled={zoomIndex === ZOOM_STEPS_PX.length - 1}
-            onClick={() => setZoomIndex((index) => Math.min(ZOOM_STEPS_PX.length - 1, index + 1))}
-            icon={<MagnifyingGlassPlus size={18} weight="bold" aria-hidden="true" />}
-          />
+          <MapZoomSlider value={zoomIndex} labels={ZOOM_LABELS} onChange={setZoomIndex} ariaLabel="Phóng to / thu nhỏ sơ đồ" />
           {editable ? (
             <>
               <Button

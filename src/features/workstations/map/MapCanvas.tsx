@@ -15,6 +15,8 @@ type MapCanvasProps = {
   cell: string
   /** Chiều cao ô nếu khác chiều rộng (màn hình thu ngân chừa chỗ cho huy hiệu phía trên ô máy). */
   cellHeight?: string
+  /** Hệ số phóng to của màn thu ngân (CSS --wsmap-zoom): hình máy, chữ và huy hiệu co giãn theo. */
+  zoom?: number
   mode: 'edit' | 'view'
   selected?: { c: number; r: number } | null
   renderPc: (item: MapPcItem) => ReactNode
@@ -28,6 +30,7 @@ export function MapCanvas({
   layout,
   cell,
   cellHeight,
+  zoom,
   mode,
   selected,
   renderPc,
@@ -41,6 +44,7 @@ export function MapCanvas({
   const style = {
     '--wsmap-cell': cell,
     '--wsmap-cell-h': cellHeight ?? cell,
+    '--wsmap-zoom': zoom ?? 1,
     gridTemplateColumns: `repeat(${layout.cols}, var(--wsmap-cell))`,
     gridTemplateRows: `repeat(${layout.rows}, var(--wsmap-cell-h))`,
   } as CSSProperties

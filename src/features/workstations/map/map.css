@@ -41,9 +41,18 @@
   align-items: flex-end; /* máy nằm sát đáy ô: phần trên ô chừa cho huy hiệu treo phía trên hình máy */
 }
 
+/* Hình máy = 5,75rem ở zoom 1× (bằng lưới phẳng); thanh trượt zoom nhân hệ số --wsmap-zoom cho hình máy, chữ và huy hiệu. */
+/* Phải đặt trên CHÍNH huy hiệu (không phải phần tử cha): .ws-tile__corner tự khai báo --ws-corner-size nên giá trị kế thừa bị đè. */
+.wsmap--view .ws-tile__corner {
+  --ws-corner-size: calc(2.3rem * var(--wsmap-zoom, 1));
+}
+
+.wsmap--view .ws-tile__name {
+  font-size: calc(0.92rem * var(--wsmap-zoom, 1));
+}
+
 .wsmap__machine {
-  width: 5.75rem; /* = cỡ hình máy ở lưới phẳng (không đổi theo cỡ ô) */
-  transition: opacity 120ms ease;
+  width: calc(5.75rem * var(--wsmap-zoom, 1));
 }
 
 .wsmap-dim { opacity: 0.22; transition: opacity 120ms ease; }
@@ -51,8 +60,8 @@
 .wsmap__ghost {
   display: grid;
   place-items: center;
-  width: 5.75rem;
-  height: 4.2rem;
+  width: calc(5.75rem * var(--wsmap-zoom, 1));
+  height: calc(4.2rem * var(--wsmap-zoom, 1));
   border: 1px dashed var(--color-border-strong);
   border-radius: 0.6rem;
   color: var(--color-text-muted);
@@ -255,4 +264,30 @@
 
 @media (max-width: 62rem) {
   .wsmap-editor { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ----- thanh trượt zoom (editor + thu ngân) ----- */
+
+.wsmap-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.wsmap-zoom input[type='range'] {
+  width: 8rem;
+  accent-color: var(--color-action-primary);
+}
+
+.wsmap-zoom output {
+  min-width: 2.6rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.wsmap-zoom-row {
+  display: flex;
+  justify-content: flex-end;
 }
