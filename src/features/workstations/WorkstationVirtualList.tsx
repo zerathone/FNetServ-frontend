@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { CaretLeft, CaretRight, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { ArrowsLeftRight, CaretLeft, CaretRight, CurrencyCircleDollar, GraduationCap, Pause, Receipt, Warning } from '@phosphor-icons/react'
 import { CallBellIcon } from './CallBellIcon'
 import type { MachineGroup } from '../../api/machine-groups'
 import type { WorkstationRuntime } from '../../api/workstations'
@@ -13,8 +13,18 @@ import {
   getWorkstationFlags,
   getWorkstationStatus,
   interpolateSession,
+  type FlagIconKey,
   type WorkstationFilter,
 } from './workstationModel'
+
+type IconComponent = React.ComponentType<{ size?: number; 'aria-hidden'?: boolean | 'true' | 'false' }>
+const FLAG_ICONS: Record<FlagIconKey, IconComponent> = {
+  graduationCap: GraduationCap,
+  warning: Warning,
+  pause: Pause,
+  arrowsLeftRight: ArrowsLeftRight,
+  receipt: Receipt,
+}
 
 const STATUS_FILTER_OPTIONS: FilterMenuOption<WorkstationFilter>[] = [
   { value: 'connected', label: 'Đang kết nối', color: 'var(--color-action-primary)' },
@@ -242,9 +252,9 @@ export function WorkstationVirtualList({
       const status = getWorkstationStatus(machine)
       const flags = getWorkstationFlags(machine, { hideServiceAccept: isServiceAcceptCleared?.(machine) })
       // Hai cờ dịch vụ là NÚT: bấm sang trang Đơn dịch vụ (lọc sẵn theo máy), xếp ở hàng thứ 2 dưới badge tình trạng.
-      // Một nút ⇒ icon + chữ; từ hai nút trở lên ⇒ chỉ icon (cho gọn, tooltip nói rõ). Các cờ khác vẫn là badge.
+      // Từ 2 mục trở lên trong hàng cờ ⇒ toàn bộ chuyển icon-only (tooltip nói rõ nội dung).
       const serviceFlags = onOpenOrders ? flags.filter((flag) => flag.id) : []
-      const iconOnly = serviceFlags.length >= 2
+      const iconOnly = flags.length >= 2
       return (
         <div className="ws-table__status" role="cell">
           <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
@@ -252,9 +262,23 @@ export function WorkstationVirtualList({
             <div className="ws-flag-row">
               {flags
                 .filter((flag) => !serviceFlags.includes(flag))
-                .map((flag) => (
-                  <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>
-                ))}
+                .map((flag) => {
+                  if (iconOnly && flag.iconKey) {
+                    const Icon = FLAG_ICONS[flag.iconKey]
+                    return (
+                      <span
+                        key={flag.label}
+                        className={`ws-flag-btn ws-flag-btn--icon ws-flag-btn--${flag.tone}`}
+                        title={flag.label}
+                        role="img"
+                        aria-label={flag.label}
+                      >
+                        <Icon size={14} aria-hidden="true" />
+                      </span>
+                    )
+                  }
+                  return <StatusBadge key={flag.label} tone={flag.tone}>{flag.label}</StatusBadge>
+                })}
               {serviceFlags.map((flag) => {
                 const collect = flag.id === 'service_accept'
                 return (

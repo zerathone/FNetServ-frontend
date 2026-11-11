@@ -129,15 +129,18 @@ export function getWinLicenseView(machine: WorkstationRuntime): WinLicenseView |
   }
 }
 
+/** Icon dùng khi flag row có >= 2 mục (tránh chữ dài chồng lên nhau). */
+export type FlagIconKey = 'graduationCap' | 'warning' | 'pause' | 'arrowsLeftRight' | 'receipt'
+
 /**
  * hideServiceAccept: bỏ badge "Đã nhận món" khi đã biết chắc máy hết nợ dịch vụ (xem
  * `useServiceAcceptCleared`) — server bật cờ này vô điều kiện cho máy còn giữ user của khách trước.
  */
 export function getWorkstationFlags(machine: WorkstationRuntime, options: { hideServiceAccept?: boolean } = {}) {
-  // `id` chỉ có ở cờ mà UI cần xử lý riêng (bảng máy hiện hai cờ dịch vụ thành nút icon dẫn sang trang Đơn dịch vụ).
-  const flags: Array<{ label: string; tone: StatusTone; id?: 'service_order' | 'service_accept' }> = []
+  // `id` = cờ dịch vụ (UI hiện thành nút bấm). `iconKey` = icon cho chế độ icon-only (flags.length >= 2).
+  const flags: Array<{ label: string; tone: StatusTone; id?: 'service_order' | 'service_accept'; iconKey?: FlagIconKey }> = []
   if (machine.flagMask & WORKSTATION_FLAGS.HAVE_NOT_PAID) {
-    flags.push({ label: 'Còn nợ', tone: 'danger' })
+    flags.push({ label: 'Còn nợ', tone: 'danger', iconKey: 'warning' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ORDER) {
     flags.push({ label: 'Có gọi món', tone: 'warning', id: 'service_order' })
@@ -146,16 +149,16 @@ export function getWorkstationFlags(machine: WorkstationRuntime, options: { hide
     flags.push({ label: 'Đã nhận món', tone: 'info', id: 'service_accept' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.TRANSFER_PAYMENT) {
-    flags.push({ label: 'Đợi chuyển phí', tone: 'warning' })
+    flags.push({ label: 'Đợi chuyển phí', tone: 'warning', iconKey: 'receipt' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.CLIENT_PAUSE) {
-    flags.push({ label: 'Tạm dừng', tone: 'neutral' })
+    flags.push({ label: 'Tạm dừng', tone: 'neutral', iconKey: 'pause' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.CHANGING_PC) {
-    flags.push({ label: 'Đang chuyển máy', tone: 'info' })
+    flags.push({ label: 'Đang chuyển máy', tone: 'info', iconKey: 'arrowsLeftRight' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.USER_UNDER18) {
-    flags.push({ label: 'Dưới 18 tuổi', tone: 'warning' })
+    flags.push({ label: 'Dưới 18 tuổi', tone: 'warning', iconKey: 'graduationCap' })
   }
   return flags
 }
