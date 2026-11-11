@@ -266,28 +266,209 @@
   .wsmap-editor { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ----- thanh trượt zoom (editor + thu ngân) ----- */
+/* ----- thanh trượt zoom (editor + thu ngân) — kiểu Ant Design Slider "with marks", màu theo theme ----- */
 
 .wsmap-zoom {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.6rem;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-}
-
-.wsmap-zoom input[type='range'] {
-  width: 8rem;
-  accent-color: var(--color-action-primary);
-}
-
-.wsmap-zoom output {
-  min-width: 2.6rem;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .wsmap-zoom-row {
   display: flex;
   justify-content: flex-end;
+}
+
+.wsmap-slider {
+  --wsmap-slider-primary: var(--color-action-primary);
+  --wsmap-slider-handle: 14px;           /* đường kính tay nắm (gồm viền 2px) */
+  --wsmap-slider-hit: 24px;              /* vùng bấm / kéo */
+  --wsmap-slider-rail-bg: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  --wsmap-slider-rail-hover-bg: color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  --wsmap-slider-track: color-mix(in srgb, var(--wsmap-slider-primary) 58%, transparent);
+  --wsmap-slider-track-hover: color-mix(in srgb, var(--wsmap-slider-primary) 82%, transparent);
+  position: relative;
+  width: 12rem;
+  height: 2.4rem;
+  margin: 0 0.9rem;                      /* chừa chỗ cho nhãn mốc đầu / cuối nhô ra hai bên */
+}
+
+.wsmap-slider__rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--wsmap-slider-hit) / 2 - 2px);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--wsmap-slider-rail-bg);
+  transition: background-color 0.2s;
+  pointer-events: none;
+}
+
+.wsmap-slider:hover .wsmap-slider__rail { background: var(--wsmap-slider-rail-hover-bg); }
+
+.wsmap-slider__track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--wsmap-slider-pos);
+  border-radius: 2px;
+  background: var(--wsmap-slider-track);
+  transition: background-color 0.2s;
+}
+
+.wsmap-slider:hover .wsmap-slider__track { background: var(--wsmap-slider-track-hover); }
+
+/* Vạch chia tròn ở từng mức: viền xám nhạt, mức đã đi qua viền theo màu track. */
+.wsmap-slider__dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%);
+  border: 2px solid color-mix(in srgb, var(--color-text-primary) 14%, transparent);
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  box-sizing: border-box;
+}
+
+.wsmap-slider__dot.is-active { border-color: var(--wsmap-slider-track); }
+.wsmap-slider:hover .wsmap-slider__dot.is-active { border-color: var(--wsmap-slider-track-hover); }
+
+/* input thật nằm đè lên rail, rộng thêm đúng bằng tay nắm để TÂM tay nắm chạy đúng từ 0% tới 100% của rail. */
+.wsmap-slider__input {
+  position: absolute;
+  top: 0;
+  left: calc(var(--wsmap-slider-handle) / -2);
+  width: calc(100% + var(--wsmap-slider-handle));
+  height: var(--wsmap-slider-hit);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.wsmap-slider__input:focus { outline: none; }
+
+.wsmap-slider__input::-webkit-slider-runnable-track {
+  height: var(--wsmap-slider-hit);
+  background: transparent;
+  border: 0;
+}
+
+.wsmap-slider__input::-moz-range-track {
+  height: var(--wsmap-slider-hit);
+  background: transparent;
+  border: 0;
+}
+
+.wsmap-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--wsmap-slider-handle);
+  height: var(--wsmap-slider-handle);
+  margin-top: calc((var(--wsmap-slider-hit) - var(--wsmap-slider-handle)) / 2);
+  border: 2px solid var(--wsmap-slider-track);
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  box-shadow: 0 0 0 0 transparent;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.wsmap-slider__input::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--wsmap-slider-handle);
+  height: var(--wsmap-slider-handle);
+  border: 2px solid var(--wsmap-slider-track);
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  box-shadow: 0 0 0 0 transparent;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+/* Hover: tay nắm to hơn, viền đậm hơn. Kéo / bàn phím: viền màu chủ đạo đầy + quầng 20%. */
+.wsmap-slider__input:hover::-webkit-slider-thumb { transform: scale(1.18); border-color: var(--wsmap-slider-track-hover); }
+.wsmap-slider__input:hover::-moz-range-thumb { transform: scale(1.18); border-color: var(--wsmap-slider-track-hover); }
+
+.wsmap-slider__input:active::-webkit-slider-thumb,
+.wsmap-slider__input:focus-visible::-webkit-slider-thumb {
+  border-color: var(--wsmap-slider-primary);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--wsmap-slider-primary) 20%, transparent);
+}
+
+.wsmap-slider__input:active::-moz-range-thumb,
+.wsmap-slider__input:focus-visible::-moz-range-thumb {
+  border-color: var(--wsmap-slider-primary);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--wsmap-slider-primary) 20%, transparent);
+}
+
+/* Nhãn mốc dưới rail: xám nhạt, mốc hiện tại đậm; bấm để nhảy tới mức đó. */
+.wsmap-slider__marks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--wsmap-slider-hit) + 2px);
+  height: 0;
+}
+
+.wsmap-slider__mark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.wsmap-slider__mark:hover { color: var(--color-text-secondary); }
+.wsmap-slider__mark.is-active { color: var(--color-text-primary); font-weight: 600; }
+
+/* Bong bóng giá trị trên tay nắm: tối, chữ trắng, mũi tên nhỏ; chỉ hiện khi rê chuột / kéo / focus bàn phím. */
+.wsmap-slider__tip {
+  position: absolute;
+  left: var(--wsmap-slider-pos);
+  bottom: calc(100% - var(--wsmap-slider-hit) + 14px);
+  transform: translateX(-50%) translateY(4px);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.85);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.wsmap-slider__tip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: rgb(0 0 0 / 0.85);
+}
+
+.wsmap-slider:hover .wsmap-slider__tip,
+.wsmap-slider:has(.wsmap-slider__input:active) .wsmap-slider__tip,
+.wsmap-slider:has(.wsmap-slider__input:focus-visible) .wsmap-slider__tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wsmap-slider *, .wsmap-slider { transition: none !important; }
 }
