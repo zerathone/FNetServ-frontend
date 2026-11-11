@@ -69,7 +69,7 @@ export type WorkstationRuntime = {
   verNew: boolean
   /**
    * Client dưới `minclientver` bắt buộc (đang trong hạn cảnh báo HOẶC đã bị chặn đăng nhập) — icon tím của MFC.
-   * KHÁC `verNew` (có bản mới hơn, không bắt buộc). Optional: server cũ chưa trả ⇒ coi như false.
+   * KHÁC `verNew` (= được phép đẩy gói nâng cấp, không bắt buộc — KNOWLEDGE §54). Optional: server cũ chưa trả ⇒ coi như false.
    */
   minVerExpired?: boolean
   machineGroupId: number
