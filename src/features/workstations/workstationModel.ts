@@ -163,6 +163,98 @@ export function getWorkstationFlags(machine: WorkstationRuntime, options: { hide
   return flags
 }
 
+// ---------------------------------------------------------------------------------------------
+// Icon trạng thái máy (task ws-status-icons) — thay cho dải bitmap IDB_LIST_WORKSTATION của MFC.
+// Cây quyết định bám WorkstationList.cpp (AddRowToList): Admin → Hội viên → Trả trước → Trả sau; client dưới
+// minclientver ghi đè MÀN HÌNH của mọi trạng thái (CLIENT_MINVER_EXPIRED). Khác MFC ở 2 kênh tách riêng:
+//   - `screen` (thân màn hình) = trạng thái máy;  - `bar` (thanh chân đế) = loại khách đang dùng.
+// ---------------------------------------------------------------------------------------------
+
+/** UGTYPE (DBUtils.h): 1=ANONYM 2=MEMBER 3=ADMIN 4=STAFF 5=COMBOCARD. */
+const USER_GROUP_TYPE_MEMBER = 2
+
+export type IconScreen = 'available' | 'admin' | 'inUse' | 'offline' | 'warning' | 'minVer'
+/** Loại khách đang dùng máy — chỉ có ý nghĩa khi screen = 'inUse'. 'none' = không rõ (chưa có phiên). */
+export type IconBar = 'none' | 'member' | 'prepaid' | 'postpaid'
+/** justOff = máy VỪA tắt trong phiên đang xem (viền đỏ); warning = mất kết nối TCP nhưng ping còn thông (viền cam nháy). */
+export type IconRim = 'none' | 'justOff' | 'warning'
+/** reserved = có đơn đặt chỗ sắp tới; late = khách đặt chỗ đã quá giờ bắt đầu mà chưa vào máy. */
+export type IconReservation = 'reserved' | 'late'
+
+export type WorkstationIconView = {
+  screen: IconScreen
+  bar: IconBar
+  rim: IconRim
+  debt: boolean
+  reservation: IconReservation | null
+  /** Mô tả đầy đủ cho tooltip / aria-label: màu không được là kênh thông tin duy nhất. */
+  description: string
+}
+
+export type WorkstationIconContext = {
+  /** Máy vừa chuyển sang mất kết nối trong phiên xem hiện tại (store `useRecentlyOffStore`). */
+  justOff?: boolean
+  reservation?: IconReservation | null
+}
+
+const ICON_BAR_LABEL: Record<IconBar, string | null> = {
+  none: null,
+  member: 'Hội viên',
+  prepaid: 'Vãng lai trả trước',
+  postpaid: 'Vãng lai trả sau',
+}
+
+export function getWorkstationIconView(
+  machine: WorkstationRuntime,
+  context: WorkstationIconContext = {},
+): WorkstationIconView {
+  let screen: IconScreen
+  let bar: IconBar = 'none'
+
+  switch (machine.status) {
+    case WORKSTATION_STATUS.AVAILABLE:
+      screen = 'available'
+      break
+    case WORKSTATION_STATUS.ONLINE:
+      if (machine.userId === 0) {
+        screen = 'admin'
+      } else {
+        screen = 'inUse'
+        if (machine.userGroupType === USER_GROUP_TYPE_MEMBER) bar = 'member'
+        else if (machine.session?.prepaid) bar = 'prepaid'
+        else if (machine.session) bar = 'postpaid'
+      }
+      break
+    case WORKSTATION_STATUS.WARNING:
+      screen = 'warning'
+      break
+    default:
+      // DISCONNECT, INIT_INFO và mã lạ: máy tối (không có viền, trừ khi vừa tắt — xem rim bên dưới).
+      screen = 'offline'
+  }
+
+  const minVer = Boolean(machine.minVerExpired)
+  if (minVer) screen = 'minVer'
+
+  let rim: IconRim = 'none'
+  if (machine.status === WORKSTATION_STATUS.WARNING) rim = 'warning'
+  else if (machine.status === WORKSTATION_STATUS.DISCONNECT && context.justOff) rim = 'justOff'
+
+  const debt = hasDebt(machine)
+  const reservation = context.reservation ?? null
+
+  const parts: string[] = [getWorkstationStatus(machine).label]
+  const barLabel = ICON_BAR_LABEL[bar]
+  if (barLabel) parts.push(barLabel)
+  if (minVer) parts.push('Client dưới phiên bản bắt buộc')
+  if (rim === 'justOff') parts.push('Vừa mất kết nối')
+  if (debt) parts.push('Còn nợ')
+  if (reservation === 'reserved') parts.push('Có đặt chỗ')
+  if (reservation === 'late') parts.push('Khách đặt chỗ đến trễ')
+
+  return { screen, bar, rim, debt, reservation, description: parts.join(' · ') }
+}
+
 export function isConnected(machine: WorkstationRuntime) {
   return machine.status !== WORKSTATION_STATUS.DISCONNECT
 }

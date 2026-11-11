@@ -11,11 +11,14 @@ import {
   formatStartedAt,
   getWinLicenseView,
   getWorkstationFlags,
+  getWorkstationIconView,
   getWorkstationStatus,
   interpolateSession,
   type FlagIconKey,
   type WorkstationFilter,
+  type WorkstationIconContext,
 } from './workstationModel'
+import { MachineCellFlags, WorkstationIcon } from './WorkstationIcon'
 
 type IconComponent = React.ComponentType<{ size?: number; 'aria-hidden'?: boolean | 'true' | 'false' }>
 const FLAG_ICONS: Record<FlagIconKey, IconComponent> = {
@@ -126,6 +129,8 @@ type WorkstationVirtualListProps = {
    * Không truyền ⇒ hai cờ này vẫn hiện dạng badge như cũ.
    */
   onOpenOrders?: (machine: WorkstationRuntime, target: 'orders' | 'collect') => void
+  /** Ngữ cảnh icon ngoài snapshot: máy vừa tắt, đặt chỗ. Không truyền ⇒ icon chỉ theo dữ liệu máy. */
+  getIconContext?: (machine: WorkstationRuntime) => WorkstationIconContext
   emptyState?: ReactNode
 }
 
@@ -144,6 +149,7 @@ export function WorkstationVirtualList({
   visibleColumns,
   isServiceAcceptCleared,
   onOpenOrders,
+  getIconContext,
   emptyState,
 }: WorkstationVirtualListProps) {
   const { theme } = useTheme()
@@ -246,7 +252,22 @@ export function WorkstationVirtualList({
 
   const renderCell = (column: ColumnDefinition, machine: WorkstationRuntime) => {
     const clock = interpolateSession(machine, elapsedSeconds)
-    if (column.id === 'machine') return <button type="button" className="ws-table__machine" role="cell" onClick={() => onOpen(machine)}><strong>{machine.hostName}</strong></button>
+    if (column.id === 'machine') {
+      const iconView = getWorkstationIconView(machine, getIconContext?.(machine))
+      return (
+        <button
+          type="button"
+          className="ws-table__machine"
+          role="cell"
+          title={iconView.description}
+          onClick={() => onOpen(machine)}
+        >
+          <WorkstationIcon view={iconView} size={26} />
+          <strong>{machine.hostName}</strong>
+          <MachineCellFlags view={iconView} />
+        </button>
+      )
+    }
     if (column.id === 'ip') return <div className="ws-table__truncate" role="cell">{machine.ip || '—'}</div>
     if (column.id === 'status') {
       const status = getWorkstationStatus(machine)

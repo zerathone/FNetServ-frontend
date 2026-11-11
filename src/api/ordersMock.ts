@@ -12,7 +12,8 @@
 //   slow    như 1 nhưng mỗi request trễ 1,5 giây
 //
 // Danh sách máy đang chạy (/workstations/runtime) có biến RIÊNG vì trang Máy trạm dùng chung đường dẫn đó:
-//     VITE_WORKSTATIONS_MOCK=1   (cũng nhận empty | error | slow)
+//     VITE_WORKSTATIONS_MOCK=1   (cũng nhận empty | error | slow | icons)
+//     icons = mỗi kiểu icon trạng thái máy một máy mẫu (xem khối "Kịch bản icons" bên dưới)
 // Không bật biến này thì trang Đơn dịch vụ vẫn chạy nhưng không biết trạng thái máy (nút không bị khóa theo
 // máy, mất kịch bản PC-11). Bật thì trang Máy trạm cũng thấy 6 máy mẫu dưới đây.
 //
@@ -40,6 +41,7 @@ import type {
   PrintTargetsResponse,
   StaffOrderResponse,
 } from './orders'
+import type { BoardMachine, BoardResponse, BookedSlot } from './onlineBooking'
 import type { PayRequestDryRunResponse, PayRequestResponse } from './payment'
 import type { ServiceItem } from './services'
 import type { WorkstationRuntime, WorkstationsRuntimeSnapshot } from './workstations'
@@ -576,10 +578,103 @@ const handlers: Record<string, Handler> = {
   }),
 }
 
+// ---------------------------------------------------------------------------------------------
+// Kịch bản `VITE_WORKSTATIONS_MOCK=icons`: một máy cho MỖI kiểu icon trên trang Máy trạm (task ws-status-icons).
+//   AV-*  sẵn sàng (AV-DEBT còn nợ, AV-RES có đặt chỗ sắp tới, AV-LATE khách đặt chỗ đến trễ)
+//   MB-*  hội viên | GU-PRE vãng lai trả trước | GU-POST vãng lai trả sau | CB-01 combo | ADMIN-01 admin
+//   OFF-* tắt từ trước (OFF-DEBT còn nợ) | TURNOFF-01 đang bật, tự TẮT sau 20 giây ⇒ thử viền đỏ "vừa tắt"
+//   WARN-01 cảnh báo | UPG-01 sẵn sàng + client quá cũ | UPG-OFF tắt + client quá cũ
+// Đặt chỗ lấy từ GET /onlinebook/board (cũng mock ở đây, chỉ khi mode = icons).
+// ---------------------------------------------------------------------------------------------
+const iconDemoStartedAt = Date.now()
+const HAVE_NOT_PAID_FLAG = 0x00000008
+
+function workstationsIconDemo(): WorkstationsRuntimeSnapshot {
+  const guest = { userId: 9001, userName: null, userGroupType: 1 }
+  const member = { userId: 508, userName: 'quocdat', userGroupType: 2 }
+  const none = { userId: 0, userName: null, userGroupType: 0 }
+  const withSession = (machine: WorkstationRuntime, prepaid: boolean): WorkstationRuntime => ({
+    ...machine,
+    session: machine.session ? { ...machine.session, prepaid } : machine.session,
+  })
+  const flagged = (machine: WorkstationRuntime, flagMask: number): WorkstationRuntime => ({ ...machine, flagMask })
+  const old = (machine: WorkstationRuntime): WorkstationRuntime => ({ ...machine, version: '1.9.0', minVerExpired: true })
+  const turnedOff = Date.now() - iconDemoStartedAt > 20_000
+
+  return {
+    serverTimeMs: Date.now(),
+    items: [
+      station('AV-01', 1, none, 1),
+      flagged(station('AV-DEBT', 1, none, 2), HAVE_NOT_PAID_FLAG),
+      station('AV-RES', 1, none, 3),
+      station('AV-LATE', 1, none, 4),
+      station('MB-01', 3, member, 5),
+      flagged(station('MB-DEBT', 3, { ...member, userId: 509 }, 6), HAVE_NOT_PAID_FLAG),
+      withSession(station('GU-PRE', 3, guest, 7), true),
+      withSession(station('GU-POST', 3, { ...guest, userId: 9002 }, 8), false),
+      station('CB-01', 3, { userId: 9100, userName: 'ob-dm4vip9', userGroupType: 5 }, 9),
+      station('ADMIN-01', 3, none, 10),
+      station('OFF-01', 2, none, 11),
+      flagged(station('OFF-DEBT', 2, none, 12), HAVE_NOT_PAID_FLAG),
+      station('TURNOFF-01', turnedOff ? 2 : 3, turnedOff ? none : { ...member, userId: 510 }, 13),
+      station('WARN-01', 4, member, 14),
+      old(station('UPG-01', 1, none, 15)),
+      old(station('UPG-OFF', 2, none, 16)),
+      ...Array.from({ length: 12 }, (_v, i) => station(`PC-${String(i + 20)}`, i % 3 === 0 ? 2 : 1, none, 20 + i)),
+    ],
+  }
+}
+
+function iconDemoBoard(): BoardResponse {
+  const nowMs = Date.now()
+  const iso = (offsetMin: number) => new Date(nowMs + offsetMin * MIN).toISOString()
+  const slot = (fromMin: number, lenMin: number): BookedSlot => ({
+    from: iso(fromMin),
+    to: iso(fromMin + lenMin),
+    source: 'online',
+    state: 'confirmed',
+  })
+  const machine = (pc: string, bookedSlots: BookedSlot[]): BoardMachine => ({
+    pc,
+    machineGroupId: 1,
+    machineGroup: 'Thường',
+    pcState: 'on_idle',
+    bookedSlots,
+    bookableNow: null,
+    available: false,
+    prices: [],
+  })
+  return {
+    serverTime: iso(0),
+    enabled: true,
+    fee: 0,
+    maxHours: 5,
+    minHours: 1,
+    minLeadMin: 15,
+    maxAheadMin: 4320,
+    requireOffWithinMin: 0,
+    lateHoldMin: 15,
+    lockWindowMin: 180,
+    slotBufferMin: 0,
+    horizon: { from: iso(0), to: iso(360) },
+    machines: [machine('AV-RES', [slot(60, 120)]), machine('AV-LATE', [slot(-5, 120)])],
+  }
+}
+
 // Danh sách máy: bật riêng bằng VITE_WORKSTATIONS_MOCK để không lẫn dữ liệu giả vào trang Máy trạm
 // (trang đó dùng chung đường dẫn này).
 const workstationHandlers: Record<string, Handler> = {
-  'GET /workstations/runtime': (_b, _q, mode) => (mode === 'empty' ? { serverTimeMs: Date.now(), items: [] } : workstations()),
+  'GET /workstations/runtime': (_b, _q, mode) =>
+    mode === 'empty'
+      ? { serverTimeMs: Date.now(), items: [] }
+      : mode === 'icons'
+        ? workstationsIconDemo()
+        : workstations(),
+}
+
+// Endpoint chỉ mock ở kịch bản `icons` — các mode khác để đi ra server thật / mock riêng của trang đó.
+const iconModeHandlers: Record<string, Handler> = {
+  'GET /onlinebook/board': () => iconDemoBoard(),
 }
 
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
@@ -596,7 +691,9 @@ export async function mockOrdersRequest(
   const url = new URL(path, 'http://mock.local')
   const key = `${method} ${url.pathname}`
   const ordersHandler = modes.orders ? handlers[key] : undefined
-  const stationHandler = modes.workstations ? workstationHandlers[key] : undefined
+  const stationHandler = modes.workstations
+    ? (workstationHandlers[key] ?? (modes.workstations === 'icons' ? iconModeHandlers[key] : undefined))
+    : undefined
   const handler = ordersHandler ?? stationHandler
   const mode = ordersHandler ? modes.orders : modes.workstations
   if (!handler || !mode) return { handled: false }

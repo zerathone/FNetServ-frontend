@@ -37,6 +37,7 @@ import {
   Power,
   Receipt,
   SignIn,
+  SquaresFour,
   Thermometer,
   TrashSimple,
   UserCircle,
@@ -100,8 +101,10 @@ import { Select,
   MoneyInput,
   PageHeader,
   PollingStatus,
+  Segmented,
   StateView,
   StatusBadge,
+  type SegmentedOption,
   type StatusTone,
 } from '../../design-system/components'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
@@ -142,7 +145,11 @@ import {
   matchesWorkstationFilter,
   sessionLabel,
   type WorkstationFilter,
+  type WorkstationIconContext,
 } from './workstationModel'
+import { WorkstationIconGrid } from './WorkstationIconGrid'
+import { useRecentlyOff, useRecentlyOffStore } from './recentlyOffStore'
+import { useWorkstationReservations } from './useWorkstationReservations'
 import { PrintTicketDialog } from '../orders/PrintTicketDialog'
 import { StaffOrderDialog } from '../orders/StaffOrderDialog'
 import { CallBellIcon } from './CallBellIcon'
@@ -450,6 +457,22 @@ function getInitialSummaryCompact(): boolean {
   }
 }
 
+// Chế độ xem danh sách máy — như MFC (LVS_ICON / LVS_REPORT): 'icons' = lưới ô máy, 'details' = bảng chi tiết (mặc định).
+type WorkstationViewMode = 'icons' | 'details'
+const VIEW_MODE_STORAGE_KEY = 'fnet.workstations.view-mode.v1'
+const VIEW_MODE_OPTIONS: readonly SegmentedOption<WorkstationViewMode>[] = [
+  { value: 'icons', label: 'Biểu tượng', icon: <SquaresFour size={16} weight="bold" aria-hidden="true" /> },
+  { value: 'details', label: 'Chi tiết', icon: <TextColumns size={16} weight="bold" aria-hidden="true" /> },
+]
+
+function getInitialViewMode(): WorkstationViewMode {
+  try {
+    return window.localStorage.getItem(VIEW_MODE_STORAGE_KEY) === 'icons' ? 'icons' : 'details'
+  } catch {
+    return 'details'
+  }
+}
+
 const DONUT_RADIUS = 15.9155
 const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
 
@@ -495,6 +518,18 @@ export function WorkstationWorkspace() {
   const allMachines = useMemo(() => snapshot?.items ?? [], [snapshot])
   const isServiceAcceptCleared = useServiceAcceptCleared(allMachines, connected)
   const [now, setNow] = useState(() => Date.now())
+  // Icon trạng thái (task ws-status-icons): máy vừa tắt trong phiên xem + đặt chỗ. Cả hai chỉ là phần bổ sung cho icon.
+  const isJustOff = useRecentlyOff(allMachines)
+  const acknowledgeOff = useRecentlyOffStore((state) => state.acknowledge)
+  const reservations = useWorkstationReservations(now)
+  const getIconContext = useCallback(
+    (machine: WorkstationRuntime): WorkstationIconContext => ({
+      justOff: isJustOff(machine.hostName),
+      reservation: reservations.get(machine.hostName.toUpperCase()) ?? null,
+    }),
+    [isJustOff, reservations],
+  )
+  const [viewMode, setViewMode] = useState<WorkstationViewMode>(getInitialViewMode)
   const [filter, setFilter] = useState<WorkstationFilter>('all')
   const [searchField, setSearchField] = useState<WsSearchField>('pc')
   const [search, setSearch] = useState('')
@@ -592,6 +627,14 @@ export function WorkstationWorkspace() {
     }
   }, [summaryCompact])
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode)
+    } catch {
+      // Trình duyệt chặn lưu trữ: vẫn dùng được, chỉ không nhớ chế độ xem sau lần tải lại.
+    }
+  }, [viewMode])
+
   const toggleColumn = (id: ColumnId) => {
     setOptionalColumns((current) => {
       const next = new Set(current)
@@ -637,6 +680,16 @@ export function WorkstationWorkspace() {
       )
   }, [allMachines, filter, groupId, search, searchField])
   const hasActiveFilter = filter !== 'all' || groupId !== 0 || search.trim() !== ''
+  // Dùng chung cho cả hai chế độ xem (bảng chi tiết / lưới biểu tượng).
+  const machineListEmptyState = hasActiveFilter ? (
+    <StateView
+      title="Không có máy phù hợp"
+      description="Hãy đổi bộ lọc hoặc từ khóa tìm kiếm."
+      action={<Button onClick={() => { setSearch(''); setGroupId(0); setFilter('all') }}>Xóa bộ lọc</Button>}
+    />
+  ) : (
+    <StateView title="Chưa có máy trạm nào" />
+  )
 
   const selectedMachines = useMemo(
     () => allMachines.filter((machine) => selected.has(machine.hostName)),
@@ -1220,6 +1273,8 @@ export function WorkstationWorkspace() {
 
   const openInspector = (machine: WorkstationRuntime) => {
     setInspectorHost(machine.hostName)
+    // Mở chi tiết = nhân viên đã thấy máy vừa tắt ⇒ gỡ viền đỏ.
+    acknowledgeOff(machine.hostName)
   }
 
   const openMessageDialog = (hostNames: string[]) => {
@@ -1869,6 +1924,8 @@ export function WorkstationWorkspace() {
         </div>
         <PendingServiceChips pending={pending} />
         <div className="ws-toolbar__end">
+          <Segmented value={viewMode} options={VIEW_MODE_OPTIONS} onChange={setViewMode} ariaLabel="Chế độ xem danh sách máy" />
+          {viewMode === 'details' ? (
           <details className="ws-columns">
             <summary aria-label="Chọn cột hiển thị" title="Chọn cột hiển thị">
               <TextColumns size={18} weight="bold" aria-hidden="true" />
@@ -1890,6 +1947,7 @@ export function WorkstationWorkspace() {
               ))}
             </div>
           </details>
+          ) : null}
         </div>
       </div>
 
@@ -1983,6 +2041,16 @@ export function WorkstationWorkspace() {
             description={(snapshotQuery.error as Error).message}
             action={<Button onClick={() => snapshotQuery.refetch()}>Thử lại</Button>}
           />
+        ) : viewMode === 'icons' ? (
+          <WorkstationIconGrid
+            machines={filteredMachines}
+            selected={selected}
+            onToggle={toggleMachine}
+            onSelectAll={toggleAllVisible}
+            onOpen={openInspector}
+            getIconContext={getIconContext}
+            emptyState={machineListEmptyState}
+          />
         ) : (
           <WorkstationVirtualList
             machines={filteredMachines}
@@ -2006,17 +2074,8 @@ export function WorkstationWorkspace() {
               setOrderInitialView(target === 'collect' ? 'accepted-unpaid' : null)
               navigate('/orders')
             }}
-            emptyState={
-              hasActiveFilter ? (
-                <StateView
-                  title="Không có máy phù hợp"
-                  description="Hãy đổi bộ lọc hoặc từ khóa tìm kiếm."
-                  action={<Button onClick={() => { setSearch(''); setGroupId(0); setFilter('all') }}>Xóa bộ lọc</Button>}
-                />
-              ) : (
-                <StateView title="Chưa có máy trạm nào" />
-              )
-            }
+            getIconContext={getIconContext}
+            emptyState={machineListEmptyState}
           />
         )}
       </div>

@@ -67,6 +67,11 @@ export type WorkstationRuntime = {
   version: string
   /** server co ban client moi hon ban dang chay tren may nay (tinh 1 lan luc client connect) */
   verNew: boolean
+  /**
+   * Client dưới `minclientver` bắt buộc (đang trong hạn cảnh báo HOẶC đã bị chặn đăng nhập) — icon tím của MFC.
+   * KHÁC `verNew` (có bản mới hơn, không bắt buộc). Optional: server cũ chưa trả ⇒ coi như false.
+   */
+  minVerExpired?: boolean
   machineGroupId: number
   machineGroupName: string | null
   /** INVALID_ID -> 0 (giu convention /workstations) */

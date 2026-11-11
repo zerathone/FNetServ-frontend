@@ -1,0 +1,276 @@
+/* Icon trạng thái máy trạm (task ws-status-icons) — bảng màu theo bản MFC (IDB_LIST_WORKSTATION) + kiểu 2 kênh:
+   thân màn hình = trạng thái, thanh chân đế = loại khách. Chỉ dùng cho fnet-web, không đổi MFC.
+
+   Màu dùng token riêng --ws-ic-* thay vì --color-success/--color-danger của theme: màu theme lệch tông giữa
+   4 giao diện (vd success #17c964 ở light, #26733f ở warm) trong khi icon cần ổn định để nhân viên nhận ra bằng
+   mắt. Mặc định = light/warm/classic; dark ghi đè bên dưới. Chữ tên máy trong ô luôn đạt tương phản >= 4.4:1. */
+
+:root {
+  --ws-ic-available: #25841a;
+  --ws-ic-available-edge: #1b6612;
+  --ws-ic-admin: #f2b705;
+  --ws-ic-admin-edge: #c79700;
+  --ws-ic-inuse: #5d6485;
+  --ws-ic-inuse-edge: #474d69;
+  --ws-ic-offline: #dfe3ec;
+  --ws-ic-offline-edge: #c3c9d6;
+  --ws-ic-minver: #8a2fc0;
+  --ws-ic-minver-edge: #6c2299;
+
+  --ws-ic-bar-member: #12b4e3;
+  --ws-ic-bar-prepaid: #7048e8;
+  --ws-ic-bar-postpaid: #d62fe0;
+
+  --ws-ic-text-light: #ffffff;
+  --ws-ic-text-dark: #1d1f27;
+  --ws-ic-text-offline: #5b6275;
+
+  --ws-ic-rim-off: #e5484d;
+  --ws-ic-rim-warn: #f59e0b;
+  --ws-ic-money: #e5484d;
+  --ws-ic-ticket: #2f7df6;
+  --ws-ic-ticket-late: #e5484d;
+  --ws-ic-badge-bg: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --ws-ic-available: #2a9422;
+  --ws-ic-available-edge: #1f7119;
+  --ws-ic-inuse: #656c92;
+  --ws-ic-inuse-edge: #4d5374;
+  --ws-ic-offline: #1d202b;
+  --ws-ic-offline-edge: #2b3040;
+  --ws-ic-text-offline: #8b93a8;
+  --ws-ic-badge-bg: #16181f;
+}
+
+/* ===== Hình icon (SVG viewBox 64x56) ===== */
+
+.ws-ic {
+  flex: none;
+  display: block;
+  overflow: visible;
+}
+
+.ws-ic__screen { fill: var(--ws-ic-offline); }
+.ws-ic__bar,
+.ws-ic__stand { fill: var(--ws-ic-offline-edge); }
+.ws-ic__rim { fill: none; stroke-width: 3; }
+.ws-ic__glyph { fill: #ffffff; }
+
+.ws-ic--screen-available .ws-ic__screen { fill: var(--ws-ic-available); }
+.ws-ic--screen-available .ws-ic__bar,
+.ws-ic--screen-available .ws-ic__stand { fill: var(--ws-ic-available-edge); }
+
+.ws-ic--screen-admin .ws-ic__screen { fill: var(--ws-ic-admin); }
+.ws-ic--screen-admin .ws-ic__bar,
+.ws-ic--screen-admin .ws-ic__stand { fill: var(--ws-ic-admin-edge); }
+
+.ws-ic--screen-inUse .ws-ic__screen { fill: var(--ws-ic-inuse); }
+.ws-ic--screen-inUse .ws-ic__bar,
+.ws-ic--screen-inUse .ws-ic__stand { fill: var(--ws-ic-inuse-edge); }
+.ws-ic--bar-member .ws-ic__bar,
+.ws-ic--bar-member .ws-ic__stand { fill: var(--ws-ic-bar-member); }
+.ws-ic--bar-prepaid .ws-ic__bar,
+.ws-ic--bar-prepaid .ws-ic__stand { fill: var(--ws-ic-bar-prepaid); }
+.ws-ic--bar-postpaid .ws-ic__bar,
+.ws-ic--bar-postpaid .ws-ic__stand { fill: var(--ws-ic-bar-postpaid); }
+
+/* Client dưới phiên bản bắt buộc: tím PHỦ cả màn hình (ghi đè mọi trạng thái), kèm glyph mũi tên lên. */
+.ws-ic--screen-minVer .ws-ic__screen { fill: var(--ws-ic-minver); }
+.ws-ic--screen-minVer .ws-ic__bar,
+.ws-ic--screen-minVer .ws-ic__stand { fill: var(--ws-ic-minver-edge); }
+
+.ws-ic--screen-warning .ws-ic__glyph { fill: var(--ws-ic-rim-warn); }
+.ws-ic--rim-justOff .ws-ic__rim { stroke: var(--ws-ic-rim-off); }
+.ws-ic--rim-warning .ws-ic__rim { stroke: var(--ws-ic-rim-warn); animation: ws-ic-blink 1.1s ease-in-out infinite; }
+
+@keyframes ws-ic-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-ic--rim-warning .ws-ic__rim { animation: none; }
+}
+
+/* Màu chữ tên máy theo màn hình (dùng trong ô lưới). */
+.ws-tile--screen-available, .ws-tile--screen-inUse, .ws-tile--screen-minVer { --ws-ic-name: var(--ws-ic-text-light); }
+.ws-tile--screen-admin { --ws-ic-name: var(--ws-ic-text-dark); }
+.ws-tile--screen-offline, .ws-tile--screen-warning { --ws-ic-name: var(--ws-ic-text-offline); }
+
+/* ===== Cột "Tên máy" của bảng chi tiết ===== */
+
+.ws-machine-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.ws-machine-cell__flag {
+  flex: none;
+  display: inline-flex;
+}
+
+/* Kép 2 class: thắng `.ws-table__machine span` (màu chữ mờ của dòng phụ) về độ ưu tiên. */
+.ws-machine-cell__flag.ws-machine-cell__flag--money,
+.ws-machine-cell__flag--money { color: var(--ws-ic-money); }
+.ws-machine-cell__flag.ws-machine-cell__flag--reserved,
+.ws-machine-cell__flag--reserved { color: var(--ws-ic-ticket); }
+.ws-machine-cell__flag.ws-machine-cell__flag--late,
+.ws-machine-cell__flag--late { color: var(--ws-ic-ticket-late); }
+
+.ws-table__machine strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Chế độ xem Biểu tượng: lưới ô máy ===== */
+
+.ws-icon-view {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  overflow: auto;
+  align-content: start;
+  min-height: 0;
+}
+
+.ws-icon-view__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.ws-icon-view__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+
+.ws-icon-view__legend {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.ws-icon-view__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ws-icon-view__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
+  gap: var(--space-3);
+}
+
+.ws-tile {
+  position: relative;
+  min-width: 0;
+}
+
+.ws-tile__btn {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+
+.ws-tile__btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.ws-tile__btn .ws-ic {
+  width: 100%;
+  height: auto;
+  transition: filter 120ms ease;
+}
+
+.ws-tile__btn:hover .ws-ic { filter: brightness(1.12); }
+
+.ws-tile__name {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 4%;
+  height: 56%; /* vùng thân màn hình (40/56 viewBox) trừ thanh chân đế */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ws-ic-name, var(--ws-ic-text-offline));
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* text-overflow không áp dụng lên flex container ⇒ cắt ở span con để tên dài hiện dấu "…". */
+.ws-tile__name > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-tile--selected .ws-tile__btn {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 3px;
+}
+
+.ws-tile__check {
+  position: absolute;
+  left: -0.35rem;
+  top: -0.35rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  accent-color: var(--color-action-primary);
+}
+
+.ws-tile:hover .ws-tile__check,
+.ws-tile__check:focus-visible,
+.ws-tile--selected .ws-tile__check { opacity: 1; }
+
+/* Chấm góc: tiền đỏ (còn nợ) / vé (đặt chỗ) ở góc trên phải; glyph cảnh báo / nâng cấp ở góc trên trái. */
+.ws-tile__corner {
+  position: absolute;
+  top: -0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--ws-ic-badge-bg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+  pointer-events: none;
+}
+
+.ws-tile__corner--r1 { right: -0.3rem; }
+.ws-tile__corner--r2 { right: 1.2rem; }
+.ws-tile__corner--l { left: 1rem; }
+.ws-tile__corner--money { color: var(--ws-ic-money); }
+.ws-tile__corner--reserved { color: var(--ws-ic-ticket); }
+.ws-tile__corner--late { color: var(--ws-ic-ticket-late); }
+.ws-tile__corner--warning { color: var(--ws-ic-rim-warn); }
+.ws-tile__corner--minVer { color: var(--ws-ic-minver); }
