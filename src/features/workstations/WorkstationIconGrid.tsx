@@ -53,39 +53,7 @@ export function WorkstationIconGrid({
 
   return (
     <div className="ws-icon-view">
-      <div className="ws-icon-view__bar">
-        <label className="ws-icon-view__select-all">
-          <input type="checkbox" checked={allSelected} onChange={onSelectAll} />
-          Chọn tất cả ({machines.length} máy)
-        </label>
-        <div className="ws-icon-view__legend" aria-label="Chú giải icon">
-          {LEGEND.map((entry) => (
-            <span key={entry.label} className="ws-icon-view__legend-item">
-              <WorkstationIcon
-                view={{ ...entry.view, debt: false, minor: false, reservation: null, description: entry.label }}
-                size={22}
-              />
-              {entry.label}
-            </span>
-          ))}
-          <span className="ws-icon-view__legend-item ws-machine-cell__flag--minor">
-            <GraduationCap size={20} weight="fill" aria-hidden="true" />
-            <span>Dưới 18 tuổi</span>
-          </span>
-          <span className="ws-icon-view__legend-item ws-machine-cell__flag--money">
-            <Money size={20} weight="fill" aria-hidden="true" />
-            <span>Còn nợ</span>
-          </span>
-          <span className="ws-icon-view__legend-item ws-machine-cell__flag--reserved">
-            <Ticket size={20} weight="fill" aria-hidden="true" />
-            <span>Có đặt chỗ</span>
-          </span>
-          <span className="ws-icon-view__legend-item ws-machine-cell__flag--late">
-            <Ticket size={20} weight="fill" aria-hidden="true" />
-            <span>Khách đặt chỗ đến trễ</span>
-          </span>
-        </div>
-      </div>
+      <IconViewBar total={machines.length} allSelected={allSelected} onSelectAll={onSelectAll} />
       <div className="ws-icon-view__grid" role="list">
         {entries.map(({ machine, view }) => (
           <div key={machine.hostName} role="listitem">
@@ -100,5 +68,44 @@ export function WorkstationIconGrid({
         ))}
       </div>
     </div>
+  )
+}
+
+/** Thanh trên cùng của chế độ Biểu tượng: ô "Chọn tất cả" + chú giải icon. Dùng chung cho lưới phẳng và sơ đồ. */
+export function IconViewBar({ total, allSelected, onSelectAll }: { total: number; allSelected: boolean; onSelectAll: () => void }) {
+  return (
+  <div className="ws-icon-view__bar">
+    <label className="ws-icon-view__select-all">
+      <input type="checkbox" checked={allSelected} onChange={onSelectAll} />
+      Chọn tất cả ({total} máy)
+    </label>
+    <div className="ws-icon-view__legend" aria-label="Chú giải icon">
+      {LEGEND.map((entry) => (
+        <span key={entry.label} className="ws-icon-view__legend-item">
+          <WorkstationIcon
+            view={{ ...entry.view, debt: false, minor: false, reservation: null, description: entry.label }}
+            size={22}
+          />
+          {entry.label}
+        </span>
+      ))}
+      <span className="ws-icon-view__legend-item ws-machine-cell__flag--minor">
+        <GraduationCap size={20} weight="fill" aria-hidden="true" />
+        <span>Dưới 18 tuổi</span>
+      </span>
+      <span className="ws-icon-view__legend-item ws-machine-cell__flag--money">
+        <Money size={20} weight="fill" aria-hidden="true" />
+        <span>Còn nợ</span>
+      </span>
+      <span className="ws-icon-view__legend-item ws-machine-cell__flag--reserved">
+        <Ticket size={20} weight="fill" aria-hidden="true" />
+        <span>Có đặt chỗ</span>
+      </span>
+      <span className="ws-icon-view__legend-item ws-machine-cell__flag--late">
+        <Ticket size={20} weight="fill" aria-hidden="true" />
+        <span>Khách đặt chỗ đến trễ</span>
+      </span>
+    </div>
+  </div>
   )
 }

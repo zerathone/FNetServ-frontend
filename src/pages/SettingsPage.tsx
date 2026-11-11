@@ -38,6 +38,7 @@ import {
   validateSystemSettings,
 } from '../features/settings/settingsModel'
 import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
+import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
 import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
 import { ScheduledShutdownDialog } from '../features/workstations/ScheduledShutdownDialog'
 import './settings.css'
@@ -49,6 +50,7 @@ type SettingsSection =
   | 'cafe'
   | 'system'
   | 'workstation'
+  | 'wsmap'
   | 'security'
 
 type SecurityConfirmation = 'admin' | 'workstation' | null
@@ -62,6 +64,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: 'cafe', label: 'Thông tin phòng máy', description: 'Tên và thông tin liên hệ' },
   { id: 'system', label: 'Quy tắc hệ thống', description: 'Nhật ký, làm tròn và mức nạp' },
   { id: 'workstation', label: 'Máy trạm', description: 'Đăng nhập lại, khóa và tự tắt' },
+  { id: 'wsmap', label: 'Sơ đồ máy trạm', description: 'Vị trí máy, tường và đồ vật' },
   { id: 'security', label: 'Bảo mật', description: 'Tài khoản ADMIN và máy trạm' },
 ]
 
@@ -644,6 +647,9 @@ export function SettingsPage() {
 
           {/* Kênh chat Messenger: form riêng (PUT /settings/chat riêng, chỉ admin) nên KHÔNG lồng trong form máy trạm. */}
           {section === 'workstation' ? <ChatSettingsSection isAdmin={isAdmin} /> : null}
+
+          {/* Sơ đồ máy trạm (task ws-map): ADMIN vẽ, mọi nhân viên xem ở trang Máy trạm → Biểu tượng. Lưu riêng (POST /workstations/map). */}
+          {section === 'wsmap' ? <WorkstationMapEditor isAdmin={isAdmin} /> : null}
 
           {section === 'security' ? (
             <div className="settings-security">

@@ -42,6 +42,7 @@ import type {
   StaffOrderResponse,
 } from './orders'
 import type { BoardMachine, BoardResponse, BookedSlot } from './onlineBooking'
+import type { MapDecorType, MapItem, MapLayout } from './workstationMapTypes.ts'
 import type { PayRequestDryRunResponse, PayRequestResponse } from './payment'
 import type { ServiceItem } from './services'
 import type { WorkstationRuntime, WorkstationsRuntimeSnapshot } from './workstations'
@@ -741,9 +742,50 @@ const workstationHandlers: Record<string, Handler> = {
         : workstations(),
 }
 
+// ---------------------------------------------------------------------------------------------
+// Sơ đồ máy trạm (task ws-map) — mock trong bộ nhớ, chỉ ở kịch bản `icons`. Có sẵn một sơ đồ mẫu: tường + cửa vào + quầy +
+// đồ vật làm mốc + 24 máy đầu của danh sách mẫu; các máy còn lại CHƯA xếp để thấy dải "Chưa xếp vị trí". Lưu (POST) cập nhật
+// bản trong bộ nhớ và tăng `rev`; gửi `rev` cũ ⇒ 409 MAP_CONFLICT như server thật. F5 là về lại sơ đồ mẫu.
+// ---------------------------------------------------------------------------------------------
+let mockMap: { rev: number; layout: MapLayout } | null = null
+
+function buildDemoMapLayout(): MapLayout {
+  const items: MapItem[] = []
+  const cols = 18
+  const rows = 11
+  for (let c = 0; c < cols; c += 1) items.push(c === 8 ? { t: 'entrance', c, r: 0 } : { t: 'wall_h', c, r: 0 })
+  for (let r = 1; r < rows; r += 1) items.push({ t: 'wall_v', c: 0, r }, { t: 'wall_v', c: cols - 1, r })
+  for (let c = 1; c < cols - 1; c += 1) items.push({ t: 'wall_h', c, r: rows - 1 })
+  const decor: Array<[MapDecorType, number, number]> = [
+    ['fire_extinguisher', 1, 1], ['reception', 3, 1], ['bar', 12, 1], ['wc', 15, 1],
+    ['billiard', 14, 4], ['table_football', 14, 6], ['ping_pong', 15, 6], ['hookah', 15, 8],
+    ['vr', 10, 4], ['vr', 11, 4], ['racing', 12, 4], ['console', 10, 6], ['console', 11, 6],
+    ['sofa', 10, 8], ['sofa', 11, 8], ['sofa', 12, 8],
+  ]
+  for (const [t, c, r] of decor) items.push({ t, c, r })
+  workstationsIconDemo()
+    .items.slice(0, 24)
+    .forEach((machine, index) => items.push({ t: 'pc', host: machine.hostName, c: 2 + (index % 8), r: 3 + Math.floor(index / 8) }))
+  return { v: 1, cols, rows, items }
+}
+
 // Endpoint chỉ mock ở kịch bản `icons` — các mode khác để đi ra server thật / mock riêng của trang đó.
 const iconModeHandlers: Record<string, Handler> = {
   'GET /onlinebook/board': () => iconDemoBoard(),
+  'GET /workstations/registered': () => ({
+    items: workstationsIconDemo().items.map((machine) => ({ hostName: machine.hostName, machineGroupId: 1 })),
+  }),
+  'GET /workstations/map': () => {
+    mockMap ??= { rev: 1, layout: buildDemoMapLayout() }
+    return { exists: true, rev: mockMap.rev, updatedAt: '2026-11-11 09:00:00', updatedBy: 1, layout: mockMap.layout }
+  },
+  'POST /workstations/map': (body) => {
+    if (mockMap && num(body.rev) !== mockMap.rev) {
+      throw new ApiError('Mock: có người vừa lưu sơ đồ khác', { httpStatus: 409, code: 'MAP_CONFLICT' })
+    }
+    mockMap = { rev: (mockMap?.rev ?? 0) + 1, layout: body.layout as MapLayout }
+    return { rev: mockMap.rev }
+  },
 }
 
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))

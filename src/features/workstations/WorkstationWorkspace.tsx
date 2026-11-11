@@ -150,6 +150,9 @@ import {
 import { WorkstationIconGrid } from './WorkstationIconGrid'
 import { useRecentlyOff, useRecentlyOffStore } from './recentlyOffStore'
 import { useWorkstationReservations } from './useWorkstationReservations'
+import { WORKSTATION_MAP_QUERY_KEY, getWorkstationMap } from '../../api/workstationMap'
+import { WorkstationMapView } from './map/WorkstationMapView'
+import { hostKey, parseLayout } from './map/mapModel.ts'
 import { PrintTicketDialog } from '../orders/PrintTicketDialog'
 import { StaffOrderDialog } from '../orders/StaffOrderDialog'
 import { CallBellIcon } from './CallBellIcon'
@@ -473,6 +476,22 @@ function getInitialViewMode(): WorkstationViewMode {
   }
 }
 
+// Chế độ Biểu tượng khi quán ĐÃ vẽ sơ đồ (Cài đặt → Sơ đồ máy trạm): 'map' = đặt máy đúng ô sơ đồ (mặc định), 'flat' = lưới phẳng.
+type IconLayoutMode = 'map' | 'flat'
+const ICON_LAYOUT_STORAGE_KEY = 'fnet.workstations.icon-layout.v1'
+const ICON_LAYOUT_OPTIONS: readonly SegmentedOption<IconLayoutMode>[] = [
+  { value: 'map', label: 'Sơ đồ' },
+  { value: 'flat', label: 'Lưới' },
+]
+
+function getInitialIconLayout(): IconLayoutMode {
+  try {
+    return window.localStorage.getItem(ICON_LAYOUT_STORAGE_KEY) === 'flat' ? 'flat' : 'map'
+  } catch {
+    return 'map'
+  }
+}
+
 const DONUT_RADIUS = 15.9155
 const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
 
@@ -530,6 +549,20 @@ export function WorkstationWorkspace() {
     [isJustOff, reservations],
   )
   const [viewMode, setViewMode] = useState<WorkstationViewMode>(getInitialViewMode)
+  const [iconLayout, setIconLayout] = useState<IconLayoutMode>(getInitialIconLayout)
+  // Sơ đồ máy trạm (task ws-map): chỉ tải khi đang ở chế độ Biểu tượng. Lỗi / server cũ chưa có route ⇒ coi như chưa có sơ đồ.
+  const mapQuery = useQuery({
+    queryKey: WORKSTATION_MAP_QUERY_KEY,
+    queryFn: getWorkstationMap,
+    enabled: viewMode === 'icons',
+    staleTime: 30_000,
+    refetchInterval: (query) => (query.state.status === 'error' ? false : 60_000),
+    retry: false,
+  })
+  const mapLayout = useMemo(
+    () => (mapQuery.data?.exists ? parseLayout(mapQuery.data.layout) : null),
+    [mapQuery.data],
+  )
   const [filter, setFilter] = useState<WorkstationFilter>('all')
   const [searchField, setSearchField] = useState<WsSearchField>('pc')
   const [search, setSearch] = useState('')
@@ -635,6 +668,14 @@ export function WorkstationWorkspace() {
     }
   }, [viewMode])
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ICON_LAYOUT_STORAGE_KEY, iconLayout)
+    } catch {
+      // Trình duyệt chặn lưu trữ: vẫn dùng được, chỉ không nhớ lựa chọn Sơ đồ / Lưới.
+    }
+  }, [iconLayout])
+
   const toggleColumn = (id: ColumnId) => {
     setOptionalColumns((current) => {
       const next = new Set(current)
@@ -679,6 +720,8 @@ export function WorkstationWorkspace() {
         left.hostName.localeCompare(right.hostName, 'vi', { numeric: true }),
       )
   }, [allMachines, filter, groupId, search, searchField])
+  // Sơ đồ: bộ lọc KHÔNG dời máy, chỉ làm mờ máy không khớp ⇒ cần tập tên máy đang khớp bộ lọc.
+  const visibleHosts = useMemo(() => new Set(filteredMachines.map((machine) => hostKey(machine.hostName))), [filteredMachines])
   const hasActiveFilter = filter !== 'all' || groupId !== 0 || search.trim() !== ''
   // Dùng chung cho cả hai chế độ xem (bảng chi tiết / lưới biểu tượng).
   const machineListEmptyState = hasActiveFilter ? (
@@ -1925,6 +1968,9 @@ export function WorkstationWorkspace() {
         <PendingServiceChips pending={pending} />
         <div className="ws-toolbar__end">
           <Segmented value={viewMode} options={VIEW_MODE_OPTIONS} onChange={setViewMode} ariaLabel="Chế độ xem danh sách máy" />
+          {viewMode === 'icons' && mapLayout ? (
+            <Segmented value={iconLayout} options={ICON_LAYOUT_OPTIONS} onChange={setIconLayout} ariaLabel="Cách xếp máy ở chế độ Biểu tượng" />
+          ) : null}
           {viewMode === 'details' ? (
           <details className="ws-columns">
             <summary aria-label="Chọn cột hiển thị" title="Chọn cột hiển thị">
@@ -2040,6 +2086,19 @@ export function WorkstationWorkspace() {
             title="Không tải được máy trạm"
             description={(snapshotQuery.error as Error).message}
             action={<Button onClick={() => snapshotQuery.refetch()}>Thử lại</Button>}
+          />
+        ) : viewMode === 'icons' && mapLayout && iconLayout === 'map' ? (
+          <WorkstationMapView
+            layout={mapLayout}
+            machines={allMachines}
+            visibleHosts={visibleHosts}
+            selected={selected}
+            allVisibleSelected={filteredMachines.length > 0 && filteredMachines.every((machine) => selected.has(machine.hostName))}
+            visibleCount={filteredMachines.length}
+            onToggle={toggleMachine}
+            onSelectAll={toggleAllVisible}
+            onOpen={openInspector}
+            getIconContext={getIconContext}
           />
         ) : viewMode === 'icons' ? (
           <WorkstationIconGrid
