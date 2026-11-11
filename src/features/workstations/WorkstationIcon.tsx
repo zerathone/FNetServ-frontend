@@ -123,12 +123,12 @@ export function MachineCellFlags({ view }: { view: WorkstationIconView }) {
     <>
       {view.minor ? (
         <span className="ws-machine-cell__flag ws-machine-cell__flag--minor" role="img" aria-label="Dưới 18 tuổi" title="Dưới 18 tuổi">
-          <GraduationCap size={20} weight="fill" aria-hidden="true" />
+          <GraduationCap size={24} weight="fill" aria-hidden="true" />
         </span>
       ) : null}
       {view.debt ? (
         <span className="ws-machine-cell__flag ws-machine-cell__flag--money" role="img" aria-label="Còn nợ" title="Còn nợ">
-          <Money size={20} weight="fill" aria-hidden="true" />
+          <Money size={24} weight="fill" aria-hidden="true" />
         </span>
       ) : null}
       {view.reservation ? (
@@ -138,7 +138,7 @@ export function MachineCellFlags({ view }: { view: WorkstationIconView }) {
           aria-label={view.reservation === 'late' ? 'Khách đặt chỗ đến trễ' : 'Có đặt chỗ'}
           title={view.reservation === 'late' ? 'Khách đặt chỗ đến trễ' : 'Có đặt chỗ'}
         >
-          <Ticket size={20} weight="fill" aria-hidden="true" />
+          <Ticket size={24} weight="fill" aria-hidden="true" />
         </span>
       ) : null}
     </>
