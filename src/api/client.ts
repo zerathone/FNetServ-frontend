@@ -200,7 +200,10 @@ async function tryOrdersMock<T>(
 
 export async function apiGet<T>(path: string): Promise<T> {
   // Mock trang Theo dõi hoạt động đứng TRƯỚC mock Đơn dịch vụ: danh sách máy của nó là tập cha của 6 máy bên kia.
-  const healthMock = await tryHealthMock<T>(path)
+  // NGOẠI LỆ: kịch bản VITE_WORKSTATIONS_MOCK=icons (mọi tổ hợp icon máy trạm) phải thắng cho /workstations/runtime,
+  // nếu không bật cả hai thì trang Máy trạm chỉ thấy 14 máy của mock Theo dõi hoạt động.
+  const iconsMockOwnsRuntime = WORKSTATIONS_MOCK === 'icons' && path.split('?')[0] === '/workstations/runtime'
+  const healthMock = iconsMockOwnsRuntime ? ({ hit: false } as const) : await tryHealthMock<T>(path)
   if (healthMock.hit) return healthMock.data
   const mock = await tryOrdersMock<T>('GET', path)
   if (mock.hit) return mock.data

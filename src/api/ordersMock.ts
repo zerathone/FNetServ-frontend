@@ -579,48 +579,111 @@ const handlers: Record<string, Handler> = {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Kịch bản `VITE_WORKSTATIONS_MOCK=icons`: một máy cho MỖI kiểu icon trên trang Máy trạm (task ws-status-icons).
-//   AV-*  sẵn sàng (AV-DEBT còn nợ, AV-RES có đặt chỗ sắp tới, AV-LATE khách đặt chỗ đến trễ)
-//   MB-*  hội viên | GU-PRE vãng lai trả trước | GU-POST vãng lai trả sau | CB-01 combo | ADMIN-01 admin
-//   OFF-* tắt từ trước (OFF-DEBT còn nợ) | TURNOFF-01 đang bật, tự TẮT sau 20 giây ⇒ thử viền đỏ "vừa tắt"
-//   WARN-01 cảnh báo | UPG-01 sẵn sàng + client quá cũ | UPG-OFF tắt + client quá cũ
-// Đặt chỗ lấy từ GET /onlinebook/board (cũng mock ở đây, chỉ khi mode = icons).
+// Kịch bản `VITE_WORKSTATIONS_MOCK=icons` (task ws-status-icons): trang Máy trạm có MỌI tổ hợp icon để xem bằng mắt.
+// Lưu ý: kịch bản này đứng TRƯỚC mock Theo dõi hoạt động (VITE_HEALTH_MONITOR_MOCK) cho đường /workstations/runtime —
+// xem api/client.ts — nên để cả hai bật vẫn thấy máy ở đây.
+//
+//   SẴN SÀNG    AV-01 | AV-DEBT nợ | AV-RES vé xanh | AV-LATE vé đỏ + nợ | LOCK-01 "Giữ máy"
+//   HỘI VIÊN    MB-01 | MB-DEBT nợ | MB-U18 dưới 18 | MB-U18-DEBT dưới 18 + nợ
+//   TRẢ TRƯỚC   GU-PRE | GU-PRE-U18 vãng lai dưới 18 (phải có cờ — xem ghi chú cuối)
+//   TRẢ SAU     GU-POST | GU-POST-U18 | GU-POST-RES vé xanh khi đang chơi
+//   COMBO       CB-01 (trả sau) | CB-PRE (trả trước) | ONL-NOSESS online nhưng chưa có phiên (chân đế trống)
+//   ADMIN       ADMIN-01
+//   TẮT         OFF-01 | OFF-DEBT nợ | OFF-RES vé xanh | OFF-LATE vé đỏ | INIT-01 đang khởi tạo
+//   VỪA TẮT     TURNOFF-01 / TURNOFF-DEBT / TURNOFF-UPG đang bật, TỰ TẮT sau 20 giây ⇒ viền đỏ (mở chi tiết = gỡ viền)
+//               TURNBACK-01 tắt sau 20 giây rồi BẬT LẠI sau 60 giây ⇒ viền đỏ tự gỡ khi kết nối lại
+//   CẢNH BÁO    WARN-01 | WARN-U18 (viền cam thắng viền vàng, vẫn có icon học sinh) | WARN-DEBT
+//   NÂNG CẤP    UPG-01 sẵn sàng | UPG-MB hội viên | UPG-OFF tắt (tím phủ ghi đè mọi trạng thái)
+// Muốn bắt đầu lại đồng hồ 20/60 giây: F5. Đặt chỗ lấy từ GET /onlinebook/board (cũng mock ở đây, chỉ khi mode = icons).
+//
+// ⚠️ Cờ dưới 18 (0x1) do SERVER bật từ ngày sinh của tài khoản đang chơi (WorkstationHandlers.cpp). `anonymoustb` của khách
+// vãng lai KHÔNG có ngày sinh nên ngoài đời cờ này hiện chưa bao giờ bật cho vãng lai — các máy GU-*-U18 chỉ để xem hình.
 // ---------------------------------------------------------------------------------------------
 const iconDemoStartedAt = Date.now()
-const HAVE_NOT_PAID_FLAG = 0x00000008
+const WS_FLAG_UNDER18 = 0x00000001
+const WS_FLAG_NOT_PAID = 0x00000008
+
+type Who = { userId: number; userName: string | null; userGroupType: number }
+
+type IconDemoOptions = {
+  prepaid?: boolean
+  flags?: number
+  /** Client dưới phiên bản bắt buộc (`minVerExpired`). */
+  old?: boolean
+  noSession?: boolean
+  lockLogin?: boolean
+}
 
 function workstationsIconDemo(): WorkstationsRuntimeSnapshot {
-  const guest = { userId: 9001, userName: null, userGroupType: 1 }
-  const member = { userId: 508, userName: 'quocdat', userGroupType: 2 }
-  const none = { userId: 0, userName: null, userGroupType: 0 }
-  const withSession = (machine: WorkstationRuntime, prepaid: boolean): WorkstationRuntime => ({
-    ...machine,
-    session: machine.session ? { ...machine.session, prepaid } : machine.session,
-  })
-  const flagged = (machine: WorkstationRuntime, flagMask: number): WorkstationRuntime => ({ ...machine, flagMask })
-  const old = (machine: WorkstationRuntime): WorkstationRuntime => ({ ...machine, version: '1.9.0', minVerExpired: true })
-  const turnedOff = Date.now() - iconDemoStartedAt > 20_000
+  const seconds = (Date.now() - iconDemoStartedAt) / 1000
+  const turnedOff = seconds > 20
+  const backOn = seconds > 60
+
+  const guest: Who = { userId: 9001, userName: null, userGroupType: 1 }
+  const member: Who = { userId: 508, userName: 'quocdat', userGroupType: 2 }
+  const combo: Who = { userId: 9100, userName: 'ob-dm4vip9', userGroupType: 5 }
+  const none: Who = { userId: 0, userName: null, userGroupType: 0 }
+
+  let index = 0
+  const make = (hostName: string, status: number, who: Who, options: IconDemoOptions = {}): WorkstationRuntime => {
+    index += 1
+    const base = station(hostName, status, who, index)
+    return {
+      ...base,
+      flagMask: options.flags ?? 0,
+      lockLogin: Boolean(options.lockLogin),
+      session: options.noSession || !base.session ? null : { ...base.session, prepaid: Boolean(options.prepaid) },
+      ...(options.old ? { version: '1.9.0', minVerExpired: true } : {}),
+    }
+  }
+  // Người chơi (user #) khác nhau cho từng máy hội viên/vãng lai để không trùng khóa khi gộp theo tài khoản.
+  const person = (base: Who, extra: number): Who => ({ ...base, userId: base.userId + extra })
 
   return {
     serverTimeMs: Date.now(),
     items: [
-      station('AV-01', 1, none, 1),
-      flagged(station('AV-DEBT', 1, none, 2), HAVE_NOT_PAID_FLAG),
-      station('AV-RES', 1, none, 3),
-      station('AV-LATE', 1, none, 4),
-      station('MB-01', 3, member, 5),
-      flagged(station('MB-DEBT', 3, { ...member, userId: 509 }, 6), HAVE_NOT_PAID_FLAG),
-      withSession(station('GU-PRE', 3, guest, 7), true),
-      withSession(station('GU-POST', 3, { ...guest, userId: 9002 }, 8), false),
-      station('CB-01', 3, { userId: 9100, userName: 'ob-dm4vip9', userGroupType: 5 }, 9),
-      station('ADMIN-01', 3, none, 10),
-      station('OFF-01', 2, none, 11),
-      flagged(station('OFF-DEBT', 2, none, 12), HAVE_NOT_PAID_FLAG),
-      station('TURNOFF-01', turnedOff ? 2 : 3, turnedOff ? none : { ...member, userId: 510 }, 13),
-      station('WARN-01', 4, member, 14),
-      old(station('UPG-01', 1, none, 15)),
-      old(station('UPG-OFF', 2, none, 16)),
-      ...Array.from({ length: 12 }, (_v, i) => station(`PC-${String(i + 20)}`, i % 3 === 0 ? 2 : 1, none, 20 + i)),
+      // --- sẵn sàng ---
+      make('AV-01', 1, none),
+      make('AV-DEBT', 1, none, { flags: WS_FLAG_NOT_PAID }),
+      make('AV-RES', 1, none),
+      make('AV-LATE', 1, none, { flags: WS_FLAG_NOT_PAID }),
+      make('LOCK-01', 1, none, { lockLogin: true }),
+      // --- hội viên ---
+      make('MB-01', 3, member),
+      make('MB-DEBT', 3, person(member, 1), { flags: WS_FLAG_NOT_PAID }),
+      make('MB-U18', 3, person(member, 2), { flags: WS_FLAG_UNDER18 }),
+      make('MB-U18-DEBT', 3, person(member, 3), { flags: WS_FLAG_UNDER18 | WS_FLAG_NOT_PAID }),
+      // --- vãng lai ---
+      make('GU-PRE', 3, guest, { prepaid: true }),
+      make('GU-PRE-U18', 3, person(guest, 1), { prepaid: true, flags: WS_FLAG_UNDER18 }),
+      make('GU-POST', 3, person(guest, 2)),
+      make('GU-POST-U18', 3, person(guest, 3), { flags: WS_FLAG_UNDER18 }),
+      make('GU-POST-RES', 3, person(guest, 4)),
+      // --- combo / online chưa có phiên / admin ---
+      make('CB-01', 3, combo),
+      make('CB-PRE', 3, person(combo, 1), { prepaid: true }),
+      make('ONL-NOSESS', 3, person(guest, 5), { noSession: true }),
+      make('ADMIN-01', 3, none),
+      // --- tắt từ trước ---
+      make('OFF-01', 2, none),
+      make('OFF-DEBT', 2, none, { flags: WS_FLAG_NOT_PAID }),
+      make('OFF-RES', 2, none),
+      make('OFF-LATE', 2, none),
+      make('INIT-01', 0, none),
+      // --- vừa tắt trong phiên xem (đổi trạng thái theo đồng hồ) ---
+      make('TURNOFF-01', turnedOff ? 2 : 3, turnedOff ? none : person(member, 4)),
+      make('TURNOFF-DEBT', turnedOff ? 2 : 3, turnedOff ? none : person(member, 5), { flags: WS_FLAG_NOT_PAID }),
+      make('TURNOFF-UPG', turnedOff ? 2 : 3, turnedOff ? none : person(member, 6), { old: true }),
+      make('TURNBACK-01', turnedOff && !backOn ? 2 : 3, turnedOff && !backOn ? none : person(member, 7)),
+      // --- cảnh báo ---
+      make('WARN-01', 4, person(member, 8)),
+      make('WARN-U18', 4, person(member, 9), { flags: WS_FLAG_UNDER18 }),
+      make('WARN-DEBT', 4, person(member, 10), { flags: WS_FLAG_NOT_PAID }),
+      // --- client quá phiên bản bắt buộc ---
+      make('UPG-01', 1, none, { old: true }),
+      make('UPG-MB', 3, person(member, 11), { old: true }),
+      make('UPG-OFF', 2, none, { old: true }),
+      ...Array.from({ length: 12 }, (_v, i) => make(`PC-${String(i + 20)}`, i % 3 === 0 ? 2 : 1, none)),
     ],
   }
 }
@@ -657,7 +720,13 @@ function iconDemoBoard(): BoardResponse {
     lockWindowMin: 180,
     slotBufferMin: 0,
     horizon: { from: iso(0), to: iso(360) },
-    machines: [machine('AV-RES', [slot(60, 120)]), machine('AV-LATE', [slot(-5, 120)])],
+    machines: [
+      machine('AV-RES', [slot(60, 120)]), // vé xanh: bắt đầu sau 60 phút (< lockWindowMin)
+      machine('AV-LATE', [slot(-5, 120)]), // vé đỏ: quá giờ 5 phút, còn trong lateHoldMin 15 phút
+      machine('GU-POST-RES', [slot(30, 60)]),
+      machine('OFF-RES', [slot(45, 60)]),
+      machine('OFF-LATE', [slot(-10, 120)]),
+    ],
   }
 }
 

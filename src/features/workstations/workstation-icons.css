@@ -27,6 +27,8 @@
 
   --ws-ic-rim-off: #e5484d;
   --ws-ic-rim-warn: #f59e0b;
+  --ws-ic-rim-minor: #f5c518;
+  --ws-ic-student: #b78103;
   --ws-ic-money: #e5484d;
   --ws-ic-ticket: #2f7df6;
   --ws-ic-ticket-late: #e5484d;
@@ -41,6 +43,8 @@
   --ws-ic-offline: #1d202b;
   --ws-ic-offline-edge: #2b3040;
   --ws-ic-text-offline: #8b93a8;
+  --ws-ic-rim-minor: #ffd21f;
+  --ws-ic-student: #ffd21f;
   --ws-ic-badge-bg: #16181f;
 }
 
@@ -83,6 +87,7 @@
 
 .ws-ic--screen-warning .ws-ic__glyph { fill: var(--ws-ic-rim-warn); }
 .ws-ic--rim-justOff .ws-ic__rim { stroke: var(--ws-ic-rim-off); }
+.ws-ic--rim-minor .ws-ic__rim { stroke: var(--ws-ic-rim-minor); } /* viền vàng TĨNH (cam nháy là Warning) */
 .ws-ic--rim-warning .ws-ic__rim { stroke: var(--ws-ic-rim-warn); animation: ws-ic-blink 1.1s ease-in-out infinite; }
 
 @keyframes ws-ic-blink {
@@ -120,6 +125,8 @@
 .ws-machine-cell__flag--reserved { color: var(--ws-ic-ticket); }
 .ws-machine-cell__flag.ws-machine-cell__flag--late,
 .ws-machine-cell__flag--late { color: var(--ws-ic-ticket-late); }
+.ws-machine-cell__flag.ws-machine-cell__flag--minor,
+.ws-machine-cell__flag--minor { color: var(--ws-ic-student); }
 
 .ws-table__machine strong {
   min-width: 0;
@@ -269,6 +276,9 @@
 .ws-tile__corner--r1 { right: -0.3rem; }
 .ws-tile__corner--r2 { right: 1.2rem; }
 .ws-tile__corner--l { left: 1rem; }
+/* Góc dưới phải thân màn hình: icon học sinh (dưới 18) — tách khỏi hàng góc trên để không đè tiền / vé. */
+.ws-tile__corner--br { top: auto; bottom: 0.45rem; right: -0.3rem; }
+.ws-tile__corner--minor { color: var(--ws-ic-student); }
 .ws-tile__corner--money { color: var(--ws-ic-money); }
 .ws-tile__corner--reserved { color: var(--ws-ic-ticket); }
 .ws-tile__corner--late { color: var(--ws-ic-ticket-late); }

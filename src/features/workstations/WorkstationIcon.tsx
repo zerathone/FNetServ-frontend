@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { ArrowUp, Money, Ticket, Warning } from '@phosphor-icons/react'
+import { ArrowUp, GraduationCap, Money, Ticket, Warning } from '@phosphor-icons/react'
 import type { WorkstationRuntime } from '../../api/workstations'
 import type { WorkstationIconView } from './workstationModel'
 import './workstation-icons.css'
@@ -94,6 +94,11 @@ export const WorkstationTile = memo(function WorkstationTile({ machine, view, se
           <ArrowUp {...CORNER_ICON} weight="bold" />
         </span>
       ) : null}
+      {view.minor ? (
+        <span className="ws-tile__corner ws-tile__corner--br ws-tile__corner--minor" aria-hidden="true">
+          <GraduationCap {...CORNER_ICON} />
+        </span>
+      ) : null}
       {view.debt ? (
         <span className="ws-tile__corner ws-tile__corner--r1 ws-tile__corner--money" aria-hidden="true">
           <Money {...CORNER_ICON} />
@@ -111,11 +116,16 @@ export const WorkstationTile = memo(function WorkstationTile({ machine, view, se
   )
 })
 
-/** Icon nhỏ cạnh tên máy ở bảng chi tiết: tiền đỏ (còn nợ) và vé (đặt chỗ). Trả null khi không có gì. */
+/** Icon nhỏ cạnh tên máy ở bảng chi tiết: học sinh (dưới 18), tiền đỏ (còn nợ), vé (đặt chỗ). Trả null khi không có gì. */
 export function MachineCellFlags({ view }: { view: WorkstationIconView }) {
-  if (!view.debt && !view.reservation) return null
+  if (!view.debt && !view.minor && !view.reservation) return null
   return (
     <>
+      {view.minor ? (
+        <span className="ws-machine-cell__flag ws-machine-cell__flag--minor" role="img" aria-label="Dưới 18 tuổi" title="Dưới 18 tuổi">
+          <GraduationCap size={16} weight="fill" aria-hidden="true" />
+        </span>
+      ) : null}
       {view.debt ? (
         <span className="ws-machine-cell__flag ws-machine-cell__flag--money" role="img" aria-label="Còn nợ" title="Còn nợ">
           <Money size={16} weight="fill" aria-hidden="true" />

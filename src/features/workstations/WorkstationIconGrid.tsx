@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { Money, Ticket } from '@phosphor-icons/react'
+import { GraduationCap, Money, Ticket } from '@phosphor-icons/react'
 import type { WorkstationRuntime } from '../../api/workstations'
 import { WorkstationIcon, WorkstationTile } from './WorkstationIcon'
 import { getWorkstationIconView, type WorkstationIconContext, type WorkstationIconView } from './workstationModel'
@@ -31,6 +31,7 @@ const LEGEND: readonly LegendEntry[] = [
   { label: 'Vừa tắt', view: { screen: 'offline', bar: 'none', rim: 'justOff' } },
   { label: 'Mất kết nối, máy còn bật', view: { screen: 'warning', bar: 'none', rim: 'warning' } },
   { label: 'Client cần nâng cấp', view: { screen: 'minVer', bar: 'none', rim: 'none' } },
+  { label: 'Dưới 18 tuổi (kèm icon học sinh)', view: { screen: 'inUse', bar: 'member', rim: 'minor' } },
 ]
 
 export function WorkstationIconGrid({
@@ -61,12 +62,16 @@ export function WorkstationIconGrid({
           {LEGEND.map((entry) => (
             <span key={entry.label} className="ws-icon-view__legend-item">
               <WorkstationIcon
-                view={{ ...entry.view, debt: false, reservation: null, description: entry.label }}
+                view={{ ...entry.view, debt: false, minor: false, reservation: null, description: entry.label }}
                 size={22}
               />
               {entry.label}
             </span>
           ))}
+          <span className="ws-icon-view__legend-item ws-machine-cell__flag--minor">
+            <GraduationCap size={16} weight="fill" aria-hidden="true" />
+            <span>Dưới 18 tuổi</span>
+          </span>
           <span className="ws-icon-view__legend-item ws-machine-cell__flag--money">
             <Money size={16} weight="fill" aria-hidden="true" />
             <span>Còn nợ</span>

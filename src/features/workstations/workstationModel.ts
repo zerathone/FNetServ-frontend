@@ -176,8 +176,12 @@ const USER_GROUP_TYPE_MEMBER = 2
 export type IconScreen = 'available' | 'admin' | 'inUse' | 'offline' | 'warning' | 'minVer'
 /** Loại khách đang dùng máy — chỉ có ý nghĩa khi screen = 'inUse'. 'none' = không rõ (chưa có phiên). */
 export type IconBar = 'none' | 'member' | 'prepaid' | 'postpaid'
-/** justOff = máy VỪA tắt trong phiên đang xem (viền đỏ); warning = mất kết nối TCP nhưng ping còn thông (viền cam nháy). */
-export type IconRim = 'none' | 'justOff' | 'warning'
+/**
+ * justOff = máy VỪA tắt trong phiên đang xem (viền đỏ); warning = mất kết nối TCP nhưng ping còn thông (viền cam nháy);
+ * minor = người dùng dưới 18 tuổi (viền vàng, kèm icon học sinh). Ưu tiên: justOff > warning > minor — khi trùng,
+ * icon học sinh vẫn hiện nên không mất thông tin dưới 18.
+ */
+export type IconRim = 'none' | 'justOff' | 'warning' | 'minor'
 /** reserved = có đơn đặt chỗ sắp tới; late = khách đặt chỗ đã quá giờ bắt đầu mà chưa vào máy. */
 export type IconReservation = 'reserved' | 'late'
 
@@ -186,6 +190,8 @@ export type WorkstationIconView = {
   bar: IconBar
   rim: IconRim
   debt: boolean
+  /** Dưới 18 tuổi (cờ USER_UNDER18 của server: tuổi tính từ ngày sinh của tài khoản đang chơi). */
+  minor: boolean
   reservation: IconReservation | null
   /** Mô tả đầy đủ cho tooltip / aria-label: màu không được là kênh thông tin duy nhất. */
   description: string
@@ -236,9 +242,12 @@ export function getWorkstationIconView(
   const minVer = Boolean(machine.minVerExpired)
   if (minVer) screen = 'minVer'
 
+  const minor = Boolean(machine.flagMask & WORKSTATION_FLAGS.USER_UNDER18)
+
   let rim: IconRim = 'none'
   if (machine.status === WORKSTATION_STATUS.WARNING) rim = 'warning'
   else if (machine.status === WORKSTATION_STATUS.DISCONNECT && context.justOff) rim = 'justOff'
+  else if (minor) rim = 'minor'
 
   const debt = hasDebt(machine)
   const reservation = context.reservation ?? null
@@ -248,11 +257,12 @@ export function getWorkstationIconView(
   if (barLabel) parts.push(barLabel)
   if (minVer) parts.push('Client dưới phiên bản bắt buộc')
   if (rim === 'justOff') parts.push('Vừa mất kết nối')
+  if (minor) parts.push('Dưới 18 tuổi')
   if (debt) parts.push('Còn nợ')
   if (reservation === 'reserved') parts.push('Có đặt chỗ')
   if (reservation === 'late') parts.push('Khách đặt chỗ đến trễ')
 
-  return { screen, bar, rim, debt, reservation, description: parts.join(' · ') }
+  return { screen, bar, rim, debt, minor, reservation, description: parts.join(' · ') }
 }
 
 export function isConnected(machine: WorkstationRuntime) {
