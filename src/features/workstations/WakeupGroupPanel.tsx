@@ -67,9 +67,10 @@ export function WakeupGroupPanel({
             const resultTitle = result ? (result.ok ? 'Đã gửi lệnh mở máy trạm' : `Lỗi: ${result.reason}`) : undefined
             return (
               <li key={machine.hostName}>
-                <label className={`ws-mg__item${resultClass}`} title={resultTitle ?? machine.hostName}>
+                <label className={`ws-mg__item${resultClass}`} title={resultTitle ?? machine.hostName} data-host={machine.hostName}>
                   <input
                     type="checkbox"
+                    data-host-check={machine.hostName}
                     checked={checked.has(machine.hostName)}
                     onChange={() => onToggleMachine(machine.hostName)}
                   />

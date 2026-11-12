@@ -1,5 +1,6 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
+import { Button } from '../../../design-system/components'
 import './map.css'
 
 type MapZoomSliderProps = {
@@ -16,8 +17,60 @@ type MapZoomSliderProps = {
  * rail mảnh + track tô tới tay nắm + vạch chia tròn ở từng mức + nhãn mốc bên dưới (bấm được) + bong bóng giá trị
  * hiện trên tay nắm khi rê chuột / kéo / focus bàn phím. Bên dưới vẫn là `input[type=range]` thật nên bàn phím
  * (←/→/Home/End) và đọc màn hình chạy sẵn. Màu lấy từ theme (--color-action-primary) nên hợp cả 4 giao diện.
+ *
+ * Mặc định THU GỌN thành một nút (icon kính lúp + tỉ lệ hiện tại); bấm nút mới bung thanh trượt ra dạng popover ngay dưới nút
+ * (không đẩy bố cục). Bấm ra ngoài hoặc nhấn Esc để thu lại.
  */
 export function MapZoomSlider({ value, labels, onChange, ariaLabel }: MapZoomSliderProps) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelId = useId()
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      buttonRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div className="wsmap-zoom-collapsible" ref={rootRef}>
+      <Button
+        ref={buttonRef}
+        type="button"
+        variant="neutral"
+        className="wsmap-zoom-collapsible__button"
+        icon={<MagnifyingGlassPlus size={16} weight="bold" aria-hidden="true" />}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={`${ariaLabel}: ${labels[value]}`}
+        title={ariaLabel}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {labels[value]}
+      </Button>
+      {open ? (
+        <div className="wsmap-zoom-collapsible__panel" id={panelId}>
+          <ZoomSliderBar value={value} labels={labels} onChange={onChange} ariaLabel={ariaLabel} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ZoomSliderBar({ value, labels, onChange, ariaLabel }: MapZoomSliderProps) {
   const max = Math.max(1, labels.length - 1)
   const percentOf = (index: number) => `${(index / max) * 100}%`
 

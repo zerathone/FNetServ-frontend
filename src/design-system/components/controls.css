@@ -1584,6 +1584,27 @@ input[type="radio"]:disabled {
   outline-offset: 1px;
 }
 
+/* Ô có điều khiển phụ (option.extra): nút lựa chọn + phần phụ nằm chung một nền; đang chọn thì cả ô sáng như một nút. */
+.ds-segmented__cell {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: calc(var(--radius-md) - 2px);
+}
+
+.ds-segmented__cell.is-active {
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text, #fff);
+}
+
+.ds-segmented__cell.is-active > .ds-segmented__item.is-active {
+  background: transparent;
+}
+
+.ds-segmented__extra {
+  display: inline-flex;
+  align-items: stretch;
+}
+
 .ds-segmented.is-disabled {
   opacity: 0.45;
   cursor: not-allowed;

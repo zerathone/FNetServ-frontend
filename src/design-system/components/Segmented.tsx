@@ -13,6 +13,11 @@ export type SegmentedOption<T extends string> = {
   sublabel?: string
   /** Vạch ngăn dọc ngay trước lựa chọn này (tách nhóm lựa chọn) — tuỳ chọn. */
   dividerBefore?: boolean
+  /**
+   * Điều khiển phụ nằm TRONG ô của lựa chọn này, ngay sau nhãn (vd nút chọn cột của chế độ Chi tiết). Thường chỉ truyền khi
+   * lựa chọn đang được chọn. Là phần tử anh em của nút (không lồng button trong button); ô sáng chung một nền với lựa chọn.
+   */
+  extra?: ReactNode
 }
 
 type SegmentedProps<T extends string> = {
@@ -25,29 +30,40 @@ type SegmentedProps<T extends string> = {
 
 // Nhóm nút chọn một trong vài chế độ xem (khác Select: luôn thấy hết lựa chọn).
 export function Segmented<T extends string>({ value, options, onChange, ariaLabel, disabled }: SegmentedProps<T>) {
+  const renderItem = (option: SegmentedOption<T>) => (
+    <button
+      type="button"
+      className={`ds-segmented__item${option.value === value ? ' is-active' : ''}${option.sublabel ? ' has-sublabel' : ''}`}
+      aria-pressed={option.value === value}
+      disabled={disabled || option.disabled}
+      title={option.title}
+      onClick={() => !disabled && !option.disabled && onChange(option.value)}
+    >
+      {option.icon ? <span className="ds-segmented__icon">{option.icon}</span> : null}
+      {option.sublabel ? (
+        <span className="ds-segmented__text">
+          {option.label}
+          <small className="ds-segmented__sub">{option.sublabel}</small>
+        </span>
+      ) : (
+        option.label
+      )}
+    </button>
+  )
+
   return (
     <div className={`ds-segmented${disabled ? ' is-disabled' : ''}`} role="group" aria-label={ariaLabel}>
       {options.map((option) => (
         <Fragment key={option.value}>
           {option.dividerBefore ? <span className="ds-segmented__divider" aria-hidden="true" /> : null}
-          <button
-            type="button"
-            className={`ds-segmented__item${option.value === value ? ' is-active' : ''}${option.sublabel ? ' has-sublabel' : ''}`}
-            aria-pressed={option.value === value}
-            disabled={disabled || option.disabled}
-            title={option.title}
-            onClick={() => !disabled && !option.disabled && onChange(option.value)}
-          >
-            {option.icon ? <span className="ds-segmented__icon">{option.icon}</span> : null}
-            {option.sublabel ? (
-              <span className="ds-segmented__text">
-                {option.label}
-                <small className="ds-segmented__sub">{option.sublabel}</small>
-              </span>
-            ) : (
-              option.label
-            )}
-          </button>
+          {option.extra ? (
+            <span className={`ds-segmented__cell${option.value === value ? ' is-active' : ''}`}>
+              {renderItem(option)}
+              <span className="ds-segmented__extra">{option.extra}</span>
+            </span>
+          ) : (
+            renderItem(option)
+          )}
         </Fragment>
       ))}
     </div>

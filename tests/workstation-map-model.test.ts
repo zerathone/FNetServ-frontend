@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  DEFAULT_MAP_SETTINGS,
   MAP_LIMITS,
   autoPlace,
   emptyLayout,
+  isCashierMapEnabled,
   itemAt,
   layoutsEqual,
   minimumSize,
@@ -13,7 +15,10 @@ import {
   placedHosts,
   removeAt,
   resizeLayout,
+  resolveMapSettings,
+  settingsOf,
   unplacedHosts,
+  updateSettings,
 } from '../src/features/workstations/map/mapModel.ts'
 import {
   EDITOR_ZOOM_DEFAULT_INDEX,
@@ -163,4 +168,32 @@ test('clampZoomIndex: kep ve khoang hop le, gia tri rac => mac dinh', () => {
   assert.equal(clampZoomIndex(3, 5, 2), 3)
   assert.equal(clampZoomIndex(Number.NaN, 5, 2), 2)
   assert.equal(clampZoomIndex(1.5, 5, 2), 2)
+})
+test('settings: bo cuc cu (khong co settings) / sai kieu => mac dinh BAT; tung truong duoc doc doc lap', () => {
+  assert.deepEqual(resolveMapSettings(undefined), DEFAULT_MAP_SETTINGS)
+  assert.deepEqual(resolveMapSettings('x'), DEFAULT_MAP_SETTINGS)
+  assert.deepEqual(resolveMapSettings({ cashier: 'x' }), DEFAULT_MAP_SETTINGS)
+  assert.deepEqual(resolveMapSettings({ cashier: { enabled: 'no' } }), DEFAULT_MAP_SETTINGS, 'sai kieu => mac dinh')
+  assert.equal(resolveMapSettings({ cashier: { enabled: false } }).cashier.enabled, false)
+  assert.deepEqual(resolveMapSettings({ cashier: { enabled: false, rac: 1 }, rac: 2 }), { cashier: { enabled: false } }, 'chi giu truong biet')
+
+  const old = parseLayout({ cols: 3, rows: 2, items: [] })
+  assert.ok(old)
+  assert.equal(isCashierMapEnabled(old), true, 'so do da ve truoc khi co thiet lap van dung tai thu ngan')
+  assert.equal(isCashierMapEnabled({ v: 1, cols: 1, rows: 1, items: [] }), true)
+})
+
+test('settings: updateSettings tra ban moi, khong sua ban cu; khong doi gi => tra nguyen ban; layoutsEqual thay duoc su doi', () => {
+  const base = emptyLayout(4, 3)
+  const off = updateSettings(base, (s) => ({ ...s, cashier: { ...s.cashier, enabled: false } }))
+  assert.notEqual(off, base)
+  assert.equal(isCashierMapEnabled(off), false)
+  assert.equal(isCashierMapEnabled(base), true, 'khong sua ban cu')
+  assert.equal(layoutsEqual(base, off), false, 'doi cong tat => co thay doi chua luu')
+
+  assert.equal(updateSettings(off, (s) => s), off, 'khong doi gi => nguyen ban')
+  assert.equal(layoutsEqual(base, { ...base, settings: undefined }), true, 'thieu settings == mac dinh')
+  assert.deepEqual(settingsOf(parseLayout({ cols: 3, rows: 2, items: [], settings: { cashier: { enabled: false } } })!), {
+    cashier: { enabled: false },
+  })
 })

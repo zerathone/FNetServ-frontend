@@ -37,6 +37,7 @@ import {
   Power,
   Receipt,
   SignIn,
+  MapTrifold,
   SquaresFour,
   Thermometer,
   TrashSimple,
@@ -141,6 +142,7 @@ import {
   getWorkstationFlags,
   getWorkstationStatus,
   hasDebt,
+  hasLeftServiceDebt,
   interpolateSession,
   matchesWorkstationFilter,
   sessionLabel,
@@ -152,7 +154,7 @@ import { useRecentlyOff, useRecentlyOffStore } from './recentlyOffStore'
 import { useWorkstationReservations } from './useWorkstationReservations'
 import { WORKSTATION_MAP_QUERY_KEY, getWorkstationMap } from '../../api/workstationMap'
 import { WorkstationMapView } from './map/WorkstationMapView'
-import { hostKey, parseLayout } from './map/mapModel.ts'
+import { hostKey, isCashierMapEnabled, parseLayout } from './map/mapModel.ts'
 import { PrintTicketDialog } from '../orders/PrintTicketDialog'
 import { StaffOrderDialog } from '../orders/StaffOrderDialog'
 import { CallBellIcon } from './CallBellIcon'
@@ -170,6 +172,8 @@ import {
 import { machineOrdersWaitingTotal } from './machineOrdersModel'
 import { HardwareBlock, hardwareErrorsTitle, num, tempTone, WinLicenseBadge, WinLicenseCell } from './MachineTechExtras'
 import { WakeupGroupPanel } from './WakeupGroupPanel'
+import { useDragSelect } from './useDragSelect'
+import { WorkstationAlertFilters } from './WorkstationAlertFilters'
 import { PendingServicePanel } from './PendingServicePanel'
 import { PendingServiceChips } from './PendingServiceChips'
 import { usePendingServices } from './usePendingServices'
@@ -463,10 +467,10 @@ function getInitialSummaryCompact(): boolean {
 // Chế độ xem danh sách máy — như MFC (LVS_ICON / LVS_REPORT): 'icons' = lưới ô máy, 'details' = bảng chi tiết (mặc định).
 type WorkstationViewMode = 'icons' | 'details'
 const VIEW_MODE_STORAGE_KEY = 'fnet.workstations.view-mode.v1'
-const VIEW_MODE_OPTIONS: readonly SegmentedOption<WorkstationViewMode>[] = [
-  { value: 'icons', label: 'Biểu tượng', icon: <SquaresFour size={16} weight="bold" aria-hidden="true" /> },
-  { value: 'details', label: 'Chi tiết', icon: <TextColumns size={16} weight="bold" aria-hidden="true" /> },
-]
+
+// Thanh chọn kiểu hiển thị GỘP 3 nút: Chi tiết / Biểu tượng / Sơ đồ. Bên dưới vẫn là hai trạng thái đã lưu sẵn
+// (viewMode + iconLayout) nên không đổi khóa localStorage: Chi tiết = details; Biểu tượng = icons + flat; Sơ đồ = icons + map.
+type WorkstationDisplayMode = 'details' | 'icons' | 'map'
 
 function getInitialViewMode(): WorkstationViewMode {
   try {
@@ -479,10 +483,7 @@ function getInitialViewMode(): WorkstationViewMode {
 // Chế độ Biểu tượng khi quán ĐÃ vẽ sơ đồ (Cài đặt → Sơ đồ máy trạm): 'map' = đặt máy đúng ô sơ đồ (mặc định), 'flat' = lưới phẳng.
 type IconLayoutMode = 'map' | 'flat'
 const ICON_LAYOUT_STORAGE_KEY = 'fnet.workstations.icon-layout.v1'
-const ICON_LAYOUT_OPTIONS: readonly SegmentedOption<IconLayoutMode>[] = [
-  { value: 'map', label: 'Sơ đồ' },
-  { value: 'flat', label: 'Lưới' },
-]
+
 
 function getInitialIconLayout(): IconLayoutMode {
   try {
@@ -545,24 +546,26 @@ export function WorkstationWorkspace() {
     (machine: WorkstationRuntime): WorkstationIconContext => ({
       justOff: isJustOff(machine.hostName),
       reservation: reservations.get(machine.hostName.toUpperCase()) ?? null,
+      serviceAcceptCleared: isServiceAcceptCleared(machine),
     }),
-    [isJustOff, reservations],
+    [isJustOff, reservations, isServiceAcceptCleared],
   )
   const [viewMode, setViewMode] = useState<WorkstationViewMode>(getInitialViewMode)
   const [iconLayout, setIconLayout] = useState<IconLayoutMode>(getInitialIconLayout)
-  // Sơ đồ máy trạm (task ws-map): chỉ tải khi đang ở chế độ Biểu tượng. Lỗi / server cũ chưa có route ⇒ coi như chưa có sơ đồ.
+  // Sơ đồ máy trạm (task ws-map): tải cả khi đang ở Chi tiết (để biết có nút "Sơ đồ" hay không), nhưng chỉ poll lại khi đang xem Biểu tượng.
+  // Lỗi / server cũ chưa có route ⇒ coi như chưa có sơ đồ.
   const mapQuery = useQuery({
     queryKey: WORKSTATION_MAP_QUERY_KEY,
     queryFn: getWorkstationMap,
-    enabled: viewMode === 'icons',
     staleTime: 30_000,
-    refetchInterval: (query) => (query.state.status === 'error' ? false : 60_000),
+    refetchInterval: (query) => (query.state.status === 'error' || viewMode !== 'icons' ? false : 60_000),
     retry: false,
   })
-  const mapLayout = useMemo(
-    () => (mapQuery.data?.exists ? parseLayout(mapQuery.data.layout) : null),
-    [mapQuery.data],
-  )
+  // Quản trị viên tắt "Dùng sơ đồ tại thu ngân" (Quản lý → Sơ đồ phòng máy) ⇒ coi như chưa có sơ đồ: ẩn nút chuyển, chỉ hiện lưới phẳng.
+  const mapLayout = useMemo(() => {
+    const parsed = mapQuery.data?.exists ? parseLayout(mapQuery.data.layout) : null
+    return parsed && isCashierMapEnabled(parsed) ? parsed : null
+  }, [mapQuery.data])
   const [filter, setFilter] = useState<WorkstationFilter>('all')
   const [searchField, setSearchField] = useState<WsSearchField>('pc')
   const [search, setSearch] = useState('')
@@ -676,6 +679,27 @@ export function WorkstationWorkspace() {
     }
   }, [iconLayout])
 
+  // Menu "Hiển thị cột" là <details> nên không tự đóng: bấm ra ngoài hoặc nhấn Esc thì đóng lại.
+  const columnsMenuRef = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const menu = columnsMenuRef.current
+      if (menu?.open && !menu.contains(event.target as Node)) menu.open = false
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const menu = columnsMenuRef.current
+      if (event.key !== 'Escape' || !menu?.open) return
+      menu.open = false
+      menu.querySelector('summary')?.focus()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
+
   const toggleColumn = (id: ColumnId) => {
     setOptionalColumns((current) => {
       const next = new Set(current)
@@ -709,7 +733,7 @@ export function WorkstationWorkspace() {
   const filteredMachines = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')
     return allMachines
-      .filter((machine) => matchesWorkstationFilter(machine, filter))
+      .filter((machine) => matchesWorkstationFilter(machine, filter, { isServiceAcceptCleared }))
       .filter((machine) => groupId === 0 || machine.machineGroupId === groupId)
       .filter((machine) => {
         if (!needle) return true
@@ -719,7 +743,7 @@ export function WorkstationWorkspace() {
       .sort((left, right) =>
         left.hostName.localeCompare(right.hostName, 'vi', { numeric: true }),
       )
-  }, [allMachines, filter, groupId, search, searchField])
+  }, [allMachines, filter, groupId, search, searchField, isServiceAcceptCleared])
   // Sơ đồ: bộ lọc KHÔNG dời máy, chỉ làm mờ máy không khớp ⇒ cần tập tên máy đang khớp bộ lọc.
   const visibleHosts = useMemo(() => new Set(filteredMachines.map((machine) => hostKey(machine.hostName))), [filteredMachines])
   const hasActiveFilter = filter !== 'all' || groupId !== 0 || search.trim() !== ''
@@ -1388,6 +1412,9 @@ export function WorkstationWorkspace() {
     })
   }
 
+  // Kéo-chọn / Shift+click trong danh sách "Mở máy trạm" (dùng tập tick riêng của ngăn kéo).
+  const wakeupDrag = useDragSelect({ selected: wakeupChecked, onChange: setWakeupChecked })
+
   const toggleWakeupChecked = (hostName: string) => {
     setWakeupChecked((current) => {
       const next = new Set(current)
@@ -1435,6 +1462,10 @@ export function WorkstationWorkspace() {
   // may dang ONLINE nhung userId===0 = admin dang nhap bao tri (xem getWorkstationStatus)
   const playingMachines = allMachines.filter((machine) => machine.status === WORKSTATION_STATUS.ONLINE)
   const customerMachines = playingMachines.filter((machine) => machine.userId !== 0)
+  // Hai trạng thái cần xử lý ngay — hiện thành nút lọc nhanh ở hàng nút đầu trang (bên trái nút Chờ tính tiền) khi > 0 (WorkstationAlertFilters).
+  const debtCount = allMachines.filter(hasDebt).length
+  const warningCount = allMachines.filter((machine) => machine.status === WORKSTATION_STATUS.WARNING).length
+  const serviceDebtCount = allMachines.filter((machine) => hasLeftServiceDebt(machine, isServiceAcceptCleared)).length
   const counts = {
     playing: playingMachines.length,
     available: allMachines.filter((machine) => machine.status === WORKSTATION_STATUS.AVAILABLE).length,
@@ -1591,6 +1622,49 @@ export function WorkstationWorkspace() {
       ? snapshot.serverTimeMs - snapshotQuery.dataUpdatedAt
       : 0
 
+  const displayMode: WorkstationDisplayMode =
+    viewMode === 'details' ? 'details' : mapLayout && iconLayout === 'map' ? 'map' : 'icons'
+  const setDisplayMode = (mode: WorkstationDisplayMode) => {
+    setViewMode(mode === 'details' ? 'details' : 'icons')
+    if (mode === 'icons') setIconLayout('flat')
+    else if (mode === 'map') setIconLayout('map')
+  }
+  // Chi tiết đang chọn ⇒ nút chọn cột nằm NGAY TRONG ô "Chi tiết" (điều khiển phụ của lựa chọn đó).
+  const displayOptions: SegmentedOption<WorkstationDisplayMode>[] = [
+    {
+      value: 'details',
+      label: 'Chi tiết',
+      icon: <TextColumns size={16} weight="bold" aria-hidden="true" />,
+      extra:
+        displayMode === 'details' ? (
+          <details className="ws-columns ws-columns--inline" ref={columnsMenuRef}>
+            <summary aria-label="Chọn cột hiển thị" title="Chọn cột hiển thị">
+              <CaretDown size={12} weight="bold" aria-hidden="true" />
+            </summary>
+            <div className="ws-columns__menu">
+              <strong>Hiển thị cột</strong>
+              {COLUMNS.map((column) => (
+                <label key={column.id} className={column.required ? 'is-required' : undefined}>
+                  <input
+                    type="checkbox"
+                    checked={column.required || optionalColumns.has(column.id)}
+                    disabled={column.required}
+                    onChange={() => toggleColumn(column.id)}
+                  />
+                  <span>{column.label}</span>
+                  {column.required ? <small>Bắt buộc</small> : null}
+                </label>
+              ))}
+            </div>
+          </details>
+        ) : undefined,
+    },
+    { value: 'icons', label: 'Biểu tượng', icon: <SquaresFour size={16} weight="bold" aria-hidden="true" /> },
+    ...(mapLayout
+      ? [{ value: 'map' as const, label: 'Sơ đồ', icon: <MapTrifold size={16} weight="bold" aria-hidden="true" /> }]
+      : []),
+  ]
+
   return (
     <section className="ws-workspace ws-workspace--fill">
       <PageHeader
@@ -1598,6 +1672,8 @@ export function WorkstationWorkspace() {
         title="Máy trạm"
         actions={
           <div className="ws-page-actions">
+            {/* Máy còn nợ / cảnh báo = cần xử lý ngay: nút lọc nhanh nằm BÊN TRÁI nút Chờ tính tiền, chỉ hiện khi có máy. */}
+            <WorkstationAlertFilters debtCount={debtCount} serviceDebtCount={serviceDebtCount} warningCount={warningCount} filter={filter} onFilterChange={setFilter} />
             <Button
               type="button"
               variant={(paymentWaitQuery.data?.length ?? 0) > 0 ? 'primary' : 'secondary'}
@@ -1967,33 +2043,7 @@ export function WorkstationWorkspace() {
         </div>
         <PendingServiceChips pending={pending} />
         <div className="ws-toolbar__end">
-          <Segmented value={viewMode} options={VIEW_MODE_OPTIONS} onChange={setViewMode} ariaLabel="Chế độ xem danh sách máy" />
-          {viewMode === 'icons' && mapLayout ? (
-            <Segmented value={iconLayout} options={ICON_LAYOUT_OPTIONS} onChange={setIconLayout} ariaLabel="Cách xếp máy ở chế độ Biểu tượng" />
-          ) : null}
-          {viewMode === 'details' ? (
-          <details className="ws-columns">
-            <summary aria-label="Chọn cột hiển thị" title="Chọn cột hiển thị">
-              <TextColumns size={18} weight="bold" aria-hidden="true" />
-              <CaretDown size={12} weight="bold" aria-hidden="true" />
-            </summary>
-            <div className="ws-columns__menu">
-              <strong>Hiển thị cột</strong>
-              {COLUMNS.map((column) => (
-                <label key={column.id} className={column.required ? 'is-required' : undefined}>
-                  <input
-                    type="checkbox"
-                    checked={column.required || optionalColumns.has(column.id)}
-                    disabled={column.required}
-                    onChange={() => toggleColumn(column.id)}
-                  />
-                  <span>{column.label}</span>
-                  {column.required ? <small>Bắt buộc</small> : null}
-                </label>
-              ))}
-            </div>
-          </details>
-          ) : null}
+          <Segmented value={displayMode} options={displayOptions} onChange={setDisplayMode} ariaLabel="Kiểu hiển thị danh sách máy" />
         </div>
       </div>
 
@@ -2096,6 +2146,7 @@ export function WorkstationWorkspace() {
             allVisibleSelected={filteredMachines.length > 0 && filteredMachines.every((machine) => selected.has(machine.hostName))}
             visibleCount={filteredMachines.length}
             onToggle={toggleMachine}
+            onChangeSelection={setSelected}
             onSelectAll={toggleAllVisible}
             onOpen={openInspector}
             getIconContext={getIconContext}
@@ -2103,8 +2154,10 @@ export function WorkstationWorkspace() {
         ) : viewMode === 'icons' ? (
           <WorkstationIconGrid
             machines={filteredMachines}
+            groups={groupsQuery.data ?? []}
             selected={selected}
             onToggle={toggleMachine}
+            onChangeSelection={setSelected}
             onSelectAll={toggleAllVisible}
             onOpen={openInspector}
             getIconContext={getIconContext}
@@ -2116,6 +2169,7 @@ export function WorkstationWorkspace() {
             elapsedSeconds={elapsedSeconds}
             selected={selected}
             onToggle={toggleMachine}
+            onChangeSelection={setSelected}
             onSelectAll={toggleAllVisible}
             onOpen={openInspector}
             groups={groupsQuery.data ?? []}
@@ -2990,7 +3044,7 @@ export function WorkstationWorkspace() {
                   description="Thử từ khoá khác."
                 />
               ) : (
-                <div className="ws-mg-list">
+                <div className="ws-mg-list" onPointerDown={wakeupDrag.onPointerDown}>
                   {wakeupGroups.map((group) => (
                     <WakeupGroupPanel
                       key={group.id}

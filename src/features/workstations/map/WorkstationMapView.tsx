@@ -1,6 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { CaretDown, CaretUp } from '@phosphor-icons/react'
+import { Button } from '../../../design-system/components'
 import type { MapLayout } from '../../../api/workstationMapTypes.ts'
 import type { WorkstationRuntime } from '../../../api/workstations'
+import { useDragSelect } from '../useDragSelect'
 import { WorkstationTile } from '../WorkstationIcon'
 import { IconViewBar } from '../WorkstationIconGrid'
 import { getWorkstationIconView, type WorkstationIconContext } from '../workstationModel'
@@ -14,6 +17,7 @@ import './map.css'
 // Chế độ Biểu tượng của thu ngân khi quán ĐÃ vẽ sơ đồ (Cài đặt → Sơ đồ máy trạm): máy nằm đúng ô, dùng cùng icon trạng thái
 // và huy hiệu như lưới phẳng; tường / đồ vật chỉ là mốc mờ. Máy chưa có trên sơ đồ xếp ở dải dưới nên không bao giờ bị ẩn.
 // Bộ lọc (nhóm / tình trạng / từ khóa) KHÔNG dời máy: máy không khớp chỉ mờ đi, vị trí giữ nguyên.
+// Máy chưa xếp nằm sau nút bật/tắt "Chưa xếp vị trí (N)" đặt kế ô "Chọn tất cả" (mặc định thu gọn; 0 máy thì không có nút); khi bung nằm ở hàng TRÊN sơ đồ, vẽ ở 75% cỡ.
 
 type WorkstationMapViewProps = {
   layout: MapLayout
@@ -22,6 +26,8 @@ type WorkstationMapViewProps = {
   /** Máy khớp bộ lọc hiện tại; không có trong đây ⇒ mờ. */
   visibleHosts: ReadonlySet<string>
   selected: ReadonlySet<string>
+  /** Kéo-chọn / Shift+click: nhận cả tập mới (xem useDragSelect). */
+  onChangeSelection: (next: Set<string>) => void
   allVisibleSelected: boolean
   visibleCount: number
   onToggle: (hostName: string) => void
@@ -41,6 +47,7 @@ export function WorkstationMapView({
   machines,
   visibleHosts,
   selected,
+  onChangeSelection,
   allVisibleSelected,
   visibleCount,
   onToggle,
@@ -50,6 +57,9 @@ export function WorkstationMapView({
 }: WorkstationMapViewProps) {
   const [zoomIndex, setZoomIndex] = useMapZoom(VIEW_ZOOM_STORAGE_KEY, VIEW_ZOOM_LEVELS.length, VIEW_ZOOM_DEFAULT_INDEX)
   const zoom = VIEW_ZOOM_LEVELS[zoomIndex]
+  const [unplacedOpen, setUnplacedOpen] = useState(false)
+  // Sơ đồ: vị trí máy do quản trị viên đặt nên Shift+click sắp theo vị trí trên màn hình (không theo thứ tự DOM).
+  const dragSelect = useDragSelect({ selected, onChange: onChangeSelection, spatialOrder: true })
   const entries = useMemo(
     () =>
       new Map(
@@ -67,11 +77,62 @@ export function WorkstationMapView({
   )
 
   return (
-    <div className="ws-icon-view">
-      <IconViewBar total={visibleCount} allSelected={allVisibleSelected} onSelectAll={onSelectAll} />
-      <div className="wsmap-zoom-row">
-        <MapZoomSlider value={zoomIndex} labels={ZOOM_LABELS} onChange={setZoomIndex} ariaLabel="Phóng to / thu nhỏ sơ đồ" />
-      </div>
+    <div className="ws-icon-view" onPointerDown={dragSelect.onPointerDown}>
+      <IconViewBar
+        total={visibleCount}
+        allSelected={allVisibleSelected}
+        onSelectAll={onSelectAll}
+        afterSelectAll={
+          unplaced.length > 0 ? (
+            <Button
+              type="button"
+              variant="neutral"
+              className="wsmap-unplaced__toggle"
+              icon={
+                unplacedOpen ? (
+                  <CaretUp size={14} weight="bold" aria-hidden="true" />
+                ) : (
+                  <CaretDown size={14} weight="bold" aria-hidden="true" />
+                )
+              }
+              aria-expanded={unplacedOpen}
+              aria-controls="wsmap-unplaced-grid"
+              onClick={() => setUnplacedOpen((v) => !v)}
+            >
+              Chưa xếp vị trí ({unplaced.length})
+            </Button>
+          ) : null
+        }
+        trailing={<MapZoomSlider value={zoomIndex} labels={ZOOM_LABELS} onChange={setZoomIndex} ariaLabel="Phóng to / thu nhỏ sơ đồ" />}
+      />
+      {unplaced.length > 0 && unplacedOpen ? (
+        <section className="wsmap-unplaced" aria-label="Máy chưa xếp vị trí trên sơ đồ">
+          <header>
+            <small>Máy chưa xếp vị trí — quản trị viên xếp trong Cài đặt → Sơ đồ máy trạm.</small>
+          </header>
+          <div className="ws-icon-view__grid ws-icon-view__grid--scaled wsmap-unplaced__grid" id="wsmap-unplaced-grid" role="list">
+            {unplaced.map((machine) => {
+              const entry = entries.get(hostKey(machine.hostName))
+              if (!entry) return null
+              return (
+                <div
+                  key={machine.hostName}
+                  role="listitem"
+                  className={visibleHosts.has(hostKey(machine.hostName)) ? undefined : 'wsmap-dim'}
+                >
+                  <WorkstationTile
+                    machine={machine}
+                    view={entry.view}
+                    selected={selected.has(machine.hostName)}
+                    onOpen={onOpen}
+                    onToggle={onToggle}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
       <div style={{ overflow: 'auto', paddingTop: '1rem' }}>
         <MapCanvas
           layout={layout}
@@ -103,36 +164,6 @@ export function WorkstationMapView({
           }}
         />
       </div>
-
-      {unplaced.length > 0 ? (
-        <section className="wsmap-unplaced" aria-label="Máy chưa xếp vị trí trên sơ đồ">
-          <header>
-            <strong>Chưa xếp vị trí ({unplaced.length})</strong>{' '}
-            <small>Quản trị viên xếp trong Cài đặt → Sơ đồ máy trạm.</small>
-          </header>
-          <div className="ws-icon-view__grid" role="list">
-            {unplaced.map((machine) => {
-              const entry = entries.get(hostKey(machine.hostName))
-              if (!entry) return null
-              return (
-                <div
-                  key={machine.hostName}
-                  role="listitem"
-                  className={visibleHosts.has(hostKey(machine.hostName)) ? undefined : 'wsmap-dim'}
-                >
-                  <WorkstationTile
-                    machine={machine}
-                    view={entry.view}
-                    selected={selected.has(machine.hostName)}
-                    onOpen={onOpen}
-                    onToggle={onToggle}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      ) : null}
     </div>
   )
 }

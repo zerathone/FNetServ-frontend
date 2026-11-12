@@ -33,6 +33,14 @@
   --ws-ic-ticket: #2f7df6;
   --ws-ic-ticket-late: #e5484d;
   --ws-ic-badge-bg: #ffffff;
+
+  /* Chip hoạt động phụ (gọi món, chờ thu tiền…): cùng tone với cột Trạng thái của bảng Chi tiết. */
+  --ws-ic-order: #d97706;
+  --ws-ic-accept: #15803d;
+  --ws-ic-transfer: #c2410c;
+  --ws-ic-pause: #64748b;
+  --ws-ic-changing: #2563eb;
+  --ws-ic-lock: #dc2626;
 }
 
 :root[data-theme="dark"] {
@@ -46,6 +54,12 @@
   --ws-ic-rim-minor: #ffd21f;
   --ws-ic-student: #ffd21f;
   --ws-ic-badge-bg: #16181f;
+  --ws-ic-order: #f59e0b;
+  --ws-ic-accept: #22c55e;
+  --ws-ic-transfer: #fb923c;
+  --ws-ic-pause: #94a3b8;
+  --ws-ic-changing: #60a5fa;
+  --ws-ic-lock: #f87171;
 }
 
 /* ===== Hình icon (SVG viewBox 64x56) ===== */
@@ -149,33 +163,66 @@
 
 .ws-icon-view__bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
 }
 
+/* Bung ra: chú giải được xuống dòng nên căn các phần tử theo mép trên. */
+.ws-icon-view__bar--expanded {
+  align-items: flex-start;
+}
+
 .ws-icon-view__select-all {
   display: inline-flex;
   align-items: center;
+  flex: none;
   gap: var(--space-1);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .ws-icon-view__legend {
-  margin-left: auto;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* Thu gọn: một hàng duy nhất, mục dư bị cắt (không xuống dòng). Bung ra: xuống dòng bình thường. */
+.ws-icon-view__legend-items {
+  display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
   gap: var(--space-1) var(--space-3);
+}
+
+.ws-icon-view__bar--expanded .ws-icon-view__legend-items {
+  flex-wrap: wrap;
+  overflow: visible;
+  justify-content: flex-end;
 }
 
 .ws-icon-view__legend-item {
   display: inline-flex;
   align-items: center;
+  flex: none;
   gap: 0.3rem;
+  white-space: nowrap;
 }
 
+/* Nút Xem thêm / Thu gọn: Button neutral của design-system, thu nhỏ cho vừa hàng chú thích. */
+.ws-icon-view__legend-toggle.ds-button {
+  flex: none;
+  height: 1.75rem;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
+}
 .ws-icon-view__grid {
   display: grid;
   /* 5,75rem = cỡ hình máy GỐC — KHÔNG đổi khi chỉnh cỡ huy hiệu (xem --ws-corner-size ở .ws-tile__corner). */
@@ -185,6 +232,65 @@
   gap: 2rem 1.1rem;
 }
 
+/* Lưới biểu tượng co theo --wsmap-zoom (đặt inline trên chính lưới; mặc định 1 = cỡ gốc): cột cố định, hình máy, chữ, huy hiệu co theo.
+   Dùng cho lưới theo nhóm của thu ngân và danh sách "chưa xếp vị trí" của sơ đồ. */
+.ws-icon-view__grid--scaled {
+  --ws-zoom: var(--wsmap-zoom, 1);
+  grid-template-columns: repeat(auto-fill, calc(5.75rem * var(--ws-zoom)));
+  justify-content: start;
+  gap: calc(2rem * var(--ws-zoom)) calc(1.1rem * var(--ws-zoom));
+  padding-top: calc(1.3rem * var(--ws-zoom)); /* chừa chỗ cho huy hiệu treo phía trên hàng đầu */
+}
+
+.ws-icon-view__grid--scaled .ws-tile__corner {
+  --ws-corner-size: calc(2.3rem * var(--ws-zoom));
+}
+
+.ws-icon-view__grid--scaled .ws-tile__name {
+  font-size: max(0.6rem, calc(0.92rem * var(--ws-zoom))); /* sàn ~10px để tên máy còn đọc được */
+}
+
+.ws-icon-view__grid--scaled .ws-tile__check {
+  width: max(0.9rem, calc(1.2rem * var(--ws-zoom)));
+  height: max(0.9rem, calc(1.2rem * var(--ws-zoom)));
+}
+
+/* Nhóm máy: nút tiêu đề (mũi tên + tên nhóm + số máy) bấm để thu / mở danh sách biểu tượng của nhóm. */
+.ws-icon-group {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+/* Tiêu đề nhóm: [ô chọn tất cả nhóm] [nút mũi tên + tên nhóm + số máy]. */
+.ws-icon-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+}
+
+/* Dạng chữ, KHÔNG viền: ghost của design-system nhưng hover chỉ đổi nền (không hiện viền, không nhấc nút lên). */
+.ws-icon-group__toggle.ds-button {
+  justify-self: start;
+  height: 2rem;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.ws-icon-group__toggle.ds-button:hover:not(:disabled) {
+  border-color: transparent;
+  transform: none;
+}
+
+.ws-icon-group__count {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
 .ws-tile {
   position: relative;
   min-width: 0;
@@ -232,13 +338,30 @@
   pointer-events: none;
 }
 
-/* text-overflow không áp dụng lên flex container ⇒ cắt ở span con để tên dài hiện dấu "…". */
-.ws-tile__name > span {
+/* Tên máy: xuống dòng tối đa 2 dòng (tên không có khoảng trắng / gạch nối thì bẻ theo ký tự). Cắt đầu + "…" do TileName
+   (WorkstationIcon.tsx) tính bằng JS; line-clamp ở đây chỉ là lưới an toàn khi chưa đo xong (cắt CUỐI, không phải đầu). */
+.ws-tile__name-text {
   min-width: 0;
   max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* Span ẩn dùng để đo: cùng bề rộng + kiểu chữ với vùng tên, không chiếm chỗ, không hiện. */
+.ws-tile__name-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .ws-tile--selected .ws-tile__btn {
@@ -290,12 +413,63 @@
 
 .ws-tile__corner--r1 { right: calc(var(--ws-corner-size) * -0.3); }
 .ws-tile__corner--r2 { right: calc(var(--ws-corner-size) * 0.62); } /* kề trái r1, chồng nhẹ */
+.ws-tile__corner--r3 { right: calc(var(--ws-corner-size) * 1.24); } /* kề trái r2 */
 .ws-tile__corner--l { left: calc(var(--ws-corner-size) * -0.3); }
-/* Góc dưới phải: icon học sinh (dưới 18) — treo thấp xuống chân đế để không che tên máy dài, tách khỏi hàng góc trên. */
-.ws-tile__corner--br { top: auto; bottom: calc(var(--ws-corner-size) * -0.1); right: calc(var(--ws-corner-size) * -0.3); }
 .ws-tile__corner--minor { color: var(--ws-ic-student); }
 .ws-tile__corner--money { color: var(--ws-ic-money); }
 .ws-tile__corner--reserved { color: var(--ws-ic-ticket); }
 .ws-tile__corner--late { color: var(--ws-ic-ticket-late); }
+
+/* Hàng chip hoạt động phụ (gọi món / chờ thu tiền / đợi chuyển phí / tạm dừng / đang chuyển máy / giữ máy): nằm ở mép dưới ô, CANH PHẢI, nửa
+   trong nửa ngoài. Cỡ chip theo --wsmap-zoom (cùng cơ chế với huy hiệu góc) nhưng không nhỏ hơn 1.2rem để icon còn nhìn rõ. Chip to hơn huy hiệu cũ nên tối đa 3 chip trên một ô. */
+.ws-tile__chips {
+  --ws-chip-size: max(1.2rem, calc(1.9rem * var(--wsmap-zoom, 1)));
+  position: absolute;
+  right: calc(var(--ws-chip-size) * -0.15);
+  bottom: calc(var(--ws-chip-size) * -0.35);
+  display: flex;
+  flex-direction: row-reverse; /* chip ưu tiên cao nhất nằm sát mép phải, các chip sau nối sang trái (chip "+N" ngoài cùng bên trái) */
+  gap: calc(var(--ws-chip-size) * 0.08);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Chip đứng riêng trong chú giải: không định vị tuyệt đối. */
+.ws-tile__chips--static {
+  --ws-chip-size: 1.6rem;
+  position: static;
+  transform: none;
+}
+
+.ws-tile__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ws-chip-size);
+  height: var(--ws-chip-size);
+  border-radius: 999px;
+  background: var(--ws-ic-badge-bg);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--color-text-muted) 45%, transparent),
+    0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+.ws-tile__chip svg {
+  width: calc(var(--ws-chip-size) * 0.62);
+  height: calc(var(--ws-chip-size) * 0.62);
+}
+
+.ws-tile__chip--lock { color: var(--ws-ic-lock); }
+.ws-tile__chip--order { color: var(--ws-ic-order); }
+.ws-tile__chip--accept { color: var(--ws-ic-accept); }
+.ws-tile__chip--transfer { color: var(--ws-ic-transfer); }
+.ws-tile__chip--pause { color: var(--ws-ic-pause); }
+.ws-tile__chip--changing { color: var(--ws-ic-changing); }
+.ws-tile__chip--more {
+  color: var(--color-text-secondary);
+  font-size: calc(var(--ws-chip-size) * 0.46);
+  font-weight: 700;
+  line-height: 1;
+}
 .ws-tile__corner--warning { color: var(--ws-ic-rim-warn); }
 .ws-tile__corner--minVer { color: var(--ws-ic-minver); }

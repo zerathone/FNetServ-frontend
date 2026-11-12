@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ArrowsLeftRight, CaretLeft, CaretRight, CurrencyCircleDollar, GraduationCap, Pause, Receipt, Warning } from '@phosphor-icons/react'
+import { ArrowsLeftRight, CaretLeft, CaretRight, CurrencyCircleDollar, GraduationCap, Money, Pause, Receipt, Ticket, Warning, type Icon } from '@phosphor-icons/react'
 import { CallBellIcon } from './CallBellIcon'
 import type { MachineGroup } from '../../api/machine-groups'
 import type { WorkstationRuntime } from '../../api/workstations'
@@ -10,15 +10,18 @@ import {
   formatMoney,
   formatStartedAt,
   getWinLicenseView,
+  getStatusExtraIcons,
   getWorkstationFlags,
   getWorkstationIconView,
   getWorkstationStatus,
   interpolateSession,
   type FlagIconKey,
+  type StatusExtraIcon,
   type WorkstationFilter,
   type WorkstationIconContext,
 } from './workstationModel'
-import { MachineCellFlags, WorkstationIcon } from './WorkstationIcon'
+import { useDragSelect } from './useDragSelect'
+import { WorkstationIcon } from './WorkstationIcon'
 
 type IconComponent = React.ComponentType<{ size?: number; 'aria-hidden'?: boolean | 'true' | 'false' }>
 const FLAG_ICONS: Record<FlagIconKey, IconComponent> = {
@@ -29,11 +32,21 @@ const FLAG_ICONS: Record<FlagIconKey, IconComponent> = {
   receipt: Receipt,
 }
 
+// Icon phụ ở cột Trạng thái (xem getStatusExtraIcons). Màu: nợ = đỏ, dưới 18 = vàng, vé đặt chỗ = xanh / đỏ khi khách đến trễ.
+const STATUS_EXTRA_ICONS: Record<StatusExtraIcon, { icon: Icon; tone: 'danger' | 'warning' | 'info'; label: string }> = {
+  debt: { icon: Money, tone: 'danger', label: 'Còn nợ' },
+  minor: { icon: GraduationCap, tone: 'warning', label: 'Dưới 18 tuổi' },
+  reserved: { icon: Ticket, tone: 'info', label: 'Có đặt chỗ' },
+  late: { icon: Ticket, tone: 'danger', label: 'Khách đặt chỗ đến trễ' },
+}
+
 const STATUS_FILTER_OPTIONS: FilterMenuOption<WorkstationFilter>[] = [
   { value: 'connected', label: 'Đang kết nối', color: 'var(--color-action-primary)' },
   { value: 'playing', label: 'Đang sử dụng', color: 'var(--color-info)' },
   { value: 'available', label: 'Sẵn sàng', color: 'var(--color-success)' },
   { value: 'debt', label: 'Còn nợ', color: 'var(--color-warning)' },
+  { value: 'serviceDebt', label: 'Nợ dịch vụ', color: 'var(--color-danger)' },
+  { value: 'warning', label: 'Cảnh báo', color: 'var(--color-warning)' },
   { value: 'disconnected', label: 'Mất kết nối', color: 'var(--color-danger)' },
   { value: 'all', label: 'Tất cả' },
 ]
@@ -72,7 +85,8 @@ export type ColumnDefinition = {
 }
 
 export const COLUMNS: ColumnDefinition[] = [
-  { id: 'machine', label: 'Tên máy', width: 'minmax(6rem, 0.6fr)', required: true },
+  // Rộng đủ cho icon máy 26px + tên ~12 ký tự (icon phụ đã dồn sang cột Trạng thái nên cột này chỉ còn icon + tên).
+  { id: 'machine', label: 'Tên máy', width: 'minmax(9rem, 0.7fr)', required: true },
   { id: 'ip', label: 'Địa chỉ IP', width: '8.5rem' },
   { id: 'status', label: 'Tình trạng', width: 'minmax(9.5rem, 1.2fr)', required: true },
   { id: 'user', label: 'Người dùng', width: 'minmax(8rem, 1fr)', required: true },
@@ -114,6 +128,8 @@ type WorkstationVirtualListProps = {
   elapsedSeconds: number
   selected: Set<string>
   onToggle: (hostName: string) => void
+  /** Kéo-chọn / Shift+click: nhận cả tập mới (xem useDragSelect). */
+  onChangeSelection: (next: Set<string>) => void
   onSelectAll: () => void
   onOpen: (machine: WorkstationRuntime) => void
   groups: MachineGroup[]
@@ -139,6 +155,7 @@ export function WorkstationVirtualList({
   elapsedSeconds,
   selected,
   onToggle,
+  onChangeSelection,
   onSelectAll,
   onOpen,
   groups,
@@ -162,12 +179,14 @@ export function WorkstationVirtualList({
     for (let index = 0; index < machines.length; index += 1) {
       offsets[index] = sum
       const machine = machines[index]
-      const stacked = showStatusColumn && getWorkstationFlags(machine, { hideServiceAccept: isServiceAcceptCleared?.(machine) }).length > 0
+      const flags = getWorkstationFlags(machine, { hideServiceAccept: isServiceAcceptCleared?.(machine) })
+      const extras = getStatusExtraIcons(getWorkstationIconView(machine, getIconContext?.(machine)), flags)
+      const stacked = showStatusColumn && (flags.length > 0 || extras.length > 0)
       sum += stacked ? heights.stacked : heights.compact
     }
     offsets[machines.length] = sum
     return { tops: offsets, totalHeight: sum }
-  }, [machines, showStatusColumn, isServiceAcceptCleared, heights])
+  }, [machines, showStatusColumn, isServiceAcceptCleared, getIconContext, heights])
   const viewportRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -232,7 +251,8 @@ export function WorkstationVirtualList({
   }, [totalHeight, scrollTop, viewportHeight])
 
   const gridStyle = {
-    '--ws-table-columns': `2rem ${visibleColumns.map((column) => column.width).join(' ')}`,
+    // Cột checkbox vừa khít ô tick (1.25rem — input[type=checkbox] ở controls.css): tên máy đã có icon nên không chừa khoảng trống rộng.
+    '--ws-table-columns': `1.25rem ${visibleColumns.map((column) => column.width).join(' ')}`,
   } as CSSProperties
   // Tìm nhị phân dòng đầu tiên còn nằm (một phần) trong khung nhìn, rồi lấy thêm OVERSCAN dòng mỗi phía.
   const findRowAt = (offset: number) => {
@@ -250,6 +270,23 @@ export function WorkstationVirtualList({
   const visibleMachines = machines.slice(start, end)
   const allSelected = machines.length > 0 && machines.every((item) => selected.has(item.hostName))
 
+  // Kéo-chọn / Shift+click. Danh sách ảo hóa nên vùng kéo tính theo SỐ THỨ TỰ DÒNG (dòng ngoài màn hình không có trong DOM):
+  // từ dòng của checkbox bấm xuống tới dòng đang dưới chuột; khung cuộn dọc là vùng thân của bảng.
+  const dragSelect = useDragSelect({
+    selected,
+    onChange: onChangeSelection,
+    scrollEl: () => viewportRef.current,
+    orderedIds: () => machines.map((item) => item.hostName),
+    getHits: ({ current, startHost }) => {
+      const viewport = viewportRef.current
+      const from = machines.findIndex((item) => item.hostName === startHost)
+      if (!viewport || from < 0) return [startHost]
+      const offset = current.y - viewport.getBoundingClientRect().top + viewport.scrollTop
+      const to = findRowAt(Math.min(Math.max(offset, 0), Math.max(0, totalHeight - 1)))
+      return machines.slice(Math.min(from, to), Math.max(from, to) + 1).map((item) => item.hostName)
+    },
+  })
+
   const renderCell = (column: ColumnDefinition, machine: WorkstationRuntime) => {
     const clock = interpolateSession(machine, elapsedSeconds)
     if (column.id === 'machine') {
@@ -264,7 +301,6 @@ export function WorkstationVirtualList({
         >
           <WorkstationIcon view={iconView} size={26} />
           <strong>{machine.hostName}</strong>
-          <MachineCellFlags view={iconView} />
         </button>
       )
     }
@@ -276,10 +312,12 @@ export function WorkstationVirtualList({
       // Từ 2 mục trở lên trong hàng cờ ⇒ toàn bộ chuyển icon-only (tooltip nói rõ nội dung).
       const serviceFlags = onOpenOrders ? flags.filter((flag) => flag.id) : []
       const iconOnly = flags.length >= 2
+      // Icon phụ của máy (tiền / học sinh / vé đặt chỗ) dồn về ĐÂY thay vì cạnh tên máy; cái nào cờ ở trên đã thể hiện thì bỏ.
+      const extras = getStatusExtraIcons(getWorkstationIconView(machine, getIconContext?.(machine)), flags)
       return (
         <div className="ws-table__status" role="cell">
           <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          {flags.length > 0 ? (
+          {flags.length > 0 || extras.length > 0 ? (
             <div className="ws-flag-row">
               {flags
                 .filter((flag) => !serviceFlags.includes(flag))
@@ -314,6 +352,15 @@ export function WorkstationVirtualList({
                     {collect ? <CurrencyCircleDollar size={16} weight="bold" aria-hidden="true" /> : <CallBellIcon size={16} />}
                     {iconOnly ? null : <span>{collect ? 'Thu tiền' : 'Gọi món'}</span>}
                   </button>
+                )
+              })}
+              {extras.map((kind) => {
+                const def = STATUS_EXTRA_ICONS[kind]
+                const ExtraIcon = def.icon
+                return (
+                  <span key={kind} className={`ws-flag-btn ws-flag-btn--icon ws-flag-btn--${def.tone}`} title={def.label} role="img" aria-label={def.label}>
+                    <ExtraIcon size={14} weight="fill" aria-hidden="true" />
+                  </span>
                 )
               })}
             </div>
@@ -351,7 +398,7 @@ export function WorkstationVirtualList({
   }
 
   return (
-    <div className="ws-table" role="table" aria-rowcount={machines.length + 1}>
+    <div className="ws-table" role="table" aria-rowcount={machines.length + 1} onPointerDown={dragSelect.onPointerDown}>
       <div ref={headerRef} className="ws-table__header ws-table__grid" role="row" style={gridStyle}>
         <div role="columnheader"><input type="checkbox" aria-label={allSelected ? 'Bỏ chọn tất cả máy đang hiển thị' : 'Chọn tất cả máy đang hiển thị'} checked={allSelected} onChange={onSelectAll} /></div>
         {visibleColumns.map((column) => {
@@ -434,7 +481,7 @@ export function WorkstationVirtualList({
               const selectedRow = selected.has(machine.hostName)
               const rowIndex = start + index
               return <div key={machine.hostName} className={`ws-table__row ws-table__grid${selectedRow ? ' ws-table__row--selected' : ''}`} role="row" aria-rowindex={rowIndex + 2} style={{ ...gridStyle, height: `${tops[rowIndex + 1] - tops[rowIndex]}px`, transform: `translateY(${tops[rowIndex]}px)` }} onDoubleClick={() => onOpen(machine)}>
-                <div role="cell"><input type="checkbox" aria-label={`Chọn ${machine.hostName}`} checked={selectedRow} onChange={() => onToggle(machine.hostName)} /></div>
+                <div role="cell"><input type="checkbox" data-host-check={machine.hostName} aria-label={`Chọn ${machine.hostName}`} checked={selectedRow} onChange={() => onToggle(machine.hostName)} /></div>
                 {visibleColumns.map((column) => <div key={column.id} className="ws-table__cell-wrap">{renderCell(column, machine)}</div>)}
               </div>
             })}

@@ -43,6 +43,8 @@ export type WorkstationFilter =
   | 'playing'
   | 'available'
   | 'debt'
+  | 'warning'
+  | 'serviceDebt'
   | 'disconnected'
   | 'all'
 
@@ -138,9 +140,10 @@ export type FlagIconKey = 'graduationCap' | 'warning' | 'pause' | 'arrowsLeftRig
  */
 export function getWorkstationFlags(machine: WorkstationRuntime, options: { hideServiceAccept?: boolean } = {}) {
   // `id` = cờ dịch vụ (UI hiện thành nút bấm). `iconKey` = icon cho chế độ icon-only (flags.length >= 2).
-  const flags: Array<{ label: string; tone: StatusTone; id?: 'service_order' | 'service_accept'; iconKey?: FlagIconKey }> = []
+  // `kind` = loại cờ mà icon phụ của máy (tiền / học sinh) cũng thể hiện — để cột Trạng thái bỏ icon trùng (getStatusExtraIcons).
+  const flags: Array<{ label: string; tone: StatusTone; id?: 'service_order' | 'service_accept'; iconKey?: FlagIconKey; kind?: 'debt' | 'minor' }> = []
   if (machine.flagMask & WORKSTATION_FLAGS.HAVE_NOT_PAID) {
-    flags.push({ label: 'Còn nợ', tone: 'danger', iconKey: 'warning' })
+    flags.push({ label: 'Còn nợ', tone: 'danger', iconKey: 'warning', kind: 'debt' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.SERVICE_ORDER) {
     flags.push({ label: 'Có gọi món', tone: 'warning', id: 'service_order' })
@@ -158,7 +161,7 @@ export function getWorkstationFlags(machine: WorkstationRuntime, options: { hide
     flags.push({ label: 'Đang chuyển máy', tone: 'info', iconKey: 'arrowsLeftRight' })
   }
   if (machine.flagMask & WORKSTATION_FLAGS.USER_UNDER18) {
-    flags.push({ label: 'Dưới 18 tuổi', tone: 'warning', iconKey: 'graduationCap' })
+    flags.push({ label: 'Dưới 18 tuổi', tone: 'warning', iconKey: 'graduationCap', kind: 'minor' })
   }
   return flags
 }
@@ -172,6 +175,21 @@ export function getWorkstationFlags(machine: WorkstationRuntime, options: { hide
 
 /** UGTYPE (DBUtils.h): 1=ANONYM 2=MEMBER 3=ADMIN 4=STAFF 5=COMBOCARD. */
 const USER_GROUP_TYPE_MEMBER = 2
+const USER_GROUP_TYPE_COMBO_CARD = 5
+
+/**
+ * Khách vào máy bằng THẺ COMBO (không phải hội viên dùng combo — người đó vẫn là hội viên). Thẻ combo là tiền trả TRƯỚC, nhưng
+ * server chỉ gán cờ `PrePaid` cho khách vãng lai nên phiên thẻ combo có `session.prepaid = false` ⇒ nếu cứ theo cờ sẽ ra màu TRẢ SAU.
+ * Nhận diện theo nhóm người dùng (5) hoặc loại đăng nhập của phiên (COMBO_CARD / COMBO_BOOK).
+ */
+export function isComboCardLogin(machine: WorkstationRuntime): boolean {
+  const loginType = machine.session?.loginType
+  return (
+    machine.userGroupType === USER_GROUP_TYPE_COMBO_CARD ||
+    loginType === LOGIN_TYPE.COMBO_CARD ||
+    loginType === LOGIN_TYPE.COMBO_BOOK
+  )
+}
 
 export type IconScreen = 'available' | 'admin' | 'inUse' | 'offline' | 'warning' | 'minVer'
 /** Loại khách đang dùng máy — chỉ có ý nghĩa khi screen = 'inUse'. 'none' = không rõ (chưa có phiên). */
@@ -185,6 +203,22 @@ export type IconRim = 'none' | 'justOff' | 'warning' | 'minor'
 /** reserved = có đơn đặt chỗ sắp tới; late = khách đặt chỗ đã quá giờ bắt đầu mà chưa vào máy. */
 export type IconReservation = 'reserved' | 'late'
 
+/**
+ * Hoạt động / trạng thái phụ của máy — ĐỒNG BỘ với các cờ ở cột Trạng thái của bảng Chi tiết (getWorkstationFlags) + `Giữ máy`.
+ * Thứ tự khai báo = thứ tự hiện trên ô (khi hết chỗ, các mục sau gộp vào chip `+N`).
+ */
+export type IconActivity = 'lock' | 'order' | 'accept' | 'transfer' | 'pause' | 'changing'
+
+/** Nhãn từng hoạt động (tooltip / aria-label / chú giải) — cùng chữ với cột Trạng thái của bảng Chi tiết. */
+export const ICON_ACTIVITY_LABEL: Record<IconActivity, string> = {
+  lock: 'Giữ máy',
+  order: 'Có gọi món',
+  accept: 'Đã nhận món, chờ thu tiền',
+  transfer: 'Đợi chuyển phí',
+  pause: 'Tạm dừng',
+  changing: 'Đang chuyển máy',
+}
+
 export type WorkstationIconView = {
   screen: IconScreen
   bar: IconBar
@@ -193,6 +227,8 @@ export type WorkstationIconView = {
   /** Dưới 18 tuổi (cờ USER_UNDER18 của server: tuổi tính từ ngày sinh của tài khoản đang chơi). */
   minor: boolean
   reservation: IconReservation | null
+  /** Hoạt động phụ (gọi món, chờ thu tiền, tạm dừng…) — chip nhỏ ở mép dưới ô. Rỗng = không có. */
+  activities: IconActivity[]
   /** Mô tả đầy đủ cho tooltip / aria-label: màu không được là kênh thông tin duy nhất. */
   description: string
 }
@@ -201,6 +237,8 @@ export type WorkstationIconContext = {
   /** Máy vừa chuyển sang mất kết nối trong phiên xem hiện tại (store `useRecentlyOffStore`). */
   justOff?: boolean
   reservation?: IconReservation | null
+  /** Máy đã biết chắc hết nợ dịch vụ ⇒ bỏ chip "Đã nhận món" (cờ server còn sót) — giống `hideServiceAccept` của cột Trạng thái. */
+  serviceAcceptCleared?: boolean
 }
 
 const ICON_BAR_LABEL: Record<IconBar, string | null> = {
@@ -227,6 +265,7 @@ export function getWorkstationIconView(
       } else {
         screen = 'inUse'
         if (machine.userGroupType === USER_GROUP_TYPE_MEMBER) bar = 'member'
+        else if (isComboCardLogin(machine)) bar = 'prepaid' // thẻ combo dùng màu "vãng lai trả trước"
         else if (machine.session?.prepaid) bar = 'prepaid'
         else if (machine.session) bar = 'postpaid'
       }
@@ -251,9 +290,10 @@ export function getWorkstationIconView(
 
   const debt = hasDebt(machine)
   const reservation = context.reservation ?? null
+  const activities = getIconActivities(machine, context)
 
   const parts: string[] = [getWorkstationStatus(machine).label]
-  const barLabel = ICON_BAR_LABEL[bar]
+  const barLabel = bar === 'prepaid' && isComboCardLogin(machine) ? 'Thẻ combo' : ICON_BAR_LABEL[bar]
   if (barLabel) parts.push(barLabel)
   if (minVer) parts.push('Client dưới phiên bản bắt buộc')
   if (rim === 'justOff') parts.push('Vừa mất kết nối')
@@ -261,8 +301,42 @@ export function getWorkstationIconView(
   if (debt) parts.push('Còn nợ')
   if (reservation === 'reserved') parts.push('Có đặt chỗ')
   if (reservation === 'late') parts.push('Khách đặt chỗ đến trễ')
+  // `Giữ máy` đã là nhãn trạng thái ở đầu mô tả nên không nhắc lại.
+  for (const activity of activities) if (activity !== 'lock') parts.push(ICON_ACTIVITY_LABEL[activity])
 
-  return { screen, bar, rim, debt, minor, reservation, description: parts.join(' · ') }
+  return { screen, bar, rim, debt, minor, reservation, activities, description: parts.join(' · ') }
+}
+
+/** Cùng điều kiện với cột Trạng thái (getWorkstationStatus / getWorkstationFlags) để hai chế độ xem không lệch nhau. */
+function getIconActivities(machine: WorkstationRuntime, context: WorkstationIconContext): IconActivity[] {
+  const mask = machine.flagMask
+  const activities: IconActivity[] = []
+  if (machine.lockLogin || mask & WORKSTATION_FLAGS.CLIENT_LOCK) activities.push('lock')
+  if (mask & WORKSTATION_FLAGS.SERVICE_ORDER) activities.push('order')
+  if (mask & WORKSTATION_FLAGS.SERVICE_ACCEPT && !context.serviceAcceptCleared) activities.push('accept')
+  if (mask & WORKSTATION_FLAGS.TRANSFER_PAYMENT) activities.push('transfer')
+  if (mask & WORKSTATION_FLAGS.CLIENT_PAUSE) activities.push('pause')
+  if (mask & WORKSTATION_FLAGS.CHANGING_PC) activities.push('changing')
+  return activities
+}
+
+export type StatusExtraIcon = 'debt' | 'minor' | 'reserved' | 'late'
+
+/**
+ * Icon phụ của máy hiện ở cột TRẠNG THÁI (bảng Chi tiết) — KHÔNG đặt cạnh tên máy vì chen mất chỗ của tên.
+ * Icon nào cột Trạng thái đã thể hiện sẵn bằng cờ (Còn nợ, Dưới 18 tuổi) thì BỎ để khỏi lặp; chỉ còn lại thứ cột đó
+ * chưa có: đặt chỗ (vé xanh = có đặt chỗ, vé đỏ = khách đến trễ).
+ */
+export function getStatusExtraIcons(
+  view: Pick<WorkstationIconView, 'debt' | 'minor' | 'reservation'>,
+  flags: ReadonlyArray<{ kind?: 'debt' | 'minor' }>,
+): StatusExtraIcon[] {
+  const represented = new Set(flags.map((flag) => flag.kind).filter(Boolean))
+  const icons: StatusExtraIcon[] = []
+  if (view.debt && !represented.has('debt')) icons.push('debt')
+  if (view.minor && !represented.has('minor')) icons.push('minor')
+  if (view.reservation) icons.push(view.reservation)
+  return icons
 }
 
 export function isConnected(machine: WorkstationRuntime) {
@@ -273,11 +347,25 @@ export function hasDebt(machine: WorkstationRuntime) {
   return Boolean(machine.flagMask & WORKSTATION_FLAGS.HAVE_NOT_PAID)
 }
 
+/**
+ * Khách ĐÃ RỜI máy mà còn dịch vụ đã nhận nhưng chưa thu tiền: máy sẵn sàng / ngắt kết nối có cờ SERVICE_ACCEPT (server bật cờ này cho
+ * máy còn giữ khách trước hoặc còn nợ dịch vụ). Cùng tình huống MFC rung chuông order_exit.wav và service_debit.
+ * isCleared (tuỳ chọn) = hàm biết chắc máy đã thu hết nợ (useServiceAcceptCleared) để bỏ cờ còn sót — giống cột Trạng thái.
+ * Máy đang chơi (ONLINE) không tính: khách còn ngồi đó, chưa phải 'rời đi'.
+ */
+export function hasLeftServiceDebt(machine: WorkstationRuntime, isCleared?: (machine: WorkstationRuntime) => boolean) {
+  const left = machine.status === WORKSTATION_STATUS.AVAILABLE || machine.status === WORKSTATION_STATUS.DISCONNECT
+  return left && Boolean(machine.flagMask & WORKSTATION_FLAGS.SERVICE_ACCEPT) && !isCleared?.(machine)
+}
+
 export function matchesWorkstationFilter(
   machine: WorkstationRuntime,
   filter: WorkstationFilter,
+  options: { isServiceAcceptCleared?: (machine: WorkstationRuntime) => boolean } = {},
 ) {
   if (filter === 'debt') return hasDebt(machine)
+  if (filter === 'warning') return machine.status === WORKSTATION_STATUS.WARNING
+  if (filter === 'serviceDebt') return hasLeftServiceDebt(machine, options.isServiceAcceptCleared)
   if (filter === 'connected') return isConnected(machine)
   if (filter === 'playing') return machine.status === WORKSTATION_STATUS.ONLINE
   if (filter === 'available') return machine.status === WORKSTATION_STATUS.AVAILABLE
@@ -348,4 +436,42 @@ export function sessionLabel(session: WorkstationRuntimeSession | null) {
     default:
       return 'Không xác định'
   }
+}
+
+// ---- gom máy theo NHÓM MÁY (chế độ Biểu tượng của thu ngân) ----
+
+export type MachineGroupSection<T> = { groupId: number; name: string; machines: T[] }
+
+/**
+ * Gom máy theo nhóm: nhóm theo thứ tự danh sách `groups` (thứ tự quán đặt), nhóm không có trong danh sách xếp sau theo id,
+ * máy chưa gán nhóm (id ≤ 0) xếp cuối. Trong mỗi nhóm GIỮ NGUYÊN thứ tự máy đầu vào; nhóm không có máy thì bỏ.
+ */
+export function groupMachines<T extends { machineGroupId: number; machineGroupName: string | null }>(
+  machines: readonly T[],
+  groups: readonly { id: number; name: string }[],
+): MachineGroupSection<T>[] {
+  const byGroup = new Map<number, T[]>()
+  for (const machine of machines) {
+    const id = machine.machineGroupId > 0 ? machine.machineGroupId : 0
+    const list = byGroup.get(id)
+    if (list) list.push(machine)
+    else byGroup.set(id, [machine])
+  }
+
+  const sections: MachineGroupSection<T>[] = []
+  const used = new Set<number>()
+  for (const group of groups) {
+    const list = byGroup.get(group.id)
+    if (!list || used.has(group.id)) continue
+    used.add(group.id)
+    sections.push({ groupId: group.id, name: group.name, machines: list })
+  }
+  const rest = [...byGroup.keys()].filter((id) => id !== 0 && !used.has(id)).sort((a, b) => a - b)
+  for (const id of rest) {
+    const list = byGroup.get(id) as T[]
+    sections.push({ groupId: id, name: list[0].machineGroupName || `Nhóm ${id}`, machines: list })
+  }
+  const unassigned = byGroup.get(0)
+  if (unassigned) sections.push({ groupId: 0, name: 'Chưa gán nhóm', machines: unassigned })
+  return sections
 }

@@ -8,7 +8,7 @@ import {
 } from '../../../api/workstationMap'
 import type { MapDecorType, MapLayout } from '../../../api/workstationMapTypes.ts'
 import { getRegisteredWorkstations } from '../../../api/workstations'
-import { Button, InlineAlert, StateView } from '../../../design-system/components'
+import { Button, InlineAlert, StateView, Switch } from '../../../design-system/components'
 import { pushToast } from '../../../store/toast'
 import { MapCanvas } from './MapCanvas'
 import { writeDragPayload, type MapDragPayload } from './mapDrag.ts'
@@ -33,7 +33,9 @@ import {
   placeItem,
   removeAt,
   resizeLayout,
+  settingsOf,
   unplacedHosts,
+  updateSettings,
   type DecorGroup,
 } from './mapModel.ts'
 import './map.css'
@@ -283,6 +285,7 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
   const minSize = minimumSize(draft)
   const cellPx = EDITOR_ZOOM_PX[zoomIndex]
   const editable = isAdmin
+  const settings = settingsOf(draft)
   const activeKey =
     tool.kind === 'pc' ? `pc:${tool.host}` : tool.kind === 'decor' ? `decor:${tool.type}` : tool.kind
 
@@ -322,6 +325,16 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
           ) : null}
         </InlineAlert>
       ) : null}
+
+      <div className="wsmap-editor__settings">
+        <Switch
+          label="Dùng sơ đồ tại thu ngân"
+          description="Tắt: trang Máy trạm của thu ngân chỉ hiện lưới phẳng, không có nút chuyển sang sơ đồ. Sơ đồ đã vẽ vẫn được giữ lại, bật lên là dùng được ngay."
+          checked={settings.cashier.enabled}
+          disabled={!editable}
+          onCheckedChange={(enabled) => commit((l) => updateSettings(l, (s) => ({ ...s, cashier: { ...s.cashier, enabled } })))}
+        />
+      </div>
 
       <div className="wsmap-editor__bar">
         <label>

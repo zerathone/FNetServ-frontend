@@ -80,12 +80,21 @@ const SERVICES: ServiceItem[] = [
   { id: 8, name: 'Snack khoai tây', price: 12_000, unit: 'gói', inventory: 30, inventoryManagement: 1, active: 1, groupId: 3, groupName: 'Ăn vặt' },
 ]
 
+// Nhóm máy giả: 3 nhóm để xem chế độ Biểu tượng gom theo nhóm. Trả cho GET /machinegroup (xem workstationHandlers) và gán vào từng máy.
+export const MOCK_MACHINE_GROUPS = [
+  { id: 1, name: 'Thường' },
+  { id: 2, name: 'VIP' },
+  { id: 3, name: 'Phòng Game' },
+] as const
+
 export function station(
   hostName: string,
   status: number,
   who: { userId: number; userName: string | null; userGroupType: number },
   index: number,
+  groupId: number = 1,
 ): WorkstationRuntime {
+  const group = MOCK_MACHINE_GROUPS.find((g) => g.id === groupId) ?? MOCK_MACHINE_GROUPS[0]
   const online = status === 3
   return {
     hostName,
@@ -94,8 +103,8 @@ export function station(
     flagMask: 0,
     version: '2.1.5',
     verNew: false,
-    machineGroupId: 1,
-    machineGroupName: 'Thường',
+    machineGroupId: group.id,
+    machineGroupName: group.name,
     ...who,
     note: null,
     lockLogin: false,
@@ -125,9 +134,9 @@ export function workstations(): WorkstationsRuntimeSnapshot {
       station('PC-02', 3, { userId: 9001, userName: null, userGroupType: 1 }, 2),
       station('PC-03', 3, { userId: 508, userName: 'quocdat', userGroupType: 2 }, 3),
       station('PC-07', 3, { userId: 611, userName: 'minhthu', userGroupType: 2 }, 7),
-      station('PC-09', 3, { userId: 702, userName: 'hoanglong', userGroupType: 2 }, 9),
-      station('PC-11', 1, { userId: 0, userName: null, userGroupType: 0 }, 11),
-      station('VIP-04', 3, { userId: 9100, userName: 'ob-dm4vip9', userGroupType: 5 }, 4),
+      station('PC-09', 3, { userId: 702, userName: 'hoanglong', userGroupType: 2 }, 9, 3),
+      station('PC-11', 1, { userId: 0, userName: null, userGroupType: 0 }, 11, 3),
+      station('VIP-04', 3, { userId: 9100, userName: 'ob-dm4vip9', userGroupType: 5 }, 4, 2),
     ],
   }
 }
@@ -588,13 +597,17 @@ const handlers: Record<string, Handler> = {
 //   HỘI VIÊN    MB-01 | MB-DEBT nợ | MB-U18 dưới 18 | MB-U18-DEBT dưới 18 + nợ
 //   TRẢ TRƯỚC   GU-PRE | GU-PRE-U18 vãng lai dưới 18 (phải có cờ — xem ghi chú cuối)
 //   TRẢ SAU     GU-POST | GU-POST-U18 | GU-POST-RES vé xanh khi đang chơi
-//   COMBO       CB-01 (trả sau) | CB-PRE (trả trước) | ONL-NOSESS online nhưng chưa có phiên (chân đế trống)
+//   COMBO       CB-01 | CB-PRE (cả hai đăng nhập bằng THẺ COMBO ⇒ dùng màu "trả trước") | ONL-NOSESS online nhưng chưa có phiên (chân đế trống)
 //   ADMIN       ADMIN-01
 //   TẮT         OFF-01 | OFF-DEBT nợ | OFF-RES vé xanh | OFF-LATE vé đỏ | INIT-01 đang khởi tạo
 //   VỪA TẮT     TURNOFF-01 / TURNOFF-DEBT / TURNOFF-UPG đang bật, TỰ TẮT sau 20 giây ⇒ viền đỏ (mở chi tiết = gỡ viền)
 //               TURNBACK-01 tắt sau 20 giây rồi BẬT LẠI sau 60 giây ⇒ viền đỏ tự gỡ khi kết nối lại
 //   CẢNH BÁO    WARN-01 | WARN-U18 (viền cam thắng viền vàng, vẫn có icon học sinh) | WARN-DEBT
 //   NÂNG CẤP    UPG-01 sẵn sàng | UPG-MB hội viên | UPG-OFF tắt (tím phủ ghi đè mọi trạng thái)
+//   HOẠT ĐỘNG   SV-ORDER gọi món | SV-ACCEPT nhận món chờ thu tiền + nợ | SV-PAUSE tạm dừng | SV-XFER đợi chuyển phí |
+//               SV-CHANGE đang chuyển máy | SV-MULTI 7 cờ (chip gộp "+N"); LOCK-01 = giữ máy (chip khóa)
+//               LEFT-DEBT (sẵn sàng) / OFF-SVCDEBT (tắt) = khách đã rời còn nợ dịch vụ ⇒ nút lọc "Nợ dịch vụ"
+//               ⚠️ chip "nhận món" còn phụ thuộc useServiceAcceptCleared (đọc đơn dịch vụ) — có thể bị ẩn nếu đơn mock đã hết nợ.
 // Muốn bắt đầu lại đồng hồ 20/60 giây: F5. Đặt chỗ lấy từ GET /onlinebook/board (cũng mock ở đây, chỉ khi mode = icons).
 //
 // ⚠️ Cờ dưới 18 (0x1) do SERVER bật từ ngày sinh của tài khoản đang chơi (WorkstationHandlers.cpp). `anonymoustb` của khách
@@ -603,6 +616,11 @@ const handlers: Record<string, Handler> = {
 const iconDemoStartedAt = Date.now()
 const WS_FLAG_UNDER18 = 0x00000001
 const WS_FLAG_NOT_PAID = 0x00000008
+const WS_FLAG_SERVICE_ORDER = 0x00000002
+const WS_FLAG_SERVICE_ACCEPT = 0x00000004
+const WS_FLAG_CLIENT_PAUSE = 0x00000010
+const WS_FLAG_CHANGING_PC = 0x00000040
+const WS_FLAG_TRANSFER_PAYMENT = 0x00000100
 
 type Who = { userId: number; userName: string | null; userGroupType: number }
 
@@ -613,6 +631,12 @@ type IconDemoOptions = {
   old?: boolean
   noSession?: boolean
   lockLogin?: boolean
+}
+
+// Chia máy mẫu thành 3 nhóm theo thứ tự tạo: 1-14 Thường (sẵn sàng / hội viên / vãng lai), 15-30 VIP (combo, admin, tắt, vừa tắt, cảnh báo),
+// còn lại Phòng Game (nâng cấp + PC-20…31). Số máy mỗi nhóm khác nhau để thấy đủ kiểu tiêu đề nhóm.
+function iconDemoGroupId(index: number): number {
+  return index <= 14 ? 1 : index <= 30 ? 2 : 3
 }
 
 function workstationsIconDemo(): WorkstationsRuntimeSnapshot {
@@ -628,7 +652,7 @@ function workstationsIconDemo(): WorkstationsRuntimeSnapshot {
   let index = 0
   const make = (hostName: string, status: number, who: Who, options: IconDemoOptions = {}): WorkstationRuntime => {
     index += 1
-    const base = station(hostName, status, who, index)
+    const base = station(hostName, status, who, index, iconDemoGroupId(index))
     return {
       ...base,
       flagMask: options.flags ?? 0,
@@ -684,6 +708,21 @@ function workstationsIconDemo(): WorkstationsRuntimeSnapshot {
       make('UPG-01', 1, none, { old: true }),
       make('UPG-MB', 3, person(member, 11), { old: true }),
       make('UPG-OFF', 2, none, { old: true }),
+      // --- hoạt động phụ (chip ở mép dưới ô): gọi món / nhận món chờ thu tiền / đợi chuyển phí / tạm dừng / chuyển máy ---
+      make('SV-ORDER', 3, person(member, 12), { flags: WS_FLAG_SERVICE_ORDER }),
+      make('SV-ACCEPT', 3, person(member, 13), { flags: WS_FLAG_SERVICE_ACCEPT | WS_FLAG_NOT_PAID }),
+      make('SV-PAUSE', 3, person(guest, 6), { flags: WS_FLAG_CLIENT_PAUSE }),
+      make('SV-XFER', 3, person(member, 14), { flags: WS_FLAG_TRANSFER_PAYMENT }),
+      make('SV-CHANGE', 3, person(member, 15), { flags: WS_FLAG_CHANGING_PC }),
+      // Khách ĐÃ RỜI máy mà còn nợ dịch vụ đã nhận (MFC rung chuông + thẻ service_debit): nút lọc "Nợ dịch vụ" đếm 2 máy này.
+      make('LEFT-DEBT', 1, none, { flags: WS_FLAG_SERVICE_ACCEPT }),
+      make('OFF-SVCDEBT', 2, none, { flags: WS_FLAG_SERVICE_ACCEPT }),
+      // 7 cờ cùng lúc: thấy chip gộp "+N" khi quá 4 chip.
+      make('SV-MULTI', 3, person(member, 16), {
+        flags:
+          WS_FLAG_SERVICE_ORDER | WS_FLAG_SERVICE_ACCEPT | WS_FLAG_TRANSFER_PAYMENT | WS_FLAG_CLIENT_PAUSE |
+          WS_FLAG_CHANGING_PC | WS_FLAG_UNDER18 | WS_FLAG_NOT_PAID,
+      }),
       ...Array.from({ length: 12 }, (_v, i) => make(`PC-${String(i + 20)}`, i % 3 === 0 ? 2 : 1, none)),
     ],
   }
@@ -734,6 +773,9 @@ function iconDemoBoard(): BoardResponse {
 // Danh sách máy: bật riêng bằng VITE_WORKSTATIONS_MOCK để không lẫn dữ liệu giả vào trang Máy trạm
 // (trang đó dùng chung đường dẫn này).
 const workstationHandlers: Record<string, Handler> = {
+  // Danh sách nhóm máy (trang Máy trạm dùng để gom + đặt tên nhóm). Chỉ khi bật VITE_WORKSTATIONS_MOCK.
+  'GET /machinegroup': () =>
+    MOCK_MACHINE_GROUPS.map((group) => ({ ...group, description: '', active: 1, anonymPrice: null })),
   'GET /workstations/runtime': (_b, _q, mode) =>
     mode === 'empty'
       ? { serverTimeMs: Date.now(), items: [] }
@@ -773,7 +815,7 @@ function buildDemoMapLayout(): MapLayout {
 const iconModeHandlers: Record<string, Handler> = {
   'GET /onlinebook/board': () => iconDemoBoard(),
   'GET /workstations/registered': () => ({
-    items: workstationsIconDemo().items.map((machine) => ({ hostName: machine.hostName, machineGroupId: 1 })),
+    items: workstationsIconDemo().items.map((machine) => ({ hostName: machine.hostName, machineGroupId: machine.machineGroupId })),
   }),
   'GET /workstations/map': () => {
     mockMap ??= { rev: 1, layout: buildDemoMapLayout() }

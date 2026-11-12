@@ -73,8 +73,8 @@
 .wsmap-unplaced {
   display: grid;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px dashed var(--color-border-default);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px dashed var(--color-border-default); /* nằm TRÊN sơ đồ: đường kẻ phân cách ở dưới */
 }
 
 .wsmap-unplaced > header {
@@ -82,7 +82,24 @@
   font-size: var(--font-size-sm);
 }
 
+.wsmap-unplaced > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .wsmap-unplaced > header small { color: var(--color-text-muted); }
+
+.wsmap-unplaced__toggle.ds-button {
+  height: 1.75rem;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+/* Máy chưa xếp vẽ ở 75% cỡ: lớp dùng chung .ws-icon-view__grid--scaled (workstation-icons.css) co theo --wsmap-zoom. */
+.wsmap-unplaced__grid { --wsmap-zoom: 0.75; }
 
 /* ----- chế độ chỉnh sửa (edit) ----- */
 
@@ -181,6 +198,15 @@
   background: var(--color-surface-subtle);
 }
 
+/* Thiết lập sơ đồ (layout.settings): mỗi nhóm một hàng công tắc. Thêm thiết lập mới = thêm <Switch>/ô nhập vào khối này. */
+.wsmap-editor__settings {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
 .wsmap-editor__bar {
   display: flex;
   flex-wrap: wrap;
@@ -275,9 +301,29 @@
   color: var(--color-text-secondary);
 }
 
-.wsmap-zoom-row {
-  display: flex;
-  justify-content: flex-end;
+/* Nút zoom thu gọn + popover chứa thanh trượt (bung dưới nút, không đẩy bố cục). */
+.wsmap-zoom-collapsible {
+  position: relative;
+  flex: none;
+}
+
+.wsmap-zoom-collapsible__button.ds-button {
+  height: 1.75rem;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.wsmap-zoom-collapsible__panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 20;
+  padding: 2rem 1.6rem 0.4rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
 }
 
 .wsmap-slider {

@@ -4,6 +4,7 @@ import {
   type MapItem,
   type MapLayout,
   type MapPcItem,
+  type MapSettings,
 } from '../../../api/workstationMapTypes.ts'
 
 // Mô hình thuần (không React) của sơ đồ máy trạm: đặt / dời / xóa / đổi cỡ lưới / xếp tự động.
@@ -46,7 +47,44 @@ export const DECOR_LABEL: Record<MapDecorType, string> = Object.fromEntries(
 ) as Record<MapDecorType, string>
 
 export function emptyLayout(cols = MAP_DEFAULT_COLS, rows = MAP_DEFAULT_ROWS): MapLayout {
-  return { v: 1, cols, rows, items: [] }
+  return { v: 1, cols, rows, items: [], settings: DEFAULT_MAP_SETTINGS }
+}
+
+// ----- thiết lập sơ đồ (layout.settings) -----
+
+/** Mặc định = hành vi trước khi có thiết lập: quán đã vẽ sơ đồ thì thu ngân dùng sơ đồ. */
+export const DEFAULT_MAP_SETTINGS: MapSettings = { cashier: { enabled: true } }
+
+/**
+ * Đọc `settings` một cách phòng thủ, TỪNG trường một: thiếu / sai kiểu ⇒ giá trị mặc định (không làm hỏng cả sơ đồ).
+ * Chỉ giữ trường đã biết — thêm trường mới thì thêm vào đây.
+ */
+export function resolveMapSettings(raw: unknown): MapSettings {
+  const root = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const cashier = root.cashier && typeof root.cashier === 'object' ? (root.cashier as Record<string, unknown>) : {}
+  return {
+    cashier: {
+      enabled: typeof cashier.enabled === 'boolean' ? cashier.enabled : DEFAULT_MAP_SETTINGS.cashier.enabled,
+    },
+  }
+}
+
+/** Thiết lập đã điền đủ mặc định của một bố cục (bố cục cũ chưa có `settings` vẫn dùng được). */
+export function settingsOf(layout: MapLayout): MapSettings {
+  return resolveMapSettings(layout.settings)
+}
+
+/** Sửa thiết lập: nhận hàm biến đổi bản đầy đủ → trả bố cục mới; không đổi gì ⇒ trả nguyên bản cũ. */
+export function updateSettings(layout: MapLayout, change: (settings: MapSettings) => MapSettings): MapLayout {
+  const current = settingsOf(layout)
+  const next = resolveMapSettings(change(current))
+  if (JSON.stringify(next) === JSON.stringify(current) && layout.settings) return layout
+  return { ...layout, settings: next }
+}
+
+/** Thu ngân có dùng sơ đồ này không (cờ `settings.cashier.enabled`). */
+export function isCashierMapEnabled(layout: MapLayout): boolean {
+  return settingsOf(layout).cashier.enabled
 }
 
 export function isPc(item: MapItem): item is MapPcItem {
@@ -156,6 +194,7 @@ export function autoPlace(layout: MapLayout, hosts: readonly string[]): { layout
 
 export function layoutsEqual(a: MapLayout, b: MapLayout) {
   if (a.cols !== b.cols || a.rows !== b.rows || a.items.length !== b.items.length) return false
+  if (JSON.stringify(settingsOf(a)) !== JSON.stringify(settingsOf(b))) return false
   const sig = (layout: MapLayout) =>
     layout.items
       .map((item) => `${item.t}|${isPc(item) ? hostKey(item.host) : ''}|${item.c}|${item.r}`)
@@ -176,7 +215,7 @@ export function parseLayout(raw: unknown): MapLayout | null {
   if ((cols as number) < 1 || (cols as number) > MAP_LIMITS.maxCols) return null
   if ((rows as number) < 1 || (rows as number) > MAP_LIMITS.maxRows) return null
 
-  let layout = emptyLayout(cols as number, rows as number)
+  let layout: MapLayout = { ...emptyLayout(cols as number, rows as number), settings: resolveMapSettings(data.settings) }
   const decorTypes = new Set<string>(MAP_DECOR_TYPES)
   for (const entry of items) {
     if (!entry || typeof entry !== 'object') continue

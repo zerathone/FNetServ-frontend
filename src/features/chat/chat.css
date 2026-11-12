@@ -17,10 +17,22 @@
   white-space: nowrap;
 }
 
-/* Có tin chưa đọc: viền + chữ chuyển sang màu cảnh báo để nút nổi hơn chuông. */
+/* Có tin chưa đọc: viền + chữ + số đếm chuyển sang màu CẢNH BÁO (vàng cam, không phải đỏ danger) để nút nổi hơn chuông.
+   Chữ pha thêm màu chữ chính để vẫn đọc rõ trên nền sáng (màu warning thuần của theme sáng khá nhạt). */
 .chat-trigger.has-unread {
-  border-color: color-mix(in srgb, var(--color-danger) 65%, var(--color-border-default));
-  color: var(--color-danger-text);
+  border-color: color-mix(in srgb, var(--color-warning) 65%, var(--color-border-default));
+  color: color-mix(in srgb, var(--color-warning) 70%, var(--color-text-primary));
+}
+
+/* Số tin chưa đọc trên nút: nền warning, chữ tối cho đủ tương phản (theme cổ điển / ấm có warning sẫm ⇒ chữ trắng). */
+.chat-trigger .notification-trigger__count {
+  background: var(--color-warning);
+  color: #1f1300;
+}
+
+:root[data-theme='classic'] .chat-trigger .notification-trigger__count,
+:root[data-theme='warm'] .chat-trigger .notification-trigger__count {
+  color: #fff;
 }
 
 /* Màn hẹp: chỉ còn icon (+ badge) để không đẩy topbar tràn. */
@@ -41,7 +53,7 @@
 @keyframes chat-heartbeat {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 55%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-warning) 55%, transparent);
   }
   14% {
     transform: scale(1.1);
@@ -55,7 +67,7 @@
   70%,
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-danger) 0%, transparent);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-warning) 0%, transparent);
   }
 }
 

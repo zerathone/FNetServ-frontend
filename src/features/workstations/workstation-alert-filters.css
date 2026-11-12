@@ -1,0 +1,67 @@
+/* Nút lọc nhanh "Còn nợ" / "Cảnh báo" trên thanh công cụ trang Máy trạm (WorkstationAlertFilters.tsx). */
+.ws-alert-filters {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ws-alert-filter {
+  --alert-color: var(--color-danger-text);
+  --alert-surface: var(--color-danger-surface);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--alert-color) 45%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--alert-color);
+  background: var(--alert-surface);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+
+.ws-alert-filter--warning {
+  --alert-color: var(--color-warning);
+  --alert-surface: var(--color-warning-surface);
+}
+
+.ws-alert-filter:hover {
+  border-color: var(--alert-color);
+}
+
+.ws-alert-filter:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Số máy: viên tròn đặc màu cảnh báo để mắt bắt được ngay khi có việc cần xử lý. */
+.ws-alert-filter__count {
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  color: var(--color-text-inverse);
+  background: var(--alert-color);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+  line-height: 1.35rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Đang lọc: cả nút đặc màu. */
+.ws-alert-filter.is-active {
+  color: var(--color-text-inverse);
+  background: var(--alert-color);
+  border-color: var(--alert-color);
+}
+
+.ws-alert-filter.is-active .ws-alert-filter__count {
+  color: var(--alert-color);
+  background: var(--color-text-inverse);
+}
