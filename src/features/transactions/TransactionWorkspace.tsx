@@ -35,6 +35,8 @@ import {
   isVoucherRefundable,
   mayHaveChangePCDetails,
   paymentTypeLabel,
+  SERVICE_PAID,
+  voucherNoteText,
 } from './transactionModel'
 import { TruncateVoucherDialog } from './TruncateVoucherDialog'
 import './transactions.css'
@@ -366,25 +368,27 @@ export function TransactionWorkspace() {
           <table className="transaction-table">
             <thead>
               <tr>
-                <th>Giao dịch</th>
-                <th>Đối tượng</th>
-                <th>Loại</th>
-                <th>Thời gian</th>
+                <th className="transaction-col-id">Giao dịch</th>
+                <th>Tài khoản</th>
+                <th>Ghi chú</th>
+                <th>Thời gian yêu cầu</th>
+                <th>Thời gian thanh toán</th>
                 <th>Nhân viên</th>
                 <th className="transaction-money">Số tiền</th>
+                <th>Hóa đơn điện tử</th>
                 <th aria-label="Mở chi tiết" />
               </tr>
             </thead>
             <tbody>
               {logsQuery.isLoading ? (
                 <tr>
-                  <td colSpan={7} className="transaction-table__empty">
+                  <td colSpan={9} className="transaction-table__empty">
                     Đang tải nhật ký…
                   </td>
                 </tr>
               ) : logsQuery.isError ? (
                 <tr>
-                  <td colSpan={7} className="transaction-table__empty">
+                  <td colSpan={9} className="transaction-table__empty">
                     <p>
                       Không tải được nhật ký —{' '}
                       {logsQuery.error instanceof Error
@@ -398,14 +402,14 @@ export function TransactionWorkspace() {
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="transaction-table__empty">
+                  <td colSpan={9} className="transaction-table__empty">
                     Không có giao dịch phù hợp — thử đổi ngày hoặc bỏ bộ lọc người dùng.
                   </td>
                 </tr>
               ) : (
                 logs.map((voucher) => (
                   <tr key={voucher.voucherId}>
-                    <td>
+                    <td className="transaction-col-id">
                       <strong>#{voucher.voucherId}</strong>
                       {voucher.voucherNo === 'recall' ? (
                         <StatusBadge tone="neutral">Đã hoàn</StatusBadge>
@@ -413,15 +417,30 @@ export function TransactionWorkspace() {
                     </td>
                     <td>
                       <strong>{voucher.userName || '—'}</strong>
-                      <span>{voucher.machineName || 'Không gắn máy'}</span>
+                      {voucher.machineName ? <span>{voucher.machineName}</span> : null}
+                    </td>
+                    <td className="transaction-col-note" title={voucherNoteText(voucher) || undefined}>
+                      {voucherNoteText(voucher) || '—'}
                     </td>
                     <td>
-                      <strong>{paymentTypeLabel(voucher.paymentType)}</strong>
-                      <span>{voucher.note || 'Không có ghi chú'}</span>
+                      {voucher.serveTime ? (
+                        <>
+                          <strong>{voucher.serveTime}</strong>
+                          <span>{voucher.serveDate}</span>
+                        </>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td>
-                      <strong>{voucher.voucherTime}</strong>
-                      <span>{voucher.voucherDate}</span>
+                      {voucher.servicePaid === SERVICE_PAID ? (
+                        <>
+                          <strong>{voucher.voucherTime}</strong>
+                          <span>{voucher.voucherDate}</span>
+                        </>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td>{voucher.staffName || '—'}</td>
                     <td
@@ -431,6 +450,7 @@ export function TransactionWorkspace() {
                     >
                       {formatMoney(voucher.amount)}
                     </td>
+                    <td>{voucher.vatDate || '—'}</td>
                     <td>
                       <Button
                         type="button"

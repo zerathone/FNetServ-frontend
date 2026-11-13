@@ -25,20 +25,28 @@ export const RETENTION_FIELDS: Array<{
   { key: 'warningLogDays', label: 'Nhật ký cảnh báo', max: 9_999, hint: 'ngày' },
 ]
 
+/** Nhóm hiển thị trong trang Bảo mật và lưu trữ (RETENTION_FIELDS vẫn là nguồn nhãn/giới hạn/kiểm tra). */
+export const RETENTION_GROUPS: Array<{ title: string; keys: Array<keyof RetentionSettings> }> = [
+  { title: 'Hoạt động hệ thống', keys: ['systemLogDays', 'serverLogRecords', 'usingLogDays', 'warningLogDays'] },
+  { title: 'Giao dịch, truy cập và sao lưu', keys: ['voucherDays', 'webDays', 'backupDays'] },
+]
+
+export function validateRetentionSettings(retention: RetentionSettings) {
+  for (const field of RETENTION_FIELDS) {
+    const value = retention[field.key]
+    if (!Number.isInteger(value) || value < 0 || value > field.max) {
+      return `${field.label} phải là số nguyên từ 0 đến ${field.max.toLocaleString('vi-VN')} ${field.hint}`
+    }
+  }
+  return null
+}
+
 export function validateSystemSettings(input: {
-  retention: RetentionSettings
   roundingUnit: number
   priceMin: number | null
   priceMinForMember: number | null
   userDeductPriceMin: number | null
 }) {
-  for (const field of RETENTION_FIELDS) {
-    const value = input.retention[field.key]
-    if (!Number.isInteger(value) || value < 0 || value > field.max) {
-      return `${field.label} phải là số nguyên từ 0 đến ${field.max.toLocaleString('vi-VN')} ${field.hint}`
-    }
-  }
-
   if (!Number.isInteger(input.roundingUnit) || input.roundingUnit <= 0 || input.roundingUnit % 2 !== 0) {
     return 'Đơn vị làm tròn phải là số chẵn dương.'
   }

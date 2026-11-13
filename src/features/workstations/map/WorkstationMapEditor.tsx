@@ -13,6 +13,7 @@ import { pushToast } from '../../../store/toast'
 import { MapCanvas } from './MapCanvas'
 import { writeDragPayload, type MapDragPayload } from './mapDrag.ts'
 import { MapDecorGlyph } from './MapDecorGlyph'
+import { MapPcTile } from './MapPcTile'
 import { MapZoomSlider } from './MapZoomSlider'
 import { EDITOR_ZOOM_DEFAULT_INDEX, EDITOR_ZOOM_PX, EDITOR_ZOOM_STORAGE_KEY } from './mapZoom.ts'
 import { useMapZoom } from './useMapZoom'
@@ -25,6 +26,7 @@ import {
   emptyLayout,
   hostKey,
   isPc,
+  isWallPiece,
   itemAt,
   layoutsEqual,
   minimumSize,
@@ -305,10 +307,6 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
     <section className="settings-section" onKeyDown={handleKeyDown}>
       <header>
         <h2>Sơ đồ máy trạm</h2>
-        <p>
-          Vẽ sơ đồ phòng máy: xếp máy vào ô, thêm tường và đồ vật làm mốc. Thu ngân thấy sơ đồ này ở trang Máy trạm →
-          chế độ Biểu tượng. Dùng cho giao diện web, không ảnh hưởng phần mềm MFC.
-        </p>
       </header>
 
       {!editable ? <InlineAlert tone="info">Chỉ quản trị viên được sửa sơ đồ máy trạm. Bạn đang xem ở chế độ chỉ đọc.</InlineAlert> : null}
@@ -396,9 +394,7 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
             mode="edit"
             cell={`${cellPx}px`}
             selected={selected}
-            renderPc={(item) => (
-              <span className={`wsmap-pc${knownHosts.has(hostKey(item.host)) ? '' : ' wsmap-pc--orphan'}`}>{item.host}</span>
-            )}
+            renderPc={(item) => <MapPcTile host={item.host} orphan={!knownHosts.has(hostKey(item.host))} />}
             onCellPointerDown={
               editable
                 ? (c, r) => {
@@ -471,11 +467,22 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
                       type="button"
                       draggable
                       className={`wsmap-palette__item${activeKey === `decor:${def.type}` ? ' is-active' : ''}`}
-                      title={def.type === 'wall_h' || def.type === 'wall_v' ? 'Giữ chuột và rê qua nhiều ô để vẽ liền một đoạn' : undefined}
+                      title={
+                        def.type === 'wall_h' || def.type === 'wall_v'
+                          ? 'Giữ chuột và rê qua nhiều ô để vẽ liền một đoạn'
+                          : isWallPiece(def.type)
+                            ? def.label
+                            : undefined
+                      }
+                      aria-label={isWallPiece(def.type) ? def.label : undefined}
                       onClick={() => pickTool({ kind: 'decor', type: def.type }, `decor:${def.type}`)}
                       onDragStart={(event) => writeDragPayload(event, { kind: 'decor', type: def.type })}
                     >
-                      {def.type === 'wall_h' ? (
+                      {isWallPiece(def.type) ? (
+                        <span style={{ display: 'inline-flex', width: 24, height: 24, ['--wsmap-cell' as string]: '34px' }}>
+                          <MapDecorGlyph type={def.type} />
+                        </span>
+                      ) : def.type === 'wall_h' ? (
                         <span className="wsmap-wall-swatch" aria-hidden="true" />
                       ) : def.type === 'wall_v' ? (
                         <span className="wsmap-wall-swatch wsmap-wall-swatch--v" aria-hidden="true" />
@@ -484,7 +491,7 @@ export function WorkstationMapEditor({ isAdmin }: { isAdmin: boolean }) {
                           <MapDecorGlyph type={def.type} />
                         </span>
                       )}
-                      {def.label}
+                      {isWallPiece(def.type) ? null : def.label}
                     </button>
                   ))}
                 </div>

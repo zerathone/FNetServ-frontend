@@ -112,15 +112,6 @@
   background: var(--color-surface-hover);
 }
 
-.app-policy-table tbody tr.is-system-policy {
-  background: color-mix(in srgb, var(--color-text-muted) 6%, var(--color-surface-default));
-}
-
-.app-policy-table tbody tr.is-system-policy td,
-.app-policy-table tbody tr.is-system-policy td:first-child strong {
-  color: var(--color-text-muted);
-}
-
 .app-policy-table td:first-child strong,
 .app-policy-table td:first-child span {
   display: block;

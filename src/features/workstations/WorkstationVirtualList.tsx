@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ArrowsLeftRight, CaretLeft, CaretRight, CurrencyCircleDollar, GraduationCap, Money, Pause, Receipt, Ticket, Warning, type Icon } from '@phosphor-icons/react'
+import { ArrowsLeftRight, CalendarCheck, CaretLeft, CaretRight, CurrencyCircleDollar, GraduationCap, Money, Pause, Receipt, Warning, type Icon } from '@phosphor-icons/react'
 import { CallBellIcon } from './CallBellIcon'
 import type { MachineGroup } from '../../api/machine-groups'
 import type { WorkstationRuntime } from '../../api/workstations'
@@ -36,8 +36,8 @@ const FLAG_ICONS: Record<FlagIconKey, IconComponent> = {
 const STATUS_EXTRA_ICONS: Record<StatusExtraIcon, { icon: Icon; tone: 'danger' | 'warning' | 'info'; label: string }> = {
   debt: { icon: Money, tone: 'danger', label: 'Còn nợ' },
   minor: { icon: GraduationCap, tone: 'warning', label: 'Dưới 18 tuổi' },
-  reserved: { icon: Ticket, tone: 'info', label: 'Có đặt chỗ' },
-  late: { icon: Ticket, tone: 'danger', label: 'Khách đặt chỗ đến trễ' },
+  reserved: { icon: CalendarCheck, tone: 'info', label: 'Có đặt chỗ' },
+  late: { icon: CalendarCheck, tone: 'danger', label: 'Khách đặt chỗ đến trễ' },
 }
 
 const STATUS_FILTER_OPTIONS: FilterMenuOption<WorkstationFilter>[] = [

@@ -809,6 +809,181 @@
   transform: rotate(0deg);
 }
 
+/* --- Tìm kiếm menu (NavSearch): ô nhập dưới bộ chọn vai trò; khi có từ khoá, kết quả thay danh sách menu --- */
+.nav-search {
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.nav-search--collapsed {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) var(--space-1) 0;
+}
+
+.nav-search__field {
+  min-height: var(--control-height-compact);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--nav-item-radius);
+  padding: 0 var(--space-2);
+  background: var(--color-surface-default);
+  color: var(--color-text-muted);
+  cursor: text;
+}
+
+.nav-search__field:focus-within {
+  border-color: var(--color-action-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-action-primary) 20%, transparent);
+}
+
+.nav-search__glyph {
+  flex-shrink: 0;
+}
+
+.nav-search__input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  appearance: none;
+}
+
+.nav-search__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.nav-search__kbd {
+  flex-shrink: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  padding: 0 4px;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.625rem;
+  line-height: 1.5;
+}
+
+.nav-search__clear,
+.nav-search__icon-button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.nav-search__clear {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+}
+
+.nav-search__icon-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--nav-item-radius);
+}
+
+.nav-search__clear:hover,
+.nav-search__icon-button:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.nav-search__results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-search__count {
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-search__result {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--nav-item-radius);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-search__result--active {
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-action-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--color-action-primary) 10%, var(--color-surface-default));
+}
+
+.nav-search__result-icon {
+  display: grid;
+  place-items: center;
+}
+
+.nav-search__result-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav-search__result-text strong {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-search__result-text small,
+.nav-search__result-text em {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-search__tag {
+  border: 1px solid color-mix(in srgb, var(--color-action-primary) 25%, transparent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 12%, transparent);
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nav-search__empty {
+  padding: var(--space-4) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
 .app-sidebar__footer {
   display: flex;
   flex-direction: column;

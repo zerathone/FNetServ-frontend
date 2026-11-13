@@ -103,9 +103,7 @@ export function ScheduledShutdownDialog({ open, canManage, onClose }: ScheduledS
               ) : null}
               {mode === 'daily' ? (
                 <label className="ds-field"><span className="ds-field__label">Giờ tắt máy hằng ngày</span><input className="ds-input" type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></label>
-              ) : null}
-              <InlineAlert tone="info">API Web hỗ trợ lịch giờ/ngày. Chế độ đếm ngược riêng của ứng dụng MFC không được REST hóa.</InlineAlert>
-            </>
+              ) : null}            </>
           ) : null}
         </div>
       </Dialog>

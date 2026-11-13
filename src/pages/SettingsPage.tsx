@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   changeAdminPassword,
@@ -27,16 +28,19 @@ import {
   InlineAlert,
   MoneyInput,
   PageHeader,
+  Segmented,
   StateView,
 } from '../design-system/components'
-import { useTheme } from '../design-system/theme/themeContext'
 import { useAuthStore } from '../store/auth'
 import { pushToast } from '../store/toast'
 import {
   DEFAULT_RETENTION_SETTINGS,
   RETENTION_FIELDS,
+  RETENTION_GROUPS,
+  validateRetentionSettings,
   validateSystemSettings,
 } from '../features/settings/settingsModel'
+import { parseSettingsSection, SETTINGS_SECTIONS } from '../features/settings/settingsCatalog'
 import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
 import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
 import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
@@ -45,28 +49,7 @@ import './settings.css'
 
 const RIGHT_SHUTDOWN_ALL = 131
 
-type SettingsSection =
-  | 'appearance'
-  | 'cafe'
-  | 'system'
-  | 'workstation'
-  | 'wsmap'
-  | 'security'
-
 type SecurityConfirmation = 'admin' | 'workstation' | null
-
-const SETTINGS_SECTIONS: Array<{
-  id: SettingsSection
-  label: string
-  description: string
-}> = [
-  { id: 'appearance', label: 'Giao diện', description: 'Theme trên trình duyệt này' },
-  { id: 'cafe', label: 'Thông tin phòng máy', description: 'Tên và thông tin liên hệ' },
-  { id: 'system', label: 'Quy tắc hệ thống', description: 'Nhật ký, làm tròn và mức nạp' },
-  { id: 'workstation', label: 'Máy trạm', description: 'Đăng nhập lại, khóa và tự tắt' },
-  { id: 'wsmap', label: 'Sơ đồ máy trạm', description: 'Vị trí máy, tường và đồ vật' },
-  { id: 'security', label: 'Bảo mật', description: 'Tài khoản ADMIN và máy trạm' },
-]
 
 function validateCredential(
   username: string,
@@ -89,12 +72,15 @@ function validateCredential(
 }
 
 export function SettingsPage() {
-  const { theme, setTheme, themes } = useTheme()
   const staffName = useAuthStore((state) => state.staffName)
   const updateStaffName = useAuthStore((state) => state.updateStaffName)
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const hasRight = useAuthStore((state) => state.hasRight)
-  const [section, setSection] = useState<SettingsSection>('appearance')
+  // Mục đang mở nằm trên URL (?section=&focus=) để thanh tìm kiếm menu deep-link được vào từng cài đặt con.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const section = parseSettingsSection(searchParams.get('section'))
+  const focusAnchor = searchParams.get('focus')
+  const setSection = (next: typeof section) => setSearchParams({ section: next }, { replace: true })
   const [systemFunctionsOpen, setSystemFunctionsOpen] = useState(false)
   const [shutdownScheduleOpen, setShutdownScheduleOpen] = useState(false)
 
@@ -114,6 +100,7 @@ export function SettingsPage() {
   const [chargeMemberWarning, setChargeMemberWarning] = useState(false)
   const [userDeductPriceMin, setUserDeductPriceMin] = useState<number | null>(null)
   const [systemError, setSystemError] = useState('')
+  const [retentionError, setRetentionError] = useState('')
   const [autoRelogin, setAutoRelogin] = useState(false)
   const [lockScreenStation, setLockScreenStation] = useState(true)
   const [firstLoginChangePwd, setFirstLoginChangePwd] = useState(false)
@@ -305,7 +292,6 @@ export function SettingsPage() {
   const saveSystem = (event: FormEvent) => {
     event.preventDefault()
     const validationError = validateSystemSettings({
-      retention,
       roundingUnit: roundingFactor,
       priceMin,
       priceMinForMember,
@@ -314,7 +300,6 @@ export function SettingsPage() {
     setSystemError(validationError ?? '')
     if (validationError) return
 
-    retentionMutation.mutate(retention)
     roundingMutation.mutate({ roundingUnit: roundingFactor, roundingType })
     priceMinMutation.mutate({
       priceMin: priceMin as number,
@@ -325,6 +310,14 @@ export function SettingsPage() {
       chargeMemberWarning,
       userDeductPriceMin: userDeductPriceMin as number,
     })
+  }
+
+  const saveRetention = (event: FormEvent) => {
+    event.preventDefault()
+    const validationError = validateRetentionSettings(retention)
+    setRetentionError(validationError ?? '')
+    if (validationError) return
+    retentionMutation.mutate(retention)
   }
 
   const saveWorkstation = (event: FormEvent) => {
@@ -378,43 +371,56 @@ export function SettingsPage() {
   }
 
   const queriesForSection =
-    section === 'cafe'
-      ? [cafeQuery]
-      : section === 'system'
-        ? [retentionQuery, roundingQuery, priceMinQuery]
-        : section === 'workstation'
-          ? [wsGeneralQuery, wsShutdownQuery, wsCloseAppQuery]
+    section === 'general'
+      ? [cafeQuery, roundingQuery, priceMinQuery]
+      : section === 'workstation'
+        ? [wsGeneralQuery, wsShutdownQuery, wsCloseAppQuery]
+        : section === 'security'
+          ? [retentionQuery]
           : []
   const loadingSection = queriesForSection.some((query) => query.isLoading)
   const sectionError = queriesForSection.find((query) => query.isError)
+
+  // Đến từ tìm kiếm menu (?focus=): chờ mục tải xong rồi cuộn tới đúng cài đặt + nháy sáng.
+  useEffect(() => {
+    if (!focusAnchor || loadingSection) return
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`setting-${focusAnchor}`)
+      if (!target) return
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      target.classList.add('settings-flash')
+      window.setTimeout(() => target.classList.remove('settings-flash'), 2200)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusAnchor, section, loadingSection])
 
   return (
     <section className="settings-page">
       <PageHeader
         eyebrow="Quản trị"
         title="Cài đặt"
-        description="Cấu hình theo phạm vi rõ ràng; thay đổi giao diện chỉ áp dụng cho trình duyệt hiện tại."
+        description="Cấu hình theo phạm vi rõ ràng; thay đổi ở đây ảnh hưởng toàn hệ thống."
       />
 
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Danh mục cài đặt">
-          {SETTINGS_SECTIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={section === item.id ? 'is-active' : ''}
-              onClick={() => {
-                setSection(item.id)
-                setSecurityError('')
-                setSecurityResult('')
-                setSystemError('')
-                setWorkstationError('')
-              }}
-            >
-              <strong>{item.label}</strong>
-              <span>{item.description}</span>
-            </button>
-          ))}
+        <nav className="settings-tabs" aria-label="Danh mục cài đặt">
+          <Segmented
+            ariaLabel="Danh mục cài đặt"
+            value={section}
+            options={SETTINGS_SECTIONS.map((item) => ({
+              value: item.id,
+              label: item.label,
+              title: item.description,
+            }))}
+            onChange={(next) => {
+              setSection(next)
+              setSecurityError('')
+              setSecurityResult('')
+              setSystemError('')
+              setRetentionError('')
+              setWorkstationError('')
+            }}
+          />
         </nav>
 
         <div className="settings-content">
@@ -428,41 +434,18 @@ export function SettingsPage() {
             />
           ) : null}
 
-          {section === 'appearance' ? (
-            <div className="settings-section">
-              <header>
-                <h2>Giao diện</h2>
-                <p>Preference trình duyệt · không gửi lên máy chủ · không chứa dữ liệu khách hàng.</p>
-              </header>
-              <div className="settings-theme-grid">
-                {themes.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={theme === item.id ? 'is-active' : ''}
-                    onClick={() => setTheme(item.id)}
-                  >
-                    <span className={`settings-theme-swatch settings-theme-swatch--${item.id}`} />
-                    <strong>{item.label}</strong>
-                    <small>{theme === item.id ? 'Đang sử dụng' : 'Áp dụng ngay'}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {section === 'cafe' && cafeQuery.data ? (
-            <form className="settings-section" onSubmit={saveCafe}>
+          {section === 'general' && cafeQuery.data ? (
+            <form className="settings-section settings-section--compact" onSubmit={saveCafe}>
               <header>
                 <h2>Thông tin phòng máy</h2>
-                <p>Phạm vi hệ thống · dùng trên biên nhận và thông tin liên hệ.</p>
+                <p>Hiển thị trên biên nhận và thông tin liên hệ.</p>
               </header>
-              <div className="settings-form-grid">
-                <label className="ds-field settings-span-2">
+              <div className="settings-grid settings-grid--3">
+                <label className="ds-field settings-span-all">
                   <span className="ds-field__label">Tên phòng máy</span>
                   <input className="ds-input" value={cafeName} maxLength={100} required onChange={(event) => setCafeName(event.target.value)} />
                 </label>
-                <label className="ds-field settings-span-2">
+                <label className="ds-field settings-span-all">
                   <span className="ds-field__label">Địa chỉ</span>
                   <input className="ds-input" value={cafeAddress} maxLength={200} required onChange={(event) => setCafeAddress(event.target.value)} />
                 </label>
@@ -474,7 +457,7 @@ export function SettingsPage() {
                   <span className="ds-field__label">Email</span>
                   <input className="ds-input" type="email" value={cafeEmail} onChange={(event) => setCafeEmail(event.target.value)} />
                 </label>
-                <label className="ds-field settings-span-2">
+                <label className="ds-field">
                   <span className="ds-field__label">Website / Page</span>
                   <input className="ds-input" value={cafePage} onChange={(event) => setCafePage(event.target.value)} />
                 </label>
@@ -487,81 +470,74 @@ export function SettingsPage() {
             </form>
           ) : null}
 
-          {section === 'system' && retentionQuery.data && roundingQuery.data && priceMinQuery.data ? (
-            <form className="settings-section" onSubmit={saveSystem}>
+          {section === 'general' && roundingQuery.data && priceMinQuery.data ? (
+            <form className="settings-section settings-section--compact" onSubmit={saveSystem}>
               <header>
                 <h2>Quy tắc hệ thống</h2>
-                <p>Phạm vi hệ thống · thay đổi ảnh hưởng tất cả nhân viên và giao dịch mới.</p>
+                <p>Thay đổi ảnh hưởng tất cả nhân viên và giao dịch mới.</p>
               </header>
               {systemError ? <InlineAlert tone="danger">{systemError}</InlineAlert> : null}
-              <InlineAlert tone="warning">
-                Đặt thời gian giữ là 0 để tắt dọn tự động cho loại nhật ký đó. Giảm thời gian giữ có thể làm dữ liệu cũ bị xóa trong đợt dọn tiếp theo.
-              </InlineAlert>
-              <div className="settings-form-grid">
-                {RETENTION_FIELDS.map((field) => (
-                  <label key={field.key} className="ds-field">
-                    <span className="ds-field__label">{field.label} ({field.hint})</span>
-                    <input
-                      className="ds-input"
-                      type="number"
-                      min={0}
-                      max={field.max}
-                      step={1}
-                      value={retention[field.key]}
-                      required
-                      onChange={(event) => setRetention((current) => ({
-                        ...current,
-                        [field.key]: Number(event.target.value),
-                      }))}
+
+              <section className="settings-group" aria-labelledby="settings-group-rounding">
+                <h3 id="settings-group-rounding" className="settings-group__title">Làm tròn tiền</h3>
+                <div className="settings-grid settings-grid--3">
+                  <label id="setting-rounding" className="ds-field">
+                    <span className="ds-field__label">Đơn vị làm tròn (VND)</span>
+                    <input className="ds-input" type="number" min={2} step={2} value={roundingFactor} required onChange={(event) => setRoundingFactor(Number(event.target.value))} />
+                  </label>
+                  <div id="setting-rounding-type" className="ds-field settings-segmented-field">
+                    <span className="ds-field__label">Kiểu làm tròn</span>
+                    <Segmented
+                      ariaLabel="Kiểu làm tròn"
+                      value={roundingType === 1 ? '1' : '0'}
+                      options={[
+                        { value: '0', label: 'Trung bình' },
+                        { value: '1', label: 'Làm tròn lên' },
+                      ]}
+                      onChange={(value) => setRoundingType(value === '1' ? 1 : 0)}
                     />
+                  </div>
+                </div>
+              </section>
+
+              <section className="settings-group" aria-labelledby="settings-group-min">
+                <h3 id="settings-group-min" className="settings-group__title">Mức nạp tối thiểu</h3>
+                <div className="settings-grid settings-grid--3">
+                  <MoneyInput label="Khách" value={priceMin} onChange={setPriceMin} />
+                  <MoneyInput label="Hội viên" value={priceMinForMember} onChange={setPriceMinForMember} />
+                  <MoneyInput label="Số dư tối thiểu để khấu trừ" value={userDeductPriceMin} onChange={setUserDeductPriceMin} hint="Hội viên: số dư tài khoản chính cần giữ lại khi thanh toán." />
+                </div>
+                <div className="settings-toggle-list settings-toggle-list--compact">
+                  <label id="setting-show-min">
+                    <span><strong>Hiển thị mức nạp tối thiểu</strong><small>Hiển thị yêu cầu số tiền tối thiểu trên máy trạm khi khách đăng nhập.</small></span>
+                    <input type="checkbox" checked={showPriceMin} onChange={(event) => setShowPriceMin(event.target.checked)} />
                   </label>
-                ))}
-                <label className="ds-field">
-                  <span className="ds-field__label">Đơn vị làm tròn (VND)</span>
-                  <input className="ds-input" type="number" min={2} step={2} value={roundingFactor} required onChange={(event) => setRoundingFactor(Number(event.target.value))} />
-                </label>
-                <fieldset className="settings-radio-group">
-                  <legend>Kiểu làm tròn</legend>
-                  <label>
-                    <input type="radio" name="rounding-type" value="0" checked={roundingType === 0} onChange={() => setRoundingType(0)} />
-                    Làm tròn trung bình
+                </div>
+              </section>
+
+              <section className="settings-group" aria-labelledby="settings-group-refund">
+                <h3 id="settings-group-refund" className="settings-group__title">Hoàn tiền và mất kết nối</h3>
+                <div className="settings-toggle-list settings-toggle-list--compact">
+                  <label id="setting-refund-online">
+                    <span><strong>Hoàn tiền khi ngừng sử dụng</strong><small>Áp dụng khi khách chủ động kết thúc phiên trực tuyến.</small></span>
+                    <input type="checkbox" checked={giveBackMoneyOnline} onChange={(event) => setGiveBackMoneyOnline(event.target.checked)} />
                   </label>
-                  <label>
-                    <input type="radio" name="rounding-type" value="1" checked={roundingType === 1} onChange={() => setRoundingType(1)} />
-                    Làm tròn lên
+                  <label id="setting-refund-offline">
+                    <span><strong>Hoàn tiền khi mất kết nối</strong><small>Áp dụng khi mất điện hoặc client mất kết nối.</small></span>
+                    <input type="checkbox" checked={giveBackMoneyNotOnline} onChange={(event) => setGiveBackMoneyNotOnline(event.target.checked)} />
                   </label>
-                </fieldset>
-                <MoneyInput label="Mức nạp tối thiểu · khách" value={priceMin} onChange={setPriceMin} />
-                <MoneyInput label="Mức nạp tối thiểu · hội viên" value={priceMinForMember} onChange={setPriceMinForMember} />
-                <MoneyInput label="Số dư tối thiểu để khấu trừ · hội viên" value={userDeductPriceMin} onChange={setUserDeductPriceMin} hint="Số dư tài khoản chính cần giữ lại khi thanh toán." />
-              </div>
-              <div className="settings-toggle-list">
-                <label>
-                  <span><strong>Hiển thị mức nạp tối thiểu</strong><small>Hiển thị yêu cầu số tiền tối thiểu trên máy trạm khi khách đăng nhập.</small></span>
-                  <input type="checkbox" checked={showPriceMin} onChange={(event) => setShowPriceMin(event.target.checked)} />
-                </label>
-                <label>
-                  <span><strong>Hoàn tiền khi ngừng sử dụng</strong><small>Áp dụng khi khách chủ động kết thúc phiên trực tuyến.</small></span>
-                  <input type="checkbox" checked={giveBackMoneyOnline} onChange={(event) => setGiveBackMoneyOnline(event.target.checked)} />
-                </label>
-                <label>
-                  <span><strong>Hoàn tiền khi mất kết nối</strong><small>Áp dụng khi mất điện hoặc client mất kết nối.</small></span>
-                  <input type="checkbox" checked={giveBackMoneyNotOnline} onChange={(event) => setGiveBackMoneyNotOnline(event.target.checked)} />
-                </label>
-                <label>
-                  <span><strong>Tiếp tục tính tiền khi mất kết nối</strong><small>Tiếp tục tính tiền hội viên khi máy trạm gửi cảnh báo mất kết nối.</small></span>
-                  <input type="checkbox" checked={chargeMemberWarning} onChange={(event) => setChargeMemberWarning(event.target.checked)} />
-                </label>
-              </div>
+                  <label id="setting-charge-warning">
+                    <span><strong>Tiếp tục tính tiền khi mất kết nối</strong><small>Tiếp tục tính tiền hội viên khi máy trạm gửi cảnh báo mất kết nối.</small></span>
+                    <input type="checkbox" checked={chargeMemberWarning} onChange={(event) => setChargeMemberWarning(event.target.checked)} />
+                  </label>
+                </div>
+              </section>
+
               <footer>
                 <Button
                   type="submit"
                   variant="primary"
-                  loading={
-                    retentionMutation.isPending ||
-                    roundingMutation.isPending ||
-                    priceMinMutation.isPending
-                  }
+                  loading={roundingMutation.isPending || priceMinMutation.isPending}
                 >
                   Lưu quy tắc
                 </Button>
@@ -575,7 +551,7 @@ export function SettingsPage() {
                 <h2>Máy trạm</h2>
                 <p>Phạm vi hệ thống · hành vi client khi đăng nhập, chờ và mất kết nối.</p>
               </header>
-              <div className="settings-form-actions">
+              <div id="setting-sys-functions" className="settings-form-actions">
                 <Button
                   type="button"
                   variant="secondary"
@@ -596,20 +572,20 @@ export function SettingsPage() {
                 </Button>
               </div>
               <div className="settings-toggle-list">
-                <label>
+                <label id="setting-auto-relogin">
                   <span><strong>Tự đăng nhập lại</strong><small>Khôi phục phiên sau khi client rớt mạng.</small></span>
                   <input type="checkbox" checked={autoRelogin} onChange={(event) => setAutoRelogin(event.target.checked)} />
                 </label>
-                <label>
+                <label id="setting-lock-screen">
                   <span><strong>Khóa màn hình khi không dùng</strong><small>Giữ client ở màn hình khóa trong trạng thái chờ.</small></span>
                   <input type="checkbox" checked={lockScreenStation} onChange={(event) => setLockScreenStation(event.target.checked)} />
                 </label>
-                <label>
+                <label id="setting-first-login-pwd">
                   <span><strong>Đổi mật khẩu lần đầu</strong><small>Yêu cầu khách đổi mật khẩu sau lần đăng nhập đầu.</small></span>
                   <input type="checkbox" checked={firstLoginChangePwd} onChange={(event) => setFirstLoginChangePwd(event.target.checked)} />
                 </label>
               </div>
-              <fieldset className="settings-radio-group">
+              <fieldset id="setting-chat-history" className="settings-radio-group">
                 <legend>Lịch sử giao tiếp các phiên sử dụng trước</legend>
                 <label>
                   <input type="radio" name="chat-history-status" checked={!chatHistoryStatus} onChange={() => setChatHistoryStatus(false)} />
@@ -622,12 +598,12 @@ export function SettingsPage() {
               </fieldset>
               {workstationError ? <InlineAlert tone="danger">{workstationError}</InlineAlert> : null}
               <div className="settings-form-grid">
-                <label className="ds-field">
+                <label id="setting-auto-off" className="ds-field">
                   <span className="ds-field__label">Tự tắt máy Sẵn sàng sau (phút)</span>
                   <input className="ds-input" type="number" min={0} step={1} value={timeOffPcAvailable} required onChange={(event) => setTimeOffPcAvailable(Number(event.target.value))} />
                   <small>Nhập 0 để không tự tắt máy.</small>
                 </label>
-                <label className="ds-field">
+                <label id="setting-auto-close-app" className="ds-field">
                   <span className="ds-field__label">Tự đóng ứng dụng trên máy Sẵn sàng sau (phút)</span>
                   <input className="ds-input" type="number" min={0} max={99999} step={1} value={closeAppAvailableMinutes} required onChange={(event) => setCloseAppAvailableMinutes(Number(event.target.value))} />
                   <small>Nhập 0 để không tự đóng ứng dụng.</small>
@@ -646,7 +622,11 @@ export function SettingsPage() {
           ) : null}
 
           {/* Kênh chat Messenger: form riêng (PUT /settings/chat riêng, chỉ admin) nên KHÔNG lồng trong form máy trạm. */}
-          {section === 'workstation' ? <ChatSettingsSection isAdmin={isAdmin} /> : null}
+          {section === 'workstation' ? (
+            <div id="setting-chat-channel">
+              <ChatSettingsSection isAdmin={isAdmin} />
+            </div>
+          ) : null}
 
           {/* Sơ đồ máy trạm (task ws-map): ADMIN vẽ, mọi nhân viên xem ở trang Máy trạm → Biểu tượng. Lưu riêng (POST /workstations/map). */}
           {section === 'wsmap' ? <WorkstationMapEditor isAdmin={isAdmin} /> : null}
@@ -656,63 +636,131 @@ export function SettingsPage() {
               {securityError ? <InlineAlert tone="danger">{securityError}</InlineAlert> : null}
               {securityResult ? <InlineAlert tone="success">{securityResult}</InlineAlert> : null}
 
-              <form className="settings-section" onSubmit={requestAdminPasswordChange}>
+              <div className="settings-section settings-section--compact">
                 <header>
-                  <h2>Tài khoản ADMIN phần mềm</h2>
-                  <p>Đổi tên đăng nhập và mật khẩu của đúng ADMIN trong phiên hiện tại.</p>
+                  <h2>Tài khoản quản trị</h2>
+                  <p>Đổi tên đăng nhập và mật khẩu ADMIN. Hai tài khoản độc lập, lưu riêng.</p>
                 </header>
-                <InlineAlert tone="info">
-                  Tên đăng nhập mới là trường bắt buộc. Nếu chỉ đổi mật khẩu, giữ nguyên tên hiện tại.
-                </InlineAlert>
-                <div className="settings-form-grid">
-                  <label className="ds-field settings-span-2">
-                    <span className="ds-field__label">Mật khẩu hiện tại</span>
-                    <input className="ds-input" type="password" autoComplete="current-password" value={oldPassword} required onChange={(event) => setOldPassword(event.target.value)} />
-                  </label>
-                  <label className="ds-field settings-span-2">
-                    <span className="ds-field__label">Tên đăng nhập mới</span>
-                    <input className="ds-input" value={newAdminUsername} maxLength={32} required onChange={(event) => setNewAdminUsername(event.target.value)} />
-                  </label>
-                  <label className="ds-field">
-                    <span className="ds-field__label">Mật khẩu mới</span>
-                    <input className="ds-input" type="password" autoComplete="new-password" value={newAdminPassword} maxLength={32} required onChange={(event) => setNewAdminPassword(event.target.value)} />
-                  </label>
-                  <label className="ds-field">
-                    <span className="ds-field__label">Nhập lại mật khẩu mới</span>
-                    <input className="ds-input" type="password" autoComplete="new-password" value={confirmAdminPassword} maxLength={32} required onChange={(event) => setConfirmAdminPassword(event.target.value)} />
-                  </label>
-                </div>
-                <footer>
-                  <Button type="submit" variant="primary">Kiểm tra và đổi tài khoản</Button>
-                </footer>
-              </form>
+                <div className="settings-split">
+                  <form id="setting-admin-account" className="settings-subform" onSubmit={requestAdminPasswordChange}>
+                    <div>
+                      <h3 className="settings-group__title">ADMIN phần mềm</h3>
+                      <p className="settings-group__hint">
+                        Đổi cho đúng ADMIN trong phiên hiện tại. Chỉ đổi mật khẩu thì giữ nguyên tên đăng nhập.
+                      </p>
+                    </div>
+                    <div className="settings-grid">
+                      <label className="ds-field">
+                        <span className="ds-field__label">Mật khẩu hiện tại</span>
+                        <input className="ds-input" type="password" autoComplete="current-password" value={oldPassword} required onChange={(event) => setOldPassword(event.target.value)} />
+                      </label>
+                      <label className="ds-field">
+                        <span className="ds-field__label">Tên đăng nhập mới</span>
+                        <input className="ds-input" value={newAdminUsername} maxLength={32} required onChange={(event) => setNewAdminUsername(event.target.value)} />
+                      </label>
+                      <div className="settings-grid settings-grid--2">
+                        <label className="ds-field">
+                          <span className="ds-field__label">Mật khẩu mới</span>
+                          <input className="ds-input" type="password" autoComplete="new-password" value={newAdminPassword} maxLength={32} required onChange={(event) => setNewAdminPassword(event.target.value)} />
+                        </label>
+                        <label className="ds-field">
+                          <span className="ds-field__label">Nhập lại mật khẩu mới</span>
+                          <input className="ds-input" type="password" autoComplete="new-password" value={confirmAdminPassword} maxLength={32} required onChange={(event) => setConfirmAdminPassword(event.target.value)} />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="settings-subform__actions">
+                      <Button type="submit" variant="primary">Kiểm tra và đổi tài khoản</Button>
+                    </div>
+                  </form>
 
-              <form className="settings-section" onSubmit={requestWorkstationPasswordChange}>
-                <header>
-                  <h2>Tài khoản ADMIN máy trạm</h2>
-                  <p>Dùng để mở quyền ADMIN trên client máy trạm; không phải tài khoản Windows.</p>
-                </header>
-                <InlineAlert tone="warning">
-                  Khi lưu, máy chủ phát thông tin đăng nhập mới tới mọi client đang hoạt động.
-                </InlineAlert>
-                <div className="settings-form-grid">
-                  <label className="ds-field settings-span-2">
-                    <span className="ds-field__label">Tên ADMIN máy trạm mới</span>
-                    <input className="ds-input" value={wsAdminUsername} maxLength={32} required onChange={(event) => setWsAdminUsername(event.target.value)} />
-                  </label>
-                  <label className="ds-field">
-                    <span className="ds-field__label">Mật khẩu mới</span>
-                    <input className="ds-input" type="password" autoComplete="new-password" value={wsAdminPassword} maxLength={32} required onChange={(event) => setWsAdminPassword(event.target.value)} />
-                  </label>
-                  <label className="ds-field">
-                    <span className="ds-field__label">Nhập lại mật khẩu mới</span>
-                    <input className="ds-input" type="password" autoComplete="new-password" value={confirmWsAdminPassword} maxLength={32} required onChange={(event) => setConfirmWsAdminPassword(event.target.value)} />
-                  </label>
+                  <form id="setting-ws-admin-account" className="settings-subform" onSubmit={requestWorkstationPasswordChange}>
+                    <div>
+                      <h3 className="settings-group__title">ADMIN máy trạm</h3>
+                      <p className="settings-group__hint">
+                        Mở quyền ADMIN trên client máy trạm, không phải tài khoản Windows.{' '}
+                        <strong>Lưu ý:</strong> khi lưu, máy chủ phát thông tin đăng nhập mới tới mọi client đang hoạt động.
+                      </p>
+                    </div>
+                    <div className="settings-grid">
+                      <label className="ds-field">
+                        <span className="ds-field__label">Tên ADMIN máy trạm mới</span>
+                        <input className="ds-input" value={wsAdminUsername} maxLength={32} required onChange={(event) => setWsAdminUsername(event.target.value)} />
+                      </label>
+                      <div className="settings-grid settings-grid--2">
+                        <label className="ds-field">
+                          <span className="ds-field__label">Mật khẩu mới</span>
+                          <input className="ds-input" type="password" autoComplete="new-password" value={wsAdminPassword} maxLength={32} required onChange={(event) => setWsAdminPassword(event.target.value)} />
+                        </label>
+                        <label className="ds-field">
+                          <span className="ds-field__label">Nhập lại mật khẩu mới</span>
+                          <input className="ds-input" type="password" autoComplete="new-password" value={confirmWsAdminPassword} maxLength={32} required onChange={(event) => setConfirmWsAdminPassword(event.target.value)} />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="settings-subform__actions">
+                      <Button type="submit" variant="danger">Đổi tài khoản máy trạm</Button>
+                    </div>
+                  </form>
                 </div>
-                <footer>
-                  <Button type="submit" variant="danger">Đổi tài khoản máy trạm</Button>
-                </footer>
-              </form>
+              </div>
+
+              {retentionQuery.data ? (
+                <form className="settings-section settings-section--compact" onSubmit={saveRetention}>
+                  <header>
+                    <h2>Lưu trữ nhật ký</h2>
+                    <p>
+                      Thời gian giữ từng loại nhật ký trước khi máy chủ tự dọn. Đặt 0 để tắt dọn tự động; giảm thời gian
+                      giữ có thể làm dữ liệu cũ bị xóa ở đợt dọn tiếp theo.
+                    </p>
+                  </header>
+                  {retentionError ? <InlineAlert tone="danger">{retentionError}</InlineAlert> : null}
+                  <div className="settings-retention-groups">
+                    {RETENTION_GROUPS.map((group, groupIndex) => (
+                      <section
+                        key={group.title}
+                        id={groupIndex === 0 ? 'setting-retention' : undefined}
+                        className="settings-group"
+                        aria-labelledby={`settings-retention-group-${groupIndex}`}
+                      >
+                        <h3 id={`settings-retention-group-${groupIndex}`} className="settings-group__title">{group.title}</h3>
+                        <div className="settings-retention">
+                          {group.keys.map((key) => {
+                            const field = RETENTION_FIELDS.find((item) => item.key === key)
+                            if (!field) return null
+                            return (
+                              <label key={field.key} className="settings-retention__row">
+                                <span>{field.label}</span>
+                                <span className="settings-retention__control">
+                                  <input
+                                    className="ds-input"
+                                    type="number"
+                                    min={0}
+                                    max={field.max}
+                                    step={1}
+                                    value={retention[field.key]}
+                                    required
+                                    onChange={(event) => setRetention((current) => ({
+                                      ...current,
+                                      [field.key]: Number(event.target.value),
+                                    }))}
+                                  />
+                                  <small>{field.hint}</small>
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                  <footer>
+                    <Button type="submit" variant="primary" loading={retentionMutation.isPending}>
+                      Lưu thời gian lưu trữ
+                    </Button>
+                  </footer>
+                </form>
+              ) : null}
             </div>
           ) : null}
         </div>

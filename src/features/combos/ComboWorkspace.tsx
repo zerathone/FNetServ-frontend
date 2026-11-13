@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Clock, Desktop, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { deleteCombo, getComboCatalog, saveCombo, type Combo } from '../../api/combo'
 import { getMachineGroups } from '../../api/machine-groups'
 import { getServices } from '../../api/services'
-import { Select, Button, ConfirmAction, Dialog, InlineAlert, PageHeader, StateView, StatusBadge } from '../../design-system/components'
+import { Select, Button, ConfirmAction, Dialog, IconButton, InlineAlert, PageHeader, StateView, StatusBadge } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import './combos.css'
@@ -72,12 +73,33 @@ export function ComboWorkspace() {
     </div>
     {comboQuery.isLoading ? <StateView title="Đang tải danh mục COMBO…" /> : comboQuery.isError ? <StateView title="Không tải được danh mục COMBO" description={(comboQuery.error as Error).message} action={<Button onClick={() => void comboQuery.refetch()}>Thử lại</Button>} /> : <>
       <section className="combo-slot-grid" aria-label="20 vị trí COMBO">
-        {slots.map(({ order, combo }) => combo ? <article className={`combo-card ${combo.status !== 1 ? 'combo-card--inactive' : ''}`} key={order}>
-          <div className="combo-card__top"><span>Vị trí {order + 1}</span><StatusBadge tone={combo.status !== 1 ? 'neutral' : combo.salableNow ? 'success' : 'warning'}>{combo.status !== 1 ? 'Ngừng bán' : combo.salableNow ? 'Đang bán' : 'Ngoài giờ'}</StatusBadge></div>
-          <strong>{combo.name}</strong><b>{formatMoney(combo.price)}</b>
-          <small>{combo.duration > 0 ? `${combo.duration} tiếng` : 'Không giới hạn thời lượng'} · {combo.machineGroups.map((group) => group.name).join(', ') || 'Chưa có nhóm máy'}</small>
-          <div className="combo-card__actions"><Button variant="ghost" className="combo-card__action combo-card__action--edit" disabled={!canEdit} onClick={() => setEditing(combo)}>Sửa</Button><Button variant="ghost" className="combo-card__action combo-card__action--delete" disabled={!canDelete} onClick={() => setDeleting(combo)}>Xóa</Button></div>
-        </article> : <button className="combo-empty-slot" key={order} disabled={!canCreate} onClick={() => setEditing(emptyCombo(order))}><span>Vị trí {order + 1}</span><strong>＋ Thêm COMBO</strong></button>)}
+        {slots.map(({ order, combo }) => {
+          if (!combo) {
+            return <button className="combo-empty-slot" key={order} disabled={!canCreate} title={canCreate ? undefined : 'Cần quyền Thêm COMBO (6011)'} onClick={() => setEditing(emptyCombo(order))}>
+              <span className="combo-empty-slot__plus" aria-hidden="true"><Plus size={20} weight="bold" /></span>
+              <strong>Thêm COMBO</strong>
+              <span>Vị trí {order + 1}</span>
+            </button>
+          }
+          const tone = combo.status !== 1 ? 'off' : combo.salableNow ? 'on' : 'wait'
+          const groups = combo.machineGroups.map((group) => group.name).join(', ')
+          return <article className={`combo-card combo-card--${tone}`} key={order}>
+            <div className="combo-card__top">
+              <span className="combo-card__slot">Vị trí {order + 1}</span>
+              <StatusBadge tone={tone === 'off' ? 'neutral' : tone === 'on' ? 'success' : 'warning'}>{tone === 'off' ? 'Ngừng bán' : tone === 'on' ? 'Đang bán' : 'Ngoài giờ'}</StatusBadge>
+            </div>
+            <strong className="combo-card__name">{combo.name}</strong>
+            <b className="combo-card__price">{formatMoney(combo.price)}</b>
+            <ul className="combo-card__meta">
+              <li><Clock size={16} aria-hidden="true" /><span>{combo.duration > 0 ? `${combo.duration} tiếng` : 'Không giới hạn thời lượng'}</span></li>
+              <li className={groups ? undefined : 'is-missing'}><Desktop size={16} aria-hidden="true" /><span title={groups || undefined}>{groups || 'Chưa có nhóm máy'}</span></li>
+            </ul>
+            <div className="combo-card__actions">
+              <IconButton className="combo-card__action combo-card__action--edit" label={canEdit ? `Sửa COMBO ${combo.name}` : 'Cần quyền Sửa COMBO (6012)'} icon={<PencilSimple size={18} weight="bold" />} disabled={!canEdit} onClick={() => setEditing(combo)} />
+              <IconButton className="combo-card__action combo-card__action--delete" label={canDelete ? `Xóa COMBO ${combo.name}` : 'Cần quyền Xóa COMBO (6013)'} icon={<Trash size={18} weight="bold" />} disabled={!canDelete} onClick={() => setDeleting(combo)} />
+            </div>
+          </article>
+        })}
       </section>
       {outsideSlots.length ? <InlineAlert tone="warning"><strong>{outsideSlots.length} COMBO ngoài 20 vị trí.</strong> Dữ liệu vẫn được hiển thị để sửa: {outsideSlots.map((item) => `${item.name} (#${item.comboId}, vị trí ${item.order})`).join('; ')}.</InlineAlert> : null}
     </>}

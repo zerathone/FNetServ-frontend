@@ -5,6 +5,15 @@
 export const MAP_DECOR_TYPES = [
   'wall_h',
   'wall_v',
+  // Tường chữ L (2 nhánh) và chữ T (3 nhánh) — hậu tố là các HƯỚNG nhánh nối ra: n=lên, e=phải, s=xuống, w=trái.
+  'wall_l_se', // ┌
+  'wall_l_sw', // ┐
+  'wall_l_ne', // └
+  'wall_l_nw', // ┘
+  'wall_t_esw', // ┬
+  'wall_t_new', // ┴
+  'wall_t_nes', // ├
+  'wall_t_nsw', // ┤
   'entrance',
   'reception',
   'bar',

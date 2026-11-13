@@ -45,6 +45,13 @@ export interface VoucherLog {
   staffName?: string
   machineName: string
   note: string
+  /** Ngày/giờ YÊU CẦU (ServeDate/ServeTime). Optional: server cũ chưa trả. */
+  serveDate?: string
+  serveTime?: string
+  /** Ghi chú người dùng (UserNote) — MFC nối vào cột Ghi chú dạng "note. (userNote)". */
+  userNote?: string
+  /** Ngày xuất hóa đơn điện tử (zVatDate), rỗng nếu chưa xuất. */
+  vatDate?: string
 }
 
 export interface VoucherDetailLog {

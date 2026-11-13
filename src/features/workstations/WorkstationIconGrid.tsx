@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { CaretDown, CaretLeft, CaretRight, GraduationCap, Money, Ticket } from '@phosphor-icons/react'
+import { CalendarCheck, CaretDown, CaretLeft, CaretRight, GraduationCap, Money } from '@phosphor-icons/react'
 import type { WorkstationRuntime } from '../../api/workstations'
 import { Button } from '../../design-system/components'
 import { MapZoomSlider } from './map/MapZoomSlider'
@@ -48,7 +48,7 @@ const activityEntry = (activity: IconActivity): LegendEntry => ({
   label: ICON_ACTIVITY_LABEL[activity],
   render: () => <ActivityChipIcon activity={activity} />,
 })
-const flagEntry = (label: string, className: string, Icon: typeof Ticket): LegendEntry => ({
+const flagEntry = (label: string, className: string, Icon: typeof CalendarCheck): LegendEntry => ({
   label,
   className,
   render: () => <Icon size={20} weight="fill" aria-hidden="true" />,
@@ -66,8 +66,8 @@ const LEGEND: readonly LegendEntry[] = [
   stateEntry('Dưới 18 tuổi (kèm icon học sinh)', { screen: 'inUse', bar: 'member', rim: 'minor' }),
   flagEntry('Dưới 18 tuổi', 'ws-machine-cell__flag--minor', GraduationCap),
   flagEntry('Còn nợ', 'ws-machine-cell__flag--money', Money),
-  flagEntry('Có đặt chỗ', 'ws-machine-cell__flag--reserved', Ticket),
-  flagEntry('Khách đặt chỗ đến trễ', 'ws-machine-cell__flag--late', Ticket),
+  flagEntry('Có đặt chỗ', 'ws-machine-cell__flag--reserved', CalendarCheck),
+  flagEntry('Khách đặt chỗ đến trễ', 'ws-machine-cell__flag--late', CalendarCheck),
   // Hoạt động phụ: cùng nhãn / icon / màu với cột Trạng thái của bảng Chi tiết.
   activityEntry('lock'),
   activityEntry('order'),

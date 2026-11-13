@@ -2,13 +2,13 @@ import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowUp,
   ArrowsLeftRight,
+  CalendarCheck,
   CurrencyCircleDollar,
   GraduationCap,
   Lock,
   Money,
   Pause,
   Receipt,
-  Ticket,
   Warning,
 } from '@phosphor-icons/react'
 import type { WorkstationRuntime } from '../../api/workstations'
@@ -122,7 +122,7 @@ const ELLIPSIS = '…'
  * cùng kiểu chữ + cùng bề rộng, tìm đuôi dài nhất còn vừa 2 dòng (tìm nhị phân). Đo lại khi ô đổi cỡ (zoom).
  * Tên đầy đủ luôn nằm ở tooltip.
  */
-function TileName({ text }: { text: string }) {
+export function TileName({ text }: { text: string }) {
   const measureRef = useRef<HTMLSpanElement>(null)
   const [shown, setShown] = useState(text)
 
@@ -180,7 +180,7 @@ export const WorkstationTile = memo(function WorkstationTile({ machine, view, se
   // Dưới 18 tuổi ưu tiên THẤP NHẤT: có huy hiệu khác thì nhường chỗ đầu (vẫn hiện, lùi sang ô kế; viền vàng + tooltip luôn báo).
   const topRight: Array<{ kind: 'money' | 'reserved' | 'late' | 'minor'; icon: ReactNode }> = []
   if (view.debt) topRight.push({ kind: 'money', icon: <Money {...CORNER_ICON} /> })
-  if (view.reservation) topRight.push({ kind: view.reservation, icon: <Ticket {...CORNER_ICON} /> })
+  if (view.reservation) topRight.push({ kind: view.reservation, icon: <CalendarCheck {...CORNER_ICON} /> })
   if (view.minor) topRight.push({ kind: 'minor', icon: <GraduationCap {...CORNER_ICON} /> })
 
   return (

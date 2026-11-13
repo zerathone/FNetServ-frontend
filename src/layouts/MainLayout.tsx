@@ -17,6 +17,9 @@ import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineBut
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
 import { NavItemBadges } from './NavItemBadges'
+import { NavSearchBox, NavSearchResults } from './NavSearch'
+import { useNavSearch } from './useNavSearch'
+import { buildNavSearchEntries, type NavSearchEntry, type NavSearchSource } from './navSearchIndex'
 import {
   Desktop, Users, CallBell, ArrowsLeftRight, TerminalWindow,
   Detective, UsersThree,
@@ -48,8 +51,10 @@ type NavigationItem = {
   devOnly?: boolean
   /** Hiện khi admin HOẶC có BẤT KỲ mã quyền nào trong danh sách (mã xem + mã xem tất cả). */
   rightAny?: number[]
-  /** Nhóm hiển thị trong sidebar (chỉ dùng cho workspace Phân tích). */
+  /** Nhóm hiển thị trong sidebar (Quản lý + Phân tích). Các mục cùng nhóm phải đứng liền nhau. */
   group?: string
+  /** Mô tả thêm chỉ để tìm kiếm khớp (không hiển thị). */
+  description?: string
 }
 
 type Workspace = {
@@ -91,18 +96,31 @@ const analysisItems: NavigationItem[] = REPORT_PAGES.map((def) => ({
   adminOnly: def.dashboard ? true : undefined,
   rightAny: def.dashboard ? undefined : reportViewCodes(def),
   group: def.group,
+  description: def.description,
 }))
 
 const GROUP_LABELS: Record<string, string> = {
   new: 'Báo cáo V2',
   legacy: 'Thống kê',
   dashboard: 'Dashboard',
+  // Vai trò Quản lý — gom theo chức năng (khoá riêng, không trùng nhóm báo cáo vì trạng thái thu gọn dùng chung).
+  'mg-customer': 'Khách hàng & tài khoản',
+  'mg-sales': 'Dịch vụ & bán hàng',
+  'mg-machine': 'Máy trạm & ứng dụng',
+  'mg-log': 'Nhật ký',
+  'mg-config': 'Cấu hình hệ thống',
 }
 
+// Hiện ở sidebar thu gọn thay cho nhãn nhóm.
 const GROUP_BADGES: Record<string, string> = {
   new: 'V2',
   legacy: 'Cũ',
   dashboard: 'DB',
+  'mg-customer': 'KH',
+  'mg-sales': 'DV',
+  'mg-machine': 'MÁY',
+  'mg-log': 'NK',
+  'mg-config': 'CH',
 }
 
 function isItemVisible(
@@ -148,33 +166,39 @@ const workspaces: readonly Workspace[] = [
     landing: '/users/legacy',
     adminOnly: true,
     items: [
-      { to: '/users/legacy', label: 'Tài khoản', shortLabel: 'HV', icon: <Users size={24} weight="duotone" /> },
-      { to: '/cards', label: 'Thẻ nạp', shortLabel: 'Thẻ', icon: <CreditCard size={24} weight="duotone" /> },
-      { to: '/anonyms', label: 'Khách vãng lai', shortLabel: 'Khách', icon: <Detective size={24} weight="duotone" /> },
-      { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <Storefront size={24} weight="duotone" /> },
-      { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" /> },
-      { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" /> },
-      { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" /> },
-      { to: '/online-booking/settings', label: 'Thiết lập đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" /> },
-      { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" /> },
-      { to: '/apps', label: 'Ứng dụng', shortLabel: 'App', icon: <AppWindow size={24} weight="duotone" /> },
-      { to: '/webblock', label: 'Khống chế Web/App', shortLabel: 'Web', icon: <ShieldWarning size={24} weight="duotone" /> },
-      { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" /> },
-      { to: '/health_monitor', label: 'Theo dõi hoạt động', shortLabel: 'Theo dõi', icon: <Heartbeat size={24} weight="duotone" /> },
-      { to: '/logs/voucher', label: 'Nhật ký giao dịch', shortLabel: 'GD', icon: <FileText size={24} weight="duotone" /> },
-      { to: '/logs/system', label: 'Nhật ký hệ thống', shortLabel: 'HT', icon: <TerminalWindow size={24} weight="duotone" /> },
-      { to: '/logs/server', label: 'Nhật ký máy chủ', shortLabel: 'SV', icon: <TerminalWindow size={24} weight="duotone" /> },
-      { to: '/logs/webhistory', label: 'Nhật ký duyệt web', shortLabel: 'Web', icon: <Globe size={24} weight="duotone" /> },
-      { to: '/settings', label: 'Cài đặt', shortLabel: 'Đặt', icon: <Gear size={24} weight="duotone" /> },
-      { to: '/notification-settings', label: 'Thiết lập thông báo', shortLabel: 'TB', icon: <BellRinging size={24} weight="duotone" /> },
-      { to: '/printers', label: 'Máy in', shortLabel: 'In', icon: <Printer size={24} weight="duotone" /> },
-      { to: '/staff-rights', label: 'Phân quyền nhân viên', shortLabel: 'Quyền', icon: <ShieldCheck size={24} weight="duotone" /> },
+      // Nhóm 1 — Khách hàng & tài khoản
+      { to: '/users/legacy', label: 'Tài khoản', shortLabel: 'HV', icon: <Users size={24} weight="duotone" />, group: 'mg-customer' },
+      { to: '/cards', label: 'Thẻ nạp', shortLabel: 'Thẻ', icon: <CreditCard size={24} weight="duotone" />, group: 'mg-customer' },
+      { to: '/anonyms', label: 'Khách vãng lai', shortLabel: 'Khách', icon: <Detective size={24} weight="duotone" />, group: 'mg-customer' },
+      { to: '/user-groups', label: 'Nhóm người dùng', shortLabel: 'Nhóm', icon: <UsersThree size={24} weight="duotone" />, group: 'mg-customer' },
+      { to: '/staff-rights', label: 'Phân quyền nhân viên', shortLabel: 'Quyền', icon: <ShieldCheck size={24} weight="duotone" />, group: 'mg-customer' },
+      // Nhóm 2 — Dịch vụ & bán hàng
+      { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <Storefront size={24} weight="duotone" />, group: 'mg-sales' },
+      { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" />, group: 'mg-sales' },
+      { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" />, group: 'mg-sales' },
+      { to: '/online-booking/settings', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" />, group: 'mg-sales' },
+      // Nhóm 3 — Máy trạm & ứng dụng
+      { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" />, group: 'mg-machine' },
+      { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" />, group: 'mg-machine' },
+      { to: '/health_monitor', label: 'Theo dõi hoạt động', shortLabel: 'Theo dõi', icon: <Heartbeat size={24} weight="duotone" />, group: 'mg-machine' },
+      { to: '/apps', label: 'Ứng dụng', shortLabel: 'App', icon: <AppWindow size={24} weight="duotone" />, group: 'mg-machine' },
+      { to: '/webblock', label: 'Khống chế Web/App', shortLabel: 'Web', icon: <ShieldWarning size={24} weight="duotone" />, group: 'mg-machine' },
+      // Nhóm 4 — Nhật ký
+      { to: '/logs/voucher', label: 'Nhật ký giao dịch', shortLabel: 'GD', icon: <FileText size={24} weight="duotone" />, group: 'mg-log' },
+      { to: '/logs/system', label: 'Nhật ký hệ thống', shortLabel: 'HT', icon: <TerminalWindow size={24} weight="duotone" />, group: 'mg-log' },
+      { to: '/logs/server', label: 'Nhật ký máy chủ', shortLabel: 'SV', icon: <TerminalWindow size={24} weight="duotone" />, group: 'mg-log' },
+      { to: '/logs/webhistory', label: 'Nhật ký duyệt web', shortLabel: 'Web', icon: <Globe size={24} weight="duotone" />, group: 'mg-log' },
+      // Nhóm 5 — Cấu hình hệ thống (các trang "Cài đặt con" nằm cả trong ô tìm kiếm: /settings?section=…)
+      { to: '/settings', label: 'Cài đặt', shortLabel: 'Đặt', icon: <Gear size={24} weight="duotone" />, group: 'mg-config' },
+      { to: '/printers', label: 'Máy in', shortLabel: 'In', icon: <Printer size={24} weight="duotone" />, group: 'mg-config' },
+      { to: '/notification-settings', label: 'Thiết lập thông báo', shortLabel: 'TB', icon: <BellRinging size={24} weight="duotone" />, group: 'mg-config' },
       {
         to: '/ui-catalog',
         label: 'Danh mục giao diện',
         shortLabel: 'UI',
         icon: <Palette size={24} weight="duotone" />,
         devOnly: true,
+        group: 'mg-config',
       },
     ],
   },
@@ -252,6 +276,30 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight))
   // Riêng trang Theo dõi hoạt động tự poll danh sách máy + phần cứng (PollSteps) -> badge ở menu không poll chồng lên.
   const pollNavData = location.pathname !== '/health_monitor'
+
+  // Tìm kiếm menu: chỉ mục gồm mọi mục user được thấy ở MỌI vai trò (+ cài đặt con), không chỉ vai trò đang mở.
+  const searchEntries = useMemo(() => {
+    const sources: NavSearchSource[] = availableWorkspaces.flatMap((item) =>
+      item.items
+        .filter((navItem) => isItemVisible(navItem, isAdmin, hasRight))
+        .map((navItem) => ({
+          workspaceId: item.id,
+          workspaceLabel: item.label,
+          to: navItem.to,
+          label: navItem.label,
+          groupLabel: navItem.group ? GROUP_LABELS[navItem.group] : undefined,
+          description: navItem.description,
+        })),
+    )
+    return buildNavSearchEntries(sources, workspaceId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
+  }, [availableWorkspaces, isAdmin, hasRight, rights, workspaceId])
+  const navSearch = useNavSearch(searchEntries)
+  const navIconByPath = useMemo(() => {
+    const map = new Map<string, ReactNode>()
+    for (const item of workspaces) for (const navItem of item.items) if (!map.has(navItem.to)) map.set(navItem.to, navItem.icon)
+    return map
+  }, [])
 
   useEffect(() => {
     // Workspace hiện tại không còn khả dụng (đăng xuất/đổi quyền): về Thu ngân.
@@ -336,6 +384,26 @@ export function MainLayout({ children }: { children: ReactNode }) {
     setWorkspaceId(nextId)
     setWorkspaceMenuOpen(false)
     navigate(getLanding(nextWorkspace, isAdmin, hasRight))
+  }
+
+  const selectSearchEntry = (entry: NavSearchEntry) => {
+    const basePath = entry.to.split('?')[0]
+    if (availableWorkspaces.some((item) => item.id === entry.workspaceId)) {
+      setWorkspaceId(entry.workspaceId as WorkspaceId)
+    }
+    // Mở lại nhóm đang thu gọn để mục đích hiện ra và được tô sáng trong sidebar.
+    const targetGroup = getWorkspace(entry.workspaceId as WorkspaceId).items.find((item) => item.to === basePath)?.group
+    if (targetGroup) {
+      setCollapsedGroups((prev) => {
+        if (!prev.has(targetGroup)) return prev
+        const next = new Set(prev)
+        next.delete(targetGroup)
+        return next
+      })
+    }
+    navigate(entry.to)
+    navSearch.clear()
+    setMobileNavOpen(false)
   }
 
   return (
@@ -502,8 +570,22 @@ export function MainLayout({ children }: { children: ReactNode }) {
           {workspaceId === 'pos' ? <ShiftIncomeWidget /> : null}
         </div>
 
+        <NavSearchBox
+          search={navSearch}
+          collapsed={sidebarCollapsed}
+          onExpand={() => setSidebarCollapsed(false)}
+          onSelect={selectSearchEntry}
+        />
+
         <nav className="workspace-nav">
-          {navigationItems.map((item, index) => {
+          {navSearch.searching && !sidebarCollapsed ? (
+            <NavSearchResults
+              search={navSearch}
+              getIcon={(entry) => navIconByPath.get(entry.to.split('?')[0])}
+              onSelect={selectSearchEntry}
+            />
+          ) : null}
+          {(navSearch.searching && !sidebarCollapsed ? [] : navigationItems).map((item, index) => {
             const prevItem = index > 0 ? navigationItems[index - 1] : null
             const showGroupHeader = item.group != null && item.group !== prevItem?.group
             const isGroupCollapsed = item.group != null && collapsedGroups.has(item.group)

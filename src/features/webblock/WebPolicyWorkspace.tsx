@@ -24,11 +24,7 @@ import {
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
-import {
-  canMutateWebBlock,
-  MASTER_SOURCE,
-  validateWebBlock,
-} from './webBlockModel'
+import { canMutateWebBlock, validateWebBlock } from './webBlockModel'
 import './webblock.css'
 
 const PAGE_SIZE = 50
@@ -80,8 +76,6 @@ export function WebPolicyWorkspace() {
   const items = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const localCount = items.filter((item) => canMutateWebBlock(item)).length
-  const masterCount = items.length - localCount
   const canAdd = hasRight(RIGHT_WEB_ADD)
   const canEdit = hasRight(RIGHT_WEB_EDIT)
   const canDelete = hasRight(RIGHT_WEB_DELETE)
@@ -263,10 +257,6 @@ export function WebPolicyWorkspace() {
         <header>
           <div>
             <strong>{new Intl.NumberFormat('vi-VN').format(total)} website</strong>
-            <span>
-              Trang này: {localCount} do quán quản lý
-              {masterCount ? ` · ${masterCount} từ nguồn trung tâm` : ''}
-            </span>
           </div>
           <div>
             <Button
@@ -319,7 +309,6 @@ export function WebPolicyWorkspace() {
                 <tr>
                   <th>Website</th>
                   <th>Trạng thái</th>
-                  <th>Nguồn</th>
                   <th>Mô tả</th>
                   <th>Thao tác</th>
                 </tr>
@@ -330,17 +319,12 @@ export function WebPolicyWorkspace() {
                   return (
                     <tr key={item.id}>
                       <td>
-                        <strong>{item.title || 'Chưa đặt tên'}</strong>
+                        {item.title ? <strong>{item.title}</strong> : null}
                         <span>{item.url}</span>
                       </td>
                       <td>
                         <StatusBadge tone={item.active ? 'danger' : 'neutral'}>
                           {item.active ? 'Đang chặn' : 'Tạm tắt'}
-                        </StatusBadge>
-                      </td>
-                      <td>
-                        <StatusBadge tone={mutable ? 'info' : 'neutral'}>
-                          {item.addedBy === MASTER_SOURCE ? 'Trung tâm' : 'Tại quán'}
                         </StatusBadge>
                       </td>
                       <td>{item.description || '—'}</td>

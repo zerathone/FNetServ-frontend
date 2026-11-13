@@ -101,9 +101,7 @@ export function ClientSystemFunctionDialog({ open, canManage, onClose }: ClientS
             disabled={!canManage || mutation.isPending}
             onChange={setBlockedIds}
           />
-        ) : null}
-        <InlineAlert tone="info">Trạng thái “Bị cấm” tương ứng giá trị 1 trong contract máy chủ.</InlineAlert>
-      </div>
+        ) : null}      </div>
     </Dialog>
   )
 }

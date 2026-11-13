@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { MAP_DECOR_TYPES } from '../src/api/workstationMapTypes.ts'
 import {
+  DECOR_DEFS,
   DEFAULT_MAP_SETTINGS,
   MAP_LIMITS,
   autoPlace,
   emptyLayout,
   isCashierMapEnabled,
+  isWallPiece,
   itemAt,
   layoutsEqual,
   minimumSize,
@@ -19,6 +22,7 @@ import {
   settingsOf,
   unplacedHosts,
   updateSettings,
+  wallPieceArms,
 } from '../src/features/workstations/map/mapModel.ts'
 import {
   EDITOR_ZOOM_DEFAULT_INDEX,
@@ -196,4 +200,29 @@ test('settings: updateSettings tra ban moi, khong sua ban cu; khong doi gi => tr
   assert.deepEqual(settingsOf(parseLayout({ cols: 3, rows: 2, items: [], settings: { cashier: { enabled: false } } })!), {
     cashier: { enabled: false },
   })
+})
+
+test('tuong chu L / chu T: moi loai co dung 2 / 3 nhanh, khong trung nhanh, parseLayout giu lai', () => {
+  const pieces = MAP_DECOR_TYPES.filter(isWallPiece)
+  assert.equal(pieces.length, 8)
+  for (const type of pieces) {
+    const arms = wallPieceArms(type)
+    assert.equal(arms.length, type.startsWith('wall_l_') ? 2 : 3, type)
+    assert.equal(new Set(arms).size, arms.length, type)
+    assert.ok(arms.every((arm) => 'nesw'.includes(arm)), type)
+  }
+  assert.deepEqual(wallPieceArms('wall_t_esw'), ['e', 's', 'w'])
+  assert.equal(isWallPiece('wall_h'), false)
+  assert.equal(isWallPiece('entrance'), false)
+
+  const layout = parseLayout({
+    v: 1, cols: 5, rows: 5,
+    items: [{ t: 'wall_l_se', c: 0, r: 0 }, { t: 'wall_t_nsw', c: 1, r: 0 }, { t: 'wall_x_nope', c: 2, r: 0 }],
+  })
+  assert.deepEqual(layout?.items.map((item) => item.t), ['wall_l_se', 'wall_t_nsw'])
+})
+
+test('DECOR_DEFS khop MAP_DECOR_TYPES (khong thieu / thua / trung loai nao)', () => {
+  const defs = DECOR_DEFS.map((def) => def.type).sort()
+  assert.deepEqual(defs, [...MAP_DECOR_TYPES].sort())
 })

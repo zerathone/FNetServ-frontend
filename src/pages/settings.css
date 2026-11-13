@@ -2,49 +2,42 @@
   min-width: 0;
 }
 
+/* Các mục cài đặt là tab Segmented nằm trên đầu trang, nội dung xếp dưới. */
 .settings-layout {
   display: grid;
-  grid-template-columns: 16rem minmax(0, 1fr);
-  gap: var(--space-5);
+  gap: var(--space-4);
   align-items: start;
 }
 
-.settings-nav {
-  position: sticky;
-  top: 5rem;
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-default);
-  box-shadow: var(--shadow-sm);
+.settings-tabs {
+  min-width: 0;
+  overflow-x: auto; /* màn hẹp: cuộn ngang trong khung tab thay vì làm vỡ trang */
 }
-
-.settings-nav button {
-  display: grid;
-  gap: var(--space-1);
-  border: 1px solid transparent;
+/* Nháy sáng cài đặt vừa được tìm kiếm menu dẫn tới (SettingsPage thêm/bỏ class này). */
+.settings-flash {
+  animation: settings-flash 2.2s ease-out;
   border-radius: var(--radius-md);
-  padding: var(--space-3);
-  color: var(--color-text-secondary);
-  background: transparent;
-  text-align: left;
 }
 
-.settings-nav button span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+@keyframes settings-flash {
+  0%, 35% {
+    outline: 2px solid var(--color-action-primary);
+    outline-offset: 4px;
+    background: color-mix(in srgb, var(--color-action-primary) 14%, transparent);
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 4px;
+    background: transparent;
+  }
 }
 
-.settings-nav button:hover {
-  background: var(--color-surface-hover);
-}
-
-.settings-nav button.is-active {
-  border-color: color-mix(in srgb, var(--color-action-primary) 22%, transparent);
-  color: var(--color-action-primary);
-  background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-surface-default));
+@media (prefers-reduced-motion: reduce) {
+  .settings-flash {
+    animation: none;
+    outline: 2px solid var(--color-action-primary);
+    outline-offset: 4px;
+  }
 }
 
 .settings-content,
@@ -104,66 +97,161 @@
   max-width: 20rem;
 }
 
-.settings-theme-grid {
+/* ---- Bố cục gọn (Thiết lập chung / Bảo mật và lưu trữ) ---- */
+.settings-section--compact {
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+}
+
+.settings-section--compact > header h2 {
+  font-size: var(--font-size-lg);
+}
+
+.settings-section--compact > header p {
+  font-size: var(--font-size-sm);
+}
+
+.settings-section--compact > footer {
+  padding-top: var(--space-3);
+}
+
+/* Lưới ô nhập: mặc định 1 cột; --2 / --3 chia đều, tự về 1 cột ở màn nhỏ. */
+.settings-grid {
+  min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start; /* nhãn + ô nhập mỗi cột bắt đầu cùng một mép; cột có gợi ý dài hơn không kéo giãn các cột khác */
+  gap: var(--space-3) var(--space-4);
+}
+
+.settings-grid--2 {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.settings-grid--3 {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.settings-span-all {
+  grid-column: 1 / -1;
+}
+
+/* Nhóm các cài đặt liên quan: tiêu đề nhỏ + nội dung; các nhóm cách nhau bằng đường kẻ mảnh. */
+.settings-group {
+  min-width: 0;
+  display: grid;
   gap: var(--space-3);
 }
 
-.settings-theme-grid button {
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-items: center;
-  gap: 0 var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3);
-  color: var(--color-text-secondary);
-  background: var(--color-surface-default);
-  text-align: left;
+.settings-group + .settings-group {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-default);
 }
 
-.settings-theme-grid button:hover,
-.settings-theme-grid button.is-active {
-  border-color: var(--color-action-primary);
+.settings-group__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
 }
 
-.settings-theme-grid button.is-active {
-  background: color-mix(in srgb, var(--color-action-primary) 7%, var(--color-surface-default));
-}
-
-.settings-theme-grid button strong,
-.settings-theme-grid button small {
-  grid-column: 2;
-}
-
-.settings-theme-grid button small {
+.settings-group__hint {
+  margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
 }
 
-.settings-theme-swatch {
-  width: 3rem;
-  height: 3rem;
-  grid-row: 1 / 3;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background:
-    linear-gradient(135deg, #14304a 0 48%, #f7f8fa 48% 100%);
+.settings-group__hint strong {
+  color: var(--color-text-secondary);
 }
 
-.settings-theme-swatch--light {
-  background: linear-gradient(135deg, #2864dc 0 48%, #ffffff 48% 100%);
+/* Kiểu làm tròn dùng Segmented: cao đúng bằng ô nhập cùng hàng để các control thẳng hàng. */
+.settings-segmented-field .ds-segmented {
+  min-height: var(--control-height-compact);
 }
 
-.settings-theme-swatch--dark {
-  background: linear-gradient(135deg, #6fa9ff 0 48%, #1b2230 48% 100%);
+/* Công tắc dạng dòng gọn (dùng khi nhóm có 1-3 công tắc). */
+.settings-toggle-list--compact label {
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-3);
 }
 
-.settings-theme-swatch--warm {
-  background: linear-gradient(135deg, #a04418 0 48%, #fff8ed 48% 100%);
+/* Hai biểu mẫu độc lập đặt cạnh nhau trong cùng một thẻ (ADMIN phần mềm | ADMIN máy trạm). */
+.settings-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
 }
 
+.settings-split > .settings-subform + .settings-subform {
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--color-border-default);
+}
+
+.settings-subform {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-subform__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+/* Lưu trữ nhật ký: các nhóm đặt cạnh nhau; mỗi dòng "nhãn … [số] đơn vị". */
+.settings-retention-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.settings-retention-groups > .settings-group + .settings-group {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-retention {
+  display: grid;
+}
+
+.settings-retention__row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.settings-retention__row:last-child {
+  border-bottom: 0;
+}
+
+.settings-retention__control {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-retention__control .ds-input {
+  width: 6.5rem;
+  text-align: right;
+}
+
+.settings-retention__control small {
+  width: 3.5rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
 .settings-toggle-list {
   display: grid;
   border: 1px solid var(--color-border-default);
@@ -226,25 +314,23 @@
   height: 1.125rem;
 }
 
-@media (max-width: 900px) {
-  .settings-layout {
+@media (max-width: 1180px) {
+  /* Hai biểu mẫu ADMIN xếp dọc khi bề rộng nội dung không đủ 2 cột. */
+  .settings-split {
     grid-template-columns: 1fr;
   }
 
-  .settings-nav {
-    position: static;
-    grid-template-columns: repeat(5, minmax(8rem, 1fr));
-    overflow-x: auto;
-  }
-
-  .settings-nav button span {
-    display: none;
+  .settings-split > .settings-subform + .settings-subform {
+    padding-top: var(--space-4);
+    padding-left: 0;
+    border-top: 1px solid var(--color-border-default);
+    border-left: 0;
   }
 }
 
 @media (max-width: 640px) {
   .settings-form-grid,
-  .settings-theme-grid {
+  .settings-retention {
     grid-template-columns: 1fr;
   }
 

@@ -18,10 +18,31 @@ export type DecorGroup = 'structure' | 'furniture' | 'game'
 
 export type DecorDef = { type: MapDecorType; label: string; group: DecorGroup }
 
+/** Tường chữ L / chữ T: kiểu `wall_<l|t>_<hướng nhánh>` (n/e/s/w). Vẽ bằng CSS như tường thẳng, không phải icon. */
+export type WallPieceType = Extract<MapDecorType, `wall_l_${string}` | `wall_t_${string}`>
+export type WallArm = 'n' | 'e' | 's' | 'w'
+
+export function isWallPiece(type: MapDecorType): type is WallPieceType {
+  return type.startsWith('wall_l_') || type.startsWith('wall_t_')
+}
+
+/** Các nhánh nối ra của mảnh tường (vd `wall_t_esw` → ['e','s','w']). */
+export function wallPieceArms(type: WallPieceType): WallArm[] {
+  return type.slice(7).split('') as WallArm[]
+}
+
 export const DECOR_DEFS: readonly DecorDef[] = [
   { type: 'wall_h', label: 'Tường ngang', group: 'structure' },
   { type: 'wall_v', label: 'Tường dọc', group: 'structure' },
   { type: 'entrance', label: 'Cửa vào', group: 'structure' },
+  { type: 'wall_l_se', label: 'Tường chữ L (nối xuống & phải)', group: 'structure' },
+  { type: 'wall_l_sw', label: 'Tường chữ L (nối xuống & trái)', group: 'structure' },
+  { type: 'wall_l_ne', label: 'Tường chữ L (nối lên & phải)', group: 'structure' },
+  { type: 'wall_l_nw', label: 'Tường chữ L (nối lên & trái)', group: 'structure' },
+  { type: 'wall_t_esw', label: 'Tường chữ T (nối trái, phải & xuống)', group: 'structure' },
+  { type: 'wall_t_new', label: 'Tường chữ T (nối trái, phải & lên)', group: 'structure' },
+  { type: 'wall_t_nes', label: 'Tường chữ T (nối lên, xuống & phải)', group: 'structure' },
+  { type: 'wall_t_nsw', label: 'Tường chữ T (nối lên, xuống & trái)', group: 'structure' },
   { type: 'reception', label: 'Quầy thu ngân', group: 'furniture' },
   { type: 'bar', label: 'Quầy bar', group: 'furniture' },
   { type: 'wc', label: 'Nhà vệ sinh', group: 'furniture' },

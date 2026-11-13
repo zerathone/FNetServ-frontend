@@ -141,7 +141,7 @@
 
 .transaction-table {
   width: 100%;
-  min-width: 64rem;
+  min-width: 78rem;
   border-collapse: collapse;
 }
 
@@ -172,6 +172,20 @@
   padding: var(--space-6) var(--space-4);
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* Cột "Giao dịch" (#id + badge) thu gọn: width 1% + nowrap => co đúng bằng nội dung, nhường chỗ cho các cột khác. */
+.transaction-table .transaction-col-id {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Cột Ghi chú: 1 dòng, cắt bằng "…" (đầy đủ ở tooltip + drawer chi tiết). */
+.transaction-table .transaction-col-note {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transaction-table td > strong,

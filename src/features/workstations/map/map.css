@@ -35,6 +35,48 @@
 .wsmap-wall--h { width: 90%; height: calc(var(--wsmap-cell) * 0.09); }
 .wsmap-wall--v { height: 90%; width: calc(var(--wsmap-cell) * 0.09); }
 
+/* Tường chữ L / chữ T: mỗi nhánh là một thanh đi từ tâm ô ra mép (cùng độ dày và độ mờ với tường thẳng).
+   Độ mờ đặt trên CẢ khối (không phải từng nhánh) để chỗ nhánh giao nhau không bị đậm hơn. */
+.wsmap-wallpiece {
+  --wsmap-wall-t: calc(var(--wsmap-cell) * 0.09);
+  position: relative;
+  display: block;
+  width: 90%;
+  height: 90%;
+  color: var(--wsmap-wall-color, var(--color-text-muted));
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.wsmap-wallpiece__arm {
+  position: absolute;
+  display: block;
+  background: currentColor;
+}
+
+.wsmap-wallpiece__arm--n,
+.wsmap-wallpiece__arm--s {
+  left: calc(50% - var(--wsmap-wall-t) / 2);
+  width: var(--wsmap-wall-t);
+  height: calc(50% + var(--wsmap-wall-t) / 2);
+}
+
+.wsmap-wallpiece__arm--e,
+.wsmap-wallpiece__arm--w {
+  top: calc(50% - var(--wsmap-wall-t) / 2);
+  height: var(--wsmap-wall-t);
+  width: calc(50% + var(--wsmap-wall-t) / 2);
+}
+
+.wsmap-wallpiece__arm--n { top: 0; border-radius: 999px 999px 0 0; }
+.wsmap-wallpiece__arm--s { bottom: 0; border-radius: 0 0 999px 999px; }
+.wsmap-wallpiece__arm--e { right: 0; border-radius: 0 999px 999px 0; }
+.wsmap-wallpiece__arm--w { left: 0; border-radius: 999px 0 0 999px; }
+
+/* Trong bảng chọn: đậm đủ nhìn rõ hình, theo màu chữ của nút. */
+.wsmap-palette__item .wsmap-wallpiece { opacity: 1; --wsmap-wall-color: currentColor; }
+.wsmap-palette__item:has(.wsmap-wallpiece) { padding: 0.25rem; }
+
 /* ----- chế độ thu ngân (view) ----- */
 
 .wsmap--view .wsmap__cell--pc {
@@ -131,27 +173,29 @@
   cursor: grab;
 }
 
-.wsmap-pc {
-  max-width: 92%;
-  padding: 0.15rem 0.3rem;
-  border-radius: 0.35rem;
-  background: var(--ws-ic-inuse, #5d6485);
-  color: #fff;
-  font-size: max(9px, calc(var(--wsmap-cell) * 0.26)); /* sàn 9px: ô 28px (zoom 50%) vẫn đọc được tên máy */
-  font-weight: 700;
-  line-height: 1.1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
+/* Máy trên sơ đồ ở trình chỉnh sửa (MapPcTile): hình máy TẮT + tên máy trong thân màn hình, giống ô máy ở màn thu ngân.
+   Chiều rộng theo ô; cỡ chữ theo chiều rộng (tỉ lệ 0.92rem / 5.75rem của ô gốc), sàn 8px để tên còn đọc được ở zoom nhỏ nhất. */
+.wsmap-pctile {
+  --wsmap-pc-w: calc(var(--wsmap-cell) * 0.92);
+  width: var(--wsmap-pc-w);
+  pointer-events: none; /* kéo / chọn do khung .wsmap__item xử lý */
 }
 
-.wsmap-pc--orphan {
-  background: transparent;
-  border: 1px dashed var(--color-danger);
-  color: var(--color-danger-text, var(--color-danger));
+.wsmap-pctile .ws-tile__btn {
+  cursor: inherit;
 }
 
+.wsmap-pctile .ws-tile__name {
+  font-size: max(8px, calc(var(--wsmap-pc-w) * 0.16));
+}
+
+/* Máy trên sơ đồ nhưng không còn trong danh sách máy trạm: viền đỏ nét đứt quanh hình máy. */
+.wsmap-pctile--orphan {
+  outline: 1px dashed var(--color-danger);
+  outline-offset: 1px;
+  border-radius: 0.4rem;
+  opacity: 0.85;
+}
 .wsmap__remove {
   position: absolute;
   top: -0.45rem;

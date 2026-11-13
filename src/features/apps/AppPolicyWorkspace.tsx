@@ -21,8 +21,6 @@ import {
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import {
-  APP_SOURCE_SYSTEM,
-  APP_SOURCE_USER,
   canMutateApp,
   decodeRestrictType,
   encodeRestrictType,
@@ -318,32 +316,10 @@ export function AppPolicyWorkspace() {
                 {entries.map((entry) => {
                   const restriction = decodeRestrictType(entry.restrictType)
                   return (
-                    <tr
-                      key={entry.id}
-                      className={
-                        entry.addedBy === APP_SOURCE_SYSTEM
-                          ? 'is-system-policy'
-                          : undefined
-                      }
-                    >
+                    <tr key={entry.id}>
                       <td>
                         <strong>{entry.name}</strong>
                         <span>#{entry.id}</span>
-                        <StatusBadge
-                          tone={
-                            entry.addedBy === APP_SOURCE_SYSTEM
-                              ? 'info'
-                              : entry.addedBy === APP_SOURCE_USER
-                                ? 'neutral'
-                                : 'warning'
-                          }
-                        >
-                          {entry.addedBy === APP_SOURCE_SYSTEM
-                            ? 'Nguồn CSM'
-                            : entry.addedBy === APP_SOURCE_USER
-                              ? 'Tại quán'
-                              : 'Nguồn chưa xác định'}
-                        </StatusBadge>
                       </td>
                       {activeType === 'restrict' ? (
                         <td>

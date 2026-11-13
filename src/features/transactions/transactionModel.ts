@@ -71,6 +71,27 @@ export function paymentTypeLabel(type: number) {
   }
 }
 
+/** ServicePaid = 1 (define.h SERVICE_PAID): đã thanh toán. MFC chỉ hiện ngày/giờ thanh toán khi giá trị này. */
+export const SERVICE_PAID = 1
+
+const MANUAL_NOTE_PREFIX = '[XN TAY] '
+
+/**
+ * Ghi chú hiển thị — parity cột "Ghi chú" của MFC nhật ký giao dịch (VoucherLogList.cpp):
+ * - Tiền tố kỹ thuật "[XN TAY] #<staffId> " đổi thành "[XÁC NHẬN] " (chỉ lúc hiển thị, DB giữ nguyên).
+ * - Có ghi chú người dùng thì nối "note. (userNote)"; riêng phiếu tặng giờ KM (type 16) bỏ userNote.
+ */
+export function voucherNoteText(voucher: VoucherLog) {
+  let note = voucher.note ?? ''
+  if (note.startsWith(MANUAL_NOTE_PREFIX)) {
+    const rest = note.slice(MANUAL_NOTE_PREFIX.length).replace(/^#\d+ ?/, '')
+    note = `[XÁC NHẬN] ${rest}`
+  }
+  const userNote = voucher.userNote ?? ''
+  if (userNote === '' || voucher.paymentType === 16) return note
+  return `${note}. (${userNote})`
+}
+
 export function hasServiceDetails(type: number) {
   return [
     PAYMENT_TYPES.GUEST_SERVICE,
