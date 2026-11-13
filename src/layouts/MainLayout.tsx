@@ -295,6 +295,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
   }, [availableWorkspaces, isAdmin, hasRight, rights, workspaceId])
   const navSearch = useNavSearch(searchEntries)
+  const showNavSearch = workspaceId !== 'pos'
   const navIconByPath = useMemo(() => {
     const map = new Map<string, ReactNode>()
     for (const item of workspaces) for (const navItem of item.items) if (!map.has(navItem.to)) map.set(navItem.to, navItem.icon)
@@ -383,6 +384,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
     if (!availableWorkspaces.some((item) => item.id === nextId)) return
     setWorkspaceId(nextId)
     setWorkspaceMenuOpen(false)
+    navSearch.clear() // từ khóa gõ ở vai trò này không nên còn sót khi quay lại từ vai trò khác
     navigate(getLanding(nextWorkspace, isAdmin, hasRight))
   }
 
@@ -570,22 +572,25 @@ export function MainLayout({ children }: { children: ReactNode }) {
           {workspaceId === 'pos' ? <ShiftIncomeWidget /> : null}
         </div>
 
-        <NavSearchBox
-          search={navSearch}
-          collapsed={sidebarCollapsed}
-          onExpand={() => setSidebarCollapsed(false)}
-          onSelect={selectSearchEntry}
-        />
+        {/* Thu ngân (pos) không dùng tìm kiếm chức năng — menu chỉ có vài mục, không cần; chỉ Quản lý / Phân tích mới có. */}
+        {showNavSearch ? (
+          <NavSearchBox
+            search={navSearch}
+            collapsed={sidebarCollapsed}
+            onExpand={() => setSidebarCollapsed(false)}
+            onSelect={selectSearchEntry}
+          />
+        ) : null}
 
         <nav className="workspace-nav">
-          {navSearch.searching && !sidebarCollapsed ? (
+          {showNavSearch && navSearch.searching && !sidebarCollapsed ? (
             <NavSearchResults
               search={navSearch}
               getIcon={(entry) => navIconByPath.get(entry.to.split('?')[0])}
               onSelect={selectSearchEntry}
             />
           ) : null}
-          {(navSearch.searching && !sidebarCollapsed ? [] : navigationItems).map((item, index) => {
+          {(showNavSearch && navSearch.searching && !sidebarCollapsed ? [] : navigationItems).map((item, index) => {
             const prevItem = index > 0 ? navigationItems[index - 1] : null
             const showGroupHeader = item.group != null && item.group !== prevItem?.group
             const isGroupCollapsed = item.group != null && collapsedGroups.has(item.group)

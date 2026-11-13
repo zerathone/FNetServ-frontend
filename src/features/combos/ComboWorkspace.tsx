@@ -91,7 +91,7 @@ export function ComboWorkspace() {
             <strong className="combo-card__name">{combo.name}</strong>
             <b className="combo-card__price">{formatMoney(combo.price)}</b>
             <ul className="combo-card__meta">
-              <li><Clock size={16} aria-hidden="true" /><span>{combo.duration > 0 ? `${combo.duration} tiếng` : 'Không giới hạn thời lượng'}</span></li>
+              <li><Clock size={16} aria-hidden="true" /><span>{combo.duration > 0 ? `${combo.duration} tiếng` : 'Khung giờ cố định'}</span></li>
               <li className={groups ? undefined : 'is-missing'}><Desktop size={16} aria-hidden="true" /><span title={groups || undefined}>{groups || 'Chưa có nhóm máy'}</span></li>
             </ul>
             <div className="combo-card__actions">

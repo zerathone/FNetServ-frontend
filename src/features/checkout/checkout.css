@@ -199,33 +199,66 @@
 .combo-zone-filter button { flex: 0 0 auto; padding: .5rem .9rem; border: 1px solid var(--color-border-default); border-radius: 999px; background: var(--color-surface-default); color: var(--color-text-secondary); font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
 .combo-zone-filter button:hover { border-color: var(--color-action-primary); color: var(--color-action-primary); }
 .combo-zone-filter button.is-active { border-color: var(--color-action-primary); background: var(--color-action-primary); color: var(--color-text-inverse); box-shadow: 0 0 0 2px var(--color-surface-default), 0 0 0 3px var(--color-action-primary); font-weight: 750; }
-.combo-pos__catalog { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
-.combo-product-card { position: relative; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-surface-raised); color: var(--color-text-primary); text-align: left; transition: border-color .16s ease, box-shadow .16s ease; }
-.combo-product-card.is-selected { border-color: var(--color-action-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-action-primary) 18%, transparent); }
-.combo-product-card.is-unavailable { opacity: .62; }
+.combo-pos__catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); gap: var(--space-2); }
+/* ===== Thẻ bán COMBO (ComboSalePanel) — cùng ngôn ngữ thị giác với thẻ ở Quản lý > COMBO (combos.css `.combo-card`):
+   sọc màu 4px bên trái + nền ngả nhẹ theo trạng thái (--combo-accent: xanh = đang bán, vàng = ngoài giờ bán), tên + giá nổi bật,
+   thông tin theo dòng icon. Khác thẻ thiết lập: không có nút Sửa / Xóa; CẢ THẺ là vùng bấm "Chọn" (nút thật nằm cạnh giá,
+   ::after của nó phủ kín thẻ). Trạng thái vẫn có nhãn chữ, không chỉ dựa vào màu.
+   GỌN có chủ đích: 20 COMBO phải xem được gần hết màn hình không cần cuộn (thẻ ~10rem cao, lưới tự thêm cột theo bề rộng). */
+.combo-product-card {
+  --combo-accent: var(--color-success);
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) + 4px);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--combo-accent) 9%, var(--color-surface-default)), var(--color-surface-default) 60%);
+  color: var(--color-text-primary);
+  text-align: left;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .1s ease;
+}
+.combo-product-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--combo-accent); }
+.combo-product-card--wait { --combo-accent: var(--color-warning); }
+/* Đã chọn: đổi sang màu hành động chính (sọc + viền + vòng sáng) và nút chuyển xanh "Đã chọn" — nhận ra ngay trong lưới. */
+.combo-product-card.is-selected { --combo-accent: var(--color-action-primary); border-color: var(--color-action-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-action-primary) 22%, transparent); }
+.combo-product-card.is-unavailable { opacity: .7; }
+.combo-product-card:not(.is-selected):not(.is-unavailable):hover { border-color: color-mix(in srgb, var(--combo-accent) 55%, var(--color-border-default)); box-shadow: var(--shadow-sm); }
+.combo-product-card:not(.is-selected):not(.is-unavailable):active { transform: scale(.985); }
+/* Focus bàn phím nằm ở nút "Chọn" nhưng vòng focus vẽ quanh CẢ thẻ (nút chỉ là một phần của vùng bấm). */
+.combo-product-card:has(.combo-product-card__sell:focus-visible) { outline: 2px solid var(--color-focus, var(--color-action-primary)); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .combo-product-card { transition: none; }
+  .combo-product-card:not(.is-selected):not(.is-unavailable):active { transform: none; }
+}
 
-/* Nhãn combo: nhãn phụ nhỏ, KHÔNG cạnh tranh trọng lượng với badge trạng thái bên cạnh. */
-.combo-product-card__eyebrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.combo-product-card__name { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; min-width: 0; overflow-wrap: anywhere; }
+/* Hàng 1: tên + trạng thái. Chỗ hẹp (tên dài) thì trạng thái tự xuống dòng dưới tên. Badge nằm TRÊN lớp phủ bấm để tooltip
+   giải thích trạng thái còn hiện được (bấm vào chính badge không chọn thẻ — vùng nhỏ, chấp nhận). */
+.combo-product-card__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); }
+.combo-product-card__head > span { position: relative; z-index: 1; flex: none; }
+.combo-product-card__name { flex: 1 1 6rem; min-width: 0; color: var(--color-text-primary); font-size: var(--font-size-md); font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* Khung giờ: thông tin quan trọng nhất card, nhưng vẫn theo thang chữ chuẩn (lg, không xl/900). */
-.combo-product-card__headline { display: flex; flex-direction: column; gap: var(--space-2); }
-.combo-product-card__time { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: 600; color: var(--color-text-primary); }
-.combo-product-card__time span { display: inline-flex; align-items: center; gap: 0.3rem; }
-.combo-product-card__time svg { color: var(--color-text-muted); flex: 0 0 auto; }
+/* Hàng 2: giá (không bao giờ bị cắt) + nút Chọn. Quá hẹp thì nút xuống dòng chứ không đè lên giá. */
+.combo-product-card__buy { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); }
+.combo-product-card__price { color: var(--color-action-primary); font-size: var(--font-size-lg); font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.combo-product-card__duration { display: inline-block; align-self: flex-start; padding: .2rem .55rem; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-surface-default); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 700; white-space: nowrap; }
+/* Thông tin theo dòng icon + chữ (như `.combo-card__meta`); dòng giờ dùng là quan trọng nhất nên đậm hơn, ngày áp dụng đứng cuối dòng đó. */
+.combo-product-card__meta { display: grid; gap: .2rem; align-content: start; margin: 0; padding: 0; list-style: none; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.combo-product-card__meta li { display: grid; grid-template-columns: 1rem minmax(0, 1fr); align-items: start; gap: var(--space-2); }
+.combo-product-card__meta svg { margin-top: .15rem; color: var(--color-text-muted); }
+.combo-product-card__meta li > span { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.combo-product-card__meta li.is-groups > span { -webkit-line-clamp: 2; } /* nhóm máy áp dụng quan trọng nên cho tối đa 2 dòng */
+.combo-product-card__meta li.is-key { grid-template-columns: 1rem minmax(0, auto) minmax(0, 1fr); color: var(--color-text-primary); font-weight: 650; }
+.combo-product-card__meta li.is-key > small { justify-self: end; max-width: 100%; overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.combo-product-card__meta li.is-missing { color: var(--color-warning); }
+.combo-product-card__meta li.is-missing svg { color: inherit; }
 
-.combo-product-card__zones, .combo-product-card__donates { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-sm); }
-.combo-product-card__zones > i, .combo-product-card__donates > i { display: inline-flex; align-items: center; justify-content: center; min-width: 1.1rem; height: 1.35rem; margin-top: 1px; color: var(--color-text-muted); font-style: normal; }
-.combo-product-card__zones > div { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
-.combo-product-card__zones span { padding: .15rem .5rem; border-radius: 999px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 600; }
-.combo-product-card__donates { min-height: 1.35rem; }
-
-/* Footer: giá + nút CHỌN nằm chung 1 hàng, không còn absolute-overlay đè lên giá. */
-.combo-product-card__footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
-.combo-product-card__price { min-width: 0; overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xl); font-weight: 700; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-.combo-product-card__sell { flex: 0 0 auto; min-height: var(--control-height-compact); padding: 0 1.1rem; border: 0; border-radius: var(--radius-md); background: var(--color-action-primary); color: var(--color-text-inverse); font-size: var(--font-size-sm); font-weight: 700; text-align: center; cursor: pointer; }
+/* Nút nhìn thấy được thu nhỏ (36px) nhưng vùng bấm là CẢ thẻ nhờ ::after nên không mất độ lớn mục tiêu. */
+.combo-product-card__sell { flex: none; margin-left: auto; min-height: 2.25rem; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; padding: 0 .9rem; border: 0; border-radius: var(--radius-md); background: var(--color-action-primary); color: var(--color-text-inverse); font: inherit; font-size: var(--font-size-sm); font-weight: 700; cursor: pointer; transition: background-color .15s ease; }
+.combo-product-card__sell::after { content: ""; position: absolute; inset: 0; } /* phủ kín thẻ (thẻ là position:relative; nút KHÔNG được đặt position) */
+.combo-product-card__sell:focus-visible { outline: none; } /* vòng focus vẽ ở thẻ (xem :has ở trên) */
 .combo-product-card__sell:hover:not(:disabled) { background: var(--color-action-primary-hover); }
 .combo-product-card__sell.is-selected { background: var(--color-success); opacity: 1; cursor: default; }
 .combo-product-card__sell:disabled:not(.is-selected) { opacity: .5; cursor: not-allowed; }
@@ -350,7 +383,6 @@
   }
   .combo-pos__layout.has-context { grid-template-columns: minmax(0, 1fr) 20rem; }
   .card-sale-pos__layout.has-context { grid-template-columns: minmax(0, 1fr) 20rem; }
-  .combo-pos__catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 700px) {
@@ -385,7 +417,6 @@
     width: 100%;
   }
   .combo-pos__layout.has-context { display: grid; grid-template-columns: 1fr; }
-  .combo-pos__catalog { grid-template-columns: 1fr; }
   .combo-credentials { grid-template-columns: 1fr; }
   .combo-context { position: static; max-height: none; }
   .card-sale-pos__layout.has-context { display: grid; grid-template-columns: 1fr; }

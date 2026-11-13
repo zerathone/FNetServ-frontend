@@ -739,8 +739,9 @@ button.ws-fleet__seg.is-active { box-shadow: inset 0 0 0 2px color-mix(in srgb, 
 .ws-content--table .ws-table__header {
   position: relative;
   z-index: 2; /* translateX tạo stacking context -> không nâng lên thì menu lọc của cột bị các hàng (position:absolute) đè */
-  width: max-content;
-  min-width: 100%;
+  /* KHÔNG dùng max-content: tiêu đề sẽ nở theo chữ còn dòng dữ liệu co về cột tối thiểu ⇒ lệch cột khi khung hẹp. */
+  width: 100%;
+  min-width: var(--ws-table-min-width, 100%);
 }
 
 .ws-columns {
@@ -882,7 +883,8 @@ body.ws-drag-selecting * {
 
 .ws-table__canvas {
   position: relative;
-  min-width: max-content;
+  /* Cùng giá trị với tiêu đề (.ws-content--table .ws-table__header): dòng là position:absolute nên max-content = 0. */
+  min-width: var(--ws-table-min-width, max-content);
 }
 
 /* Nút icon thay cho badge "Có gọi món" / "Đã nhận món" ở cột Tình trạng: bấm sang trang Đơn dịch vụ lọc theo máy. */

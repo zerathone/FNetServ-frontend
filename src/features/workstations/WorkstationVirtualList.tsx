@@ -103,6 +103,22 @@ export const COLUMNS: ColumnDefinition[] = [
   { id: 'winLicense', label: 'Windows', width: 'minmax(9rem, 1fr)' },
 ]
 
+/** Độ rộng tối thiểu (rem) của một cột: `minmax(9rem, 1fr)` → 9, `8.5rem` → 8.5. Dạng khác → 0. */
+function columnMinRem(width: string) {
+  const match = /^(?:minmax\(\s*)?([\d.]+)rem/.exec(width.trim())
+  return match ? Number(match[1]) : 0
+}
+
+/**
+ * Tổng độ rộng tối thiểu của bảng (cột checkbox + các cột đang hiện + khe + lề). Tiêu đề và vùng thân PHẢI dùng
+ * chung giá trị này: các dòng là `position:absolute` nên không đóng góp vào max-content của vùng thân — nếu mỗi
+ * bên tự tính thì khi khung hẹp (vd mở khung "Chờ duyệt") tiêu đề nở theo chữ còn dòng co về mức tối thiểu ⇒ lệch cột.
+ */
+function tableMinWidth(columns: ColumnDefinition[]) {
+  const rem = 1.25 + columns.reduce((sum, column) => sum + columnMinRem(column.width), 0)
+  return `calc(${rem}rem + ${columns.length * 0.375}rem + 2 * var(--space-2))`
+}
+
 const OPTIONAL_IDS = new Set(COLUMNS.filter((column) => !column.required).map((column) => column.id))
 
 export function getInitialOptionalColumns() {
@@ -254,6 +270,7 @@ export function WorkstationVirtualList({
     // Cột checkbox vừa khít ô tick (1.25rem — input[type=checkbox] ở controls.css): tên máy đã có icon nên không chừa khoảng trống rộng.
     '--ws-table-columns': `1.25rem ${visibleColumns.map((column) => column.width).join(' ')}`,
   } as CSSProperties
+  const tableStyle = { '--ws-table-min-width': tableMinWidth(visibleColumns) } as CSSProperties
   // Tìm nhị phân dòng đầu tiên còn nằm (một phần) trong khung nhìn, rồi lấy thêm OVERSCAN dòng mỗi phía.
   const findRowAt = (offset: number) => {
     let low = 0
@@ -398,7 +415,7 @@ export function WorkstationVirtualList({
   }
 
   return (
-    <div className="ws-table" role="table" aria-rowcount={machines.length + 1} onPointerDown={dragSelect.onPointerDown}>
+    <div className="ws-table" role="table" style={tableStyle} aria-rowcount={machines.length + 1} onPointerDown={dragSelect.onPointerDown}>
       <div ref={headerRef} className="ws-table__header ws-table__grid" role="row" style={gridStyle}>
         <div role="columnheader"><input type="checkbox" aria-label={allSelected ? 'Bỏ chọn tất cả máy đang hiển thị' : 'Chọn tất cả máy đang hiển thị'} checked={allSelected} onChange={onSelectAll} /></div>
         {visibleColumns.map((column) => {

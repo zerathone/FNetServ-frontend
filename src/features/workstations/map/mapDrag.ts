@@ -7,7 +7,11 @@ import type { MapDecorType } from '../../../api/workstationMapTypes.ts'
 export type MapDragPayload =
   | { kind: 'move'; c: number; r: number }
   | { kind: 'pc'; host: string }
+  /** Cả một nhóm máy: đặt liền nhau từ ô thả (xem `placeHosts`). */
+  | { kind: 'group'; hosts: string[] }
   | { kind: 'decor'; type: MapDecorType }
+  /** Nhãn chữ mới (giá trị mặc định, sửa ở bảng thuộc tính sau khi thả). */
+  | { kind: 'label' }
 
 const DRAG_MIME = 'application/x-fnet-wsmap'
 
@@ -23,7 +27,9 @@ export function readDragPayload(event: DragEvent): MapDragPayload | null {
     const data = JSON.parse(raw) as MapDragPayload
     if (data.kind === 'move' && Number.isInteger(data.c) && Number.isInteger(data.r)) return data
     if (data.kind === 'pc' && typeof data.host === 'string') return data
+    if (data.kind === 'group' && Array.isArray(data.hosts) && data.hosts.every((host) => typeof host === 'string')) return data
     if (data.kind === 'decor' && typeof data.type === 'string') return data
+    if (data.kind === 'label') return { kind: 'label' }
     return null
   } catch {
     return null

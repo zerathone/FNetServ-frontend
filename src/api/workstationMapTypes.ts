@@ -31,9 +31,34 @@ export const MAP_DECOR_TYPES = [
 
 export type MapDecorType = (typeof MAP_DECOR_TYPES)[number]
 
+/**
+ * Phông chữ của nhãn — CHỈ các phông có sẵn trên Windows và hiển thị đủ tiếng Việt. Khóa ngắn lưu trong bố cục,
+ * tên CSS thật nằm ở `LABEL_FONT_CSS` (mapModel.ts). Đồng bộ với `LabelFonts()` ở core/ws_map_layout.h.
+ */
+export const MAP_LABEL_FONTS = ['default', 'arial', 'tahoma', 'segoe', 'times', 'courier'] as const
+export type MapLabelFont = (typeof MAP_LABEL_FONTS)[number]
+
+/** Giới hạn của nhãn — khớp server (core/ws_map_layout.h: kMaxLabelChars / kLabelSizeMin / kLabelSizeMax). */
+export const MAP_LABEL_LIMITS = { maxChars: 60, sizeMin: 8, sizeMax: 48 } as const
+
 export type MapPcItem = { t: 'pc'; host: string; c: number; r: number }
 export type MapDecorItem = { t: MapDecorType; c: number; r: number }
-export type MapItem = MapPcItem | MapDecorItem
+/**
+ * Nhãn chữ tự gõ (task ws-map-label). Neo ở MỘT ô, chữ được tràn ra hai bên (không chiếm thêm ô).
+ *   - `color`: '#rrggbb'; KHÔNG có = màu chữ theo giao diện sáng/tối.
+ *   - `font`: thiếu = 'default' (phông của ứng dụng).
+ *   - `size`: cỡ chữ (px) ở mức zoom 100% của trình chỉnh sửa; co giãn theo ô khi zoom / ở màn thu ngân.
+ */
+export type MapLabelItem = {
+  t: 'label'
+  c: number
+  r: number
+  text: string
+  color?: string
+  font?: MapLabelFont
+  size?: number
+}
+export type MapItem = MapPcItem | MapDecorItem | MapLabelItem
 
 /**
  * Thiết lập của sơ đồ, gom theo NHÓM (mỗi nhóm là một object) để thêm thuộc tính mới không phải đổi cấu trúc cũ:

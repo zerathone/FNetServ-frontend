@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { MAP_DECOR_TYPES } from '../src/api/workstationMapTypes.ts'
+import { MAP_DECOR_TYPES, MAP_LABEL_LIMITS } from '../src/api/workstationMapTypes.ts'
 import {
   DECOR_DEFS,
+  DEFAULT_LABEL_TEXT,
   DEFAULT_MAP_SETTINGS,
+  finalizeLabels,
+  isLabel,
+  newLabel,
+  updateLabelAt,
   MAP_LIMITS,
   autoPlace,
   emptyLayout,
+  groupUnplaced,
   isCashierMapEnabled,
   isWallPiece,
   itemAt,
@@ -14,11 +20,14 @@ import {
   minimumSize,
   moveItem,
   parseLayout,
+  parseLayoutFile,
+  placeHosts,
   placeItem,
   placedHosts,
   removeAt,
   resizeLayout,
   resolveMapSettings,
+  serializeLayout,
   settingsOf,
   unplacedHosts,
   updateSettings,
@@ -225,4 +234,162 @@ test('tuong chu L / chu T: moi loai co dung 2 / 3 nhanh, khong trung nhanh, pars
 test('DECOR_DEFS khop MAP_DECOR_TYPES (khong thieu / thua / trung loai nao)', () => {
   const defs = DECOR_DEFS.map((def) => def.type).sort()
   assert.deepEqual(defs, [...MAP_DECOR_TYPES].sort())
+})
+
+test('xuat/nhap file: serialize -> parseLayoutFile tra lai dung bo cuc (ke ca settings), khong bo phan tu nao', () => {
+  let layout = emptyLayout(10, 6)
+  layout = placeItem(layout, { t: 'pc', host: 'MAY01', c: 0, r: 0 })
+  layout = placeItem(layout, { t: 'wall_h', c: 3, r: 2 })
+  layout = updateSettings(layout, (s) => ({ ...s, cashier: { ...s.cashier, enabled: false } }))
+  const result = parseLayoutFile(serializeLayout(layout))
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  assert.equal(result.skipped, 0)
+  assert.equal(layoutsEqual(result.layout, layout), true)
+  assert.equal(settingsOf(result.layout).cashier.enabled, false)
+})
+
+test('nhap file: khong phai JSON / sai hinh dang => loi; phan tu rac duoc dem vao skipped', () => {
+  const notJson = parseLayoutFile('khong phai json')
+  assert.equal(notJson.ok, false)
+  assert.equal(parseLayoutFile('{"a":1}').ok, false)
+  assert.equal(parseLayoutFile('null').ok, false)
+  const mixed = parseLayoutFile(
+    JSON.stringify({
+      v: 1,
+      cols: 4,
+      rows: 4,
+      items: [
+        { t: 'pc', host: 'A', c: 0, r: 0 },
+        { t: 'pc', host: 'B', c: 99, r: 0 }, // ngoai luoi
+        { t: 'khong_co', c: 1, r: 1 }, // loai la
+        'rac',
+      ],
+    }),
+  )
+  assert.equal(mixed.ok, true)
+  if (!mixed.ok) return
+  assert.equal(mixed.layout.items.length, 1)
+  assert.equal(mixed.skipped, 3)
+})
+
+
+
+test('groupUnplaced: tach theo nhom, bo may da xep, sap ten tu nhien, nhom la dung cuoi', () => {
+  let layout = emptyLayout(10, 5)
+  layout = placeItem(layout, { t: 'pc', host: 'pc-1', c: 0, r: 0 }) // da xep (khong phan biet hoa thuong)
+  const registered = [
+    { hostName: 'PC-10', machineGroupId: 2 },
+    { hostName: 'PC-1', machineGroupId: 2 },
+    { hostName: 'PC-2', machineGroupId: 2 },
+    { hostName: 'VIP-1', machineGroupId: 1 },
+    { hostName: 'X-1', machineGroupId: 9 }, // nhom khong co trong danh sach
+  ]
+  const groups = [
+    { id: 1, name: 'VIP' },
+    { id: 2, name: 'Standard' },
+    { id: 3, name: 'Rong' }, // het may => bi bo
+  ]
+  assert.deepEqual(groupUnplaced(layout, registered, groups), [
+    { id: 1, name: 'VIP', hosts: ['VIP-1'] },
+    { id: 2, name: 'Standard', hosts: ['PC-2', 'PC-10'] },
+    { id: 9, name: 'Nhóm 9', hosts: ['X-1'] },
+  ])
+})
+
+test('placeHosts: dat lien nhau tu o bat dau theo hang -> cot, bo qua o da dung va may da xep, het cho thi bao con lai', () => {
+  let layout = emptyLayout(4, 2)
+  layout = placeItem(layout, { t: 'wall_h', c: 2, r: 0 })
+  layout = placeItem(layout, { t: 'pc', host: 'B', c: 3, r: 1 })
+  const result = placeHosts(layout, ['A', 'B', 'C', 'D'], { c: 1, r: 0 })
+  // B da xep nen bo; A,C,D vao (1,0), (3,0) [bo (2,0) la tuong], (0,1)
+  assert.equal(result.placed, 3)
+  assert.equal(result.left, 0)
+  assert.deepEqual(
+    ['A', 'C', 'D'].map((host) => {
+      const item = result.layout.items.find((i) => i.t === 'pc' && i.host === host)
+      return item ? `${item.c},${item.r}` : null
+    }),
+    ['1,0', '3,0', '0,1'],
+  )
+  // het cho: bat dau o cuoi luoi, 3 may nhung chi con 1 o trong (2,1)
+  const tight = placeHosts(layout, ['E', 'F', 'G'], { c: 2, r: 1 })
+  assert.equal(tight.placed, 1)
+  assert.equal(tight.left, 2)
+  // o bat dau ngoai luoi => khong dat gi, khong sua layout
+  const outside = placeHosts(layout, ['E'], { c: 9, r: 9 })
+  assert.equal(outside.placed, 0)
+  assert.equal(outside.layout, layout)
+})
+
+// ----- nhan chu (task ws-map-label) -----
+
+test('label: newLabel mac dinh, dat / doi cho giu nguyen thuoc tinh', () => {
+  let layout = placeItem(emptyLayout(4, 2), newLabel(1, 0))
+  assert.deepEqual(itemAt(layout, 1, 0), { t: 'label', c: 1, r: 0, text: 'Nhãn', font: 'default', size: 14 })
+  layout = updateLabelAt(layout, 1, 0, { text: 'Khu VIP', color: '#DC2626', font: 'arial', size: 20 })
+  layout = moveItem(layout, { c: 1, r: 0 }, { c: 3, r: 1 })
+  assert.deepEqual(itemAt(layout, 3, 1), { t: 'label', c: 3, r: 1, text: 'Khu VIP', color: '#dc2626', font: 'arial', size: 20 })
+})
+
+test('label: updateLabelAt lam sach / kep gia tri, khong doi gi thi tra ban cu', () => {
+  const base = placeItem(placeItem(emptyLayout(3, 1), newLabel(0, 0)), { t: 'sofa', c: 1, r: 0 })
+  const next = updateLabelAt(base, 0, 0, { text: 'a\nb\tc' + 'x'.repeat(100), size: 99, font: 'comic' as never })
+  const label = itemAt(next, 0, 0)
+  assert.ok(label && isLabel(label))
+  assert.equal(label.text, ('abc' + 'x'.repeat(100)).slice(0, MAP_LABEL_LIMITS.maxChars))
+  assert.equal(label.size, MAP_LABEL_LIMITS.sizeMax)
+  assert.equal(label.font, 'default')
+  // mau sai bi bo, null = ve mau theo giao dien
+  const colored = updateLabelAt(next, 0, 0, { color: '#00ff00' })
+  assert.equal((itemAt(colored, 0, 0) as { color?: string }).color, '#00ff00')
+  assert.equal('color' in (itemAt(updateLabelAt(colored, 0, 0, { color: null }), 0, 0) ?? {}), false)
+  assert.equal('color' in (itemAt(updateLabelAt(next, 0, 0, { color: 'red' }), 0, 0) ?? {}), false)
+  // khong doi gi / o khong phai nhan / o trong => tra nguyen ban cu
+  assert.equal(updateLabelAt(next, 0, 0, { size: MAP_LABEL_LIMITS.sizeMax }), next)
+  assert.equal(updateLabelAt(base, 1, 0, { text: 'x' }), base)
+  assert.equal(updateLabelAt(base, 2, 0, { text: 'x' }), base)
+  // 60 ky tu tieng Viet (code point) giu du, khong bi cat theo UTF-16
+  const vi = updateLabelAt(base, 0, 0, { text: 'ầ'.repeat(61) })
+  assert.equal(Array.from((itemAt(vi, 0, 0) as { text: string }).text).length, MAP_LABEL_LIMITS.maxChars)
+})
+
+test('label: finalizeLabels cat khoang trang, nhan trong ve chu mac dinh; layoutsEqual thay doi thuoc tinh', () => {
+  let layout = placeItem(placeItem(emptyLayout(3, 1), newLabel(0, 0)), newLabel(1, 0))
+  layout = updateLabelAt(layout, 0, 0, { text: '  Quầy  ' })
+  layout = updateLabelAt(layout, 1, 0, { text: '   ' })
+  const final = finalizeLabels(layout)
+  assert.equal((itemAt(final, 0, 0) as { text: string }).text, 'Quầy')
+  assert.equal((itemAt(final, 1, 0) as { text: string }).text, DEFAULT_LABEL_TEXT)
+  assert.equal(finalizeLabels(final), final)
+  assert.equal(layoutsEqual(final, updateLabelAt(final, 0, 0, { color: '#123456' })), false)
+  assert.equal(layoutsEqual(final, updateLabelAt(final, 0, 0, { font: 'times' })), false)
+  assert.equal(layoutsEqual(final, final), true)
+})
+
+test('label: parseLayout / file doc phong thu, round-trip qua serializeLayout', () => {
+  const raw = {
+    v: 1,
+    cols: 4,
+    rows: 1,
+    items: [
+      { t: 'label', c: 0, r: 0, text: 'Khu VIP', color: '#ABCDEF', font: 'segoe', size: 24 },
+      { t: 'label', c: 1, r: 0, text: 'X', color: 'red', font: 'comic', size: 'big' }, // sai => mac dinh
+      { t: 'label', c: 2, r: 0, text: '   ' }, // rong => bo
+      { t: 'label', c: 3, r: 0 }, // khong co chu => bo
+    ],
+  }
+  const layout = parseLayout(raw)
+  assert.ok(layout)
+  assert.equal(layout.items.length, 2)
+  assert.deepEqual(itemAt(layout, 0, 0), { t: 'label', c: 0, r: 0, text: 'Khu VIP', color: '#abcdef', font: 'segoe', size: 24 })
+  assert.deepEqual(itemAt(layout, 1, 0), { t: 'label', c: 1, r: 0, text: 'X', font: 'default', size: 14 })
+  const file = parseLayoutFile(serializeLayout(layout))
+  assert.ok(file.ok)
+  assert.equal(layoutsEqual(file.layout, layout), true)
+  // nhan dang go do (trong) duoc chuan hoa khi xuat file
+  const typing = updateLabelAt(layout, 0, 0, { text: '' })
+  const exported = parseLayoutFile(serializeLayout(typing))
+  assert.ok(exported.ok)
+  assert.equal((itemAt(exported.layout, 0, 0) as { text: string }).text, DEFAULT_LABEL_TEXT)
 })

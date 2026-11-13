@@ -2,8 +2,9 @@ import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { X } from '@phosphor-icons/react'
 import type { MapItem, MapLayout, MapPcItem } from '../../../api/workstationMapTypes.ts'
 import { MapDecorGlyph } from './MapDecorGlyph'
+import { MapLabelText } from './MapLabelText'
 import { readDragPayload, writeDragPayload, type MapDragPayload } from './mapDrag.ts'
-import { DECOR_LABEL, cellKey, isPc } from './mapModel.ts'
+import { DECOR_LABEL, cellKey, isLabel, isPc } from './mapModel.ts'
 import './map.css'
 
 // Khung vẽ lưới sơ đồ, DÙNG CHUNG cho trình chỉnh sửa (mode 'edit': mọi ô là một đích bấm / thả) và màn hình thu ngân
@@ -49,8 +50,12 @@ export function MapCanvas({
     gridTemplateRows: `repeat(${layout.rows}, var(--wsmap-cell-h))`,
   } as CSSProperties
 
-  const renderContent = (item: MapItem) => (isPc(item) ? renderPc(item) : <MapDecorGlyph type={item.t} />)
-  const labelOf = (item: MapItem) => (isPc(item) ? item.host : DECOR_LABEL[item.t])
+  const renderContent = (item: MapItem) =>
+    isPc(item) ? renderPc(item) : isLabel(item) ? <MapLabelText item={item} /> : <MapDecorGlyph type={item.t} />
+  const labelOf = (item: MapItem) => (isPc(item) ? item.host : isLabel(item) ? `Nhãn: ${item.text}` : DECOR_LABEL[item.t])
+  // Ô chứa nhãn nổi lên trên ô bên cạnh để phần chữ tràn ra không bị nền ô khác che.
+  const cellClass = (item: MapItem | undefined) =>
+    item && isPc(item) ? ' wsmap__cell--pc' : item && isLabel(item) ? ' wsmap__cell--label' : ''
 
   if (mode === 'view') {
     return (
@@ -58,9 +63,9 @@ export function MapCanvas({
         {layout.items.map((item) => (
           <div
             key={cellKey(item.c, item.r)}
-            className={`wsmap__cell${isPc(item) ? ' wsmap__cell--pc' : ''}`}
+            className={`wsmap__cell${cellClass(item)}`}
             style={{ gridColumn: item.c + 1, gridRow: item.r + 1 }}
-            title={isPc(item) ? undefined : labelOf(item)}
+            title={isPc(item) || isLabel(item) ? undefined : labelOf(item)}
           >
             {renderContent(item)}
           </div>
@@ -77,7 +82,7 @@ export function MapCanvas({
       cells.push(
         <div
           key={cellKey(c, r)}
-          className={`wsmap__cell${isSelected ? ' is-selected' : ''}`}
+          className={`wsmap__cell${item && isLabel(item) ? ' wsmap__cell--label' : ''}${isSelected ? ' is-selected' : ''}`}
           onPointerDown={(event) => {
             if (event.button !== 0) return
             onCellPointerDown?.(c, r)

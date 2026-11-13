@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarBlank, Clock, MapPin, BowlFood } from '@phosphor-icons/react'
+import { CheckCircle, Clock, Desktop, BowlFood } from '@phosphor-icons/react'
 import {
   getComboQrStatus,
   getComboCatalog,
@@ -311,15 +311,19 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
             {visibleCatalog.map((combo) => {
               const selected = cartIds.has(combo.comboId)
               const usage = comboUsagePresentation(combo, machineGroupFilter, serverNowMs)
+              const groupNames = combo.machineGroups.map((group) => group.name).join(', ')
+              // Thẻ cùng ngôn ngữ với thẻ ở Quản lý > COMBO: sọc + nền ngả theo trạng thái (xanh = đang bán, vàng = ngoài giờ).
               return (
                 <article
-                  className={`combo-product-card${selected ? ' is-selected' : ''}${
-                    !combo.salableNow ? ' is-unavailable' : ''
-                  }`}
+                  className={`combo-product-card combo-product-card--${combo.salableNow ? 'on' : 'wait'}${
+                    selected ? ' is-selected' : ''
+                  }${!combo.salableNow ? ' is-unavailable' : ''}`}
                   key={combo.comboId}
                 >
-                  <div className="combo-product-card__eyebrow">
-                    <span className="combo-product-card__name">{combo.name}</span>
+                  {/* Bố cục GỌN (20 COMBO không phải cuộn nhiều): tên + trạng thái chung hàng (hẹp thì trạng thái tự xuống
+                      dòng), giá + nút Chọn chung hàng, 3 dòng thông tin. Không còn hàng hành động / viên loại riêng. */}
+                  <div className="combo-product-card__head">
+                    <strong className="combo-product-card__name">{combo.name}</strong>
                     <span title="Trạng thái sử dụng do máy chủ tính theo từng nhóm máy.">
                       <StatusBadge
                         tone={!combo.salableNow ? 'warning' : usage?.usableNow ? 'success' : 'info'}
@@ -328,44 +332,53 @@ export function ComboSalePanel({ pendingOpen, onTogglePending }: ComboSalePanelP
                       </StatusBadge>
                     </span>
                   </div>
-                  <div className="combo-product-card__headline">
-                    <div className="combo-product-card__time">
-                      <span><CalendarBlank size={16} weight="bold" />{formatWeekdays(combo.weekday)}</span>
-                      <span><Clock size={16} weight="bold" />{formatUsageTime(combo)}</span>
-                    </div>
-                    <b className="combo-product-card__duration">{combo.type === 2 ? formatDuration(combo.duration) : 'Giờ cố định'}</b>
-                  </div>
-                  <div className="combo-product-card__zones">
-                    <i aria-hidden="true">
-                      <MapPin size={14} weight="bold" />
-                    </i>
-                    <div>
-                      {combo.machineGroups.map((group) => (
-                        <span key={group.machineGroupId}>{group.name}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="combo-product-card__donates">
-                    <i aria-hidden="true"><BowlFood size={14} weight="bold" /></i>
-                    <span>
-                      {combo.donates.length
-                        ? combo.donates
-                            .map((item) => `${item.quantity} ${item.name}${item.unit ? ` ${item.unit}` : ''}`)
-                            .join(' · ')
-                        : combo.include || 'Không kèm dịch vụ'}
-                    </span>
-                  </div>
-                  <div className="combo-product-card__footer">
-                    <strong className="combo-product-card__price">{formatMoney(combo.price)}</strong>
+                  <div className="combo-product-card__buy">
+                    <b className="combo-product-card__price">{formatMoney(combo.price)}</b>
+                    {/* Nút thật (giữ focus bàn phím / đọc màn hình); ::after của nó phủ cả thẻ nên bấm đâu trên thẻ cũng là
+                        "Chọn" — vùng bấm lớn cho thu ngân thao tác nhanh dù nút nhìn thấy được thu nhỏ. */}
                     <button
                       type="button"
                       className={`combo-product-card__sell${selected ? ' is-selected' : ''}`}
+                      aria-label={selected ? `${combo.name} — đã chọn` : `Chọn ${combo.name}`}
                       disabled={selected || !combo.salableNow}
                       onClick={() => selectCombo(combo)}
                     >
-                      {selected ? 'Đã chọn' : 'Chọn'}
+                      {selected ? (
+                        <>
+                          <CheckCircle size={18} weight="fill" aria-hidden="true" />
+                          Đã chọn
+                        </>
+                      ) : (
+                        'Chọn'
+                      )}
                     </button>
                   </div>
+                  <ul className="combo-product-card__meta">
+                    <li className="is-key">
+                      <Clock size={16} aria-hidden="true" />
+                      <span>
+                        {/* Theo thời lượng: ghi kèm thời lượng ("3 tiếng · 08:00"); khung giờ cố định: chính khung giờ đã nói lên loại. */}
+                        {combo.type === 2
+                          ? `${formatDuration(combo.duration)} · ${formatUsageTime(combo)}`
+                          : formatUsageTime(combo)}
+                      </span>
+                      <small>{formatWeekdays(combo.weekday)}</small>
+                    </li>
+                    <li className={groupNames ? 'is-groups' : 'is-groups is-missing'}>
+                      <Desktop size={16} aria-hidden="true" />
+                      <span>{groupNames || 'Chưa có nhóm máy'}</span>
+                    </li>
+                    <li>
+                      <BowlFood size={16} aria-hidden="true" />
+                      <span>
+                        {combo.donates.length
+                          ? combo.donates
+                              .map((item) => `${item.quantity} ${item.name}${item.unit ? ` ${item.unit}` : ''}`)
+                              .join(' · ')
+                          : combo.include || 'Không kèm dịch vụ'}
+                      </span>
+                    </li>
+                  </ul>
                 </article>
               )
             })}

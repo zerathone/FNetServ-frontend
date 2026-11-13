@@ -25,6 +25,13 @@
   pointer-events: none;
 }
 
+/* Quầy thu ngân là mốc quan trọng nhất: to hơn và đậm hơn các đồ vật khác (0,5 ô / mờ 70%). */
+.wsmap-decor--reception {
+  width: calc(var(--wsmap-cell) * 0.8);
+  height: calc(var(--wsmap-cell) * 0.8);
+  color: color-mix(in srgb, var(--color-text-secondary) 92%, transparent);
+}
+
 .wsmap-wall {
   display: block;
   border-radius: 999px;
@@ -72,6 +79,88 @@
 .wsmap-wallpiece__arm--s { bottom: 0; border-radius: 0 0 999px 999px; }
 .wsmap-wallpiece__arm--e { right: 0; border-radius: 0 999px 999px 0; }
 .wsmap-wallpiece__arm--w { left: 0; border-radius: 999px 0 0 999px; }
+
+/* ----- nhãn chữ (task ws-map-label): neo giữa ô, một dòng, tràn ra hai bên ----- */
+
+.wsmap__cell--label { z-index: 1; }
+
+.wsmap-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: none;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  pointer-events: none; /* kéo / chọn do khung ô xử lý; phần chữ tràn không chặn bấm vào ô bên cạnh */
+}
+
+.wsmap-label--empty { opacity: 0.4; font-style: italic; }
+
+/* Bảng thuộc tính của nhãn đang chọn */
+.wsmap-labelprops {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.wsmap-labelprops__hint {
+  margin-left: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
+.wsmap-labelprops label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.wsmap-labelprops__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem;
+  gap: var(--space-2);
+}
+
+.wsmap-labelprops__colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.wsmap-swatch {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--wsmap-swatch, transparent);
+  cursor: pointer;
+}
+
+.wsmap-swatch.is-active {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 1px;
+}
+
+/* "Theo giao diện": vòng tròn có gạch chéo = không đặt màu riêng */
+.wsmap-swatch--auto {
+  background: linear-gradient(135deg, transparent 45%, var(--color-text-muted) 45% 55%, transparent 55%);
+}
+
+.wsmap-swatch-input {
+  width: 1.9rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
 
 /* Trong bảng chọn: đậm đủ nhìn rõ hình, theo màu chữ của nút. */
 .wsmap-palette__item .wsmap-wallpiece { opacity: 1; --wsmap-wall-color: currentColor; }
@@ -173,7 +262,7 @@
   cursor: grab;
 }
 
-/* Máy trên sơ đồ ở trình chỉnh sửa (MapPcTile): hình máy TẮT + tên máy trong thân màn hình, giống ô máy ở màn thu ngân.
+/* Máy trên sơ đồ ở trình chỉnh sửa (MapPcTile): hình máy sáng (kiểu đang dùng, không thanh màu) + tên máy trong thân màn hình.
    Chiều rộng theo ô; cỡ chữ theo chiều rộng (tỉ lệ 0.92rem / 5.75rem của ô gốc), sàn 8px để tên còn đọc được ở zoom nhỏ nhất. */
 .wsmap-pctile {
   --wsmap-pc-w: calc(var(--wsmap-cell) * 0.92);
@@ -268,6 +357,45 @@
 
 .wsmap-editor__bar input[type='number'] { width: 4.5rem; }
 
+/* Vạch dọc ngăn Số cột / Số hàng với nhóm nút xếp tự động. */
+.wsmap-editor__divider {
+  align-self: center;
+  flex: none;
+  width: 1px;
+  height: 1.5rem;
+  background: var(--color-border-strong, var(--color-border-default));
+}
+
+/* Nhóm nút "Xếp tự động theo nhóm" nằm cùng dòng với Số cột / Số hàng. */
+.wsmap-editor__arrange {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wsmap-editor__arrange > span {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Nội dung hộp thoại xác nhận xếp tự động. */
+.wsmap-confirm {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.wsmap-confirm p { margin: 0; }
+
+.wsmap-confirm ul {
+  margin: 0;
+  padding-left: var(--space-5, 1.25rem);
+}
+
+.wsmap-confirm strong { color: var(--color-text-primary); }
+
 .wsmap-editor__bar-end {
   margin-left: auto;
   display: flex;
@@ -308,6 +436,93 @@
   background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
   font-weight: 600;
 }
+
+/* Một nhóm máy chưa xếp: thanh tên nhóm (kéo / bấm để đặt cả nhóm) + các máy của nhóm bên dưới. */
+.wsmap-palette__group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.wsmap-palette__group + .wsmap-palette__group {
+  margin-top: var(--space-2);
+}
+
+.wsmap-palette__group-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.wsmap-palette__group-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.wsmap-palette__group-toggle:hover {
+  border-color: var(--color-border-default);
+  color: var(--color-text-primary);
+}
+
+.wsmap-palette__group-toggle:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 1px;
+}
+
+.wsmap-palette__group-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px dashed var(--color-border-strong, var(--color-border-default));
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: grab;
+}
+
+.wsmap-palette__group-head small {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+}
+
+.wsmap-palette__group-head:hover { border-color: var(--color-action-primary); color: var(--color-text-primary); }
+
+.wsmap-palette__group-head.is-active {
+  border-style: solid;
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 14%, var(--color-surface-default));
+  color: var(--color-text-primary);
+}
+
+.wsmap-palette__group-head svg { flex: none; }
+
+/* Hình thu nhỏ của kiểu xếp tự động (ngang / dọc / vuông) trên nút chọn kiểu. */
+.wsmap-shape {
+  display: inline-block;
+  flex: none;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+}
+.wsmap-shape[data-shape='landscape'] { width: 1.1rem; height: 0.65rem; }
+.wsmap-shape[data-shape='portrait'] { width: 0.65rem; height: 1.1rem; }
+.wsmap-shape[data-shape='square'] { width: 0.85rem; height: 0.85rem; }
 
 .wsmap-palette__item--danger.is-active {
   border-color: var(--color-danger);
