@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BellSlash, X } from '@phosphor-icons/react'
+import { BellSlash, UserCheck, X } from '@phosphor-icons/react'
 import { CHAT_QUERY_KEY, isChatUnavailable, listChatConversations } from '../../api/chat'
+import { ApiError } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
 import { useWsStatusStore } from '../../store/wsStatus'
 import { badgeText, CHAT_POLL_DISABLED_MS, CHAT_POLL_ENABLED_MS, conversationTag } from './chatModel'
@@ -12,7 +13,8 @@ import {
   CHAT_MUTE_OPTIONS,
   CHAT_TOAST_EXIT_MS,
   formatMuteUntil,
-  isMuted,
+  handlerLabel,
+  isMuteActive,
   removeLeavingEntry,
   selectToastConversations,
   syncToastEntries,
@@ -24,7 +26,34 @@ import './chat.css'
 /** setTimeout tối đa ~24,8 ngày; mốc tạm tắt chỉ vài giờ nhưng chặn cho chắc. */
 const MAX_TIMEOUT_MS = 2_000_000_000
 
-function ChatToastItem({ entry, onGone }: { entry: ChatToastEntry; onGone: (convId: string) => void }) {
+/**
+ * Nguồn toast: Server C11b hỗ trợ `filter:'awaiting'` (tin cuối là của khách — kể cả đã có người đọc). Server cũ chưa biết
+ * bộ lọc đó ⇒ `filter invalid` ⇒ rơi về `unread` (hành vi trước C11). Ghi nhớ kết quả để khỏi hỏi hai lần mỗi lượt.
+ */
+let awaitingSupported: boolean | null = null
+async function listToastConversations() {
+  if (awaitingSupported !== false) {
+    try {
+      const page = await listChatConversations({ filter: 'awaiting', limit: 30 })
+      awaitingSupported = true
+      return page
+    } catch (error) {
+      if (!(error instanceof ApiError) || !error.message.startsWith('filter invalid')) throw error
+      awaitingSupported = false
+    }
+  }
+  return listChatConversations({ filter: 'unread', limit: 30 })
+}
+
+function ChatToastItem({
+  entry,
+  selfStaffId,
+  onGone,
+}: {
+  entry: ChatToastEntry
+  selfStaffId: number | null
+  onGone: (convId: string) => void
+}) {
   const dismiss = useChatToastStore((state) => state.dismiss)
   const openChat = useChatOpenStore((state) => state.open)
   const { conversation, leaving } = entry
@@ -38,6 +67,8 @@ function ChatToastItem({ entry, onGone }: { entry: ChatToastEntry; onGone: (conv
 
   const tag = conversationTag(conversation)
   const unread = badgeText(conversation.unread)
+  // Nhân viên khác đã mở chat này (chưa trả lời) ⇒ ghi tên để thu ngân còn lại biết đã có người nhận.
+  const handler = handlerLabel(conversation, selfStaffId)
   const hide = () => dismiss(conversation.convId, conversation.lastId)
   const open = () => {
     openChat(conversation)
@@ -53,7 +84,9 @@ function ChatToastItem({ entry, onGone }: { entry: ChatToastEntry; onGone: (conv
             className="chat-toast__main"
             onClick={open}
             tabIndex={leaving ? -1 : 0}
-            aria-label={`${conversation.title}: ${conversation.unread} tin chưa đọc. Bấm để mở hội thoại`}
+            aria-label={`${conversation.title}: ${
+              conversation.unread > 0 ? `${conversation.unread} tin chưa đọc` : 'chờ phản hồi'
+            }${handler ? `, ${handler} đang xử lý` : ''}. Bấm để mở hội thoại`}
           >
             <span className="chat-toast__avatar">
               <ConversationAvatar conversation={conversation} />
@@ -69,6 +102,12 @@ function ChatToastItem({ entry, onGone }: { entry: ChatToastEntry; onGone: (conv
                 {tag ? <span className="chat-toast__tag">{tag}</span> : null}
               </span>
               <span className="chat-toast__msg">{conversation.lastText || 'Tin nhắn mới'}</span>
+              {handler ? (
+                <span className="chat-toast__handler">
+                  <UserCheck size={13} weight="bold" aria-hidden="true" />
+                  <span>{handler} đang xử lý</span>
+                </span>
+              ) : null}
             </span>
           </button>
           <button
@@ -95,14 +134,18 @@ export function ChatToastHost() {
   const token = useAuthStore((state) => state.token)
   const wsConnected = useWsStatusStore((state) => state.connected)
   const viewingConvId = useChatOpenStore((state) => state.viewingConvId)
-  const { mutedUntil, dismissed, baselined, baseline, mute, unmute, resetSession } = useChatToastStore()
-  const muted = mutedUntil !== null
+  const sessionId = useAuthStore((state) => state.sessionId)
+  const staffId = useAuthStore((state) => state.staffId)
+  const { mutedUntil, mutedSessionId, dismissed, baselined, baseline, mute, unmute, resetSession } =
+    useChatToastStore()
+  // Tạm tắt chỉ tính trong ĐÚNG phiên đăng nhập đã bấm (đổi tài khoản / đăng xuất ⇒ hết hiệu lực ngay).
+  const muted = mutedUntil !== null && sessionId !== null && mutedSessionId === sessionId
 
   // Danh sách chưa đọc. WS `chat.message`/`chat.read` invalidate CHAT_QUERY_KEY (ServerEventsProvider) nên tự làm tươi;
   // poll chỉ là dự phòng khi WS rớt. Cờ chat tắt / Server cũ ⇒ lỗi ⇒ không có toast nào.
   const query = useQuery({
     queryKey: [...CHAT_QUERY_KEY, 'conversations', 'toast-unread'],
-    queryFn: () => listChatConversations({ filter: 'unread', limit: 30 }),
+    queryFn: listToastConversations,
     enabled: Boolean(token),
     retry: false,
     staleTime: 5_000,
@@ -123,21 +166,23 @@ export function ChatToastHost() {
     if (token && items && !baselined) baseline(items)
   }, [token, items, baselined, baseline])
 
-  // Hết hạn tạm tắt ⇒ tự bật lại (kể cả khi trang vừa tải lại giữa chừng).
+  // Hết hạn tạm tắt, hoặc mốc này của phiên/tài khoản khác ⇒ dọn; còn hiệu lực ⇒ hẹn tự bật lại đúng giờ.
   useEffect(() => {
     if (mutedUntil === null) return
-    const wait = mutedUntil - Date.now()
-    if (!isMuted(mutedUntil, Date.now())) {
+    if (!isMuteActive(mutedUntil, mutedSessionId, sessionId, Date.now())) {
       unmute()
       return
     }
-    const timer = window.setTimeout(unmute, Math.min(wait, MAX_TIMEOUT_MS))
+    const timer = window.setTimeout(unmute, Math.min(mutedUntil - Date.now(), MAX_TIMEOUT_MS))
     return () => window.clearTimeout(timer)
-  }, [mutedUntil, unmute])
+  }, [mutedUntil, mutedSessionId, sessionId, unmute])
 
   const desired = useMemo(
-    () => (baselined && items ? selectToastConversations(items, { dismissed, viewingConvId, muted }) : []),
-    [baselined, items, dismissed, viewingConvId, muted],
+    () =>
+      baselined && items
+        ? selectToastConversations(items, { dismissed, viewingConvId, muted, selfStaffId: staffId })
+        : [],
+    [baselined, items, dismissed, viewingConvId, muted, staffId],
   )
 
   const [entries, setEntries] = useState<ChatToastEntry[]>([])
@@ -158,7 +203,7 @@ export function ChatToastHost() {
               key={option.label}
               type="button"
               className="chat-toast-tools__btn"
-              onClick={() => mute(option.ms)}
+              onClick={() => sessionId && mute(option.ms, sessionId)}
               title={`Tạm ẩn toast tin nhắn trong ${option.label} (badge ở nút Tin nhắn vẫn hiện)`}
             >
               <BellSlash size={15} weight="bold" aria-hidden="true" />
@@ -170,7 +215,7 @@ export function ChatToastHost() {
 
       <div className="chat-toast-list" role="log" aria-live="polite" aria-relevant="additions">
         {entries.map((entry) => (
-          <ChatToastItem key={entry.conversation.convId} entry={entry} onGone={onGone} />
+          <ChatToastItem key={entry.conversation.convId} entry={entry} selfStaffId={staffId} onGone={onGone} />
         ))}
       </div>
 

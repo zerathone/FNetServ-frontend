@@ -23,6 +23,15 @@ export type ChatConversation = {
   lastAt: number
   lastId: number
   unread: number
+  /**
+   * Hướng của TIN CUỐI: 1 = thu ngân/nhân viên đã trả lời (mọi kênh, kể cả MFC), 2 = khách là người nhắn cuối (chờ
+   * phản hồi). Server chưa có C11b ⇒ không có khoá ⇒ FE rơi về điều kiện cũ (`unread > 0`).
+   */
+  lastDir?: 1 | 2
+  /** Nhân viên ĐẦU TIÊN đọc tin khách mới nhất (chỉ có khi đã có người đọc). Không trả cho khách. */
+  readByName?: string
+  readByStaffId?: number
+  readAt?: number
 }
 
 export type ChatConversationPage = {
@@ -90,7 +99,8 @@ export type ChatSendResult = {
 
 export type ChatReactResult = { reactions: ChatReactions; changed: boolean }
 
-export type ChatConversationFilter = 'all' | 'accounts' | 'hosts' | 'unread'
+/** `awaiting` (C11b): hội thoại mà tin cuối là của khách — kể cả đã có người đọc. Server cũ ⇒ lỗi `filter invalid`. */
+export type ChatConversationFilter = 'all' | 'accounts' | 'hosts' | 'unread' | 'awaiting'
 
 export const CHAT_QUERY_KEY = ['chat'] as const
 export const CHAT_SUMMARY_QUERY_KEY = ['chat', 'summary'] as const

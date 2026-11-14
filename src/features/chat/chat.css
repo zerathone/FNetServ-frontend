@@ -1368,6 +1368,23 @@
   line-height: 1.35;
 }
 
+/* Nhân viên KHÁC đã mở chat này nhưng chưa trả lời: "<tên> đang xử lý". */
+.chat-toast__handler {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--color-success);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.chat-toast__handler > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Nút X ở cuối toast: chỉ icon, ẩn toast này (hiện lại khi có tin mới hơn). */
 .chat-toast__close {
   flex: 0 0 auto;

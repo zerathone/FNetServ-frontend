@@ -31,21 +31,58 @@ export type ChatToastEntry = {
 }
 
 /**
+ * Khách đang CHỜ phản hồi? Server có C11b (`lastDir`): tin cuối là của khách (`lastDir === 2`) — kể cả đã có người
+ * đọc; nhân viên/MFC đã trả lời (`lastDir === 1`) thì thôi, ở mọi session. Server cũ (không có `lastDir`): rơi về
+ * điều kiện cũ = còn tin chưa đọc.
+ */
+export function needsReply(conversation: Pick<ChatConversation, 'lastDir' | 'unread'>) {
+  return conversation.lastDir === undefined ? conversation.unread > 0 : conversation.lastDir === 2
+}
+
+/** Chính tôi là người đã đọc tin khách mới nhất (readAt ≥ tin cuối) — tôi đã thấy rồi nên không toast lại cho tôi. */
+function readBySelf(conversation: ChatConversation, selfStaffId: number | null) {
+  return (
+    selfStaffId !== null &&
+    selfStaffId > 0 &&
+    conversation.readByStaffId === selfStaffId &&
+    (conversation.readAt ?? 0) >= conversation.lastAt
+  )
+}
+
+/**
+ * Tên nhân viên KHÁC đang xử lý (đã mở chat, chưa trả lời) để ghi lên toast; null = chưa ai nhận.
+ * Chỉ tính khi lần đọc ≥ tin cuối: khách nhắn thêm SAU khi người đó đọc ⇒ chưa ai thấy tin mới ⇒ bỏ nhãn.
+ */
+export function handlerLabel(conversation: ChatConversation, selfStaffId: number | null): string | null {
+  const name = conversation.readByName?.trim()
+  if (!name || (conversation.readAt ?? 0) < conversation.lastAt) return null
+  return readBySelf(conversation, selfStaffId) ? null : name
+}
+
+/**
  * Hội thoại nào ĐÁNG có toast lúc này. Kết quả xếp cũ → mới (toast cũ nhất ở trên cùng), cắt còn `max` cái MỚI nhất.
- * Đang tạm tắt ⇒ rỗng.
+ * Đang tạm tắt ⇒ rỗng. `selfStaffId` = tài khoản đang đăng nhập (null = chưa biết).
  */
 export function selectToastConversations(
   items: ReadonlyArray<ChatConversation>,
-  options: { dismissed: DismissedMap; viewingConvId: string | null; muted: boolean; max?: number },
+  options: {
+    dismissed: DismissedMap
+    viewingConvId: string | null
+    muted: boolean
+    max?: number
+    selfStaffId?: number | null
+  },
 ): ChatConversation[] {
   if (options.muted) return []
   const max = options.max ?? CHAT_TOAST_MAX
+  const self = options.selfStaffId ?? null
   const shown = items
     .filter(
       (item) =>
-        item.unread > 0 &&
+        needsReply(item) &&
         item.convId !== options.viewingConvId &&
-        item.lastId > (options.dismissed[item.convId] ?? 0),
+        item.lastId > (options.dismissed[item.convId] ?? 0) &&
+        !readBySelf(item, self),
     )
     .sort((a, b) => a.lastAt - b.lastAt || a.lastId - b.lastId)
   return shown.length > max ? shown.slice(shown.length - max) : shown
@@ -100,6 +137,19 @@ export function activeEntryCount(entries: ReadonlyArray<ChatToastEntry>) {
 /** Còn tạm tắt không (`mutedUntil` = mốc ms, null = không tắt). */
 export function isMuted(mutedUntil: number | null, now: number) {
   return mutedUntil !== null && now < mutedUntil
+}
+
+/**
+ * Tạm tắt chỉ có hiệu lực trong ĐÚNG phiên đăng nhập đã bấm: còn hạn VÀ cùng `sessionId`. Đăng xuất / đăng nhập tài khoản
+ * khác (sessionId đổi hoặc null) ⇒ không còn hiệu lực, dù mốc giờ chưa hết.
+ */
+export function isMuteActive(
+  mutedUntil: number | null,
+  mutedSessionId: string | null,
+  sessionId: string | null,
+  now: number,
+) {
+  return sessionId !== null && mutedSessionId === sessionId && isMuted(mutedUntil, now)
 }
 
 /** Mốc "đến HH:mm" hiển thị ở nhãn đang tạm tắt. */

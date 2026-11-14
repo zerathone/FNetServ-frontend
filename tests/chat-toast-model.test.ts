@@ -6,7 +6,10 @@ import {
   CHAT_MUTE_OPTIONS,
   CHAT_TOAST_MAX,
   formatMuteUntil,
+  handlerLabel,
+  isMuteActive,
   isMuted,
+  needsReply,
   removeLeavingEntry,
   selectToastConversations,
   syncToastEntries,
@@ -160,6 +163,60 @@ test('mute: tuỳ chọn 15 phút + 1 tiếng; isMuted theo mốc', () => {
   assert.equal(isMuted(200, 100), true)
   assert.equal(isMuted(100, 100), false) // đúng mốc ⇒ đã hết
   assert.equal(isMuted(50, 100), false)
+})
+
+// ---- C11: server có `lastDir` (khách chờ phản hồi) + nhân viên đang xử lý ----
+
+/** Hội thoại từ server C11b: `lastDir` + (tuỳ chọn) người đã đọc. unread mặc định 0 vì người đọc đã đẩy con trỏ. */
+function awaiting(convId: string, extra: Partial<ChatConversation> = {}): ChatConversation {
+  return conv(convId, { lastDir: 2, unread: 0, lastAt: 1000, lastId: 5, ...extra })
+}
+
+test('needsReply: có lastDir ⇒ theo lastDir (đã đọc vẫn chờ); không có lastDir ⇒ theo chưa đọc (server cũ)', () => {
+  assert.equal(needsReply({ lastDir: 2, unread: 0 }), true)
+  assert.equal(needsReply({ lastDir: 1, unread: 3 }), false) // đã có người trả lời dù còn "chưa đọc"
+  assert.equal(needsReply({ unread: 2 }), true)
+  assert.equal(needsReply({ unread: 0 }), false)
+})
+
+test('select (C11): đã có người đọc (unread 0) nhưng chưa trả lời ⇒ toast VẪN hiện', () => {
+  const out = selectToastConversations([awaiting('a', { readByName: 'Lan', readByStaffId: 7, readAt: 1500 })], base)
+  assert.deepEqual(out.map((c) => c.convId), ['a'])
+})
+
+test('select (C11): đã có người trả lời (lastDir 1) ⇒ ẩn ở mọi session', () => {
+  assert.deepEqual(selectToastConversations([awaiting('a', { lastDir: 1, unread: 4 })], base), [])
+})
+
+test('select (C11): chính tôi là người đọc ⇒ không toast lại cho tôi; người khác đọc ⇒ vẫn hiện', () => {
+  const read = awaiting('a', { readByName: 'Lan', readByStaffId: 7, readAt: 1500 })
+  assert.equal(selectToastConversations([read], { ...base, selfStaffId: 7 }).length, 0)
+  assert.equal(selectToastConversations([read], { ...base, selfStaffId: 9 }).length, 1)
+  assert.equal(selectToastConversations([read], { ...base, selfStaffId: null }).length, 1)
+  assert.equal(selectToastConversations([read], { ...base, selfStaffId: 0 }).length, 1) // sysadmin: không phân biệt được
+  // khách nhắn thêm SAU lần đọc của tôi ⇒ tin mới tôi chưa thấy ⇒ toast hiện lại
+  const newer = { ...read, lastAt: 2000, lastId: 6 }
+  assert.equal(selectToastConversations([newer], { ...base, selfStaffId: 7 }).length, 1)
+})
+
+test('handlerLabel: tên người KHÁC đã đọc tin cuối; không có/quá cũ/chính mình ⇒ null', () => {
+  const read = awaiting('a', { readByName: 'Lan', readByStaffId: 7, readAt: 1500 })
+  assert.equal(handlerLabel(read, 9), 'Lan')
+  assert.equal(handlerLabel(read, null), 'Lan')
+  assert.equal(handlerLabel(read, 7), null) // chính mình
+  assert.equal(handlerLabel(awaiting('b'), 9), null) // chưa ai đọc
+  assert.equal(handlerLabel({ ...read, lastAt: 2000 }, 9), null) // khách nhắn sau lần đọc ⇒ chưa ai thấy tin mới
+  assert.equal(handlerLabel({ ...read, readByName: '  ' }, 9), null)
+  assert.equal(handlerLabel({ ...read, readAt: undefined }, 9), null)
+})
+
+test('isMuteActive: chỉ hiệu lực trong đúng phiên đăng nhập đã bấm và còn hạn', () => {
+  assert.equal(isMuteActive(200, 's1', 's1', 100), true)
+  assert.equal(isMuteActive(200, 's1', 's2', 100), false) // đổi tài khoản / phiên khác
+  assert.equal(isMuteActive(200, 's1', null, 100), false) // đã đăng xuất
+  assert.equal(isMuteActive(200, null, 's1', 100), false)
+  assert.equal(isMuteActive(100, 's1', 's1', 100), false) // hết hạn
+  assert.equal(isMuteActive(null, 's1', 's1', 100), false)
 })
 
 test('formatMuteUntil: HH:mm có đệm 0', () => {
