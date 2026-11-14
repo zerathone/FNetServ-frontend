@@ -190,6 +190,7 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           // Kênh chat Messenger (task chat-v2/C3): payload chỉ là tín hiệu nhẹ {convId,id,dir,kind} /
           // {convId,who,upToId}; danh sách + luồng + badge lấy lại qua REST. Gom debounce vì khách có thể
           // gõ liên tục. `client.message` cũ vẫn chạy song song (xem case bên dưới).
+          // Toast tin nhắn (ChatToastHost) cũng đọc từ cùng queryKey `chat` nên tự làm tươi theo lần invalidate này.
           scheduleChatInvalidate()
           break
 

@@ -382,10 +382,44 @@ const asArray = (value: unknown): Body[] => (Array.isArray(value) ? (value as Bo
 const num = (value: unknown) => (typeof value === 'number' ? value : Number(value) || 0)
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
 
-function stats(): CompletedOrderStats {
+// VITE_ORDERS_MOCK=many: thêm ~500 phiếu hoàn thành giả rải đều 24 giờ qua (mỗi phiếu 1 dòng) để đo render khung
+// "Hoàn thành" ở trang Máy trạm và phân trang đơn hoàn thành (task web-render-diet). Sinh một lần, ngày/giờ tính lúc dùng.
+const MANY_COMPLETED_COUNT = 500
+const MANY_METHODS: CompletedPaymentMethod[] = ['cash', 'qr', 'deduct', 'online', 'transfer']
+const MANY_ITEMS = [
+  { name: 'Mì tôm trứng', price: 20_000, unit: 'tô' },
+  { name: 'Nước suối', price: 10_000, unit: 'chai' },
+  { name: 'Bò húc', price: 20_000, unit: 'lon' },
+  { name: 'Cơm sườn', price: 45_000, unit: 'phần' },
+  { name: 'Bánh mì', price: 15_000, unit: 'ổ' },
+]
+let manyCompletedCache: PendingOrder[] | null = null
+function manyCompleted(): PendingOrder[] {
+  if (manyCompletedCache) return manyCompletedCache
+  manyCompletedCache = Array.from({ length: MANY_COMPLETED_COUNT }, (_, i) => {
+    const item = MANY_ITEMS[i % MANY_ITEMS.length]
+    const host = `PC-${String(1 + ((i * 7) % 400)).padStart(3, '0')}`
+    const who: Base = { userId: 1000 + ((i * 7) % 400), userName: `hoivien${1 + ((i * 7) % 400)}`, hostName: host }
+    // Phiếu i thu cách đây (i * 2,8) phút ⇒ 500 phiếu phủ ~23 giờ; i = 0 là mới nhất.
+    const line = order(20_000 + i, who, item.name, 1 + (i % 3), item.price, Math.round(i * 2.8) + 3, {
+      voucherId: 30_000 + i,
+      unit: item.unit,
+    })
+    return paid(line, MANY_METHODS[i % MANY_METHODS.length], Math.round(i * 2.8))
+  })
+  return manyCompletedCache
+}
+
+/** Phiếu hoàn thành theo chế độ mock: `many` thêm 500 phiếu giả (đứng sau các phiếu thật của phiên). */
+function completedFor(mode: string): PendingOrder[] {
+  if (mode === 'empty') return []
+  return mode === 'many' ? [...completed, ...manyCompleted()] : completed
+}
+
+function stats(mode = ''): CompletedOrderStats {
   const keys: CompletedPaymentMethod[] = ['cash', 'qr', 'deduct', 'online', 'transfer']
   const vouchers = new Map<number, { method: CompletedPaymentMethod | undefined; amount: number }>()
-  for (const l of completed) {
+  for (const l of completedFor(mode)) {
     const current = vouchers.get(l.voucherId ?? 0) ?? { method: l.paymentMethod, amount: 0 }
     current.amount += lineTotal(l)
     vouchers.set(l.voucherId ?? 0, current)
@@ -438,8 +472,8 @@ const handlers: Record<string, Handler> = {
     count: mode === 'empty' ? 0 : new Set(accepted.map((l) => l.voucherId)).size,
     amount: mode === 'empty' ? 0 : accepted.reduce((sum, l) => sum + lineTotal(l), 0),
   }),
-  'GET /orders/completed-today': (_b, _q, mode) => (mode === 'empty' ? [] : completed),
-  'GET /orders/completed/stats': (_b, _q, mode) => (mode === 'empty' ? emptyStats() : stats()),
+  'GET /orders/completed-today': (_b, _q, mode) => completedFor(mode),
+  'GET /orders/completed/stats': (_b, _q, mode) => (mode === 'empty' ? emptyStats() : stats(mode)),
   'GET /orders/pending/combo': (_b, _q, mode) => ({ windowHours: 24, items: mode === 'empty' ? [] : combos }),
   'GET /services': () => SERVICES,
 

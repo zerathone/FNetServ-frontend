@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { AppRouter } from './app/router'
 import { ToastHost } from './components/ToastHost'
+import { ChatToastHost } from './features/chat/ChatToastHost'
 import { ThemeProvider } from './design-system/theme/ThemeProvider'
 import './App.css'
 import { ServerEventsProvider } from './ws/ServerEventsProvider'
@@ -16,6 +17,7 @@ function App() {
           <BrowserRouter>
             <AppRouter />
             <ToastHost />
+            <ChatToastHost />
           </BrowserRouter>
         </ServerEventsProvider>
       </QueryClientProvider>

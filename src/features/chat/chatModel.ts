@@ -454,6 +454,15 @@ export function badgeText(count: number) {
   return count > 99 ? '99+' : String(count)
 }
 
+/**
+ * Số tin chưa đọc của CÁC HỘI THOẠI KHÁC (badge ở nút "<" khi đang mở một thread): tổng chưa đọc trừ phần của
+ * thread đang xem. Thread đang mở sẽ sớm được đánh dấu đã đọc, nhưng trừ sẵn để badge không nháy số thừa trong
+ * khoảng chờ server xác nhận.
+ */
+export function otherUnreadCount(unreadTotal: number, currentUnread: number) {
+  return Math.max(0, (unreadTotal || 0) - Math.max(0, currentUnread || 0))
+}
+
 /** Chu kỳ dự phòng khi WS rớt: server tắt chat/bản cũ thì hỏi thưa (5 phút) để biết khi admin bật cờ. */
 export const CHAT_POLL_ENABLED_MS = 60_000
 export const CHAT_POLL_DISABLED_MS = 300_000

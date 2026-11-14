@@ -16,6 +16,10 @@
 //   error     cả danh sách máy lẫn phần cứng trả lỗi — xem trạng thái lỗi + nút Thử lại
 //   hwerror   chỉ API phần cứng lỗi (danh sách máy vẫn có) — trang không báo lỗi, ô phần cứng hiện "—"
 //   slow      như 1 nhưng mỗi request trễ 3 giây
+//   many      400 máy (PC-001…PC-400, 3 nhóm máy) trộn ONLINE / AVAILABLE / DISCONNECT + vài máy nóng / lỗi cảm biến /
+//             chưa gửi phần cứng — để ĐO render (task web-render-diet: trang Máy trạm, Theo dõi hoạt động). Giống server thật:
+//             mỗi lần gọi /workstations/runtime, MỌI máy có `updatedAtMs` mới và máy ONLINE đổi `usedSeconds` (nên mọi object
+//             máy đều là tham chiếu mới sau mỗi poll). Cần bật kèm VITE_WORKSTATIONS_MOCK=1 để /machinegroup có nhóm máy.
 //
 // Danh sách máy = 6 máy mẫu của trang Đơn dịch vụ (ordersMock.ts) + 8 máy thêm ở đây, nên bật cùng
 // VITE_WORKSTATIONS_MOCK / VITE_ORDERS_MOCK không làm vỡ kịch bản bên đó. Khi bật biến này, trang Máy trạm
@@ -181,7 +185,58 @@ function specFor(mode: string, spec: HardwareSpec): HardwareSpec {
   return jittered(spec)
 }
 
+// ----- Kịch bản `many`: 400 máy sinh theo công thức (xác định, không random trừ phần jitter như server thật) -----
+const MANY_COUNT = 400
+
+type ManyMachine = {
+  hostName: string
+  status: number
+  who: { userId: number; userName: string | null; userGroupType: number }
+  index: number
+  groupId: number
+  spec: HardwareSpec | null
+}
+
+const MANY_MACHINES: ManyMachine[] = Array.from({ length: MANY_COUNT }, (_, i) => {
+  const n = i + 1
+  const status = n % 10 === 0 ? 2 : n % 4 === 0 ? 1 : 3 // DISCONNECT / AVAILABLE / ONLINE
+  const member = n % 3 !== 0
+  const who =
+    status === 3
+      ? member
+        ? { userId: 1000 + n, userName: `hoivien${n}`, userGroupType: 2 }
+        : { userId: 9000 + n, userName: null, userGroupType: 1 }
+      : { userId: 0, userName: null, userGroupType: 0 }
+  let spec: HardwareSpec | null = { cpuLoad: 20 + (n % 50), gpuLoad: 15 + ((n * 7) % 60), ramUsed: 4 + (n % 10) }
+  if (n % 61 === 0) spec = null // chưa từng gửi phần cứng
+  else if (n % 53 === 0) spec = { errors: [{ part: 'hardware', message: 'crash 0xE0434352' }] }
+  else if (n % 37 === 0) spec = { cpuTemp: 85, cpuLoad: 95, gpuTemp: 84, gpuFan: 85 }
+  else if (n % 29 === 0) spec = { gpuTemp: 76, gpuFan: 62 }
+  return {
+    hostName: `PC-${String(n).padStart(3, '0')}`,
+    status,
+    who,
+    index: n % 200,
+    groupId: 1 + (n % 3),
+    spec: status === 2 ? { ...(spec ?? {}), ageMin: 90 } : spec,
+  }
+})
+
+function manySnapshot(): WorkstationsRuntimeSnapshot {
+  return {
+    serverTimeMs: Date.now(),
+    items: MANY_MACHINES.map((m) => {
+      // station() gán updatedAtMs = Date.now() mỗi lần gọi; máy ONLINE thêm usedSeconds đổi như server thật.
+      const machine = station(m.hostName, m.status, m.who, m.index, m.groupId)
+      return machine.session
+        ? { ...machine, session: { ...machine.session, usedSeconds: (machine.session.usedSeconds ?? 0) + Math.floor(Math.random() * 60) } }
+        : machine
+    }),
+  }
+}
+
 function runtimeSnapshot(mode: string): WorkstationsRuntimeSnapshot {
+  if (mode === 'many') return manySnapshot()
   if (mode === 'empty') return { serverTimeMs: Date.now(), items: [] }
   const base = workstations()
   const known = new Set(base.items.map((m) => m.hostName))
@@ -192,8 +247,9 @@ function runtimeSnapshot(mode: string): WorkstationsRuntimeSnapshot {
 function hardwareAll(mode: string): WorkstationHardwareAllResponse {
   if (mode === 'empty' || mode === 'nodata') return { items: [] }
   const nowSec = Math.floor(Date.now() / 1000)
+  const profiles: Profile[] = mode === 'many' ? MANY_MACHINES : PROFILES
   return {
-    items: PROFILES.flatMap((p) =>
+    items: profiles.flatMap((p) =>
       p.spec ? [{ hostName: p.hostName, hardware: buildHardware(specFor(mode, p.spec), nowSec) }] : [],
     ),
   }

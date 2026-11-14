@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getBoard, type BoardResponse, type BookedSlot } from '../../api/onlineBooking'
 import { useWsStatusStore } from '../../store/wsStatus'
-import type { IconReservation } from './workstationModel'
+import { reservationMapsEqual, type IconReservation } from './workstationModel'
 
 // Icon vé trên ô máy (task ws-status-icons): xanh = có đặt chỗ sắp tới, đỏ = khách đặt chỗ đến trễ.
 // Nguồn: /onlinebook/board (cùng API trang Đặt máy online). Dữ liệu là phần BỔ SUNG: lỗi / thiếu quyền /
@@ -73,11 +73,19 @@ export function useWorkstationReservations(nowMs: number): ReadonlyMap<string, I
   const dataUpdatedAt = query.dataUpdatedAt
   const tick = Math.floor(nowMs / 10_000)
 
+  // Giữ ĐÚNG tham chiếu cũ khi Map mới cùng nội dung: Map là dependency của `getIconContext` ở trang Máy trạm,
+  // đổi tham chiếu mỗi 10 giây (tick) sẽ tính lại `view` của mọi ô máy dù chẳng có đặt chỗ nào đổi.
+  const stableRef = useRef<ReadonlyMap<string, IconReservation>>(EMPTY)
+
   return useMemo(() => {
-    if (!board) return EMPTY
-    // Quy về giờ máy chủ: cộng độ lệch (giờ server lúc trả − giờ trình duyệt lúc nhận) vào giờ trình duyệt hiện tại.
-    const serverAtFetch = Date.parse(board.serverTime)
-    const drift = Number.isNaN(serverAtFetch) ? 0 : serverAtFetch - dataUpdatedAt
-    return buildReservationMap(board, tick * 10_000 + drift)
+    let next: ReadonlyMap<string, IconReservation> = EMPTY
+    if (board) {
+      // Quy về giờ máy chủ: cộng độ lệch (giờ server lúc trả − giờ trình duyệt lúc nhận) vào giờ trình duyệt hiện tại.
+      const serverAtFetch = Date.parse(board.serverTime)
+      const drift = Number.isNaN(serverAtFetch) ? 0 : serverAtFetch - dataUpdatedAt
+      next = buildReservationMap(board, tick * 10_000 + drift)
+    }
+    if (!reservationMapsEqual(stableRef.current, next)) stableRef.current = next
+    return stableRef.current
   }, [board, dataUpdatedAt, tick])
 }

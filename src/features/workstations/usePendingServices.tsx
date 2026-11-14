@@ -804,6 +804,8 @@ export function usePendingServices({ machines, onOpenMachine, onDeposit }: Pendi
     openMenuAt,
     onContextMenu,
     onRowKeyDown,
+    // Dùng cho nút "Xem tất cả N đơn" của mục Hoàn thành (PendingServicePanel): hostName null = không lọc máy.
+    openOrders,
     qtyOverrides: actions.qtyOverrides,
     alerts,
     overlays,

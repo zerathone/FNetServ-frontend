@@ -1338,11 +1338,16 @@ export function WorkstationWorkspace() {
     setAnonymInfoOpen(true)
   }
 
-  const openInspector = (machine: WorkstationRuntime) => {
-    setInspectorHost(machine.hostName)
-    // Mở chi tiết = nhân viên đã thấy máy vừa tắt ⇒ gỡ viền đỏ.
-    acknowledgeOff(machine.hostName)
-  }
+  // useCallback: ô máy (`WorkstationTile`, memo) nhận hàm này — trang render lại mỗi giây, hàm mới mỗi lần sẽ
+  // làm cả 400 ô render lại. CHỈ được đọc `machine.hostName` (ô không vẽ lại khi trường khác của machine đổi).
+  const openInspector = useCallback(
+    (machine: WorkstationRuntime) => {
+      setInspectorHost(machine.hostName)
+      // Mở chi tiết = nhân viên đã thấy máy vừa tắt ⇒ gỡ viền đỏ.
+      acknowledgeOff(machine.hostName)
+    },
+    [acknowledgeOff],
+  )
 
   const openMessageDialog = (hostNames: string[]) => {
     setMessageTargets(hostNames)
@@ -1391,14 +1396,15 @@ export function WorkstationWorkspace() {
     setPendingCommand(kind)
   }
 
-  const toggleMachine = (hostName: string) => {
+  // useCallback (deps []): xem ghi chú ở openInspector — giữ `memo` của ô máy có tác dụng.
+  const toggleMachine = useCallback((hostName: string) => {
     setSelected((current) => {
       const next = new Set(current)
       if (next.has(hostName)) next.delete(hostName)
       else next.add(hostName)
       return next
     })
-  }
+  }, [])
 
   const toggleAllVisible = () => {
     setSelected((current) => {

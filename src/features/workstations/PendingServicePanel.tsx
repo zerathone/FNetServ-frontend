@@ -15,6 +15,9 @@ import { MENU_WIDTH, compactMoney, compactWait, type PendingRow } from './pendin
 import type { PendingServices } from './usePendingServices'
 import './pending-service-panel.css'
 
+/** Số dòng "Hoàn thành" tối đa vẽ trong khung (cuối ngày có thể hàng trăm đơn); phần còn lại xem ở trang Đơn dịch vụ. */
+const DONE_ROWS_LIMIT = 50
+
 export function PendingServicePanel({ pending }: { pending: PendingServices }) {
   const { rows, total, now, selectedKey, view, unpaidRows, doneRows } = pending
   // Kiểu "thẻ" thì khung này ẩn hẳn (thẻ nằm ở thanh công cụ).
@@ -107,17 +110,25 @@ export function PendingServicePanel({ pending }: { pending: PendingServices }) {
     </>
   )
 
-  const pendingBody = pending.loading ? (
-    <p className="ws-pending__empty">Đang tải…</p>
-  ) : pending.failed ? (
-    <p className="ws-pending__empty">{retryLink(pending.retry)}</p>
-  ) : rows.length === 0 ? (
-    <p className="ws-pending__empty">Không có dịch vụ nào đang chờ.</p>
-  ) : (
-    rows.map(renderRow)
-  )
+  // Chỉ dựng nội dung của tab đang mở (hàm, không phải hằng): trước đây cả hai thân đều dựng ở mọi lần render
+  // (mỗi giây vì trang Máy trạm có timer 1 giây), kể cả tab không hiển thị.
+  const renderPendingBody = () =>
+    pending.loading ? (
+      <p className="ws-pending__empty">Đang tải…</p>
+    ) : pending.failed ? (
+      <p className="ws-pending__empty">{retryLink(pending.retry)}</p>
+    ) : rows.length === 0 ? (
+      <p className="ws-pending__empty">Không có dịch vụ nào đang chờ.</p>
+    ) : (
+      rows.map(renderRow)
+    )
 
-  const approvedBody = pending.approvedLoading ? (
+  // doneRows đã sắp mới thu trước (groupCompletedOrders) ⇒ slice đầu = các đơn mới nhất. Số đếm vẫn là tổng.
+  const doneOverflow = doneRows.length > DONE_ROWS_LIMIT
+  const shownDoneRows = doneOverflow ? doneRows.slice(0, DONE_ROWS_LIMIT) : doneRows
+
+  const renderApprovedBody = () =>
+    pending.approvedLoading ? (
     <p className="ws-pending__empty">Đang tải…</p>
   ) : pending.approvedFailed ? (
     <p className="ws-pending__empty">{retryLink(pending.retryApproved)}</p>
@@ -140,7 +151,21 @@ export function PendingServicePanel({ pending }: { pending: PendingServices }) {
       {doneRows.length === 0 ? (
         <p className="ws-pending__empty is-compact">Chưa có đơn hoàn thành.</p>
       ) : (
-        doneRows.map(renderRow)
+        <>
+          {shownDoneRows.map(renderRow)}
+          {doneOverflow ? (
+            <p className="ws-pending__empty is-compact">
+              <button
+                type="button"
+                className="ws-pending__link"
+                title="Mở trang Đơn dịch vụ, danh sách đơn hoàn thành"
+                onClick={() => pending.openOrders(null, 'completed')}
+              >
+                Xem tất cả {doneRows.length} đơn
+              </button>
+            </p>
+          ) : null}
+        </>
       )}
     </>
   )
@@ -215,7 +240,7 @@ export function PendingServicePanel({ pending }: { pending: PendingServices }) {
       </div>
 
       <div className="ws-pending__list" role="list">
-        {view === 'approved' ? approvedBody : pendingBody}
+        {view === 'approved' ? renderApprovedBody() : renderPendingBody()}
       </div>
     </aside>
   )

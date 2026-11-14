@@ -4,6 +4,7 @@ import type { ChatConversation, ChatMessage } from '../src/api/chat.ts'
 import {
   applyReactionRequest,
   badgeText,
+  otherUnreadCount,
   buildTimeline,
   canReact,
   canReply,
@@ -482,4 +483,12 @@ test('describeChatError: loi validate cua server => cau chung tieng Viet, khong 
   }
   assert.equal(describeChatError('convId invalid'), 'Hội thoại không hợp lệ.') // da co cau rieng
   assert.equal(describeChatError('invalid_utf8'), 'Tin nhắn chứa ký tự không hợp lệ.')
+})
+
+test('otherUnreadCount: tổng chưa đọc trừ thread đang xem, không âm', () => {
+  assert.equal(otherUnreadCount(7, 2), 5)
+  assert.equal(otherUnreadCount(2, 2), 0)
+  assert.equal(otherUnreadCount(1, 3), 0)
+  assert.equal(otherUnreadCount(4, 0), 4)
+  assert.equal(otherUnreadCount(Number.NaN, 1), 0)
 })

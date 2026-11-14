@@ -18,6 +18,7 @@ import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
 import { NavItemBadges } from './NavItemBadges'
 import { NavSearchBox, NavSearchResults } from './NavSearch'
+import { SidebarClock } from './SidebarClock'
 import { useNavSearch } from './useNavSearch'
 import { buildNavSearchEntries, type NavSearchEntry, type NavSearchSource } from './navSearchIndex'
 import {
@@ -246,7 +247,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const themeMenuRef = useRef<HTMLDivElement>(null)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
-  const [clockNow, setClockNow] = useState(() => new Date())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
 
   const toggleGroup = (group: string) => {
@@ -310,19 +310,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMobileNavOpen(false)
   }, [location.pathname])
-
-  useEffect(() => {
-    const timer = setInterval(() => setClockNow(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const sidebarClock = useMemo(
-    () => ({
-      date: new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(clockNow),
-      time: new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(clockNow),
-    }),
-    [clockNow],
-  )
 
   useEffect(() => {
     if (!themeMenuOpen) return
@@ -510,10 +497,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
       <aside className="app-sidebar" aria-label={`Điều hướng ${workspace.label}`}>
         <div className="app-sidebar__header">
           <div className="app-sidebar__header-row">
-            <div className="app-sidebar__clock">
-              <span className="app-sidebar__clock-date">{sidebarClock.date}</span>
-              <span className="app-sidebar__clock-time">{sidebarClock.time}</span>
-            </div>
+            <SidebarClock />
             {shopName ? (
               <span className="app-sidebar__shop-name" title={shopName}>
                 {shopName}

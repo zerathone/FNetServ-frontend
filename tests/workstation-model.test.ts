@@ -13,6 +13,8 @@ import {
   getWorkstationStatus,
   groupMachines,
   hasLeftServiceDebt,
+  iconViewsEqual,
+  reservationMapsEqual,
   isComboCardLogin,
   interpolateSession,
   matchesWorkstationFilter,
@@ -225,4 +227,27 @@ test('no dich vu khi khach DA ROI: chi may san sang / ngat ket noi co co SERVICE
   assert.equal(matchesWorkstationFilter(at(WORKSTATION_STATUS.DISCONNECT), 'serviceDebt'), true)
   assert.equal(matchesWorkstationFilter(at(WORKSTATION_STATUS.AVAILABLE), 'serviceDebt', { isServiceAcceptCleared: () => true }), false)
   assert.equal(matchesWorkstationFilter(at(WORKSTATION_STATUS.ONLINE), 'serviceDebt'), false)
+})
+
+// R2 web-render-diet: memo cua WorkstationTile so `view` theo noi dung (getWorkstationIconView luon tra object moi).
+test('iconViewsEqual: view moi cung noi dung => bang; doi 1 truong hoac activities => khac', () => {
+  const m = machine()
+  const a = getWorkstationIconView(m, { reservation: 'reserved' })
+  const b = getWorkstationIconView(m, { reservation: 'reserved' })
+  assert.notEqual(a, b, 'hai lan goi tra object khac nhau (ly do can ham so sanh)')
+  assert.equal(iconViewsEqual(a, b), true)
+
+  assert.equal(iconViewsEqual(a, getWorkstationIconView(m, { reservation: 'late' })), false, 'doi dat cho')
+  assert.equal(iconViewsEqual(a, getWorkstationIconView(m)), false, 'mat dat cho')
+  assert.equal(iconViewsEqual(a, { ...a, activities: [...a.activities, 'lock'] }), false, 'them activity')
+  assert.equal(iconViewsEqual(a, { ...a, description: a.description + '!' }), false, 'doi mo ta')
+})
+
+test('reservationMapsEqual: cung size va moi cap key->gia tri', () => {
+  const x = new Map<string, 'reserved' | 'late'>([['PC-01', 'reserved'], ['PC-02', 'late']])
+  assert.equal(reservationMapsEqual(x, new Map(x)), true)
+  assert.equal(reservationMapsEqual(x, new Map([['PC-01', 'reserved']])), false, 'thieu key')
+  assert.equal(reservationMapsEqual(x, new Map([['PC-01', 'reserved'], ['PC-02', 'reserved']])), false, 'doi gia tri')
+  assert.equal(reservationMapsEqual(x, new Map([['PC-01', 'reserved'], ['PC-03', 'late']])), false, 'doi key')
+  assert.equal(reservationMapsEqual(new Map(), new Map()), true)
 })

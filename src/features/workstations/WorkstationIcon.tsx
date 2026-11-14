@@ -13,7 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import type { WorkstationRuntime } from '../../api/workstations'
 import { CallBellIcon } from './CallBellIcon'
-import type { IconActivity, WorkstationIconView } from './workstationModel'
+import { iconViewsEqual, type IconActivity, type WorkstationIconView } from './workstationModel'
 import './workstation-icons.css'
 
 // Icon máy trạm kiểu web (task ws-status-icons). Hình + màu: workstation-icons.css; cây quyết định: getWorkstationIconView.
@@ -67,6 +67,7 @@ type WorkstationTileProps = {
   machine: WorkstationRuntime
   view: WorkstationIconView
   selected: boolean
+  /** `onOpen` chỉ được dùng `machine.hostName` — ô không vẽ lại khi các trường khác của `machine` đổi (xem `tilePropsEqual`). */
   onOpen: (machine: WorkstationRuntime) => void
   onToggle: (hostName: string) => void
 }
@@ -174,7 +175,23 @@ export function TileName({ text }: { text: string }) {
   )
 }
 
-/** Một ô máy ở chế độ xem Biểu tượng. memo: snapshot đổi mỗi 30 giây nhưng chỉ vài máy đổi trạng thái. */
+/**
+ * So sánh props của ô máy. KHÔNG so `machine ===`: `/workstations/runtime` gán `updatedAtMs` mới cho MỌI máy ở mỗi
+ * lần gọi (WorkstationHandlers.cpp), nên sau mỗi poll cả 400 object `machine` đều là tham chiếu mới. Ô chỉ vẽ
+ * `machine.hostName` + `view` ⇒ so hostName và so `view` theo nội dung (`getWorkstationIconView` luôn trả object mới).
+ * Hệ quả: `machine` mà ô truyền cho `onOpen` có thể cũ hơn poll mới nhất ⇒ `onOpen` CHỈ được dùng `machine.hostName`.
+ */
+function tilePropsEqual(prev: WorkstationTileProps, next: WorkstationTileProps): boolean {
+  return (
+    prev.machine.hostName === next.machine.hostName &&
+    prev.selected === next.selected &&
+    prev.onOpen === next.onOpen &&
+    prev.onToggle === next.onToggle &&
+    iconViewsEqual(prev.view, next.view)
+  )
+}
+
+/** Một ô máy ở chế độ xem Biểu tượng. memo (so bằng `tilePropsEqual`): mỗi poll chỉ vài máy đổi `view`. */
 export const WorkstationTile = memo(function WorkstationTile({ machine, view, selected, onOpen, onToggle }: WorkstationTileProps) {
   // Huy hiệu GÓC TRÊN PHẢI xếp từ mép phải sang trái theo ưu tiên: còn nợ > đặt chỗ > dưới 18 tuổi.
   // Dưới 18 tuổi ưu tiên THẤP NHẤT: có huy hiệu khác thì nhường chỗ đầu (vẫn hiện, lùi sang ô kế; viền vàng + tooltip luôn báo).
@@ -225,4 +242,4 @@ export const WorkstationTile = memo(function WorkstationTile({ machine, view, se
       <ActivityChips activities={view.activities} />
     </div>
   )
-})
+}, tilePropsEqual)

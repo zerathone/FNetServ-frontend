@@ -46,7 +46,6 @@ import {
   describeBookingError,
   describeFailCode,
   describePerson,
-  formatCountdown,
   formatDateTime,
   formatMoney,
   formatBookingRange,
@@ -62,6 +61,7 @@ import {
   STATUS_TONE,
   type ScheduleStatusFilter,
 } from './onlineBookingModel'
+import { ApprovalCountdownBadge } from './ApprovalCountdownBadge'
 import { MachineScheduleMap } from './MachineScheduleMap'
 import { MachineScheduleTimeline } from './MachineScheduleTimeline'
 import { MoveMachineDialog } from './MoveMachineDialog'
@@ -159,13 +159,6 @@ export function OnlineBookingWorkspace() {
   const [action, setAction] = useState<PendingAction>(null)
   const [reason, setReason] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
-  const [now, setNow] = useState(() => Date.now())
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [])
-
   useEffect(() => setPage(0), [fromDate, toDate, status, pc, channel, q])
 
   useEffect(() => {
@@ -501,7 +494,6 @@ export function OnlineBookingWorkspace() {
   const needsReason = action?.type === 'reject' || action?.type === 'cancel' || action?.type === 'cancelCredit'
 
   const renderBookingCard = (booking: Booking) => {
-    const countdown = formatCountdown(booking.approvalDeadline, now)
     const waiting = booking.status === 'wait_approval'
     const range = formatBookingRange(booking.from, booking.to)
     // Icon cách trả tiền (cùng icon với ô QR / Cấn trừ trên thẻ Doanh thu).
@@ -529,9 +521,7 @@ export function OnlineBookingWorkspace() {
           <div className="order-card__meta-row">
             <span className="order-card__voucher-id">#{booking.bookCode}</span>
             {waiting ? (
-              <StatusBadge tone={countdown.expired ? 'danger' : 'warning'}>
-                {countdown.expired ? 'Đã hết hạn duyệt' : `Hết hạn sau ${countdown.label}`}
-              </StatusBadge>
+              <ApprovalCountdownBadge deadline={booking.approvalDeadline} />
             ) : (
               <StatusBadge tone={STATUS_TONE[booking.status]}>{STATUS_LABEL[booking.status]}</StatusBadge>
             )}

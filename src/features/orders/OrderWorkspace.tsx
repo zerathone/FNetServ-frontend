@@ -180,6 +180,8 @@ export function OrderWorkspace() {
         : setCustomerNameFilter(value)
   // servicePage giờ phân trang CHUNG cho danh sách đã gộp (Dịch vụ + QR + Đã duyệt-chưa thanh toán).
   const [servicePage, setServicePage] = useState(0)
+  // Trang riêng cho danh sách đơn hoàn thành (24 giờ có thể hàng trăm phiếu) — không dùng chung `servicePage`.
+  const [completedPage, setCompletedPage] = useState(0)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   // Khóa chọn riêng (acceptedUnpaidSelectKey) -- KHÔNG dùng chung `selectedKeys`/`cancelMutation` của
   // Dịch vụ: đó là `/service/cancel` (chỉ Accept=0), gọi nhầm cho Accept=1 sẽ hỏng dữ liệu (KNOWLEDGE.md §50).
@@ -394,6 +396,19 @@ export function OrderWorkspace() {
   useEffect(() => {
     if (servicePage >= serviceTotalPages) setServicePage(serviceTotalPages - 1)
   }, [servicePage, serviceTotalPages])
+
+  // Đơn hoàn thành: cùng cách phân trang với danh sách chờ. Về trang đầu khi đổi bộ lọc (kể cả `completedMethod`,
+  // mà effect của danh sách chờ không theo dõi); kẹp lại khi số trang giảm sau một lần poll.
+  const completedTotalPages = Math.max(1, Math.ceil(completedGroups.length / PAGE_SIZE))
+  const visibleCompletedGroups = completedGroups.slice(completedPage * PAGE_SIZE, (completedPage + 1) * PAGE_SIZE)
+
+  useEffect(() => {
+    setCompletedPage(0)
+  }, [hostName, customerNameFilter, voucherFilter, completedMethod, activeView])
+
+  useEffect(() => {
+    if (completedPage >= completedTotalPages) setCompletedPage(completedTotalPages - 1)
+  }, [completedPage, completedTotalPages])
 
   const selectedEntries = serviceEntries.filter((entry) => selectedKeys.has(entry.key))
   // "Chọn tất cả" của Dịch vụ chỉ gom key kiểu qr/service -- đơn đã duyệt dùng khoá/bulk action riêng
@@ -1266,9 +1281,18 @@ export function OrderWorkspace() {
               }
             />
           ) : (
-            <div className="order-list-region">
-              <div className="order-list">{completedGroups.map((group) => renderCompletedCard(group))}</div>
-            </div>
+            <>
+              <ListPagination
+                page={completedPage}
+                totalPages={completedTotalPages}
+                canNext={completedPage < completedTotalPages - 1}
+                onPrevious={() => setCompletedPage((value) => Math.max(0, value - 1))}
+                onNext={() => setCompletedPage((value) => Math.min(completedTotalPages - 1, value + 1))}
+              />
+              <div className="order-list-region">
+                <div className="order-list">{visibleCompletedGroups.map((group) => renderCompletedCard(group))}</div>
+              </div>
+            </>
           )}
         </div>
       ) : null}

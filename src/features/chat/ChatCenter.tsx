@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowsClockwise, ChatCircleDots } from '@phosphor-icons/react'
 import { CHAT_QUERY_KEY, type ChatConversation } from '../../api/chat'
 import { Button, Drawer } from '../../design-system/components'
-import { badgeText } from './chatModel'
+import { badgeText, otherUnreadCount } from './chatModel'
 import { ChatConversationList } from './ChatConversationList'
 import { ChatThread } from './ChatThread'
 import { ConversationHeading } from './ConversationIdentity'
@@ -39,6 +39,14 @@ export function ChatCenter() {
     clearRequest()
   }, [request, available, clearRequest])
 
+  // Báo cho toast tin mới biết hội thoại đang xem (đang đọc thì không toast trùng). Rời ChatCenter ⇒ gỡ.
+  const setViewing = useChatOpenStore((state) => state.setViewing)
+  const viewingConvId = open && selected ? selected.convId : null
+  useEffect(() => {
+    setViewing(viewingConvId)
+    return () => setViewing(null)
+  }, [viewingConvId, setViewing])
+
   // Cờ bị tắt khi Drawer đang mở: đóng + bỏ hội thoại đang chọn, kẻo bật lại cờ thì Drawer tự bật lên.
   useEffect(() => {
     if (!available) {
@@ -50,6 +58,9 @@ export function ChatCenter() {
   if (!available) return null
 
   const badge = badgeText(unreadTotal)
+  // Đang trong một thread: nút "<" mang số tin chưa đọc của các tài khoản KHÁC (thread đang xem đã trừ ra).
+  const otherUnread = selected ? otherUnreadCount(unreadTotal, liveSelected?.unread ?? 0) : 0
+  const otherBadge = badgeText(otherUnread)
   const close = () => {
     setOpen(false)
     setSelected(null)
@@ -83,15 +94,26 @@ export function ChatCenter() {
         onClose={close}
         headerLeading={
           selected ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="ds-icon-button"
-              icon={<ArrowLeft size={18} weight="bold" aria-hidden="true" />}
-              title="Về danh sách hội thoại"
-              aria-label="Về danh sách hội thoại"
-              onClick={() => setSelected(null)}
-            />
+            <span className="chat-back">
+              <Button
+                type="button"
+                variant="secondary"
+                className="ds-icon-button"
+                icon={<ArrowLeft size={18} weight="bold" aria-hidden="true" />}
+                title={
+                  otherUnread ? `Về danh sách hội thoại (${otherUnread} tin chưa đọc ở tài khoản khác)` : 'Về danh sách hội thoại'
+                }
+                aria-label={
+                  otherUnread ? `Về danh sách hội thoại, ${otherUnread} tin chưa đọc ở tài khoản khác` : 'Về danh sách hội thoại'
+                }
+                onClick={() => setSelected(null)}
+              />
+              {otherBadge ? (
+                <span className="chat-unread-badge chat-back__badge" aria-hidden="true">
+                  {otherBadge}
+                </span>
+              ) : null}
+            </span>
           ) : null
         }
         headerActions={

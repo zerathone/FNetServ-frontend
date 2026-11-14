@@ -158,9 +158,10 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
 }
 
 // ===== Mock dev — chỉ `npm run dev` VÀ có biến trong `.env.development.local` =====
-//   VITE_ORDERS_MOCK       trang Đơn dịch vụ (1 | empty | error | slow)
+//   VITE_ORDERS_MOCK       trang Đơn dịch vụ (1 | empty | error | slow | many = thêm ~500 phiếu hoàn thành để đo render)
 //   VITE_WORKSTATIONS_MOCK danh sách máy đang chạy /workstations/runtime (1 | empty | error | slow)
-//   VITE_HEALTH_MONITOR_MOCK trang Theo dõi hoạt động: /workstations/runtime + phần cứng (xem ./healthMonitorMock.ts)
+//   VITE_HEALTH_MONITOR_MOCK trang Theo dõi hoạt động: /workstations/runtime + phần cứng (xem ./healthMonitorMock.ts;
+//                          many = 400 máy để đo render — bật kèm VITE_WORKSTATIONS_MOCK=1 và VITE_ORDERS_MOCK=many)
 // Chi tiết + dữ liệu giả: ./ordersMock.ts. Bản build luôn là undefined nên nhánh này không bao giờ chạy.
 // Endpoint không có trong bảng mock vẫn đi ra server thật.
 function readMockFlag(raw: string | undefined): string | undefined {

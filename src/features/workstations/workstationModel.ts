@@ -307,6 +307,42 @@ export function getWorkstationIconView(
   return { screen, bar, rim, debt, minor, reservation, activities, description: parts.join(' · ') }
 }
 
+/**
+ * So sánh THEO NỘI DUNG hai `WorkstationIconView` (hàm trên luôn trả object + mảng `activities` mới nên so `===`
+ * luôn khác). Lặp trên `Object.keys` thay vì liệt kê tay: thêm trường vào kiểu sau này không bị bỏ sót im lặng.
+ * Mảng so từng phần tử; giá trị còn lại so `Object.is`.
+ */
+export function iconViewsEqual(a: WorkstationIconView, b: WorkstationIconView): boolean {
+  if (a === b) return true
+  const left = a as Record<string, unknown>
+  const right = b as Record<string, unknown>
+  const keys = Object.keys(left)
+  if (keys.length !== Object.keys(right).length) return false
+  for (const key of keys) {
+    const x = left[key]
+    const y = right[key]
+    if (Array.isArray(x) && Array.isArray(y)) {
+      if (x.length !== y.length || x.some((item, index) => !Object.is(item, y[index]))) return false
+    } else if (!Object.is(x, y)) {
+      return false
+    }
+  }
+  return true
+}
+
+/** Hai Map đặt chỗ cùng nội dung (cùng size, mọi cặp key → giá trị bằng nhau)? */
+export function reservationMapsEqual(
+  a: ReadonlyMap<string, IconReservation>,
+  b: ReadonlyMap<string, IconReservation>,
+): boolean {
+  if (a === b) return true
+  if (a.size !== b.size) return false
+  for (const [key, value] of a) {
+    if (b.get(key) !== value) return false
+  }
+  return true
+}
+
 /** Cùng điều kiện với cột Trạng thái (getWorkstationStatus / getWorkstationFlags) để hai chế độ xem không lệch nhau. */
 function getIconActivities(machine: WorkstationRuntime, context: WorkstationIconContext): IconActivity[] {
   const mask = machine.flagMask
