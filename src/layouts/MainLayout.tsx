@@ -30,7 +30,7 @@ import {
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
   CreditCard, Storefront,
   CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook, Heartbeat,
-  CalendarPlus, CalendarCheck, BellRinging,
+  CalendarPlus, CalendarCheck, BellRinging, Warehouse,
 } from '@phosphor-icons/react'
 import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
@@ -175,6 +175,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/staff-rights', label: 'Phân quyền nhân viên', shortLabel: 'Quyền', icon: <ShieldCheck size={24} weight="duotone" />, group: 'mg-customer' },
       // Nhóm 2 — Dịch vụ & bán hàng
       { to: '/services', label: 'Dịch vụ', shortLabel: 'DV', icon: <Storefront size={24} weight="duotone" />, group: 'mg-sales' },
+      { to: '/inventory', label: 'Kho & nguyên liệu', shortLabel: 'Kho', icon: <Warehouse size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/online-booking/settings', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" />, group: 'mg-sales' },

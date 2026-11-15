@@ -68,6 +68,11 @@ const ServicesPage = lazy(() =>
     default: module.ServiceCatalogWorkspace,
   })),
 )
+const InventoryPage = lazy(() =>
+  import('../features/inventory/InventoryWorkspace').then((module) => ({
+    default: module.InventoryWorkspace,
+  })),
+)
 const CombosPage = lazy(() =>
   import('../features/combos/ComboWorkspace').then((module) => ({
     default: module.ComboWorkspace,
@@ -184,6 +189,8 @@ function ProtectedRoutes() {
             <Route path="/cards" element={<CardsPage />} />
             <Route path="/anonyms" element={<AnonymsPage />} />
             <Route path="/services" element={<ServicesPage />} />
+            {/* topping-kho / T3f: kho nguyên liệu + công thức + kho thành phẩm + chốt kỳ (tab trong ?tab=). */}
+            <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/combos" element={<CombosPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/dynamic-reports" element={<DynamicReportPage />} />
