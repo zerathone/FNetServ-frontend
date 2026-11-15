@@ -18,9 +18,11 @@ import {
   orderAmount,
   qrAcceptItems,
   qrCancelItems,
+  qtyLockedReason,
   serviceCancelItems,
   serviceItems,
 } from '../src/features/orders/orderQueueModel.ts'
+import { isOverDangerWait, waitTone } from '../src/features/orders/orderWaitTime.ts'
 
 function line(partial: Partial<PendingOrder>): PendingOrder {
   return {
@@ -154,6 +156,32 @@ test('quantity is clamped to 1..99 and only standalone 0/4/5 lines are editable'
   assert.equal(canChangeQuantity(withTopping), false)
   assert.equal(canChangeQuantity(groupOrders([line({ servicePaid: 4 })])[0]), true)
   assert.equal(canChangeQuantity(groupOrders([line({ servicePaid: 5 })])[0]), true)
+})
+
+test('topping-kho R1: qtyLocked line (recipe/topping/material) cannot change quantity; null/absent keeps old rule', () => {
+  const locked = groupOrders([line({ qtyLocked: true })])[0]
+  assert.equal(canChangeQuantity(locked), false)
+  assert.equal(qtyLockedReason(locked), 'Món có topping/công thức — muốn đổi số lượng hãy đặt đơn khác')
+  assert.equal(canChangeQuantity(groupOrders([line({ qtyLocked: false })])[0]), true)
+  assert.equal(canChangeQuantity(groupOrders([line({ qtyLocked: null })])[0]), true)
+  assert.equal(qtyLockedReason(groupOrders([line({})])[0]), null)
+})
+
+test('topping-kho W1: wait tone follows configured thresholds; 0 disables a level', () => {
+  const now = Date.parse('2026-11-15T10:30:00')
+  const at = (minutesAgo: number) => now - minutesAgo * 60_000
+  assert.equal(waitTone(at(9), now), 'info')
+  assert.equal(waitTone(at(10), now), 'warning')
+  assert.equal(waitTone(at(20), now), 'danger')
+  const cfg = { warn: 15, danger: 30 }
+  assert.equal(waitTone(at(20), now, cfg), 'warning')
+  assert.equal(waitTone(at(30), now, cfg), 'danger')
+  assert.equal(waitTone(at(500), now, { warn: 0, danger: 0 }), 'info')
+  assert.equal(waitTone(at(50), now, { warn: 30, danger: 0 }), 'warning')
+  assert.equal(isOverDangerWait(at(30), now, cfg), true)
+  assert.equal(isOverDangerWait(at(29), now, cfg), false)
+  assert.equal(isOverDangerWait(at(999), now, { warn: 10, danger: 0 }), false)
+  assert.equal(isOverDangerWait(0, now), false)
 })
 
 test('cancel payload carries machine/customer/service/qty/amount for the audit log', () => {

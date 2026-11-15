@@ -273,13 +273,23 @@ export function orderAmount(order: GroupedOrder, overrides: QtyOverrides = {}) {
 
 /**
  * Parity Qt `OnOffRequestFunction`: chỉ đổi SL dòng đứng một mình — không có topping kèm, bản thân
- * không phải topping, ServicePaid 0/4/5.
+ * không phải topping, ServicePaid 0/4/5. task topping-kho R1: thêm dòng `qtyLocked` (có topping/công
+ * thức/nguyên liệu — muốn số khác thì đặt đơn khác; BE là chốt chặn thật).
  */
 export function canChangeQuantity(order: GroupedOrder) {
+  if (order.qtyLocked === true) return false
   if (order.children.length > 0) return false
   if (order.topping === 1) return false
   if (order.parentId && order.parentId > 0) return false
   return order.servicePaid === 0 || order.servicePaid === 4 || order.servicePaid === 5
+}
+
+/** Lý do ô số lượng bị khóa — hiện cạnh ô (tooltip/ghi chú). null = đổi được hoặc khóa vì lý do khác. */
+export const QTY_LOCKED_REASON = 'Món có topping/công thức — muốn đổi số lượng hãy đặt đơn khác'
+
+export function qtyLockedReason(order: GroupedOrder) {
+  if (order.qtyLocked === true || order.children.length > 0) return QTY_LOCKED_REASON
+  return null
 }
 
 /** Payload `/service/accept` cho đơn thường. `amount` chỉ để tương thích — BE tính lại. */

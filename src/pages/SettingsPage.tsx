@@ -42,6 +42,7 @@ import {
 } from '../features/settings/settingsModel'
 import { parseSettingsSection, SETTINGS_SECTIONS } from '../features/settings/settingsCatalog'
 import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
+import { OrderSettingsSection } from '../features/orders/OrderSettingsSection'
 import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
 import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
 import { ScheduledShutdownDialog } from '../features/workstations/ScheduledShutdownDialog'
@@ -629,6 +630,13 @@ export function SettingsPage() {
           ) : null}
 
           {/* Sơ đồ máy trạm (task ws-map): ADMIN vẽ, mọi nhân viên xem ở trang Máy trạm → Biểu tượng. Lưu riêng (POST /workstations/map). */}
+          {/* Đơn hàng (task topping-kho W1): object cấu hình order dùng chung -- mỗi nhóm một khối (đầu tiên: Hàng đơn chờ). */}
+          {section === 'orders' ? (
+            <div id="setting-order-queue">
+              <OrderSettingsSection isAdmin={isAdmin} />
+            </div>
+          ) : null}
+
           {section === 'wsmap' ? <WorkstationMapEditor isAdmin={isAdmin} /> : null}
 
           {section === 'security' ? (

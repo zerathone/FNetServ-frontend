@@ -6,6 +6,7 @@
 export type SettingsSection =
   | 'general'
   | 'workstation'
+  | 'orders'
   | 'wsmap'
   | 'security'
 
@@ -16,6 +17,7 @@ export const SETTINGS_SECTIONS: Array<{
 }> = [
   { id: 'general', label: 'Thiết lập chung', description: 'Thông tin phòng máy, làm tròn tiền, mức nạp' },
   { id: 'workstation', label: 'Máy trạm', description: 'Đăng nhập lại, khóa và tự tắt' },
+  { id: 'orders', label: 'Đơn hàng', description: 'Cảnh báo hàng đơn chờ' },
   { id: 'wsmap', label: 'Sơ đồ máy trạm', description: 'Vị trí máy, tường và đồ vật' },
   { id: 'security', label: 'Bảo mật và lưu trữ', description: 'Tài khoản ADMIN và lưu trữ nhật ký' },
 ]
@@ -62,6 +64,9 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { section: 'workstation', anchor: 'auto-off', label: 'Tự tắt máy Sẵn sàng sau N phút', keywords: ['tự tắt máy', 'máy rảnh', 'máy sẵn sàng', 'tiết kiệm điện', 'shutdown'] },
   { section: 'workstation', anchor: 'auto-close-app', label: 'Tự đóng ứng dụng trên máy Sẵn sàng', keywords: ['đóng game', 'đóng ứng dụng', 'máy sẵn sàng', 'máy rảnh', 'kill app'] },
   { section: 'workstation', anchor: 'chat-channel', label: 'Kênh chat Messenger', keywords: ['messenger', 'facebook', 'zalo', 'chat khách', 'nhắn tin', 'kênh chat'] },
+
+  // Đơn hàng
+  { section: 'orders', anchor: 'order-queue', label: 'Cảnh báo hàng đơn chờ', keywords: ['đơn chờ', 'chờ lâu', 'cảnh báo vàng', 'cảnh báo đỏ', 'giữ nguyên liệu', 'số phút', 'đơn hàng', 'gọi món'] },
 
   // Sơ đồ máy trạm
   { section: 'wsmap', label: 'Sơ đồ máy trạm', keywords: ['bản đồ', 'vị trí máy', 'sắp xếp máy', 'tường', 'đồ vật', 'bố trí phòng'] },

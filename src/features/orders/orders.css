@@ -514,6 +514,30 @@
   appearance: none;
 }
 
+/* task topping-kho R1: món có topping/công thức — ô số lượng hiện nhưng khóa, kèm lý do bên dưới dòng món. */
+.order-qty--locked .order-qty__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.order-card__qty-note {
+  margin: 2px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
+
+/* task topping-kho W1: đơn qtyLocked đã chờ quá ngưỡng đỏ — nguyên liệu đã trừ vẫn bị giữ. */
+.order-card__holds-material {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
 .order-confirm-ack {
   display: flex;
   align-items: center;

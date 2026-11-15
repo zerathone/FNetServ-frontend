@@ -45,6 +45,7 @@ import {
   acceptedUnpaidDetailIds,
   acceptedUnpaidSelectKey,
   canChangeQuantity,
+  qtyLockedReason,
   groupAcceptedUnpaidOrders,
   groupCompletedOrders,
   groupOrders,
@@ -71,7 +72,8 @@ import {
   removeAlert,
   type MachineLookup,
 } from './orderPayModel'
-import { waitLabel, waitTone } from './orderWaitTime'
+import { isOverDangerWait, waitLabel, waitTone } from './orderWaitTime'
+import { useOrderQueueConfig } from './useOrderQueueConfig'
 import { OrderSteps } from './OrderSteps'
 import { OrderConfirmDialog } from './OrderConfirmDialog'
 import { PrintTicketDialog } from './PrintTicketDialog'
@@ -216,6 +218,9 @@ export function OrderWorkspace() {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
+  // task topping-kho W1: ngưỡng vàng/đỏ của hàng đơn chờ theo cài đặt (mặc định 10/20).
+  const queueCfg = useOrderQueueConfig()
+  const isOverDanger = (createdAtMs: number) => isOverDangerWait(createdAtMs, now, queueCfg)
 
   const servicesQuery = useQuery({
     // Khóa riêng 'with-paid': trang /orders/legacy dùng dạng response cũ (không includePaid).
@@ -363,6 +368,19 @@ export function OrderWorkspace() {
     () => [...qrGroups.map((group) => ({ kind: 'qr' as const, key: qrSelectKey(group), group })), ...serviceAndAcceptedEntries],
     [qrGroups, serviceAndAcceptedEntries],
   )
+  // task topping-kho W1: đơn CHƯA duyệt (đơn thường + phiếu QR) đã chờ quá ngưỡng đỏ; `holding` = trong số đó có dòng
+  // qtyLocked (nguyên liệu đã trừ lúc đặt, đang bị giữ). Ngưỡng đỏ tắt (0) ⇒ 0/0 ⇒ không hiện dải.
+  const overDanger = { total: 0, holding: 0 }
+  for (const order of groupedOrders) {
+    if (!isOverDanger(order.createdAtMs)) continue
+    overDanger.total += 1
+    if (order.qtyLocked === true || order.children.some((child) => child.qtyLocked === true)) overDanger.holding += 1
+  }
+  for (const group of qrGroups) {
+    if (!isOverDanger(group.createdAtMs)) continue
+    overDanger.total += 1
+    if (group.lines.some((line) => line.qtyLocked === true)) overDanger.holding += 1
+  }
   // activeView lọc đúng 1 loại dòng; 'all' (tile "Đơn chờ") giữ nguyên cả ba lẫn nhau như cũ.
   const visibleEntryKind =
     activeView === 'service'
@@ -494,11 +512,14 @@ export function OrderWorkspace() {
         <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
         <div className="order-card__meta-row">
           <span className="order-card__voucher-id">#{group.voucherId}</span>
-          <StatusBadge tone={waitTone(group.createdAtMs, now)}>
+          <StatusBadge tone={waitTone(group.createdAtMs, now, queueCfg)}>
             Chờ {waitLabel(group.createdAtMs, now)}
           </StatusBadge>
           <StatusBadge tone="success">Đã trả QR</StatusBadge>
         </div>
+        {group.lines.some((line) => line.qtyLocked === true) && isOverDanger(group.createdAtMs) ? (
+          <p className="order-card__holds-material">Đơn đang giữ nguyên liệu — duyệt hoặc huỷ để trả kho</p>
+        ) : null}
       </div>
       <div className="order-card__items">
         {group.lines.map((line) => (
@@ -609,7 +630,7 @@ export function OrderWorkspace() {
         <span className="order-card__username">{group.userName || 'Khách vãng lai'}</span>
         <div className="order-card__meta-row">
           <span className="order-card__voucher-id">#{group.voucherId}</span>
-          <StatusBadge tone={waitTone(group.createdAtMs, now)}>
+          <StatusBadge tone={waitTone(group.createdAtMs, now, queueCfg)}>
             Chờ {waitLabel(group.createdAtMs, now)}
           </StatusBadge>
         </div>
@@ -680,6 +701,9 @@ export function OrderWorkspace() {
     // Cấn trừ và đổi số lượng. Chưa có dữ liệu máy ⇒ không chặn (backend vẫn kiểm).
     const gates = payGates(order, machineFor(order.hostName), canDeduct)
     const editable = canChangeQuantity(order) && gates.accept.enabled
+    // task topping-kho R1: món có topping/công thức — hiện ô số lượng ở trạng thái khóa kèm lý do.
+    const lockReason = gates.accept.enabled ? qtyLockedReason(order) : null
+    const holdsMaterial = order.qtyLocked === true && isOverDanger(order.createdAtMs)
     return (
       <article key={key} className="order-card">
         <label className="order-card__check">
@@ -694,7 +718,7 @@ export function OrderWorkspace() {
           <strong>{order.hostName || 'Chưa xác định máy'}</strong>
           <span className="order-card__username">{order.userName || 'Khách vãng lai'}</span>
           <div className="order-card__meta-row">
-            <StatusBadge tone={waitTone(order.createdAtMs, now)}>
+            <StatusBadge tone={waitTone(order.createdAtMs, now, queueCfg)}>
               Chờ {waitLabel(order.createdAtMs, now)}
             </StatusBadge>
           </div>
@@ -739,12 +763,23 @@ export function OrderWorkspace() {
                     +
                   </button>
                 </div>
+              ) : lockReason ? (
+                <div className="order-qty order-qty--locked" role="group" aria-label={`Số lượng ${order.serviceName}`} title={lockReason}>
+                  <button type="button" className="order-qty__btn" disabled aria-label="Giảm số lượng">
+                    −
+                  </button>
+                  <input className="order-qty__input" value={quantity} aria-label="Số lượng" disabled readOnly />
+                  <button type="button" className="order-qty__btn" disabled aria-label="Tăng số lượng">
+                    +
+                  </button>
+                </div>
               ) : (
                 <span className="order-card__line-qty-value">× {quantity}</span>
               )}
               {editable ? null : <span>{getServicePaidLabel(order.servicePaid)}</span>}
             </div>
           </div>
+          {lockReason ? <p className="order-card__qty-note">{lockReason}</p> : null}
           {order.children.map((child) => (
             <div key={child.serviceDetailId} className="order-card__topping order-card__line">
               <div className="order-card__line-main">
@@ -763,6 +798,9 @@ export function OrderWorkspace() {
           <strong>{formatMoney(orderAmount(order, qtyOverrides))}</strong>
           {renderChosenMethodBadge(order.servicePaid)}
         </div>
+        {holdsMaterial ? (
+          <p className="order-card__holds-material">Đơn đang giữ nguyên liệu — duyệt hoặc huỷ để trả kho</p>
+        ) : null}
         <OrderSteps kind="pending" times={[order.createdAtMs]} />
         <div className="order-card__actions">
           <Button
@@ -1183,6 +1221,12 @@ export function OrderWorkspace() {
             </div>
           ) : null}
 
+          {overDanger.total > 0 ? (
+            <InlineAlert tone="warning">
+              Có {overDanger.total} đơn chờ quá {queueCfg.danger} phút
+              {overDanger.holding > 0 ? ` (${overDanger.holding} đơn đang giữ nguyên liệu)` : ''}.
+            </InlineAlert>
+          ) : null}
           {servicesQuery.isLoading || acceptedUnpaidQuery.isLoading ? (
             <StateView title="Đang tải đơn chờ" />
           ) : servicesQuery.isError ? (

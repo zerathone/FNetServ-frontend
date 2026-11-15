@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { CaretLeft, CaretRight, DotsThreeVertical, SidebarSimple } from '@phosphor-icons/react'
 import { formatVnd } from '../orders/orderPayModel'
 import { waitTone } from '../orders/orderWaitTime'
+import { useOrderQueueConfig } from '../orders/useOrderQueueConfig'
 import { PendingPayIcon } from './PendingPayIcon'
 import { MENU_WIDTH, compactMoney, compactWait } from './pendingServiceModel'
 import type { PendingServices } from './usePendingServices'
 import './pending-service-panel.css'
 
 export function PendingServiceChips({ pending }: { pending: PendingServices }) {
+  const queueCfg = useOrderQueueConfig() // task topping-kho W1: nguong theo /settings/order
   const { rows, total, loading, failed, now, selectedKey } = pending
   const active = pending.mode === 'tags'
   const listRef = useRef<HTMLDivElement>(null)
@@ -109,7 +111,7 @@ export function PendingServiceChips({ pending }: { pending: PendingServices }) {
                 key={row.key}
                 role="listitem"
                 tabIndex={0}
-                className={`ws-tag ws-tag--${waitTone(row.createdAtMs, now)}${selectedKey === row.key ? ' is-selected' : ''}`}
+                className={`ws-tag ws-tag--${waitTone(row.createdAtMs, now, queueCfg)}${selectedKey === row.key ? ' is-selected' : ''}`}
                 title={`${host} · ${name}${amount ? ` · ${formatVnd(amount)}` : ''} · ${detail} — chuột phải để xem thao tác`}
                 onClick={() => pending.setSelectedKey(row.key)}
                 onContextMenu={pending.onContextMenu(row)}
@@ -130,7 +132,7 @@ export function PendingServiceChips({ pending }: { pending: PendingServices }) {
                       <PendingPayIcon kind={payKind} />
                       {amount ? compactMoney(amount) : '—'}
                     </span>
-                    <span className={`ws-pending__wait ws-pending__wait--${waitTone(row.createdAtMs, now)}`}>
+                    <span className={`ws-pending__wait ws-pending__wait--${waitTone(row.createdAtMs, now, queueCfg)}`}>
                       {compactWait(row.createdAtMs, now)}
                     </span>
                   </span>

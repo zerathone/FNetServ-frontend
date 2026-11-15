@@ -90,6 +90,32 @@ export const getSettingsOptions = (keys: string[] = []) => {
 }
 
 /**
+ * task topping-kho W1 — object cấu hình ORDER dùng chung (INT_ORDER_CONFIG, `/settings/order`). Chia NHÓM để mở
+ * rộng: thêm cấu hình order = thêm field vào nhóm sẵn có hoặc thêm nhóm mới — giữ khớp với
+ * `core/orders/order_config.h` của Server (có hướng dẫn 4 bước). GET: mọi nhân viên; PUT: chỉ quản trị viên.
+ */
+export interface OrderQueueConfig {
+  /** Số phút chờ → nhãn vàng. 0 = tắt mức này. */
+  warn: number
+  /** Số phút chờ → nhãn đỏ + dải cảnh báo đầu danh sách. 0 = tắt mức này. */
+  danger: number
+}
+
+export interface OrderConfig {
+  v: number
+  queue: OrderQueueConfig
+}
+
+/** Gửi TỪNG PHẦN — chỉ nhóm/field đang sửa; server trộn vào object đang lưu, giữ nguyên phần còn lại. */
+export type OrderConfigPatch = { queue?: Partial<OrderQueueConfig> }
+
+/** Trần mỗi ngưỡng (phút) — cùng luật Server. Mặc định 10/20 nằm ở `features/orders/orderWaitTime.ts`. */
+export const ORDER_QUEUE_MAX_MINUTES = 1440
+
+export const getOrderConfig = () => apiGet<OrderConfig>('/settings/order')
+export const updateOrderConfig = (patch: OrderConfigPatch) => apiPut<OrderConfig, OrderConfigPatch>('/settings/order', patch)
+
+/**
  * Ghi dòng "Ghi chú" cố định của phiếu nạp tiền vào option 139 (parity hộp thoại cấu hình in phiếu của MFC).
  * Đã có cấu hình ⇒ chỉ đổi `note`. Chưa có ⇒ server tạo mới từ `printer` + `paperType` (bảng MFC: A4=0,
  * POS58=1, POS80=2) + `cafeInfo`. Máy chủ giới hạn `note` ≤ 40 ký tự.

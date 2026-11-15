@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react'
 import { formatVnd } from '../orders/orderPayModel'
 import { waitTone } from '../orders/orderWaitTime'
+import { useOrderQueueConfig } from '../orders/useOrderQueueConfig'
 import { PendingPayIcon } from './PendingPayIcon'
 import { MENU_WIDTH, compactMoney, compactWait, type PendingRow } from './pendingServiceModel'
 import type { PendingServices } from './usePendingServices'
@@ -19,6 +20,7 @@ import './pending-service-panel.css'
 const DONE_ROWS_LIMIT = 50
 
 export function PendingServicePanel({ pending }: { pending: PendingServices }) {
+  const queueCfg = useOrderQueueConfig() // task topping-kho W1: nguong theo /settings/order
   const { rows, total, now, selectedKey, view, unpaidRows, doneRows } = pending
   // Kiểu "thẻ" thì khung này ẩn hẳn (thẻ nằm ở thanh công cụ).
   if (pending.mode !== 'panel') return null
@@ -79,7 +81,7 @@ export function PendingServicePanel({ pending }: { pending: PendingServices }) {
         </span>
         {/* Đơn hoàn thành: giờ thu, không tô màu cảnh báo chờ lâu. */}
         <span
-          className={`is-num ws-pending__wait ws-pending__wait--${isDone ? 'info' : waitTone(row.createdAtMs, now)}`}
+          className={`is-num ws-pending__wait ws-pending__wait--${isDone ? 'info' : waitTone(row.createdAtMs, now, queueCfg)}`}
           title={isDone ? 'Giờ thu tiền' : undefined}
         >
           {waitText ?? compactWait(row.createdAtMs, now)}

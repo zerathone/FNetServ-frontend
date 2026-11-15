@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { XCircle } from '@phosphor-icons/react'
 import { Button, ListPagination, StateView, StatusBadge } from '../../design-system/components'
 import { waitLabel, waitTone } from '../orders/orderWaitTime'
+import { useOrderQueueConfig } from '../orders/useOrderQueueConfig'
 import { useComboPendingActions } from './useComboPendingActions'
 import {
   formatExpireDate,
@@ -24,6 +25,7 @@ function formatMoney(value: number) {
  * Logic mutation + idem GIỮ NGUYÊN từ OrderWorkspace.
  */
 export function ComboPendingPanel() {
+  const queueCfg = useOrderQueueConfig() // task topping-kho W1: nguong theo /settings/order
   const { query, orders } = usePendingComboOrders()
   const [page, setPage] = useState(0)
   const comboActions = useComboPendingActions()
@@ -73,7 +75,7 @@ export function ComboPendingPanel() {
                       <strong>{order.hostName || 'Chưa xác định máy'}</strong>
                       <span className="order-card__username">{order.ownerName || 'Khách vãng lai'}</span>
                       <div className="order-card__meta-row">
-                        <StatusBadge tone={waitTone(createdAt, now)}>
+                        <StatusBadge tone={waitTone(createdAt, now, queueCfg)}>
                           Chờ {waitLabel(createdAt, now)}
                         </StatusBadge>
                       </div>

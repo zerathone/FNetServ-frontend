@@ -49,6 +49,12 @@ import type { WorkstationRuntime, WorkstationsRuntimeSnapshot } from './workstat
 
 export type MockResult = { handled: false } | { handled: true; data: unknown }
 
+/**
+ * task topping-kho W1 — ngưỡng hàng đơn chờ trả cho `GET /settings/order` khi bật mock. Đổi `danger` (vd 25) rồi tải
+ * lại trang: nhãn đỏ và dải cảnh báo đổi theo (với 25: chỉ còn 5009 quá ngưỡng ⇒ "Có 1 đơn ... (1 đơn đang giữ").
+ */
+export const MOCK_ORDER_QUEUE = { warn: 10, danger: 20 }
+
 const MIN = 60_000
 const WALLET = 180_000
 /** Hội viên này cấn trừ lần đầu sẽ "ghi phiếu nhưng chưa trừ ví" để thử banner. */
@@ -178,6 +184,7 @@ function order(
     serviceTime: at.time,
     parentId: null,
     topping: null,
+    qtyLocked: false,
     unit: 'phần',
     voucherId: 0,
     serviceAmount: quantity * price,
@@ -203,8 +210,14 @@ function seed() {
   const quay: Base = { userId: 0, userName: '', hostName: 'PC-02' }
 
   pending = [
-    order(5001, quocdat, 'Mì tôm trứng', 1, 20_000, 6, { unit: 'tô' }),
-    order(5002, quocdat, 'Thêm xúc xích', 1, 5_000, 6, { unit: 'cái', parentId: 5001, topping: 1 }),
+    // Mì có topping ⇒ qtyLocked (ô số lượng khóa kèm lý do); còn dưới ngưỡng đỏ ⇒ chưa có dòng "giữ nguyên liệu".
+    order(5001, quocdat, 'Mì tôm trứng', 1, 20_000, 6, { unit: 'tô', qtyLocked: true }),
+    order(5002, quocdat, 'Thêm xúc xích', 1, 5_000, 6, { unit: 'cái', parentId: 5001, topping: 1, qtyLocked: true }),
+    // task topping-kho W1: 2 đơn QUÁ ngưỡng đỏ (mặc định 20 phút) ⇒ dải "Có 2 đơn chờ quá 20 phút (1 đơn đang giữ
+    // nguyên liệu)". 5009 là món công thức + topping (qtyLocked) ⇒ thẻ có dòng "Đơn đang giữ nguyên liệu".
+    order(5009, thanhtam, 'Trà sữa trân châu', 1, 30_000, 26, { unit: 'ly', qtyLocked: true }),
+    order(5010, thanhtam, 'Thêm trân châu', 1, 5_000, 26, { unit: 'phần', parentId: 5009, topping: 1, qtyLocked: true }),
+    order(5011, quay, 'Nước ngọt', 1, 15_000, 24, { unit: 'lon' }),
     order(5003, minhthu, 'Nước suối', 2, 10_000, 4, { unit: 'chai', servicePaid: 4 }),
     order(5004, hoanglong, 'Cà phê sữa', 1, 25_000, 9, { unit: 'ly', servicePaid: 5 }),
     order(5007, thanhtam, 'Bánh mì', 1, 15_000, 12, { unit: 'ổ' }),
@@ -458,6 +471,9 @@ function emptyStats(): CompletedOrderStats {
 type Handler = (body: Body, query: URLSearchParams, mode: string) => unknown
 
 const handlers: Record<string, Handler> = {
+  // task topping-kho W1: ngưỡng hàng đơn chờ. PUT không qua mock (đi ra server thật) — muốn thử ngưỡng khác thì
+  // sửa MOCK_ORDER_QUEUE ở đầu file rồi tải lại trang.
+  'GET /settings/order': () => ({ v: 1, queue: { ...MOCK_ORDER_QUEUE } }),
   'GET /orders/pending': (_b, q, mode) => {
     if (mode === 'empty') return []
     const includePaid = q.get('includePaid') === '1'

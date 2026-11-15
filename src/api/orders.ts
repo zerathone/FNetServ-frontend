@@ -19,6 +19,9 @@ export type PendingOrder = {
   parentId?: number | null
   topping?: number | null
   unit?: string
+  // task topping-kho R1 — dòng có topping / công thức / nguyên liệu (nguyên liệu đã trừ lúc đặt theo số cũ)
+  // ⇒ KHÔNG đổi số lượng; BE chặn bằng `qty_locked`. null = DB chưa có schema; thiếu = BE cũ.
+  qtyLocked?: boolean | null
 
   // task orders-qr-qty (P2) — chỉ có khi gọi `?includePaid=1`.
   //  voucherId: phiếu gắn với dòng (đơn trả QR = phiếu PY_SERVICE_QR; 0 = chưa có)
