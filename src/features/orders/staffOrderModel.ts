@@ -119,9 +119,16 @@ export function describeTarget(target: StaffOrderTarget) {
 
 export type CatalogGroup = { key: string; name: string; services: ServiceItem[] }
 
-/** Món đang bán: server cũ chưa trả `active` ⇒ coi như đang bán. */
+/**
+ * Món hiện ở menu gọi món — theo `list-product` của iCafe: món `Active=1`, thuộc nhóm `Active=1` và nhóm
+ * thường (`TypeID=0`; nhóm topping `TypeID=2` không phải món bán lẻ). Server cũ chưa trả
+ * `active`/`groupActive`/`groupTypeId` (`undefined`) ⇒ coi như đạt, để không làm trống menu.
+ */
 export function isSellable(service: ServiceItem) {
-  return service.active !== 0
+  if (service.active === 0) return false
+  if (service.groupActive === 0) return false
+  if (service.groupTypeId !== undefined && service.groupTypeId !== 0) return false
+  return true
 }
 
 /**

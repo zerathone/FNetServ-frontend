@@ -115,6 +115,20 @@ test('buildCatalog: chi mon dang ban, nhom theo ten, mon khong nhom/nhom ma gom 
   assert.equal(catalog.flatMap((g) => g.services).some((s) => s.id === 3), false)
 })
 
+test('buildCatalog: loc theo nhom (iCafe list-product) - nhom ngung dung va nhom topping khong len menu', () => {
+  const catalog = buildCatalog([
+    service({ id: 1, name: 'Trà đá', groupActive: 1, groupTypeId: 0 }),
+    service({ id: 2, name: 'Mì tôm', groupId: 3, groupName: 'Đồ ăn', groupActive: 0, groupTypeId: 0 }),
+    service({ id: 3, name: 'Trân châu', groupId: 4, groupName: 'Topping', groupActive: 1, groupTypeId: 2 }),
+    service({ id: 4, name: 'Cà phê', groupActive: 1, groupTypeId: 0 }),
+    service({ id: 5, name: 'Dòng hệ thống', groupId: 0, groupName: '', groupActive: 0, groupTypeId: 0 }),
+  ])
+  assert.deepEqual(catalog.flatMap((g) => g.services).map((s) => s.id).sort(), [1, 4])
+  // giỏ có món vừa bị ẩn nhóm ⇒ cartIssues phải báo, không cho đặt
+  const issues = cartIssues([{ serviceId: 2, quantity: 1 }], [service({ id: 2, groupActive: 0 })])
+  assert.equal(issues.length, 1)
+})
+
 test('buildCatalog: server cu chua tra active/group => coi nhu dang ban, 1 nhom phang; tim khong dau', () => {
   const legacy = [
     { id: 1, name: 'Trà đá', price: 5000, unit: 'ly', inventory: 0, inventoryManagement: 0 },

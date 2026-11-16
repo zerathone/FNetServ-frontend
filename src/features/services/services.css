@@ -102,7 +102,7 @@
 .service-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(12rem, 1.3fr) minmax(8rem, 0.7fr) minmax(9rem, 0.8fr);
+  grid-template-columns: minmax(12rem, 1.3fr) minmax(8rem, 0.7fr) minmax(9rem, 0.8fr) auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -186,5 +186,130 @@
     padding: var(--space-2) 0 0;
     border-top: 1px solid var(--color-border-default);
     border-left: 0;
+  }
+}
+
+/* ----- task service-catalog: thêm/sửa/ngừng bán + nhóm ----- */
+.service-card.is-off {
+  background: var(--color-surface-muted, var(--color-surface-default));
+}
+
+.service-card.is-off .service-card__title,
+.service-card.is-off .service-card__price,
+.service-card.is-off .service-card__stock {
+  opacity: 0.6;
+}
+
+.service-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.service-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--color-border-default);
+}
+
+.svc-muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.svc-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.svc-form__wide {
+  grid-column: 1 / -1;
+}
+
+.svc-groups {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.svc-groups__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+}
+
+.svc-groups__form > strong,
+.svc-groups__wide,
+.svc-groups__form-actions {
+  grid-column: 1 / -1;
+}
+
+.svc-groups__form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.svc-table-wrap {
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.svc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.svc-table th,
+.svc-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.svc-table th {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.svc-table .is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.svc-table tr.is-off td:first-child {
+  opacity: 0.6;
+}
+
+.svc-table__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .service-card__actions {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .svc-form,
+  .svc-groups__form {
+    grid-template-columns: 1fr;
+  }
+
+  .service-card__actions {
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border-default);
   }
 }

@@ -13,6 +13,17 @@ export type ServiceItem = {
   active?: number
   groupId?: number
   groupName?: string
+  // task service-catalog (BE): chỉ THÊM field. Server cũ chưa có ⇒ `undefined` — mọi nơi dùng phải coi
+  // `undefined` là "như trước" (không lọc, không chỉ-đọc), đừng làm trống menu.
+  unitId?: number
+  /** `-1` (Qt cũ ghi) hoặc `0` = không cảnh báo; chỉ có nghĩa khi `inventoryManagement === 1`. */
+  warningInventory?: number
+  /** Loại nhóm của món: 0 = nhóm thường, 2 = nhóm topping. */
+  groupTypeId?: number
+  /** 0 = nhóm đang ngừng dùng ⇒ món không hiện ở menu bán. */
+  groupActive?: number
+  /** Dòng hệ thống/ngoài danh mục (FFOOD…): chỉ đọc, không sửa/ngừng bán trên màn này. */
+  readonly?: boolean
 }
 
 export function getServices() {
