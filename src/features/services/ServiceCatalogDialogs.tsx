@@ -506,35 +506,36 @@ export function ServiceEditorDialog({
                     { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
                   ]}
                 />
-                {shown.length === 0 ? (
-                  <small className="svc-muted">Chưa có nhóm đang dùng.</small>
-                ) : (
-                  <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
-                    {shown.map((g) => {
-                      const selected = g.groupId === draft.groupId
-                      // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
-                      const previous = !selected && service !== null && g.groupId === service.groupId
-                      return (
-                        <button
-                          key={g.groupId}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          title={previous ? 'Nhóm hiện tại của món' : undefined}
-                          className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
-                          onClick={() => patch({ groupId: g.groupId })}
-                        >
-                          {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                {groupKind === 'topping' ? (
-                  <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
-                ) : null}
               </div>
             </SvcField>
+            {/* Các tag nhóm nằm NGOÀI khung (khung chỉ chứa icon + loại nhóm). */}
+            {shown.length === 0 ? (
+              <small className="svc-muted">Chưa có nhóm đang dùng.</small>
+            ) : (
+              <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
+                {shown.map((g) => {
+                  const selected = g.groupId === draft.groupId
+                  // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
+                  const previous = !selected && service !== null && g.groupId === service.groupId
+                  return (
+                    <button
+                      key={g.groupId}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      title={previous ? 'Nhóm hiện tại của món' : undefined}
+                      className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
+                      onClick={() => patch({ groupId: g.groupId })}
+                    >
+                      {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {groupKind === 'topping' ? (
+              <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
+            ) : null}
           </fieldset>
 
           {imageSupported ? (
