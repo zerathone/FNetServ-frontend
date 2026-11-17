@@ -109,20 +109,16 @@ function SvcField({
   label,
   icon,
   invalid,
-  top,
   children,
 }: {
   id: string
   label: string
   icon: ReactNode
   invalid?: boolean
-  /** Nội dung cao hơn một dòng (vd. nhóm dịch vụ): ô icon canh trên cùng. */
-  top?: boolean
   children: ReactNode
 }) {
   const groupClasses = ['ds-input-group', 'svc-field__group']
   if (invalid) groupClasses.push('is-invalid')
-  if (top) groupClasses.push('svc-field__group--top')
   return (
     <div className="ds-field svc-field">
       <div className={groupClasses.join(' ')}>
@@ -485,14 +481,16 @@ export function ServiceEditorDialog({
                 VAT: để trống = không áp dụng thuế cho món; nhập 0 = thuế 0% (vẫn gửi sang bên thuế).
               </small>
             ) : null}
-            <SvcField
-              id="svc-group"
-              label="Nhóm dịch vụ"
-              icon={<Folders size={18} weight="bold" aria-hidden="true" />}
-              invalid={touched && draft.groupId <= 0}
-              top
+            {/* Nhóm dịch vụ: MỘT khối liền — hàng đầu (icon + loại nhóm) và hàng tag nhóm chung một khung, ngăn bằng đường kẻ. */}
+            <div
+              className={`svc-groupblock${touched && draft.groupId <= 0 ? ' is-invalid' : ''}`}
+              role="group"
+              aria-label="Nhóm dịch vụ"
             >
-              <div className="svc-groupbox">
+              <div className="svc-groupblock__head">
+                <span className="svc-field__label" title="Nhóm dịch vụ">
+                  <Folders size={18} weight="bold" aria-hidden="true" />
+                </span>
                 <Segmented
                   ariaLabel="Loại nhóm"
                   value={groupKind}
@@ -507,35 +505,36 @@ export function ServiceEditorDialog({
                   ]}
                 />
               </div>
-            </SvcField>
-            {/* Các tag nhóm nằm NGOÀI khung (khung chỉ chứa icon + loại nhóm). */}
-            {shown.length === 0 ? (
-              <small className="svc-muted">Chưa có nhóm đang dùng.</small>
-            ) : (
-              <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
-                {shown.map((g) => {
-                  const selected = g.groupId === draft.groupId
-                  // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
-                  const previous = !selected && service !== null && g.groupId === service.groupId
-                  return (
-                    <button
-                      key={g.groupId}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      title={previous ? 'Nhóm hiện tại của món' : undefined}
-                      className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
-                      onClick={() => patch({ groupId: g.groupId })}
-                    >
-                      {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
-                    </button>
-                  )
-                })}
+              <div className="svc-groupblock__body">
+                {shown.length === 0 ? (
+                  <small className="svc-muted">Chưa có nhóm đang dùng.</small>
+                ) : (
+                  <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
+                    {shown.map((g) => {
+                      const selected = g.groupId === draft.groupId
+                      // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
+                      const previous = !selected && service !== null && g.groupId === service.groupId
+                      return (
+                        <button
+                          key={g.groupId}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          title={previous ? 'Nhóm hiện tại của món' : undefined}
+                          className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
+                          onClick={() => patch({ groupId: g.groupId })}
+                        >
+                          {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {groupKind === 'topping' ? (
+                  <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
+                ) : null}
               </div>
-            )}
-            {groupKind === 'topping' ? (
-              <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
-            ) : null}
+            </div>
           </fieldset>
 
           {imageSupported ? (

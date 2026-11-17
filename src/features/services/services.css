@@ -338,22 +338,35 @@
   padding-inline: var(--space-3);
 }
 
-/* Nội dung cao hơn một dòng (khối chọn nhóm): khung tự giãn, ô icon canh trên. */
-.svc-field__group--top {
-  height: auto;
-  align-items: stretch;
-}
-
-.svc-field__group--top .svc-field__label {
-  align-items: flex-start;
-  padding-top: var(--space-2);
-}
-
-.svc-groupbox {
-  display: grid;
-  flex: 1;
-  gap: var(--space-2);
+/* Nhóm dịch vụ: một khối liền — hàng đầu (ô icon + loại nhóm) và hàng tag nhóm cùng nằm trong một khung, ngăn bằng đường kẻ. */
+.svc-groupblock {
   min-width: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--input-radius);
+  background: var(--color-surface-default);
+}
+
+.svc-groupblock.is-invalid {
+  border-color: var(--color-danger-text);
+}
+
+.svc-groupblock__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-right: var(--space-3);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.svc-groupblock__head .svc-field__label {
+  align-self: stretch;
+  border-right: 1px solid var(--color-border-default);
+  border-radius: calc(var(--input-radius) - 1px) 0 0 0;
+}
+
+.svc-groupblock__body {
+  display: grid;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
 }
 
