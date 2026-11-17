@@ -33,9 +33,33 @@ export type ServiceImageData = {
   imageBase64?: string
 }
 
-/** Đọc ảnh hiện tại của món (base64) để xem trước — `<img>` không gửi được Bearer nên không có URL trực tiếp. */
-export function getServiceImage(serviceId: number) {
-  return apiPost<ServiceImageData, { serviceId: number }>('/service/catalog/image/get', { serviceId })
+/**
+ * Đọc ảnh (base64) để xem trước — `<img>` không gửi được Bearer nên không có URL trực tiếp.
+ * Số = ảnh đang gắn cho món đó; `{ name }` = một ảnh trong thư viện (xem trước trước khi chọn).
+ */
+export function getServiceImage(target: number | { name: string }) {
+  const body = typeof target === 'number' ? { serviceId: target } : { name: target.name }
+  return apiPost<ServiceImageData, typeof body>('/service/catalog/image/get', body)
+}
+
+export type ImageLibraryRow = {
+  /** Tên file trong thư mục ảnh dùng chung với iCafe. */
+  name: string
+  /** Hình thu nhỏ JPEG (base64, ~128px); rỗng nếu không giải mã được. */
+  thumb: string
+  mime: string
+}
+
+export type ImageLibraryPage = { supported: boolean; total: number; rows: ImageLibraryRow[] }
+
+/** Thư viện ảnh có sẵn (như iCafe). Phân trang; `q` lọc theo tên. */
+export function getImageLibrary(body: { offset?: number; limit?: number; q?: string }) {
+  return apiPost<ImageLibraryPage, typeof body>('/service/catalog/image/library', body)
+}
+
+/** Gắn một ảnh có sẵn trong thư viện cho món (chỉ đổi tên file gắn cho món, không tải lên). Quyền 62. */
+export function selectServiceImage(body: { serviceId: number; name: string }) {
+  return apiPost<{ serviceId: number; serviceImg: string }, typeof body>('/service/catalog/image/select', body)
 }
 
 /** `imageBase64` nhận cả chuỗi `data:image/png;base64,...` của canvas.toDataURL(). Quyền 62. */

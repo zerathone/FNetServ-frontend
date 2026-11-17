@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CaretDown, CaretUp } from '@phosphor-icons/react'
+import { ImageSquare } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMaterials, getRecipeConfig, getUnits, saveRecipe, saveToppings } from '../../api/inventory'
 import {
@@ -10,6 +11,7 @@ import {
   saveService,
   saveServiceGroup,
   saveServiceImage,
+  selectServiceImage,
   setServiceGroupActive,
   type ServiceGroupRow,
 } from '../../api/serviceCatalog'
@@ -45,6 +47,7 @@ import {
   type RecipeDraft,
   type ToppingDraft,
 } from '../inventory/recipeDraftModel'
+import { ImageLibraryDialog } from './ImageLibraryDialog'
 import { prepareImageFile, type PreparedImage } from './imageUpload'
 import {
   IMAGE_MAX_BYTES,
@@ -126,10 +129,15 @@ export function ServiceEditorDialog({
   const [initial, setInitial] = useState<{ recipe: RecipeDraft; topping: ToppingDraft } | null>(null)
   const loadedFor = useRef<number | null>(null)
   // Ảnh: keep = giữ nguyên; new = ảnh vừa chọn (đã thu nhỏ); clear = gỡ ảnh hiện có.
+  // library = ảnh có sẵn trong thư viện (chỉ đổi tên file gắn cho món, không tải lên).
   const [imageDraft, setImageDraft] = useState<
-    { action: 'keep' } | { action: 'clear' } | ({ action: 'new' } & PreparedImage)
+    | { action: 'keep' }
+    | { action: 'clear' }
+    | ({ action: 'new' } & PreparedImage)
+    | { action: 'library'; name: string; dataUrl: string }
   >({ action: 'keep' })
   const [imageBusy, setImageBusy] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
   // Server cũ / DB thiếu cột ⇒ món sửa không có `vatPercent`/`serviceImg` ⇒ ẩn mục tương ứng (món mới: luôn hiện).
   const vatSupported = service === null || service.vatPercent !== undefined
@@ -190,7 +198,7 @@ export function ServiceEditorDialog({
   }
 
   const previewSrc =
-    imageDraft.action === 'new'
+    imageDraft.action === 'new' || imageDraft.action === 'library'
       ? imageDraft.dataUrl
       : imageDraft.action === 'keep' && imageQuery.data?.hasImage && imageQuery.data.imageBase64
         ? `data:${imageQuery.data.mime ?? 'image/jpeg'};base64,${imageQuery.data.imageBase64}`
@@ -205,6 +213,28 @@ export function ServiceEditorDialog({
       setImageDraft({ action: 'new', ...(await prepareImageFile(file)) })
     } catch (error) {
       pushToast(error instanceof Error ? error.message : 'Không xử lý được ảnh.', 'error')
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
+  // Chọn từ thư viện: tải ảnh đầy đủ để xem trước (hộp thoại thư viện chỉ có hình thu nhỏ).
+  const onPickLibrary = async (name: string) => {
+    setLibraryOpen(false)
+    setImageBusy(true)
+    try {
+      const data = await getServiceImage({ name })
+      if (!data.hasImage || !data.imageBase64) {
+        pushToast('Không đọc được ảnh này trong thư viện.', 'error')
+        return
+      }
+      setImageDraft({
+        action: 'library',
+        name,
+        dataUrl: `data:${data.mime ?? 'image/jpeg'};base64,${data.imageBase64}`,
+      })
+    } catch (error) {
+      pushToast(describeCatalogError(error), 'error')
     } finally {
       setImageBusy(false)
     }
@@ -243,6 +273,8 @@ export function ServiceEditorDialog({
         try {
           if (imageDraft.action === 'new') {
             await saveServiceImage({ serviceId: saved.serviceId, imageBase64: imageDraft.dataUrl })
+          } else if (imageDraft.action === 'library') {
+            await selectServiceImage({ serviceId: saved.serviceId, name: imageDraft.name })
           } else if (imageDraft.action === 'clear' && hasStoredImage) {
             await clearServiceImage(saved.serviceId)
           }
@@ -289,6 +321,7 @@ export function ServiceEditorDialog({
   const flagChanging = inventoryFlagChanged(service, draft)
 
   return (
+    <>
     <Dialog
       open={open}
       title={service ? 'Sửa dịch vụ' : 'Thêm dịch vụ'}
@@ -298,7 +331,8 @@ export function ServiceEditorDialog({
           : 'Món mới có tồn = 0. Bật “Quản lý tồn kho” rồi nhập kho ở trang Kho & nguyên liệu để bán.'
       }
       size="lg"
-      onClose={mutation.isPending ? () => undefined : onClose}
+      // Thư viện ảnh đang mở: Esc/bấm nền chỉ đóng thư viện, không đóng luôn form.
+      onClose={mutation.isPending || libraryOpen ? () => undefined : onClose}
       footer={
         <>
           <Button type="button" variant="secondary" disabled={mutation.isPending} onClick={onClose}>
@@ -376,6 +410,50 @@ export function ServiceEditorDialog({
             </label>
           </div>
 
+          <div className="ds-field svc-top__group">
+            <span className="ds-field__label">Nhóm dịch vụ</span>
+            <Segmented
+              ariaLabel="Loại nhóm"
+              value={groupKind}
+              onChange={(kind) => {
+                setGroupKind(kind)
+                const list = kind === 'topping' ? choices.topping : choices.normal
+                if (!list.some((g) => g.groupId === draft.groupId)) patch({ groupId: 0 })
+              }}
+              options={[
+                { value: 'normal', label: groupTypeLabel(GROUP_TYPE_NORMAL) },
+                { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
+              ]}
+            />
+            {shown.length === 0 ? (
+              <small className="svc-muted">Chưa có nhóm đang dùng.</small>
+            ) : (
+              <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
+                {shown.map((g) => {
+                  const selected = g.groupId === draft.groupId
+                  // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
+                  const previous = !selected && service !== null && g.groupId === service.groupId
+                  return (
+                    <button
+                      key={g.groupId}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      title={previous ? 'Nhóm hiện tại của món' : undefined}
+                      className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
+                      onClick={() => patch({ groupId: g.groupId })}
+                    >
+                      {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {groupKind === 'topping' ? (
+              <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
+            ) : null}
+          </div>
+
           {imageSupported ? (
             <div className="ds-field svc-top__image">
               <span className="ds-field__label">Hình ảnh</span>
@@ -384,7 +462,7 @@ export function ServiceEditorDialog({
                   {previewSrc ? (
                     <img src={previewSrc} alt={draft.name.trim() || 'Ảnh dịch vụ'} />
                   ) : (
-                    <span className="svc-muted">{imageQuery.isLoading ? 'Đang tải…' : 'Chưa có ảnh'}</span>
+                    <ImageSquare className="svc-image__placeholder" size={56} weight="light" role="img" aria-label="Chưa có hình" />
                   )}
                 </div>
                 <div className="svc-image__actions">
@@ -404,7 +482,16 @@ export function ServiceEditorDialog({
                   >
                     Chọn ảnh…
                   </Button>
-                  {imageDraft.action === 'new' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!canConfigure || imageBusy}
+                    title="Chọn một ảnh có sẵn trong thư viện (dùng chung với iCafe)"
+                    onClick={() => setLibraryOpen(true)}
+                  >
+                    Thư viện
+                  </Button>
+                  {imageDraft.action === 'new' || imageDraft.action === 'library' ? (
                     <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
                       Bỏ ảnh vừa chọn
                     </Button>
@@ -427,57 +514,15 @@ export function ServiceEditorDialog({
               <small className="svc-muted">
                 {imageDraft.action === 'new'
                   ? `Ảnh mới ${imageDraft.width}×${imageDraft.height} px, ${Math.max(1, Math.round(imageDraft.bytes / 1024))} KB${imageDraft.resized ? ' (đã tự thu nhỏ)' : ''} — lưu cùng lúc với dịch vụ.`
-                  : imageDraft.action === 'clear'
+                  : imageDraft.action === 'library'
+                    ? `Ảnh thư viện “${imageDraft.name}” — lưu cùng lúc với dịch vụ.`
+                    : imageDraft.action === 'clear'
                     ? 'Ảnh sẽ được gỡ khi lưu.'
                     : hasStoredImage && imageQuery.data && !imageQuery.data.hasImage
                       ? `Không tìm thấy tệp ảnh “${service?.serviceImg}” trong thư mục ảnh.`
                       : `PNG hoặc JPEG, tối đa ${IMAGE_MAX_SIDE}×${IMAGE_MAX_SIDE} px và ${IMAGE_MAX_BYTES / (1024 * 1024)}MB — ảnh lớn hơn sẽ tự thu nhỏ.`}
               </small>
             </div>
-          ) : null}
-        </div>
-
-        <div className="ds-field svc-form__wide">
-          <span className="ds-field__label">Nhóm dịch vụ</span>
-          <Segmented
-            ariaLabel="Loại nhóm"
-            value={groupKind}
-            onChange={(kind) => {
-              setGroupKind(kind)
-              const list = kind === 'topping' ? choices.topping : choices.normal
-              if (!list.some((g) => g.groupId === draft.groupId)) patch({ groupId: 0 })
-            }}
-            options={[
-              { value: 'normal', label: groupTypeLabel(GROUP_TYPE_NORMAL) },
-              { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
-            ]}
-          />
-          {shown.length === 0 ? (
-            <small className="svc-muted">Chưa có nhóm đang dùng.</small>
-          ) : (
-            <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
-              {shown.map((g) => {
-                const selected = g.groupId === draft.groupId
-                // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
-                const previous = !selected && service !== null && g.groupId === service.groupId
-                return (
-                  <button
-                    key={g.groupId}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    title={previous ? 'Nhóm hiện tại của món' : undefined}
-                    className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
-                    onClick={() => patch({ groupId: g.groupId })}
-                  >
-                    {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-          {groupKind === 'topping' ? (
-            <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
           ) : null}
         </div>
 
@@ -587,6 +632,13 @@ export function ServiceEditorDialog({
         ) : null}
       </div>
     </Dialog>
+    <ImageLibraryDialog
+      open={open && libraryOpen}
+      currentName={imageDraft.action === 'library' ? imageDraft.name : (service?.serviceImg ?? '')}
+      onClose={() => setLibraryOpen(false)}
+      onPick={(name) => void onPickLibrary(name)}
+    />
+    </>
   )
 }
 
