@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
-import { setServiceActive } from '../../api/serviceCatalog'
+import { getServiceGroups, setServiceActive } from '../../api/serviceCatalog'
 import { getServices, type ServiceItem } from '../../api/services'
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   PageHeader,
   RefreshButton,
   Segmented,
+  Select,
   StateView,
   StatusBadge,
   type SegmentedOption,
@@ -22,6 +23,7 @@ import { UnitsDialog } from '../inventory/MaterialDialogs'
 import { MaterialsTab } from '../inventory/MaterialsTab'
 import { GroupsDialog, PendingOrdersDialog, ServiceEditorDialog } from './ServiceCatalogDialogs'
 import {
+  compareGroups,
   describeCatalogError,
   isDiscontinued,
   isReadonlyService,
@@ -39,6 +41,7 @@ import {
 import './services.css'
 
 const PAGE_SIZE = 24
+const GROUP_NONE = -1
 
 // Tab trong `?tab=`: dịch vụ (mặc định) | nguyên liệu (danh mục + tồn + nhập/xuất/kiểm kê, quản lý dạng danh sách).
 type Tab = 'services' | 'materials'
@@ -56,6 +59,8 @@ export function ServiceCatalogWorkspace() {
   const tab: Tab = params.get('tab') === 'materials' ? 'materials' : 'services'
   const [search, setSearch] = useState('')
   const [stockFilter, setStockFilter] = useState<ServiceStockFilter>('all')
+  // Lọc theo nhóm: 0 = mọi nhóm, GROUP_NONE = món chưa có nhóm, còn lại = groupId.
+  const [groupFilter, setGroupFilter] = useState(0)
   const [page, setPage] = useState(0)
   const queryClient = useQueryClient()
   const hasRight = useAuthStore((s) => s.hasRight)
@@ -102,11 +107,27 @@ export function ServiceCatalogWorkspace() {
     queryFn: getServices,
   })
 
-  const source = servicesQuery.data ?? []
+  const groupsQuery = useQuery({ queryKey: ['services', 'groups'], queryFn: getServiceGroups })
+
+  const source = useMemo(() => servicesQuery.data ?? [], [servicesQuery.data])
+  const groupOptions = useMemo(() => {
+    const counts = new Map<number, number>()
+    let none = 0
+    for (const service of source) {
+      if (service.groupId && service.groupId > 0) counts.set(service.groupId, (counts.get(service.groupId) ?? 0) + 1)
+      else none += 1
+    }
+    const groups = [...(groupsQuery.data?.rows ?? [])].sort(compareGroups)
+    return { groups, counts, none }
+  }, [source, groupsQuery.data])
+  // Server cũ chưa trả groupId / chưa có bảng nhóm ⇒ không hiện ô lọc.
+  const canFilterGroup = groupOptions.groups.length > 0
   const normalizedSearch = search.trim().toLocaleLowerCase('vi')
   const services = source.filter(
     (service) =>
       matchesServiceStock(service, stockFilter) &&
+      (groupFilter === 0 ||
+        (groupFilter === GROUP_NONE ? !service.groupId || service.groupId <= 0 : service.groupId === groupFilter)) &&
       (!normalizedSearch ||
         service.name.toLocaleLowerCase('vi').includes(normalizedSearch) ||
         service.unit.toLocaleLowerCase('vi').includes(normalizedSearch)),
@@ -122,9 +143,10 @@ export function ServiceCatalogWorkspace() {
     setPage(0)
   }
 
-  const hasActiveFilter = stockFilter !== 'all' || search.trim() !== ''
+  const hasActiveFilter = stockFilter !== 'all' || search.trim() !== '' || groupFilter !== 0
   const clearFilters = () => {
     setStockFilter('all')
+    setGroupFilter(0)
     setSearch('')
     setPage(0)
   }
@@ -245,6 +267,27 @@ export function ServiceCatalogWorkspace() {
             </div>
           </div>
         </div>
+        {canFilterGroup ? (
+          <div className="ds-field">
+            <Select
+              className="ds-select"
+              aria-label="Lọc theo nhóm dịch vụ"
+              value={groupFilter}
+              onChange={(event) => {
+                setGroupFilter(Number(event.target.value))
+                setPage(0)
+              }}
+            >
+              <option value={0}>Tất cả nhóm</option>
+              {groupOptions.groups.map((group) => (
+                <option key={group.groupId} value={group.groupId}>
+                  {group.name} ({groupOptions.counts.get(group.groupId) ?? 0})
+                </option>
+              ))}
+              {groupOptions.none > 0 ? <option value={GROUP_NONE}>Chưa có nhóm ({groupOptions.none})</option> : null}
+            </Select>
+          </div>
+        ) : null}
       </section>
 
       <section className="service-panel" aria-label="Danh sách dịch vụ">

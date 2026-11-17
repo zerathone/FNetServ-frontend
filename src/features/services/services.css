@@ -78,7 +78,7 @@
 
 .service-filters {
   display: grid;
-  grid-template-columns: minmax(16rem, 28rem);
+  grid-template-columns: minmax(16rem, 28rem) minmax(12rem, 18rem);
   align-items: end;
   gap: var(--space-3);
 }
