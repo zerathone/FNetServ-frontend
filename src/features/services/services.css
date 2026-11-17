@@ -64,6 +64,8 @@
 .service-stat__dot--available { background: var(--color-success); }
 .service-stat__dot--out { background: var(--color-danger-text); }
 .service-stat__dot--not-managed { background: var(--color-text-secondary); }
+.service-stat__dot--low { background: var(--color-warning); }
+.service-stat__dot--stopped { background: var(--color-text-secondary); opacity: 0.55; }
 
 .service-stat__label {
   font-size: var(--font-size-sm);

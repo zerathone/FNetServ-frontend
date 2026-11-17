@@ -7,6 +7,7 @@ import {
   formatDiff,
   formatQty,
   isValidStockCode,
+  materialStockState,
   milliToString,
   parseMilli,
   parseWastePercent,
@@ -144,4 +145,16 @@ test('describeInventoryError ghép chi tiết từ server', () => {
 test('chốt kỳ: đếm dòng lệch', () => {
   assert.equal(countClosingDiffs([{ diffQty: '0.000' }, { diffQty: '-2.000' }, { diffQty: '0.500' }]), 2)
   assert.equal(countClosingDiffs([]), 0)
+})
+
+test('materialStockState: ngung dung > het ton (<=0) > sap het (<= toi thieu) > con ton', () => {
+  const m = (isActive: number, stockQty: string, minStockQty: string) => ({ isActive, stockQty, minStockQty })
+  assert.equal(materialStockState(m(0, '9', '1')), 'stopped')
+  assert.equal(materialStockState(m(0, '0', '0')), 'stopped')
+  assert.equal(materialStockState(m(1, '0.000', '5.000')), 'out')
+  assert.equal(materialStockState(m(1, '-2.500', '0.000')), 'out')
+  assert.equal(materialStockState(m(1, '3.000', '5.000')), 'low')
+  assert.equal(materialStockState(m(1, '5.000', '5.000')), 'low')
+  assert.equal(materialStockState(m(1, '5.001', '5.000')), 'available')
+  assert.equal(materialStockState(m(1, '0.500', '0.000')), 'available')
 })

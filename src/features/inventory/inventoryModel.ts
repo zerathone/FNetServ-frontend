@@ -61,6 +61,29 @@ export function diffTone(value: string | null | undefined): 'neutral' | 'warning
   return value.startsWith('-') ? 'danger' : 'warning'
 }
 
+// ----- Trạng thái tồn của nguyên liệu (thống nhất với "Còn tồn / Hết tồn" của dịch vụ) -----
+
+/**
+ * Bốn nhóm rời nhau: ngừng dùng → hết tồn (tồn ≤ 0) → sắp hết (0 < tồn ≤ mức tối thiểu) → còn tồn.
+ * Khác cờ `low` của server (tồn ≤ tối thiểu, đã gồm cả hết tồn).
+ */
+export type MaterialStockState = 'available' | 'low' | 'out' | 'stopped'
+export type MaterialStockFilter = 'all' | MaterialStockState
+
+export function materialStockState(m: Pick<MaterialRow, 'isActive' | 'stockQty' | 'minStockQty'>): MaterialStockState {
+  if (m.isActive !== 1) return 'stopped'
+  const stock = Number(m.stockQty)
+  if (!(stock > 0)) return 'out'
+  return stock <= Number(m.minStockQty) ? 'low' : 'available'
+}
+
+export const MATERIAL_STOCK_LABEL: Record<MaterialStockState, string> = {
+  available: 'Còn tồn',
+  low: 'Sắp hết',
+  out: 'Hết tồn',
+  stopped: 'Ngừng dùng',
+}
+
 // ----- Phiếu nhập/xuất/kiểm kê nguyên liệu -----
 
 export type MaterialMoveType = 1 | 2 | 3
