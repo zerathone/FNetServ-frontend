@@ -984,6 +984,42 @@ input[type="radio"]:disabled {
   background: var(--color-surface-hover);
 }
 
+/* Ô gõ để lọc (chỉ có ở danh sách dài) dính đầu dropdown, các mục cuộn bên dưới. */
+.ds-custom-select-search {
+  position: sticky;
+  top: calc(var(--space-1) * -1);
+  z-index: 1;
+  margin: calc(var(--space-1) * -1) calc(var(--space-1) * -1) var(--space-1);
+  padding: var(--space-2);
+  background: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.ds-custom-select-search__input {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+}
+
+.ds-custom-select-search__input:focus {
+  outline: none;
+  border-color: var(--color-focus);
+}
+
+.ds-custom-select-empty {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+}
+
+/* Mục đang tô sáng bằng phím mũi tên (Enter để chọn). */
+.ds-custom-select-option--active:not(.ds-custom-select-option--selected) {
+  background: var(--color-surface-hover);
+}
+
 .ds-custom-select-option--selected {
   background: color-mix(in srgb, var(--color-action-primary) 15%, transparent);
   color: var(--color-action-primary);
