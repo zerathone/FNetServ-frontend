@@ -1,7 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CaretDown, CaretUp } from '@phosphor-icons/react'
-import { ImageSquare } from '@phosphor-icons/react'
+import {
+  ArrowCounterClockwise,
+  CurrencyCircleDollar,
+  Folders,
+  ImageSquare,
+  Images,
+  Percent,
+  Ruler,
+  Tag,
+  Trash,
+  UploadSimple,
+} from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { getMaterials, getRecipeConfig, getUnits, saveRecipe, saveToppings } from '../../api/inventory'
 import {
@@ -67,6 +78,7 @@ import {
   inventoryFlagChanged,
   nextGroupOrder,
   pendingOrdersOf,
+  parsePrice,
   parseVatInput,
   pendingOrderStatus,
   planGroupMove,
@@ -87,6 +99,42 @@ function invalidateCatalog(queryClient: ReturnType<typeof useQueryClient>) {
 }
 
 // ===== Thêm / sửa dịch vụ =====
+
+/**
+ * Ô nhập kiểu form thêm hội viên (`Field` của CreateUserDialog): ô tiền tố chứa icon + ô nhập trong cùng một khung;
+ * chữ hiển thị là placeholder, tên đầy đủ của trường nằm ở tooltip và cho trình đọc màn hình.
+ */
+function SvcField({
+  id,
+  label,
+  icon,
+  invalid,
+  top,
+  children,
+}: {
+  id: string
+  label: string
+  icon: ReactNode
+  invalid?: boolean
+  /** Nội dung cao hơn một dòng (vd. nhóm dịch vụ): ô icon canh trên cùng. */
+  top?: boolean
+  children: ReactNode
+}) {
+  const groupClasses = ['ds-input-group', 'svc-field__group']
+  if (invalid) groupClasses.push('is-invalid')
+  if (top) groupClasses.push('svc-field__group--top')
+  return (
+    <div className="ds-field svc-field">
+      <div className={groupClasses.join(' ')}>
+        <label className="ds-input-group-separator svc-field__label" htmlFor={id} title={label}>
+          {icon}
+          <span className="ds-visually-hidden">{label}</span>
+        </label>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export function ServiceEditorDialog({
   service,
@@ -352,180 +400,231 @@ export function ServiceEditorDialog({
       }
     >
       <div className="svc-form">
-        {/* Đầu form: trái = Tên dịch vụ, rồi dòng Giá bán | VAT | Đơn vị tính; phải = Hình ảnh chiếm cả 2 dòng. */}
+        {/* Đầu form — theo style form thêm hội viên: ô nhập dạng "icon + ô" (nhãn là placeholder, tên đầy đủ ở tooltip),
+            fieldset có legend, khung hình ảnh dạng thẻ + nút icon bên phải. */}
         <div className={`svc-top svc-form__wide${imageSupported ? '' : ' svc-top--noimg'}`}>
-          <label className="ds-field svc-top__name">
-            <span className="ds-field__label">Tên dịch vụ</span>
-            <input
-              className="ds-input"
-              value={draft.name}
-              maxLength={50}
-              autoFocus
-              aria-invalid={touched && validateServiceName(draft.name) !== null}
-              onChange={(e) => patch({ name: e.target.value })}
-            />
-          </label>
-          <div className={`svc-top__row${vatSupported ? '' : ' svc-top__row--2'}`}>
-            <label className="ds-field">
-              <span className="ds-field__label">Giá bán (đồng)</span>
+          <fieldset className="svc-top__main">
+            <legend>Thông tin dịch vụ</legend>
+            <SvcField
+              id="svc-name"
+              label="Tên dịch vụ"
+              icon={<Tag size={18} weight="bold" aria-hidden="true" />}
+              invalid={touched && validateServiceName(draft.name) !== null}
+            >
               <input
+                id="svc-name"
                 className="ds-input"
-                inputMode="numeric"
-                placeholder="15000"
-                value={draft.price}
-                onChange={(e) => patch({ price: e.target.value })}
+                placeholder="Tên dịch vụ *"
+                value={draft.name}
+                maxLength={50}
+                autoFocus
+                autoComplete="off"
+                aria-required="true"
+                aria-invalid={touched && validateServiceName(draft.name) !== null}
+                onChange={(e) => patch({ name: e.target.value })}
               />
-            </label>
-            {vatSupported ? (
-              <label className="ds-field">
-                <span className="ds-field__label">VAT (%)</span>
+            </SvcField>
+            <div className={`svc-top__row${vatSupported ? '' : ' svc-top__row--2'}`}>
+              <SvcField
+                id="svc-price"
+                label="Giá bán (đồng)"
+                icon={<CurrencyCircleDollar size={18} weight="bold" aria-hidden="true" />}
+                invalid={touched && parsePrice(draft.price) === null}
+              >
                 <input
+                  id="svc-price"
                   className="ds-input"
                   inputMode="numeric"
-                  placeholder="Không áp dụng"
-                  maxLength={3}
-                  title="Để trống = không áp dụng thuế cho món này. Nhập 0 = thuế 0% (vẫn gửi sang bên thuế)."
-                  value={draft.vat}
-                  aria-invalid={touched && parseVatInput(draft.vat) === null}
-                  onChange={(e) => {
-                    if (/^\d{0,3}$/.test(e.target.value)) patch({ vat: e.target.value })
-                  }}
+                  placeholder="Giá bán (đồng) *"
+                  autoComplete="off"
+                  aria-required="true"
+                  value={draft.price}
+                  onChange={(e) => patch({ price: e.target.value })}
                 />
-              </label>
+              </SvcField>
+              {vatSupported ? (
+                <SvcField
+                  id="svc-vat"
+                  label="VAT (%) — để trống: không áp dụng thuế; 0: thuế 0%"
+                  icon={<Percent size={18} weight="bold" aria-hidden="true" />}
+                  invalid={touched && parseVatInput(draft.vat) === null}
+                >
+                  <input
+                    id="svc-vat"
+                    className="ds-input"
+                    inputMode="numeric"
+                    placeholder="VAT (%)"
+                    maxLength={3}
+                    autoComplete="off"
+                    value={draft.vat}
+                    aria-invalid={touched && parseVatInput(draft.vat) === null}
+                    onChange={(e) => {
+                      if (/^\d{0,3}$/.test(e.target.value)) patch({ vat: e.target.value })
+                    }}
+                  />
+                </SvcField>
+              ) : null}
+              <SvcField id="svc-unit" label="Đơn vị tính" icon={<Ruler size={18} weight="bold" aria-hidden="true" />}>
+                <Select
+                  id="svc-unit"
+                  className="ds-select"
+                  value={draft.unitId}
+                  onChange={(e) => patch({ unitId: Number(e.target.value) })}
+                >
+                  <option value={0}>Đơn vị tính</option>
+                  {units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.unit}
+                    </option>
+                  ))}
+                </Select>
+              </SvcField>
+            </div>
+            {vatSupported ? (
+              <small className="ds-field__hint">
+                VAT: để trống = không áp dụng thuế cho món; nhập 0 = thuế 0% (vẫn gửi sang bên thuế).
+              </small>
             ) : null}
-            <label className="ds-field">
-              <span className="ds-field__label">Đơn vị tính</span>
-              <Select
-                className="ds-input"
-                value={draft.unitId}
-                onChange={(e) => patch({ unitId: Number(e.target.value) })}
-              >
-                <option value={0}>Chưa chọn</option>
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.unit}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          </div>
-
-          <div className="ds-field svc-top__group">
-            <span className="ds-field__label">Nhóm dịch vụ</span>
-            <Segmented
-              ariaLabel="Loại nhóm"
-              value={groupKind}
-              onChange={(kind) => {
-                setGroupKind(kind)
-                const list = kind === 'topping' ? choices.topping : choices.normal
-                if (!list.some((g) => g.groupId === draft.groupId)) patch({ groupId: 0 })
-              }}
-              options={[
-                { value: 'normal', label: groupTypeLabel(GROUP_TYPE_NORMAL) },
-                { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
-              ]}
-            />
-            {shown.length === 0 ? (
-              <small className="svc-muted">Chưa có nhóm đang dùng.</small>
-            ) : (
-              <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
-                {shown.map((g) => {
-                  const selected = g.groupId === draft.groupId
-                  // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
-                  const previous = !selected && service !== null && g.groupId === service.groupId
-                  return (
-                    <button
-                      key={g.groupId}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      title={previous ? 'Nhóm hiện tại của món' : undefined}
-                      className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
-                      onClick={() => patch({ groupId: g.groupId })}
-                    >
-                      {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
-                    </button>
-                  )
-                })}
+            <SvcField
+              id="svc-group"
+              label="Nhóm dịch vụ"
+              icon={<Folders size={18} weight="bold" aria-hidden="true" />}
+              invalid={touched && draft.groupId <= 0}
+              top
+            >
+              <div className="svc-groupbox">
+                <Segmented
+                  ariaLabel="Loại nhóm"
+                  value={groupKind}
+                  onChange={(kind) => {
+                    setGroupKind(kind)
+                    const list = kind === 'topping' ? choices.topping : choices.normal
+                    if (!list.some((g) => g.groupId === draft.groupId)) patch({ groupId: 0 })
+                  }}
+                  options={[
+                    { value: 'normal', label: groupTypeLabel(GROUP_TYPE_NORMAL) },
+                    { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
+                  ]}
+                />
+                {shown.length === 0 ? (
+                  <small className="svc-muted">Chưa có nhóm đang dùng.</small>
+                ) : (
+                  <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
+                    {shown.map((g) => {
+                      const selected = g.groupId === draft.groupId
+                      // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
+                      const previous = !selected && service !== null && g.groupId === service.groupId
+                      return (
+                        <button
+                          key={g.groupId}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          title={previous ? 'Nhóm hiện tại của món' : undefined}
+                          className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
+                          onClick={() => patch({ groupId: g.groupId })}
+                        >
+                          {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {groupKind === 'topping' ? (
+                  <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
+                ) : null}
               </div>
-            )}
-            {groupKind === 'topping' ? (
-              <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
-            ) : null}
-          </div>
+            </SvcField>
+          </fieldset>
 
           {imageSupported ? (
-            <div className="ds-field svc-top__image">
-              <span className="ds-field__label">Hình ảnh</span>
-              <div className="svc-image">
-                <div className="svc-image__preview">
+            <aside className="svc-top__rail" aria-label="Hình ảnh dịch vụ">
+              <div className="svc-image-card">
+                <div className="svc-image-frame">
                   {previewSrc ? (
                     <img src={previewSrc} alt={draft.name.trim() || 'Ảnh dịch vụ'} />
                   ) : (
                     <ImageSquare className="svc-image__placeholder" size={56} weight="light" role="img" aria-label="Chưa có hình" />
                   )}
                 </div>
-                <div className="svc-image__actions">
+                <div className="svc-image-actions">
                   <input
                     ref={fileInput}
                     type="file"
-                    hidden
+                    className="ds-visually-hidden"
                     accept="image/png,image/jpeg"
+                    tabIndex={-1}
                     onChange={(e) => void onPickImage(e)}
                   />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="secondary"
+                    className="svc-image-icon-action"
+                    icon={<UploadSimple size={18} weight="bold" aria-hidden="true" />}
+                    aria-label="Chọn ảnh"
+                    title="Chọn ảnh từ máy"
                     loading={imageBusy}
                     disabled={!canConfigure}
                     onClick={() => fileInput.current?.click()}
-                  >
-                    Chọn ảnh…
-                  </Button>
+                  />
                   <Button
                     type="button"
-                    variant="outline"
-                    disabled={!canConfigure || imageBusy}
+                    variant="secondary"
+                    className="svc-image-icon-action"
+                    icon={<Images size={18} weight="bold" aria-hidden="true" />}
+                    aria-label="Thư viện ảnh"
                     title="Chọn một ảnh có sẵn trong thư viện (dùng chung với iCafe)"
+                    disabled={!canConfigure || imageBusy}
                     onClick={() => setLibraryOpen(true)}
-                  >
-                    Thư viện
-                  </Button>
+                  />
                   {imageDraft.action === 'new' || imageDraft.action === 'library' ? (
-                    <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
-                      Bỏ ảnh vừa chọn
-                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="svc-image-icon-action"
+                      icon={<ArrowCounterClockwise size={18} weight="bold" aria-hidden="true" />}
+                      aria-label="Bỏ ảnh vừa chọn"
+                      title="Bỏ ảnh vừa chọn"
+                      onClick={() => setImageDraft({ action: 'keep' })}
+                    />
                   ) : imageDraft.action === 'clear' ? (
-                    <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
-                      Giữ lại ảnh cũ
-                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="svc-image-icon-action"
+                      icon={<ArrowCounterClockwise size={18} weight="bold" aria-hidden="true" />}
+                      aria-label="Giữ lại ảnh cũ"
+                      title="Giữ lại ảnh cũ"
+                      onClick={() => setImageDraft({ action: 'keep' })}
+                    />
                   ) : previewSrc ? (
                     <Button
                       type="button"
                       variant="ghost"
+                      className="svc-image-icon-action"
+                      icon={<Trash size={18} weight="bold" aria-hidden="true" />}
+                      aria-label="Gỡ ảnh"
+                      title="Gỡ ảnh"
                       disabled={!canConfigure}
                       onClick={() => setImageDraft({ action: 'clear' })}
-                    >
-                      Gỡ ảnh
-                    </Button>
+                    />
                   ) : null}
                 </div>
               </div>
-              <small className="svc-muted">
+              <small className="ds-field__hint">
                 {imageDraft.action === 'new'
                   ? `Ảnh mới ${imageDraft.width}×${imageDraft.height} px, ${Math.max(1, Math.round(imageDraft.bytes / 1024))} KB${imageDraft.resized ? ' (đã tự thu nhỏ)' : ''} — lưu cùng lúc với dịch vụ.`
                   : imageDraft.action === 'library'
                     ? `Ảnh thư viện “${imageDraft.name}” — lưu cùng lúc với dịch vụ.`
                     : imageDraft.action === 'clear'
-                    ? 'Ảnh sẽ được gỡ khi lưu.'
-                    : hasStoredImage && imageQuery.data && !imageQuery.data.hasImage
-                      ? `Không tìm thấy tệp ảnh “${service?.serviceImg}” trong thư mục ảnh.`
-                      : `PNG hoặc JPEG, tối đa ${IMAGE_MAX_SIDE}×${IMAGE_MAX_SIDE} px và ${IMAGE_MAX_BYTES / (1024 * 1024)}MB — ảnh lớn hơn sẽ tự thu nhỏ.`}
+                      ? 'Ảnh sẽ được gỡ khi lưu.'
+                      : hasStoredImage && imageQuery.data && !imageQuery.data.hasImage
+                        ? `Không tìm thấy tệp ảnh “${service?.serviceImg}” trong thư mục ảnh.`
+                        : `PNG hoặc JPEG, tối đa ${IMAGE_MAX_SIDE}×${IMAGE_MAX_SIDE} px và ${IMAGE_MAX_BYTES / (1024 * 1024)}MB — ảnh lớn hơn sẽ tự thu nhỏ.`}
               </small>
-            </div>
+            </aside>
           ) : null}
         </div>
-
         <div className="svc-form__wide">
           <Switch
             checked={draft.inventoryManagement}
