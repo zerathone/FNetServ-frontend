@@ -52,7 +52,6 @@ export function ImageLibraryDialog({
     <Dialog
       open={open}
       title="Thư viện hình ảnh"
-      description="Chọn một ảnh có sẵn (dùng chung với iCafe). Nhiều món có thể dùng chung một ảnh."
       size="lg"
       onClose={onClose}
       footer={
