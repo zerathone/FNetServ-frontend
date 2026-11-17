@@ -269,23 +269,25 @@ export function ServiceCatalogWorkspace() {
         </div>
         {canFilterGroup ? (
           <div className="ds-field">
-            <Select
-              className="ds-select"
-              aria-label="Lọc theo nhóm dịch vụ"
-              value={groupFilter}
-              onChange={(event) => {
-                setGroupFilter(Number(event.target.value))
-                setPage(0)
-              }}
-            >
-              <option value={0}>Tất cả nhóm</option>
-              {groupOptions.groups.map((group) => (
-                <option key={group.groupId} value={group.groupId}>
-                  {group.name} ({groupOptions.counts.get(group.groupId) ?? 0})
-                </option>
-              ))}
-              {groupOptions.none > 0 ? <option value={GROUP_NONE}>Chưa có nhóm ({groupOptions.none})</option> : null}
-            </Select>
+            <div className="ds-input-group">
+              <span className="ds-input-group-separator">Nhóm</span>
+              <Select
+                aria-label="Lọc theo nhóm dịch vụ"
+                value={groupFilter}
+                onChange={(event) => {
+                  setGroupFilter(Number(event.target.value))
+                  setPage(0)
+                }}
+              >
+                <option value={0}>Tất cả</option>
+                {groupOptions.groups.map((group) => (
+                  <option key={group.groupId} value={group.groupId}>
+                    {group.name} ({groupOptions.counts.get(group.groupId) ?? 0})
+                  </option>
+                ))}
+                {groupOptions.none > 0 ? <option value={GROUP_NONE}>Chưa có nhóm ({groupOptions.none})</option> : null}
+              </Select>
+            </div>
           </div>
         ) : null}
       </section>
