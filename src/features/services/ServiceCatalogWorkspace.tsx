@@ -194,15 +194,6 @@ export function ServiceCatalogWorkspace() {
               Nhóm dịch vụ
             </Button>
             {unitsButton}
-            <Button
-              type="button"
-              variant="primary"
-              disabled={!canAdd}
-              title={canAdd ? undefined : 'Cần quyền Thêm dịch vụ (61)'}
-              onClick={() => setEditor(null)}
-            >
-              Thêm dịch vụ
-            </Button>
           </>
         }
       />
@@ -249,7 +240,7 @@ export function ServiceCatalogWorkspace() {
       </section>
 
       <section className="service-filters" aria-label="Lọc dịch vụ">
-        <div className="ds-field">
+        <div className="ds-field service-filters__search">
           <div className="ds-input-group ds-input-group--search">
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
@@ -268,7 +259,7 @@ export function ServiceCatalogWorkspace() {
           </div>
         </div>
         {canFilterGroup ? (
-          <div className="ds-field">
+          <div className="ds-field service-filters__group">
             <div className="ds-input-group">
               <span className="ds-input-group-separator">Nhóm</span>
               <Select
@@ -290,6 +281,16 @@ export function ServiceCatalogWorkspace() {
             </div>
           </div>
         ) : null}
+        <Button
+          type="button"
+          variant="primary"
+          className="service-filters__add"
+          disabled={!canAdd}
+          title={canAdd ? undefined : 'Cần quyền Thêm dịch vụ (61)'}
+          onClick={() => setEditor(null)}
+        >
+          Thêm dịch vụ
+        </Button>
       </section>
 
       <section className="service-panel" aria-label="Danh sách dịch vụ">

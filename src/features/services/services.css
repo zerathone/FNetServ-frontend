@@ -76,11 +76,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Hàng lọc: tìm kiếm + (combo nhóm) bên trái, nút "Thêm …" dồn sang mép phải cùng hàng. */
 .service-filters {
-  display: grid;
-  grid-template-columns: minmax(16rem, 28rem) minmax(12rem, 18rem);
+  display: flex;
+  flex-wrap: wrap;
   align-items: end;
   gap: var(--space-3);
+}
+
+.service-filters__search {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+
+.service-filters__group {
+  flex: 0 1 18rem;
+  min-width: 12rem;
+}
+
+.service-filters__add {
+  margin-left: auto;
 }
 
 .service-panel {
@@ -164,8 +179,14 @@
 }
 
 @media (max-width: 700px) {
-  .service-filters {
-    grid-template-columns: 1fr;
+  .service-filters__search,
+  .service-filters__group {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .service-filters__add {
+    margin-left: 0;
   }
 
   .service-panel__summary {

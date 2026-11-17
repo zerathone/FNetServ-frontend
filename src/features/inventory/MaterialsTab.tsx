@@ -107,7 +107,7 @@ export function MaterialsTab() {
       </section>
 
       <section className="service-filters" aria-label="Lọc nguyên liệu">
-        <div className="ds-field">
+        <div className="ds-field service-filters__search">
           <div className="ds-input-group ds-input-group--search">
             <div className="ds-search-input">
               <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
@@ -122,6 +122,16 @@ export function MaterialsTab() {
             </div>
           </div>
         </div>
+        <Button
+          type="button"
+          variant="primary"
+          className="service-filters__add"
+          disabled={!canCatalog || !supported}
+          title={canCatalog ? undefined : 'Cần quyền Quản lý kho (64)'}
+          onClick={() => setEditing({ material: null })}
+        >
+          Thêm nguyên liệu
+        </Button>
       </section>
 
       <section className="service-panel" aria-label="Danh sách nguyên liệu">
@@ -131,20 +141,7 @@ export function MaterialsTab() {
               Tổng <strong>{new Intl.NumberFormat('vi-VN').format(rows.length)}</strong>
             </>
           }
-          actions={
-            <>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={!canCatalog || !supported}
-                title={canCatalog ? undefined : 'Cần quyền Quản lý kho (64)'}
-                onClick={() => setEditing({ material: null })}
-              >
-                Thêm nguyên liệu
-              </Button>
-              <RefreshButton loading={query.isFetching} onClick={() => void query.refetch()} />
-            </>
-          }
+          actions={<RefreshButton loading={query.isFetching} onClick={() => void query.refetch()} />}
         />
       {query.isLoading ? (
         <StateView title="Đang tải nguyên liệu…" />
