@@ -72,6 +72,27 @@ export function parseNonNegativeInt(input: string, max = 9_999_999): number | nu
 // Dịch vụ
 // ---------------------------------------------------------------------------------------------
 
+/** VAT: `-1` = chưa khai báo / KHÔNG áp dụng thuế; `0` = thuế 0% (vẫn gửi sang bên thuế). Hai giá trị riêng. */
+export const VAT_NONE = -1
+export const VAT_MAX = 100
+/** Mức thuế chọn nhanh trên form; món có mức khác (đã có sẵn trong DB) vẫn hiện thêm một tag cho mức đó. */
+export const VAT_PRESETS = [VAT_NONE, 0, 5, 8, 10] as const
+
+export function isValidVat(value: number): boolean {
+  return Number.isInteger(value) && value >= VAT_NONE && value <= VAT_MAX
+}
+
+export function vatLabel(value: number): string {
+  return value === VAT_NONE ? 'Không áp dụng thuế' : `${value}%`
+}
+
+/** Các mức hiện thành tag: mức chọn nhanh + mức hiện tại của món nếu nằm ngoài danh sách (để không mất khi lưu). */
+export function vatOptions(current: number): number[] {
+  const list: number[] = [...VAT_PRESETS]
+  if (isValidVat(current) && !list.includes(current)) list.push(current)
+  return list
+}
+
 export type ServiceDraft = {
   name: string
   price: string
@@ -82,10 +103,21 @@ export type ServiceDraft = {
   warning: string
   /** Chỉ dùng khi tạo. */
   active: boolean
+  /** VAT (xem VAT_NONE). */
+  vat: number
 }
 
 export function emptyServiceDraft(): ServiceDraft {
-  return { name: '', price: '', unitId: 0, groupId: 0, inventoryManagement: false, warning: '', active: true }
+  return {
+    name: '',
+    price: '',
+    unitId: 0,
+    groupId: 0,
+    inventoryManagement: false,
+    warning: '',
+    active: true,
+    vat: VAT_NONE,
+  }
 }
 
 /** Mức cảnh báo đưa vào ô nhập: `<= 0` (gồm -1 của Qt cũ) = không cảnh báo ⇒ ô trống. */
@@ -102,6 +134,7 @@ export function draftFromService(service: ServiceItem): ServiceDraft {
     inventoryManagement: service.inventoryManagement === 1,
     warning: warningToInput(service.warningInventory),
     active: service.active !== 0,
+    vat: service.vatPercent ?? VAT_NONE,
   }
 }
 
@@ -113,6 +146,7 @@ export function validateServiceDraft(draft: ServiceDraft): string | null {
   if (draft.inventoryManagement && draft.warning.trim() !== '' && parseNonNegativeInt(draft.warning) === null) {
     return 'Mức cảnh báo tồn phải là số nguyên không âm.'
   }
+  if (!isValidVat(draft.vat)) return `VAT phải là “Không áp dụng thuế” hoặc số nguyên từ 0 đến ${VAT_MAX}.`
   return null
 }
 
@@ -143,7 +177,38 @@ export function serviceSaveBody(
     if (warning !== '') body.warningInventory = parseNonNegativeInt(warning) ?? 0
     else if (!original || (original.warningInventory ?? 0) >= 0) body.warningInventory = 0
   }
+  // VAT: sửa chỉ gửi khi đổi thật và server có trả `vatPercent` (server cũ/DB thiếu cột ⇒ không gửi, tránh `unsupported`);
+  // thêm mới chỉ gửi khi khác -1 (DB mặc định -1) để DB chưa có cột VAT vẫn thêm món được.
+  if (original) {
+    if (original.vatPercent !== undefined && draft.vat !== original.vatPercent) body.vatPercent = draft.vat
+  } else if (draft.vat !== VAT_NONE) {
+    body.vatPercent = draft.vat
+  }
   return body
+}
+
+// ---------------------------------------------------------------------------------------------
+// Ảnh món — giới hạn chốt 2026-11-17: PNG/JPEG, ≤ 600×600 px, ≤ 2MB (server kiểm lại, thư mục chung iCafe)
+// ---------------------------------------------------------------------------------------------
+
+export const IMAGE_MAX_SIDE = 600
+export const IMAGE_MAX_BYTES = 2 * 1024 * 1024
+export const IMAGE_TYPES = ['image/png', 'image/jpeg'] as const
+
+/** Kích thước sau khi thu nhỏ để vừa khung `max`×`max` (giữ tỉ lệ; ảnh nhỏ hơn giữ nguyên, không phóng to). */
+export function fitWithin(width: number, height: number, max = IMAGE_MAX_SIDE): { width: number; height: number } {
+  if (width <= 0 || height <= 0) return { width: 0, height: 0 }
+  if (width <= max && height <= max) return { width, height }
+  const scale = max / Math.max(width, height)
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
+}
+
+/** Số byte thật sau khi giải mã của một chuỗi `data:...;base64,XXXX` (không giải mã ra bộ nhớ). */
+export function dataUrlBytes(dataUrl: string): number {
+  const comma = dataUrl.indexOf(',')
+  const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl
+  const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0
+  return Math.max(0, Math.floor((b64.length * 3) / 4) - padding)
 }
 
 export function isReadonlyService(service: Pick<ServiceItem, 'readonly'>): boolean {
@@ -192,35 +257,68 @@ export function groupTypeLocked(group: Pick<ServiceGroupRow, 'serviceCount'> | n
   return group !== null && group.serviceCount > 0
 }
 
-export type GroupDraft = { name: string; sortOrder: string; typeId: 0 | 2 }
+/** Form thêm/sửa nhóm không còn ô thứ tự — thứ tự đổi bằng nút lên/xuống trong danh sách. */
+export type GroupDraft = { name: string; typeId: 0 | 2 }
 
-export function draftFromGroup(group: ServiceGroupRow | null, nextOrder = 0): GroupDraft {
+export function draftFromGroup(group: ServiceGroupRow | null): GroupDraft {
   return group
-    ? { name: group.name, sortOrder: String(group.sortOrder), typeId: group.typeId === GROUP_TYPE_TOPPING ? 2 : 0 }
-    : { name: '', sortOrder: String(nextOrder), typeId: 0 }
+    ? { name: group.name, typeId: group.typeId === GROUP_TYPE_TOPPING ? 2 : 0 }
+    : { name: '', typeId: 0 }
 }
 
+/** Thứ tự của nhóm mới = cuối danh sách (lớn nhất hiện có + 1, tối đa SORT_ORDER_MAX). */
 export function nextGroupOrder(groups: readonly ServiceGroupRow[]): number {
   return Math.min(SORT_ORDER_MAX, groups.reduce((max, group) => Math.max(max, group.sortOrder), 0) + 1)
 }
 
-export function validateGroupDraft(draft: GroupDraft): string | null {
-  const nameError = validateCatalogName(draft.name, 'Tên nhóm')
-  if (nameError) return nameError
-  if (parseNonNegativeInt(draft.sortOrder, SORT_ORDER_MAX) === null) {
-    return `Thứ tự hiển thị phải là số nguyên từ 0 đến ${SORT_ORDER_MAX}.`
+/** Thứ tự hiển thị nhóm: theo `sortOrder`, trùng thì theo tên (khớp ô chọn nhóm của món). */
+export function compareGroups(a: ServiceGroupRow, b: ServiceGroupRow): number {
+  return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'vi', { numeric: true }) || a.groupId - b.groupId
+}
+
+export type GroupOrderUpdate = { groupId: number; name: string; sortOrder: number }
+
+/**
+ * Kế hoạch đổi chỗ nhóm `groupId` lên (-1) / xuống (+1) một vị trí trong danh sách đã sắp theo `compareGroups`.
+ * `sortOrder` đang khác nhau hết → chỉ đổi giá trị cho 2 nhóm kề nhau. Có nhóm trùng `sortOrder` (nhóm cũ hay
+ * để toàn 0) → đánh lại 1..N theo thứ tự đang thấy, chỉ gửi nhóm có giá trị đổi. Trả `[]` khi không di chuyển được.
+ */
+export function planGroupMove(groups: readonly ServiceGroupRow[], groupId: number, direction: -1 | 1): GroupOrderUpdate[] {
+  const list = [...groups].sort(compareGroups)
+  const from = list.findIndex((group) => group.groupId === groupId)
+  const to = from + direction
+  if (from < 0 || to < 0 || to >= list.length) return []
+  const a = list[from]
+  const b = list[to]
+
+  const hasDuplicate = new Set(list.map((group) => group.sortOrder)).size !== list.length
+  if (!hasDuplicate) {
+    return [
+      { groupId: a.groupId, name: a.name, sortOrder: b.sortOrder },
+      { groupId: b.groupId, name: b.name, sortOrder: a.sortOrder },
+    ]
   }
-  return null
+  ;[list[from], list[to]] = [b, a]
+  const updates: GroupOrderUpdate[] = []
+  list.forEach((group, index) => {
+    const sortOrder = Math.min(SORT_ORDER_MAX, index + 1)
+    if (group.sortOrder !== sortOrder) updates.push({ groupId: group.groupId, name: group.name, sortOrder })
+  })
+  return updates
+}
+
+export function validateGroupDraft(draft: GroupDraft): string | null {
+  return validateCatalogName(draft.name, 'Tên nhóm')
 }
 
 /**
- * Body nhóm. Sửa: chỉ gửi `typeId` khi đổi thật — nhóm sẵn có với loại lạ (≠ 0/2) hoặc nhóm còn món không
- * bị ghi đè loại.
+ * Body nhóm. Thêm: `sortOrder` = cuối danh sách (`nextOrder`). Sửa: giữ nguyên thứ tự cũ; chỉ gửi `typeId`
+ * khi đổi thật — nhóm sẵn có với loại lạ (≠ 0/2) hoặc nhóm còn món không bị ghi đè loại.
  */
-export function groupSaveBody(draft: GroupDraft, original: ServiceGroupRow | null): ServiceGroupSaveBody {
+export function groupSaveBody(draft: GroupDraft, original: ServiceGroupRow | null, nextOrder = 0): ServiceGroupSaveBody {
   const body: ServiceGroupSaveBody = {
     name: draft.name.trim(),
-    sortOrder: parseNonNegativeInt(draft.sortOrder, SORT_ORDER_MAX) ?? 0,
+    sortOrder: original ? original.sortOrder : nextOrder,
   }
   if (!original) {
     body.typeId = draft.typeId

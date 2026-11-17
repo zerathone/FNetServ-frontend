@@ -24,6 +24,13 @@ export type ServiceItem = {
   groupActive?: number
   /** Dòng hệ thống/ngoài danh mục (FFOOD…): chỉ đọc, không sửa/ngừng bán trên màn này. */
   readonly?: boolean
+  /**
+   * VAT của món: `-1` = chưa khai báo / KHÔNG áp dụng thuế; `0` = thuế 0% (vẫn gửi sang bên thuế) — hai giá trị
+   * riêng biệt. `undefined` = server cũ hoặc DB chưa có cột ⇒ không hiện/không gửi VAT.
+   */
+  vatPercent?: number
+  /** Tên file ảnh trong thư mục ảnh dùng chung với iCafe ("" = chưa có). `undefined` = server cũ. */
+  serviceImg?: string
 }
 
 export function getServices() {

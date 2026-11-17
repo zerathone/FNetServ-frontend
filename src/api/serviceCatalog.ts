@@ -15,10 +15,39 @@ export type ServiceSaveBody = {
   active?: boolean
   inventoryManagement?: boolean
   warningInventory?: number
+  /** -1 = không áp dụng thuế, 0..100 = mức thuế. Bỏ trống = không đổi (thêm mới: DB mặc định -1). */
+  vatPercent?: number
 }
 
 export function saveService(body: ServiceSaveBody) {
   return apiPost<{ serviceId: number; created: boolean }, ServiceSaveBody>('/service/catalog/save', body)
+}
+
+// ----- Ảnh món — thư mục dùng chung với iCafe; PNG/JPEG thật, ≤ 600×600 px, ≤ 2MB (server kiểm lại) -----
+
+export type ServiceImageData = {
+  supported: boolean
+  hasImage: boolean
+  name?: string
+  mime?: string
+  imageBase64?: string
+}
+
+/** Đọc ảnh hiện tại của món (base64) để xem trước — `<img>` không gửi được Bearer nên không có URL trực tiếp. */
+export function getServiceImage(serviceId: number) {
+  return apiPost<ServiceImageData, { serviceId: number }>('/service/catalog/image/get', { serviceId })
+}
+
+/** `imageBase64` nhận cả chuỗi `data:image/png;base64,...` của canvas.toDataURL(). Quyền 62. */
+export function saveServiceImage(body: { serviceId: number; imageBase64: string }) {
+  return apiPost<{ serviceId: number; serviceImg: string }, typeof body>('/service/catalog/image/save', body)
+}
+
+/** Gỡ ảnh khỏi món (cột ServiceImg = rỗng). Quyền 62. */
+export function clearServiceImage(serviceId: number) {
+  return apiPost<{ serviceId: number; serviceImg: string }, { serviceId: number }>('/service/catalog/image/clear', {
+    serviceId,
+  })
 }
 
 /** `active=false` = "Ngừng bán" (quyền 63), `true` = "Bán lại" (quyền 62). Idempotent. */

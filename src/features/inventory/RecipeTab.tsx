@@ -10,25 +10,24 @@ import {
   type RecipeConfig,
 } from '../../api/inventory'
 import { getServices, type ServiceItem } from '../../api/services'
-import { Button, InlineAlert, Segmented, Select, StateView, StatusBadge } from '../../design-system/components'
+import { Button, InlineAlert, StateView, StatusBadge } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { describeInventoryError } from './inventoryModel'
+import { RecipeFields, ToppingFields } from './RecipeFields'
 import {
-  describeInventoryError,
-  recipeLinesBody,
-  toppingLinesBody,
-  validateRecipeDraft,
-  validateToppingDraft,
-  type RecipeDraftLine,
-  type ToppingDraftLine,
-} from './inventoryModel'
+  recipeChanged,
+  recipeDraftFromConfig,
+  recipeSaveBody,
+  toppingDraftFromConfig,
+  toppingSaveBody,
+  validateRecipe,
+  validateTopping,
+  type RecipeDraft,
+  type ToppingDraft,
+} from './recipeDraftModel'
 
-type RecipeMode = 'none' | 'recipe' | 'material'
-
-let draftSeq = 0
-const nextKey = () => `d${++draftSeq}`
-
-/** Tab Công thức & topping: chọn món bên trái, cấu hình bên phải. Quyền 62 (sửa dịch vụ) cho cả hai. */
+/** Tab Công thức & món bán kèm: chọn món bên trái, cấu hình bên phải. Quyền 62 (sửa dịch vụ) cho cả hai. */
 export function RecipeTab() {
   const [search, setSearch] = useState('')
   const [serviceId, setServiceId] = useState(0)
@@ -93,7 +92,7 @@ export function RecipeTab() {
         <section className="inv-panel">
           <StateView
             title="Chọn một món để cấu hình"
-            description="Món có công thức sẽ tự trừ nguyên liệu khi bán; topping là món/nguyên liệu bán kèm."
+            description="Món có công thức sẽ tự trừ nguyên liệu khi bán; món bán kèm là món/nguyên liệu bán cùng."
           />
         </section>
       ) : (
@@ -139,7 +138,7 @@ function ServiceConfig({ serviceId, services }: { serviceId: number; services: S
     return (
       <section className="inv-panel">
         <StateView
-          title="Cơ sở dữ liệu chưa có bảng công thức/topping"
+          title="Cơ sở dữ liệu chưa có bảng công thức/món bán kèm"
           description="Khởi động lại máy chủ để tạo bảng, rồi tải lại trang."
         />
       </section>
@@ -155,7 +154,7 @@ function ServiceConfig({ serviceId, services }: { serviceId: number; services: S
           <h2>{configQuery.data.name}</h2>
           <p className="inv-muted">
             #{serviceId} · {configQuery.data.zRecipe ? `${configQuery.data.zRecipe} nguyên liệu` : 'chưa có công thức'} ·{' '}
-            {configQuery.data.zTopping ? `${configQuery.data.zTopping} topping` : 'chưa có topping'}
+            {configQuery.data.zTopping ? `${configQuery.data.zTopping} món bán kèm` : 'chưa có món bán kèm'}
           </p>
         </div>
         {configQuery.data.zType ? <StatusBadge tone="info">Trừ kho khi bán</StatusBadge> : null}
@@ -190,58 +189,21 @@ function RecipeEditor({
   materials: MaterialRow[]
 }) {
   const canEdit = useAuthStore((s) => s.hasRight)(62)
-  const initialMode: RecipeMode = (config.zMaterialId ?? 0) > 0 ? 'material' : config.recipe.length > 0 ? 'recipe' : 'none'
-  const [mode, setMode] = useState<RecipeMode>(initialMode)
-  const [lines, setLines] = useState<RecipeDraftLine[]>(() =>
-    config.recipe.map((r) => ({
-      key: nextKey(),
-      materialId: r.materialId,
-      qty: trimDecimal(r.qty),
-      waste: trimDecimal(r.wastePercent),
-    })),
-  )
-  const [directMaterial, setDirectMaterial] = useState(config.zMaterialId ?? 0)
+  const [initial] = useState<RecipeDraft>(() => recipeDraftFromConfig(config))
+  const [draft, setDraft] = useState<RecipeDraft>(initial)
 
   const mutation = useMutation({
-    mutationFn: () => {
-      if (mode === 'material') return saveRecipe({ serviceId, materialId: directMaterial })
-      return saveRecipe({ serviceId, lines: mode === 'recipe' ? recipeLinesBody(lines) : [] })
-    },
+    mutationFn: () => saveRecipe(recipeSaveBody(serviceId, draft)),
     ...useSaveInvalidate('Đã lưu công thức.'),
   })
 
   const inactive = config.recipe.filter((r) => r.materialActive !== 1)
-  const problem =
-    mode === 'recipe'
-      ? lines.length === 0
-        ? 'Thêm ít nhất một nguyên liệu, hoặc chọn “Không có công thức”.'
-        : validateRecipeDraft(lines)
-      : mode === 'material' && directMaterial === 0
-        ? 'Chọn nguyên liệu mà món này đại diện.'
-        : null
-
-  const setLine = (key: string, patch: Partial<RecipeDraftLine>) =>
-    setLines((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)))
+  const problem = validateRecipe(draft)
 
   return (
     <div className="inv-block">
       <h3>Công thức nguyên liệu</h3>
-      <Segmented<RecipeMode>
-        ariaLabel="Kiểu công thức"
-        value={mode}
-        disabled={!canEdit}
-        onChange={(next) => {
-          setMode(next)
-          if (next === 'recipe' && lines.length === 0) {
-            setLines([{ key: nextKey(), materialId: 0, qty: '', waste: '' }])
-          }
-        }}
-        options={[
-          { value: 'none', label: 'Không có công thức' },
-          { value: 'recipe', label: 'Nhiều nguyên liệu' },
-          { value: 'material', label: 'Món này là nguyên liệu' },
-        ]}
-      />
+      <RecipeFields draft={draft} onChange={setDraft} materials={materials} disabled={!canEdit} />
       {inactive.length > 0 ? (
         <InlineAlert tone="warning">
           Có nguyên liệu đã ngừng dùng trong công thức: {inactive.map((r) => r.materialName).join(', ')}. Bán món này sẽ
@@ -249,108 +211,17 @@ function RecipeEditor({
         </InlineAlert>
       ) : null}
 
-      {mode === 'recipe' ? (
-        <div className="inv-lines">
-          <div className="inv-lines__head" aria-hidden="true">
-            <span>Nguyên liệu</span>
-            <span>Định lượng / 1 phần</span>
-            <span>Hao hụt %</span>
-            <span />
-          </div>
-          {lines.map((line) => {
-            const unit = materials.find((m) => m.materialId === line.materialId)?.unit
-            return (
-              <div className="inv-lines__row" key={line.key}>
-                <Select
-                  className="ds-input"
-                  aria-label="Nguyên liệu"
-                  value={line.materialId}
-                  disabled={!canEdit}
-                  onChange={(e) => setLine(line.key, { materialId: Number(e.target.value) })}
-                >
-                  <option value={0}>Chọn nguyên liệu…</option>
-                  {materials.map((m) => (
-                    <option key={m.materialId} value={m.materialId}>
-                      {m.name}
-                      {m.unit ? ` (${m.unit})` : ''}
-                    </option>
-                  ))}
-                </Select>
-                <span className="inv-lines__qty">
-                  <input
-                    className="ds-input"
-                    inputMode="decimal"
-                    aria-label="Định lượng"
-                    value={line.qty}
-                    disabled={!canEdit}
-                    onChange={(e) => setLine(line.key, { qty: e.target.value })}
-                  />
-                  {unit ? <small className="inv-muted">{unit}</small> : null}
-                </span>
-                <input
-                  className="ds-input"
-                  inputMode="decimal"
-                  aria-label="Hao hụt phần trăm"
-                  placeholder="0"
-                  value={line.waste}
-                  disabled={!canEdit}
-                  onChange={(e) => setLine(line.key, { waste: e.target.value })}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={!canEdit}
-                  onClick={() => setLines((cur) => cur.filter((l) => l.key !== line.key))}
-                >
-                  Bỏ
-                </Button>
-              </div>
-            )
-          })}
-          <div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!canEdit}
-              onClick={() => setLines((cur) => [...cur, { key: nextKey(), materialId: 0, qty: '', waste: '' }])}
-            >
-              Thêm nguyên liệu
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {mode === 'material' ? (
-        <label className="ds-field inv-direct">
-          <span className="ds-field__label">Nguyên liệu mà món này đại diện (dùng làm topping nhóm 2)</span>
-          <Select
-            className="ds-input"
-            value={directMaterial}
-            disabled={!canEdit}
-            onChange={(e) => setDirectMaterial(Number(e.target.value))}
-          >
-            <option value={0}>Chọn nguyên liệu…</option>
-            {materials.map((m) => (
-              <option key={m.materialId} value={m.materialId}>
-                {m.name}
-                {m.unit ? ` (${m.unit})` : ''}
-              </option>
-            ))}
-          </Select>
-        </label>
-      ) : null}
-
-      {mode === 'none' && initialMode !== 'none' ? (
+      {draft.mode === 'none' && initial.mode !== 'none' ? (
         <InlineAlert tone="info">Lưu sẽ gỡ công thức hiện có; món này không còn trừ nguyên liệu khi bán.</InlineAlert>
       ) : null}
 
       <div className="inv-block__foot">
-        {problem && mode !== 'none' ? <span className="inv-error">{problem}</span> : <span />}
+        {problem && draft.mode !== 'none' ? <span className="inv-error">{problem}</span> : <span />}
         <Button
           type="button"
           variant="primary"
           loading={mutation.isPending}
-          disabled={!canEdit || problem !== null || (mode === 'none' && initialMode === 'none')}
+          disabled={!canEdit || problem !== null || !recipeChanged(initial, draft)}
           title={canEdit ? undefined : 'Cần quyền Sửa dịch vụ (62)'}
           onClick={() => mutation.mutate()}
         >
@@ -361,7 +232,7 @@ function RecipeEditor({
   )
 }
 
-// ===== Topping =====
+// ===== Món bán kèm =====
 
 function ToppingEditor({
   serviceId,
@@ -373,109 +244,21 @@ function ToppingEditor({
   services: ServiceItem[]
 }) {
   const canEdit = useAuthStore((s) => s.hasRight)(62)
-  const [single, setSingle] = useState<0 | 1>(config.isSelect === 1 ? 1 : 0)
-  const [lines, setLines] = useState<ToppingDraftLine[]>(() =>
-    config.toppings.map((t) => ({
-      key: nextKey(),
-      serviceId: t.serviceId,
-      qty: trimDecimal(t.toppingQty),
-      price: trimDecimal(t.topPrice),
-    })),
-  )
+  // Tab này không có công tắc bật/tắt: danh sách rỗng = không có món bán kèm.
+  const [draft, setDraft] = useState<ToppingDraft>(() => ({ ...toppingDraftFromConfig(config), enabled: true }))
 
   const mutation = useMutation({
-    mutationFn: () => saveToppings({ serviceId, isSelect: single, toppings: toppingLinesBody(lines) }),
-    ...useSaveInvalidate('Đã lưu topping.'),
+    mutationFn: () => saveToppings(toppingSaveBody(serviceId, draft)),
+    ...useSaveInvalidate('Đã lưu món bán kèm.'),
   })
 
-  const options = services.filter((s) => s.id !== serviceId && s.active !== 0)
-  const problem = validateToppingDraft(serviceId, lines)
-  const setLine = (key: string, patch: Partial<ToppingDraftLine>) =>
-    setLines((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)))
-  const changed = lines.length > 0 || config.toppings.length > 0
+  const problem = draft.lines.length === 0 ? null : validateTopping(serviceId, draft)
+  const changed = draft.lines.length > 0 || config.toppings.length > 0
 
   return (
     <div className="inv-block">
-      <h3>Topping bán kèm</h3>
-      <Segmented<'0' | '1'>
-        ariaLabel="Cách chọn topping"
-        value={String(single) as '0' | '1'}
-        disabled={!canEdit}
-        onChange={(next) => setSingle(next === '1' ? 1 : 0)}
-        options={[
-          { value: '0', label: 'Chọn nhiều' },
-          { value: '1', label: 'Chọn một' },
-        ]}
-      />
-      <div className="inv-lines">
-        {lines.length > 0 ? (
-          <div className="inv-lines__head" aria-hidden="true">
-            <span>Topping</span>
-            <span>Lượng nguyên liệu / 1 topping</span>
-            <span>Giá topping (đ)</span>
-            <span />
-          </div>
-        ) : null}
-        {lines.map((line) => (
-          <div className="inv-lines__row" key={line.key}>
-            <Select
-              className="ds-input"
-              aria-label="Topping"
-              value={line.serviceId}
-              disabled={!canEdit}
-              onChange={(e) => setLine(line.key, { serviceId: Number(e.target.value) })}
-            >
-              <option value={0}>Chọn topping…</option>
-              {options.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.unit ? ` (${s.unit})` : ''}
-                </option>
-              ))}
-            </Select>
-            <input
-              className="ds-input"
-              inputMode="decimal"
-              aria-label="Lượng nguyên liệu mỗi topping"
-              placeholder="1"
-              value={line.qty}
-              disabled={!canEdit}
-              onChange={(e) => setLine(line.key, { qty: e.target.value })}
-            />
-            <input
-              className="ds-input"
-              inputMode="decimal"
-              aria-label="Giá topping"
-              placeholder="0"
-              value={line.price}
-              disabled={!canEdit}
-              onChange={(e) => setLine(line.key, { price: e.target.value })}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={!canEdit}
-              onClick={() => setLines((cur) => cur.filter((l) => l.key !== line.key))}
-            >
-              Bỏ
-            </Button>
-          </div>
-        ))}
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!canEdit}
-            onClick={() => setLines((cur) => [...cur, { key: nextKey(), serviceId: 0, qty: '', price: '' }])}
-          >
-            Thêm topping
-          </Button>
-        </div>
-      </div>
-      <InlineAlert tone="info">
-        Topping phải là món không có công thức hoặc món đã gắn một nguyên liệu; món có công thức bán kèm sẽ không trừ
-        kho nên máy chủ từ chối.
-      </InlineAlert>
+      <h3>Món bán kèm</h3>
+      <ToppingFields draft={draft} onChange={setDraft} services={services} selfId={serviceId} disabled={!canEdit} />
       <div className="inv-block__foot">
         {problem ? <span className="inv-error">{problem}</span> : <span />}
         <Button
@@ -486,18 +269,9 @@ function ToppingEditor({
           title={canEdit ? undefined : 'Cần quyền Sửa dịch vụ (62)'}
           onClick={() => mutation.mutate()}
         >
-          Lưu topping
+          Lưu món bán kèm
         </Button>
       </div>
     </div>
   )
-}
-
-/** "1.500" → "1.5", "0.000" → "" để đưa vào ô nhập. */
-function trimDecimal(value: string): string {
-  const m = /^(\d+)(?:\.(\d+))?$/.exec(value)
-  if (!m) return value
-  const frac = (m[2] ?? '').replace(/0+$/, '')
-  const out = frac ? `${m[1]}.${frac}` : m[1]
-  return out === '0' ? '' : out
 }

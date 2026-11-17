@@ -1,19 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CaretDown, CaretUp } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
-import { getUnits } from '../../api/inventory'
+import { getMaterials, getRecipeConfig, getUnits, saveRecipe, saveToppings } from '../../api/inventory'
 import {
+  clearServiceImage,
   getServiceGroups,
+  getServiceImage,
   saveService,
   saveServiceGroup,
+  saveServiceImage,
   setServiceGroupActive,
   type ServiceGroupRow,
 } from '../../api/serviceCatalog'
-import type { ServiceItem } from '../../api/services'
+import { getServices, type ServiceItem } from '../../api/services'
 import {
   Button,
   ConfirmAction,
   Dialog,
+  IconButton,
   InlineAlert,
   Segmented,
   Select,
@@ -21,8 +26,34 @@ import {
   StatusBadge,
   Switch,
 } from '../../design-system/components'
+import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { describeInventoryError } from '../inventory/inventoryModel'
+import { RecipeFields, ToppingFields } from '../inventory/RecipeFields'
 import {
+  emptyRecipeDraft,
+  emptyToppingDraft,
+  nextDraftKey,
+  recipeChanged,
+  recipeDraftFromConfig,
+  recipeSaveBody,
+  toppingChanged,
+  toppingDraftFromConfig,
+  toppingSaveBody,
+  validateRecipe,
+  validateTopping,
+  type RecipeDraft,
+  type ToppingDraft,
+} from '../inventory/recipeDraftModel'
+import { prepareImageFile, type PreparedImage } from './imageUpload'
+import {
+  IMAGE_MAX_BYTES,
+  IMAGE_MAX_SIDE,
+  RIGHT_SERVICE_EDIT,
+  VAT_NONE,
+  vatLabel,
+  vatOptions,
+  compareGroups,
   draftFromGroup,
   draftFromService,
   describeCatalogError,
@@ -37,6 +68,7 @@ import {
   nextGroupOrder,
   pendingOrdersOf,
   pendingOrderStatus,
+  planGroupMove,
   serviceSaveBody,
   validateGroupDraft,
   validateServiceDraft,
@@ -69,13 +101,52 @@ export function ServiceEditorDialog({
   onPendingOrders: (info: PendingOrdersInfo, serviceName: string) => void
 }) {
   const queryClient = useQueryClient()
+  const canConfigure = useAuthStore((s) => s.hasRight)(RIGHT_SERVICE_EDIT)
   const unitsQuery = useQuery({ queryKey: ['inventory', 'units'], queryFn: getUnits, enabled: open })
   const groupsQuery = useQuery({ queryKey: ['services', 'groups'], queryFn: getServiceGroups, enabled: open })
+  const materialsQuery = useQuery({
+    queryKey: ['inventory', 'materials', { activeOnly: true, lowOnly: false }],
+    queryFn: () => getMaterials({ activeOnly: true, lowOnly: false, limit: 1000 }),
+    enabled: open,
+  })
+  const servicesQuery = useQuery({ queryKey: ['services'], queryFn: getServices, enabled: open })
+  // Cấu hình công thức/món bán kèm chỉ đọc được khi món đã có id (sửa). Không tự làm mới giữa chừng — sẽ đè bản nháp.
+  const configQuery = useQuery({
+    queryKey: ['inventory', 'recipe-config', service?.id ?? 0],
+    queryFn: () => getRecipeConfig(service?.id ?? 0),
+    enabled: open && service !== null,
+    gcTime: 0,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  })
   const [draft, setDraft] = useState<ServiceDraft>(emptyServiceDraft)
   const [groupKind, setGroupKind] = useState<'normal' | 'topping'>('normal')
   const [touched, setTouched] = useState(false)
+  // Bản nháp công thức/món bán kèm + bản gốc lúc mở (để chỉ gửi phần đã đổi). null = chưa nạp xong.
+  const [recipe, setRecipe] = useState<RecipeDraft>(emptyRecipeDraft)
+  const [topping, setTopping] = useState<ToppingDraft>(emptyToppingDraft)
+  const [initial, setInitial] = useState<{ recipe: RecipeDraft; topping: ToppingDraft } | null>(null)
+  const loadedFor = useRef<number | null>(null)
+  // Ảnh: keep = giữ nguyên; new = ảnh vừa chọn (đã thu nhỏ); clear = gỡ ảnh hiện có.
+  const [imageDraft, setImageDraft] = useState<
+    { action: 'keep' } | { action: 'clear' } | ({ action: 'new' } & PreparedImage)
+  >({ action: 'keep' })
+  const [imageBusy, setImageBusy] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+  // Server cũ / DB thiếu cột ⇒ món sửa không có `vatPercent`/`serviceImg` ⇒ ẩn mục tương ứng (món mới: luôn hiện).
+  const vatSupported = service === null || service.vatPercent !== undefined
+  const imageSupported = service === null || service.serviceImg !== undefined
+  const hasStoredImage = service !== null && (service.serviceImg ?? '') !== ''
+  const imageQuery = useQuery({
+    queryKey: ['services', 'image', service?.id ?? 0, service?.serviceImg ?? ''],
+    queryFn: () => getServiceImage(service?.id ?? 0),
+    enabled: open && hasStoredImage,
+    staleTime: Infinity,
+  })
 
   const groups = useMemo(() => groupsQuery.data?.rows ?? [], [groupsQuery.data])
+  const materials = useMemo(() => materialsQuery.data?.rows ?? [], [materialsQuery.data])
+  const allServices = useMemo(() => servicesQuery.data ?? [], [servicesQuery.data])
 
   useEffect(() => {
     if (!open) return
@@ -83,19 +154,121 @@ export function ServiceEditorDialog({
     setDraft(next)
     setTouched(false)
     setGroupKind(service?.groupTypeId === GROUP_TYPE_TOPPING ? 'topping' : 'normal')
+    setImageDraft({ action: 'keep' })
   }, [open, service])
+
+  // Nạp công thức/món bán kèm đúng MỘT lần mỗi lần mở (theo id món; 0 = món mới).
+  useEffect(() => {
+    if (!open) {
+      loadedFor.current = null
+      setInitial(null)
+      return
+    }
+    const key = service?.id ?? 0
+    if (loadedFor.current === key) return
+    if (service === null) {
+      const r = emptyRecipeDraft()
+      const t = emptyToppingDraft()
+      setRecipe(r)
+      setTopping(t)
+      setInitial({ recipe: r, topping: t })
+      loadedFor.current = key
+      return
+    }
+    const config = configQuery.data
+    if (config?.supported) {
+      const r = recipeDraftFromConfig(config)
+      const t = toppingDraftFromConfig(config)
+      setRecipe(r)
+      setTopping(t)
+      setInitial({ recipe: r, topping: t })
+      loadedFor.current = key
+    }
+  }, [open, service, configQuery.data])
 
   const patch = (change: Partial<ServiceDraft>) => {
     setTouched(true)
     setDraft((current) => ({ ...current, ...change }))
   }
 
+  const previewSrc =
+    imageDraft.action === 'new'
+      ? imageDraft.dataUrl
+      : imageDraft.action === 'keep' && imageQuery.data?.hasImage && imageQuery.data.imageBase64
+        ? `data:${imageQuery.data.mime ?? 'image/jpeg'};base64,${imageQuery.data.imageBase64}`
+        : ''
+
+  const onPickImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = '' // chọn lại cùng một tệp vẫn kích hoạt onChange
+    if (!file) return
+    setImageBusy(true)
+    try {
+      setImageDraft({ action: 'new', ...(await prepareImageFile(file)) })
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'Không xử lý được ảnh.', 'error')
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
+  // Phần công thức/món bán kèm hiện khi DB có bảng (món mới: theo bảng nguyên liệu; sửa: theo cấu hình của món).
+  const configurable =
+    materialsQuery.data?.supported !== false && (service === null || configQuery.data?.supported !== false)
+  const configLoading = service !== null && configQuery.isLoading
+  const configError = service !== null && configQuery.isError
+  const configReady = initial !== null && configurable && canConfigure
+
   const mutation = useMutation({
-    mutationFn: () => saveService(serviceSaveBody(draft, service)),
+    mutationFn: async () => {
+      const saved = await saveService(serviceSaveBody(draft, service))
+      const failures: string[] = []
+      if (configReady && initial) {
+        // Công thức/món bán kèm là endpoint riêng (xoá-hết-ghi-lại) — chỉ gửi phần đã đổi.
+        if (recipeChanged(initial.recipe, recipe)) {
+          try {
+            await saveRecipe(recipeSaveBody(saved.serviceId, recipe))
+          } catch (error) {
+            failures.push(`công thức nguyên liệu (${describeInventoryError(error)})`)
+          }
+        }
+        if (toppingChanged(initial.topping, topping)) {
+          try {
+            await saveToppings(toppingSaveBody(saved.serviceId, topping))
+          } catch (error) {
+            failures.push(`món bán kèm (${describeInventoryError(error)})`)
+          }
+        }
+      }
+      // Ảnh: route riêng (quyền 62). Chỉ gọi khi người dùng đã chọn ảnh mới / gỡ ảnh.
+      if (imageSupported && canConfigure) {
+        try {
+          if (imageDraft.action === 'new') {
+            await saveServiceImage({ serviceId: saved.serviceId, imageBase64: imageDraft.dataUrl })
+          } else if (imageDraft.action === 'clear' && hasStoredImage) {
+            await clearServiceImage(saved.serviceId)
+          }
+        } catch (error) {
+          failures.push(`hình ảnh (${describeCatalogError(error)})`)
+        }
+      }
+      return { ...saved, failures }
+    },
     onSuccess: (result) => {
-      pushToast(result.created ? 'Đã thêm dịch vụ.' : 'Đã lưu dịch vụ.', 'success')
       invalidateCatalog(queryClient)
-      onClose()
+      if (result.failures.length === 0) {
+        pushToast(result.created ? 'Đã thêm dịch vụ.' : 'Đã lưu dịch vụ.', 'success')
+        onClose()
+        return
+      }
+      const what = result.failures.join('; ')
+      if (result.created) {
+        // Món đã có id: bấm Lưu lần nữa sẽ tạo món thứ hai ⇒ đóng form, người dùng mở lại món để cấu hình tiếp.
+        pushToast(`Đã thêm dịch vụ nhưng chưa lưu được ${what}. Mở lại món để cấu hình tiếp.`, 'error')
+        onClose()
+        return
+      }
+      pushToast(`Đã lưu dịch vụ nhưng chưa lưu được ${what}.`, 'error')
     },
     onError: (error) => {
       const pending = pendingOrdersOf(error)
@@ -107,7 +280,11 @@ export function ServiceEditorDialog({
     },
   })
 
-  const problem = validateServiceDraft(draft)
+  const selfId = service?.id ?? 0
+  const configProblem = configReady
+    ? (validateRecipe(recipe) ?? validateTopping(selfId, topping))
+    : null
+  const problem = validateServiceDraft(draft) ?? configProblem
   const choices = groupChoices(groups, service?.groupId ?? 0)
   const shown = groupKind === 'topping' ? choices.topping : choices.normal
   const units = (unitsQuery.data?.rows ?? []).filter((u) => u.isActive === 1 || u.id === draft.unitId)
@@ -122,6 +299,7 @@ export function ServiceEditorDialog({
           ? 'Tồn kho không sửa ở đây — nhập kho/kiểm kê ở trang Kho & nguyên liệu. Ngừng bán dùng nút riêng trên thẻ món.'
           : 'Món mới có tồn = 0. Bật “Quản lý tồn kho” rồi nhập kho ở trang Kho & nguyên liệu để bán.'
       }
+      size="lg"
       onClose={mutation.isPending ? () => undefined : onClose}
       footer={
         <>
@@ -190,23 +368,125 @@ export function ServiceEditorDialog({
               { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
             ]}
           />
-          <Select
-            className="ds-input"
-            aria-label="Nhóm dịch vụ"
-            value={draft.groupId}
-            onChange={(e) => patch({ groupId: Number(e.target.value) })}
-          >
-            <option value={0}>{shown.length === 0 ? 'Chưa có nhóm đang dùng' : 'Chọn nhóm…'}</option>
-            {shown.map((g) => (
-              <option key={g.groupId} value={g.groupId}>
-                {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
-              </option>
-            ))}
-          </Select>
+          {shown.length === 0 ? (
+            <small className="svc-muted">Chưa có nhóm đang dùng.</small>
+          ) : (
+            <div className="svc-tags" role="radiogroup" aria-label="Nhóm dịch vụ">
+              {shown.map((g) => {
+                const selected = g.groupId === draft.groupId
+                // Sửa món: đã chọn nhóm khác thì tag nhóm đang lưu được viền để biết "từ đâu sang".
+                const previous = !selected && service !== null && g.groupId === service.groupId
+                return (
+                  <button
+                    key={g.groupId}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    title={previous ? 'Nhóm hiện tại của món' : undefined}
+                    className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
+                    onClick={() => patch({ groupId: g.groupId })}
+                  >
+                    {g.active === 1 ? g.name : `${g.name} (ngừng dùng)`}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {groupKind === 'topping' ? (
             <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
           ) : null}
         </div>
+
+        {imageSupported ? (
+          <div className="ds-field">
+            <span className="ds-field__label">Hình ảnh</span>
+            <div className="svc-image">
+              <div className="svc-image__preview">
+                {previewSrc ? (
+                  <img src={previewSrc} alt={draft.name.trim() || 'Ảnh dịch vụ'} />
+                ) : (
+                  <span className="svc-muted">{imageQuery.isLoading ? 'Đang tải…' : 'Chưa có ảnh'}</span>
+                )}
+              </div>
+              <div className="svc-image__actions">
+                <input
+                  ref={fileInput}
+                  type="file"
+                  hidden
+                  accept="image/png,image/jpeg"
+                  onChange={(e) => void onPickImage(e)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  loading={imageBusy}
+                  disabled={!canConfigure}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  Chọn ảnh…
+                </Button>
+                {imageDraft.action === 'new' ? (
+                  <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
+                    Bỏ ảnh vừa chọn
+                  </Button>
+                ) : imageDraft.action === 'clear' ? (
+                  <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
+                    Giữ lại ảnh cũ
+                  </Button>
+                ) : previewSrc ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={!canConfigure}
+                    onClick={() => setImageDraft({ action: 'clear' })}
+                  >
+                    Gỡ ảnh
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <small className="svc-muted">
+              {imageDraft.action === 'new'
+                ? `Ảnh mới ${imageDraft.width}×${imageDraft.height} px, ${Math.max(1, Math.round(imageDraft.bytes / 1024))} KB${imageDraft.resized ? ' (đã tự thu nhỏ)' : ''} — lưu cùng lúc với dịch vụ.`
+                : imageDraft.action === 'clear'
+                  ? 'Ảnh sẽ được gỡ khi lưu.'
+                  : hasStoredImage && imageQuery.data && !imageQuery.data.hasImage
+                    ? `Không tìm thấy tệp ảnh “${service?.serviceImg}” trong thư mục ảnh.`
+                    : `PNG hoặc JPEG, tối đa ${IMAGE_MAX_SIDE}×${IMAGE_MAX_SIDE} px và ${IMAGE_MAX_BYTES / (1024 * 1024)}MB — ảnh lớn hơn sẽ tự thu nhỏ.`}
+            </small>
+          </div>
+        ) : null}
+        {vatSupported ? (
+          <div className="ds-field">
+            <span className="ds-field__label">VAT</span>
+            <div className="svc-tags" role="radiogroup" aria-label="VAT">
+              {vatOptions(draft.vat).map((value) => {
+                const selected = value === draft.vat
+                const previous = !selected && service !== null && value === service.vatPercent
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    title={previous ? 'VAT hiện tại của món' : undefined}
+                    className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
+                    onClick={() => patch({ vat: value })}
+                  >
+                    {vatLabel(value)}
+                  </button>
+                )
+              })}
+            </div>
+            <small className="svc-muted">
+              {draft.vat === VAT_NONE
+                ? 'Món không áp dụng thuế.'
+                : draft.vat === 0
+                  ? 'Thuế 0% — vẫn gửi sang bên thuế (khác “Không áp dụng thuế”).'
+                  : `Thuế ${draft.vat}% sẽ gửi sang bên thuế khi bán.`}
+            </small>
+          </div>
+        ) : null}
 
         <div className="svc-form__wide">
           <Switch
@@ -244,6 +524,61 @@ export function ServiceEditorDialog({
               description="Tắt nếu muốn tạo sẵn nhưng chưa hiện ở menu."
             />
           </div>
+        ) : null}
+        {configLoading ? (
+          <p className="svc-muted svc-form__wide">Đang tải công thức và món bán kèm…</p>
+        ) : configError ? (
+          <div className="svc-form__wide">
+            <InlineAlert tone="warning">
+              Không tải được công thức và món bán kèm của món này: {describeInventoryError(configQuery.error)} Các mục khác
+              vẫn lưu bình thường.
+            </InlineAlert>
+          </div>
+        ) : null}
+        {configurable && !configLoading && !configError ? (
+          <>
+            <section className="inv-block svc-form__wide" aria-label="Công thức nguyên liệu">
+              <h3>Công thức nguyên liệu</h3>
+              <RecipeFields draft={recipe} onChange={setRecipe} materials={materials} disabled={!configReady} />
+              {service && initial && recipe.mode === 'none' && initial.recipe.mode !== 'none' ? (
+                <InlineAlert tone="info">
+                  Lưu sẽ gỡ công thức hiện có; món này không còn trừ nguyên liệu khi bán.
+                </InlineAlert>
+              ) : null}
+            </section>
+            <section className="inv-block svc-form__wide" aria-label="Món bán kèm">
+              <h3>Món bán kèm</h3>
+              <Switch
+                checked={topping.enabled}
+                disabled={!configReady}
+                onCheckedChange={(checked) =>
+                  setTopping((cur) => ({
+                    ...cur,
+                    enabled: checked,
+                    lines:
+                      checked && cur.lines.length === 0
+                        ? [{ key: nextDraftKey(), serviceId: 0, qty: '', price: '' }]
+                        : cur.lines,
+                  }))
+                }
+                label="Có món bán kèm"
+                description="Khách chọn thêm món/nguyên liệu khi gọi món này (ví dụ topping trà sữa)."
+              />
+              {topping.enabled ? (
+                <ToppingFields
+                  draft={topping}
+                  onChange={setTopping}
+                  services={allServices}
+                  selfId={selfId}
+                  disabled={!configReady}
+                />
+              ) : null}
+              {configProblem ? <span className="inv-error">{configProblem}</span> : null}
+              {!canConfigure ? (
+                <small className="svc-muted">Cần quyền Sửa dịch vụ (62) để cấu hình công thức và món bán kèm.</small>
+              ) : null}
+            </section>
+          </>
         ) : null}
         {flagChanging ? (
           <div className="svc-form__wide">
@@ -339,31 +674,43 @@ export function PendingOrdersDialog({
 export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClose: () => void; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const groupsQuery = useQuery({ queryKey: ['services', 'groups'], queryFn: getServiceGroups, enabled: open })
-  const rows = useMemo(() => groupsQuery.data?.rows ?? [], [groupsQuery.data])
+  const rows = useMemo(() => [...(groupsQuery.data?.rows ?? [])].sort(compareGroups), [groupsQuery.data])
   const [editing, setEditing] = useState<{ group: ServiceGroupRow | null } | null>(null)
   const [draft, setDraft] = useState(() => draftFromGroup(null))
   const [toggling, setToggling] = useState<ServiceGroupRow | null>(null)
+  /** Nhóm vừa được bấm lên/xuống — tô nền để người dùng thấy dòng đã nhảy đi đâu. */
+  const [movedId, setMovedId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) {
       setEditing(null)
       setToggling(null)
+      setMovedId(null)
     }
   }, [open])
 
   const startEdit = (group: ServiceGroupRow | null) => {
-    setDraft(draftFromGroup(group, nextGroupOrder(rows)))
+    setDraft(draftFromGroup(group))
     setEditing({ group })
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => saveServiceGroup(groupSaveBody(draft, editing?.group ?? null)),
+    mutationFn: () => saveServiceGroup(groupSaveBody(draft, editing?.group ?? null, nextGroupOrder(rows))),
     onSuccess: (result) => {
       pushToast(result.created ? 'Đã thêm nhóm.' : 'Đã lưu nhóm.', 'success')
       setEditing(null)
       invalidateCatalog(queryClient)
     },
     onError: (error) => pushToast(describeCatalogError(error), 'error'),
+  })
+
+  const moveMutation = useMutation({
+    mutationFn: (move: { groupId: number; direction: -1 | 1 }) =>
+      Promise.all(planGroupMove(rows, move.groupId, move.direction).map((update) => saveServiceGroup(update))),
+    onMutate: (move) => setMovedId(move.groupId),
+    onError: (error) => pushToast(describeCatalogError(error), 'error'),
+    // Thành công hay lỗi một phần đều tải lại để danh sách khớp server.
+    onSettled: () => invalidateCatalog(queryClient),
   })
 
   const activeMutation = useMutation({
@@ -389,7 +736,7 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
         title="Nhóm dịch vụ"
         description={
           canEdit
-            ? 'Thêm nhóm, đổi tên/thứ tự hiển thị, chọn nhóm thường hoặc nhóm topping, ngừng dùng hoặc dùng lại.'
+            ? 'Thêm nhóm, đổi tên, chọn nhóm thường hoặc nhóm topping, ngừng dùng hoặc dùng lại. Dùng nút mũi tên để đổi thứ tự hiển thị.'
             : 'Bạn chưa có quyền quản lý nhóm dịch vụ (66).'
         }
         size="lg"
@@ -428,16 +775,7 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                 />
               </label>
-              <label className="ds-field">
-                <span className="ds-field__label">Thứ tự hiển thị (0–255)</span>
-                <input
-                  className="ds-input"
-                  inputMode="numeric"
-                  value={draft.sortOrder}
-                  onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })}
-                />
-              </label>
-              <div className="ds-field svc-groups__wide">
+              <div className="ds-field">
                 <span className="ds-field__label">Loại nhóm</span>
                 <Segmented
                   ariaLabel="Loại nhóm"
@@ -449,13 +787,13 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
                     { value: 'topping', label: groupTypeLabel(GROUP_TYPE_TOPPING) },
                   ]}
                 />
-                {locked ? (
-                  <small className="svc-muted">
-                    Nhóm đang có {editing.group?.serviceCount} món — chuyển món sang nhóm khác trước khi đổi loại
-                    (đổi loại sẽ làm cả nhóm biến khỏi menu hoặc thành topping).
-                  </small>
-                ) : null}
               </div>
+              {locked ? (
+                <small className="svc-muted svc-groups__wide">
+                  Nhóm đang có {editing.group?.serviceCount} món — chuyển món sang nhóm khác trước khi đổi loại
+                  (đổi loại sẽ làm cả nhóm biến khỏi menu hoặc thành topping).
+                </small>
+              ) : null}
               {problem ? (
                 <div className="svc-groups__wide">
                   <InlineAlert tone="warning">{problem}</InlineAlert>
@@ -490,21 +828,29 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
                   <tr>
                     <th>Nhóm</th>
                     <th>Loại</th>
-                    <th className="is-num">Thứ tự</th>
                     <th className="is-num">Số món</th>
                     <th>Trạng thái</th>
                     <th aria-label="Thao tác" />
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((group) => (
-                    <tr key={group.groupId} className={group.active === 1 ? '' : 'is-off'}>
+                  {rows.map((group, index) => (
+                    <tr
+                      key={group.groupId}
+                      className={[group.active === 1 ? '' : 'is-off', group.groupId === movedId ? 'is-moved' : '']
+                        .filter(Boolean)
+                        .join(' ')}
+                      ref={
+                        group.groupId === movedId
+                          ? (el) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+                          : undefined
+                      }
+                    >
                       <td>
+                        <small className="svc-muted">#{group.groupId} </small>
                         <strong>{group.name}</strong>
-                        <small className="svc-muted"> #{group.groupId}</small>
                       </td>
                       <td>{groupTypeLabel(group.typeId)}</td>
-                      <td className="is-num">{group.sortOrder}</td>
                       <td className="is-num">{group.serviceCount}</td>
                       <td>
                         <StatusBadge tone={group.active === 1 ? 'success' : 'neutral'}>
@@ -512,6 +858,22 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
                         </StatusBadge>
                       </td>
                       <td className="svc-table__actions">
+                        <IconButton
+                          type="button"
+                          label={`Chuyển nhóm ${group.name} lên`}
+                          icon={<CaretUp size={16} weight="bold" aria-hidden="true" />}
+                          variant="secondary"
+                          disabled={!canEdit || index === 0 || moveMutation.isPending}
+                          onClick={() => moveMutation.mutate({ groupId: group.groupId, direction: -1 })}
+                        />
+                        <IconButton
+                          type="button"
+                          label={`Chuyển nhóm ${group.name} xuống`}
+                          icon={<CaretDown size={16} weight="bold" aria-hidden="true" />}
+                          variant="secondary"
+                          disabled={!canEdit || index === rows.length - 1 || moveMutation.isPending}
+                          onClick={() => moveMutation.mutate({ groupId: group.groupId, direction: 1 })}
+                        />
                         <Button
                           type="button"
                           variant="outline"

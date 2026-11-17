@@ -3,24 +3,31 @@ import test from 'node:test'
 import type { ServiceGroupRow } from '../src/api/serviceCatalog.ts'
 import type { ServiceItem } from '../src/api/services.ts'
 import {
+  VAT_NONE,
+  dataUrlBytes,
   draftFromGroup,
   draftFromService,
   emptyServiceDraft,
+  fitWithin,
   groupChoices,
   groupSaveBody,
   groupTypeLocked,
   inventoryFlagChanged,
   isDiscontinued,
+  isValidVat,
   isReadonlyService,
   nextGroupOrder,
   parseNonNegativeInt,
   parsePrice,
   pendingOrdersOf,
+  planGroupMove,
   serviceSaveBody,
   validateCatalogName,
   validateGroupDraft,
   validateServiceDraft,
   validateServiceName,
+  vatLabel,
+  vatOptions,
   warningToInput,
 } from '../src/features/services/serviceCatalogModel.ts'
 
@@ -195,17 +202,48 @@ test('groupTypeLocked (Q10): khoa khi nhom con mon, ke ca mon ngung ban; nhom mo
 })
 
 test('validateGroupDraft + nextGroupOrder', () => {
-  assert.equal(validateGroupDraft({ name: 'Đồ ăn', sortOrder: '3', typeId: 0 }), null)
-  assert.ok(validateGroupDraft({ name: '', sortOrder: '3', typeId: 0 }))
-  assert.ok(validateGroupDraft({ name: 'x', sortOrder: '256', typeId: 0 }))
-  assert.ok(validateGroupDraft({ name: 'x', sortOrder: '-1', typeId: 0 }))
+  assert.equal(validateGroupDraft({ name: 'Đồ ăn', typeId: 0 }), null)
+  assert.ok(validateGroupDraft({ name: '', typeId: 0 }))
   assert.equal(nextGroupOrder([]), 1)
   assert.equal(nextGroupOrder([group({ sortOrder: 3 }), group({ groupId: 9, sortOrder: 1 })]), 4)
   assert.equal(nextGroupOrder([group({ sortOrder: 255 })]), 255)
 })
 
-test('groupSaveBody: tao gui typeId; sua chi gui typeId khi doi that (nhom loai la khong bi ghi de)', () => {
-  const created = groupSaveBody({ name: ' Topping ', sortOrder: '4', typeId: 2 }, null)
+test('planGroupMove: sortOrder khac nhau -> doi cho 2 nhom ke nhau; bien -> khong lam gi', () => {
+  const rows = [
+    group({ groupId: 1, name: 'A', sortOrder: 1 }),
+    group({ groupId: 2, name: 'B', sortOrder: 5 }),
+    group({ groupId: 3, name: 'C', sortOrder: 9 }),
+  ]
+  assert.deepEqual(planGroupMove(rows, 2, 1), [
+    { groupId: 2, name: 'B', sortOrder: 9 },
+    { groupId: 3, name: 'C', sortOrder: 5 },
+  ])
+  assert.deepEqual(planGroupMove(rows, 2, -1), [
+    { groupId: 2, name: 'B', sortOrder: 1 },
+    { groupId: 1, name: 'A', sortOrder: 5 },
+  ])
+  assert.deepEqual(planGroupMove(rows, 1, -1), [])
+  assert.deepEqual(planGroupMove(rows, 3, 1), [])
+  assert.deepEqual(planGroupMove(rows, 99, 1), [])
+})
+
+test('planGroupMove: sortOrder trung (nhom cu toan 0) -> danh lai 1..N theo thu tu dang thay', () => {
+  const rows = [
+    group({ groupId: 1, name: 'A', sortOrder: 0 }),
+    group({ groupId: 2, name: 'B', sortOrder: 0 }),
+    group({ groupId: 3, name: 'C', sortOrder: 0 }),
+  ]
+  // dang thay A,B,C -> keo C len = A,C,B
+  assert.deepEqual(planGroupMove(rows, 3, -1), [
+    { groupId: 1, name: 'A', sortOrder: 1 },
+    { groupId: 3, name: 'C', sortOrder: 2 },
+    { groupId: 2, name: 'B', sortOrder: 3 },
+  ])
+})
+
+test('groupSaveBody: tao gui typeId + thu tu cuoi; sua giu thu tu cu, chi gui typeId khi doi that (nhom loai la khong bi ghi de)', () => {
+  const created = groupSaveBody({ name: ' Topping ', typeId: 2 }, null, 4)
   assert.deepEqual(created, { name: 'Topping', sortOrder: 4, typeId: 2 })
 
   const original = group({ groupId: 9, typeId: 0 })
@@ -219,6 +257,54 @@ test('groupSaveBody: tao gui typeId; sua chi gui typeId khi doi that (nhom loai 
   // loai la (1) giu nguyen khi chi doi ten: draft quy ve 0 nhung khong duoc gui nhu "da doi"
   const odd = group({ groupId: 8, typeId: 1 })
   assert.equal('typeId' in groupSaveBody({ ...draftFromGroup(odd), name: 'Moi' }, odd), false)
+})
+
+// ---- VAT + anh ----
+
+test('VAT: -1 (khong ap dung) va 0 (thue 0%) la hai gia tri rieng; tag them muc la neu ngoai danh sach chon nhanh', () => {
+  assert.equal(VAT_NONE, -1)
+  assert.notEqual(vatLabel(VAT_NONE), vatLabel(0))
+  assert.equal(vatLabel(-1), 'Không áp dụng thuế')
+  assert.equal(vatLabel(0), '0%')
+  assert.equal(isValidVat(-1) && isValidVat(0) && isValidVat(100), true)
+  assert.equal(isValidVat(-2) || isValidVat(101) || isValidVat(5.5), false)
+  assert.deepEqual(vatOptions(8), [-1, 0, 5, 8, 10])
+  assert.deepEqual(vatOptions(3), [-1, 0, 5, 8, 10, 3]) // muc la co san trong DB van hien de khong mat
+  assert.deepEqual(vatOptions(-1), [-1, 0, 5, 8, 10])
+})
+
+test('VAT trong draft/body: server cu (khong vatPercent) khong gui; sua chi gui khi doi; them chi gui khi khac -1', () => {
+  assert.equal(draftFromService(service()).vat, -1) // thieu field -> khong ap dung
+  assert.equal(draftFromService(service({ vatPercent: 0 })).vat, 0)
+  assert.ok(validateServiceDraft({ ...emptyServiceDraft(), name: 'x', price: '1', groupId: 1, vat: 101 }))
+
+  const base = { ...emptyServiceDraft(), name: 'Trà', price: '5000', groupId: 2 }
+  // them
+  assert.equal('vatPercent' in serviceSaveBody({ ...base, vat: -1 }, null), false)
+  assert.equal(serviceSaveBody({ ...base, vat: 0 }, null).vatPercent, 0) // 0% phai gui (khac -1)
+  assert.equal(serviceSaveBody({ ...base, vat: 10 }, null).vatPercent, 10)
+  // sua
+  const old = service({ vatPercent: 8 })
+  assert.equal('vatPercent' in serviceSaveBody({ ...draftFromService(old) }, old), false)
+  assert.equal(serviceSaveBody({ ...draftFromService(old), vat: -1 }, old).vatPercent, -1)
+  assert.equal(serviceSaveBody({ ...draftFromService(old), vat: 0 }, old).vatPercent, 0)
+  const noVat = service() // server cu / DB thieu cot
+  assert.equal('vatPercent' in serviceSaveBody({ ...draftFromService(noVat), vat: 10 }, noVat), false)
+})
+
+test('fitWithin: chi thu nho, giu ti le, khong phong to', () => {
+  assert.deepEqual(fitWithin(300, 200), { width: 300, height: 200 })
+  assert.deepEqual(fitWithin(1200, 600), { width: 600, height: 300 })
+  assert.deepEqual(fitWithin(600, 1800), { width: 200, height: 600 })
+  assert.deepEqual(fitWithin(4000, 1), { width: 600, height: 1 })
+  assert.deepEqual(fitWithin(0, 100), { width: 0, height: 0 })
+})
+
+test('dataUrlBytes: so byte that cua base64 (tinh dau =)', () => {
+  assert.equal(dataUrlBytes('data:image/png;base64,QQ=='), 1) // "A"
+  assert.equal(dataUrlBytes('data:image/png;base64,QUI='), 2) // "AB"
+  assert.equal(dataUrlBytes('data:image/png;base64,QUJD'), 3) // "ABC"
+  assert.equal(dataUrlBytes(''), 0)
 })
 
 // ---- loi tu server ----
