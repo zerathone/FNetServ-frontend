@@ -3,26 +3,24 @@ import { PageHeader, Segmented, type SegmentedOption } from '../../design-system
 import { ClosingTab } from './ClosingTab'
 import { FinishedTab } from './FinishedTab'
 import { LedgerTab } from './LedgerTab'
-import { MaterialsTab } from './MaterialsTab'
-import { RecipeTab } from './RecipeTab'
 import './inventory.css'
 
-const TABS = ['materials', 'recipes', 'finished', 'ledger', 'closing'] as const
+// Danh mục nguyên liệu nay quản lý ở trang Dịch vụ & hàng hóa (tab Nguyên liệu); công thức/món bán kèm sửa
+// thẳng trong form dịch vụ. Link cũ `?tab=materials|recipes` rơi về tab mặc định.
+const TABS = ['finished', 'ledger', 'closing'] as const
 type Tab = (typeof TABS)[number]
 
 const TAB_OPTIONS: readonly SegmentedOption<Tab>[] = [
-  { value: 'materials', label: 'Nguyên liệu' },
-  { value: 'recipes', label: 'Công thức & topping' },
   { value: 'finished', label: 'Kho thành phẩm' },
   { value: 'ledger', label: 'Sổ kho & tiêu hao' },
   { value: 'closing', label: 'Chốt kỳ' },
 ]
 
 function readTab(raw: string | null): Tab {
-  return (TABS as readonly string[]).includes(raw ?? '') ? (raw as Tab) : 'materials'
+  return (TABS as readonly string[]).includes(raw ?? '') ? (raw as Tab) : 'finished'
 }
 
-/** Trang Kho & nguyên liệu (task topping-kho / T3f). Tab nằm trong `?tab=` để mở thẳng/đánh dấu được. */
+/** Trang Kho (task topping-kho / T3f). Tab nằm trong `?tab=` để mở thẳng/đánh dấu được. */
 export function InventoryWorkspace() {
   const [params, setParams] = useSearchParams()
   const tab = readTab(params.get('tab'))
@@ -31,17 +29,15 @@ export function InventoryWorkspace() {
     <section className="inv-workspace">
       <PageHeader
         eyebrow="Quản lý"
-        title="Kho & nguyên liệu"
-        description="Danh mục nguyên liệu, công thức món, nhập/xuất/kiểm kê, kho thành phẩm và chốt kỳ."
+        title="Kho"
+        description="Kho thành phẩm, sổ kho & tiêu hao nguyên liệu và chốt kỳ. Danh mục nguyên liệu nằm ở trang Dịch vụ & hàng hóa."
       />
       <Segmented<Tab>
         ariaLabel="Chức năng kho"
         value={tab}
         options={TAB_OPTIONS}
-        onChange={(next) => setParams(next === 'materials' ? {} : { tab: next }, { replace: true })}
+        onChange={(next) => setParams(next === 'finished' ? {} : { tab: next }, { replace: true })}
       />
-      {tab === 'materials' ? <MaterialsTab /> : null}
-      {tab === 'recipes' ? <RecipeTab /> : null}
       {tab === 'finished' ? <FinishedTab /> : null}
       {tab === 'ledger' ? <LedgerTab /> : null}
       {tab === 'closing' ? <ClosingTab /> : null}

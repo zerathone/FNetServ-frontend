@@ -8,7 +8,7 @@ import {
   type ToppingDraftLine,
 } from './inventoryModel.ts'
 
-// Bản nháp công thức + món bán kèm của MỘT dịch vụ — dùng chung cho tab Công thức/Kho và form Thêm/Sửa dịch vụ.
+// Bản nháp công thức + món bán kèm của MỘT dịch vụ — dùng cho form Thêm/Sửa dịch vụ.
 // Thuần logic (không React) để test được bằng node.
 
 export type RecipeMode = 'none' | 'recipe' | 'material'

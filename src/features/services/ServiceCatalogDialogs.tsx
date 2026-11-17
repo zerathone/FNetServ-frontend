@@ -92,7 +92,7 @@ import {
 
 const money = new Intl.NumberFormat('vi-VN')
 
-/** Làm mới mọi nơi dùng danh mục: trang này, tab Công thức/Kho (cùng danh sách dịch vụ), menu gọi món. */
+/** Làm mới mọi nơi dùng danh mục: trang này, trang Kho (cùng danh sách dịch vụ), menu gọi món. */
 function invalidateCatalog(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ['services'] })
   void queryClient.invalidateQueries({ queryKey: ['inventory'] })
@@ -371,8 +371,8 @@ export function ServiceEditorDialog({
       title={service ? 'Sửa dịch vụ' : 'Thêm dịch vụ'}
       description={
         service
-          ? 'Tồn kho không sửa ở đây — nhập kho/kiểm kê ở trang Kho & nguyên liệu. Ngừng bán dùng nút riêng trên thẻ món.'
-          : 'Món mới có tồn = 0. Bật “Quản lý tồn kho” rồi nhập kho ở trang Kho & nguyên liệu để bán.'
+          ? 'Tồn kho không sửa ở đây — nhập kho/kiểm kê ở trang Kho. Ngừng bán dùng nút riêng trên thẻ món.'
+          : 'Món mới có tồn = 0. Bật “Quản lý tồn kho” rồi nhập kho ở trang Kho để bán.'
       }
       size="lg"
       // Thư viện ảnh đang mở: Esc/bấm nền chỉ đóng thư viện, không đóng luôn form.

@@ -189,7 +189,7 @@ function ProtectedRoutes() {
             <Route path="/cards" element={<CardsPage />} />
             <Route path="/anonyms" element={<AnonymsPage />} />
             <Route path="/services" element={<ServicesPage />} />
-            {/* topping-kho / T3f: kho nguyên liệu + công thức + kho thành phẩm + chốt kỳ (tab trong ?tab=). */}
+            {/* topping-kho / T3f: kho thành phẩm + sổ kho + chốt kỳ (tab trong ?tab=); nguyên liệu nằm ở /services?tab=materials. */}
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/combos" element={<CombosPage />} />
             <Route path="/reports" element={<ReportsPage />} />

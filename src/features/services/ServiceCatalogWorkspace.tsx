@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { setServiceActive } from '../../api/serviceCatalog'
 import { getServices, type ServiceItem } from '../../api/services'
@@ -10,11 +11,14 @@ import {
   ListToolbar,
   PageHeader,
   RefreshButton,
+  Segmented,
   StateView,
   StatusBadge,
+  type SegmentedOption,
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { MaterialsTab } from '../inventory/MaterialsTab'
 import { GroupsDialog, PendingOrdersDialog, ServiceEditorDialog } from './ServiceCatalogDialogs'
 import {
   describeCatalogError,
@@ -35,11 +39,20 @@ import './services.css'
 
 const PAGE_SIZE = 24
 
+// Tab trong `?tab=`: dịch vụ (mặc định) | nguyên liệu (danh mục + tồn + nhập/xuất/kiểm kê, quản lý dạng danh sách).
+type Tab = 'services' | 'materials'
+const TAB_OPTIONS: readonly SegmentedOption<Tab>[] = [
+  { value: 'services', label: 'Dịch vụ' },
+  { value: 'materials', label: 'Nguyên liệu' },
+]
+
 function formatMoney(value: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
 }
 
 export function ServiceCatalogWorkspace() {
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = params.get('tab') === 'materials' ? 'materials' : 'services'
   const [search, setSearch] = useState('')
   const [stockFilter, setStockFilter] = useState<ServiceStockFilter>('all')
   const [page, setPage] = useState(0)
@@ -99,6 +112,29 @@ export function ServiceCatalogWorkspace() {
     setPage(0)
   }
 
+  const tabs = (
+    <Segmented<Tab>
+      ariaLabel="Danh mục"
+      value={tab}
+      options={TAB_OPTIONS}
+      onChange={(next) => setParams(next === 'services' ? {} : { tab: next }, { replace: true })}
+    />
+  )
+
+  if (tab === 'materials') {
+    return (
+      <section className="service-workspace">
+        <PageHeader
+          eyebrow="Danh mục"
+          title="Dịch vụ & hàng hóa"
+          description="Quản lý danh sách nguyên liệu: thêm, sửa, ngừng dùng, nhập/xuất/kiểm kê. Công thức của món được cấu hình ngay trong form dịch vụ."
+        />
+        {tabs}
+        <MaterialsTab />
+      </section>
+    )
+  }
+
   return (
     <section className="service-workspace">
       <PageHeader
@@ -128,6 +164,7 @@ export function ServiceCatalogWorkspace() {
           </>
         }
       />
+      {tabs}
 
       <section className="service-panel__summary" aria-label="Tóm tắt danh mục dịch vụ">
         <button

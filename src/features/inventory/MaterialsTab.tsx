@@ -14,8 +14,12 @@ import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import { MaterialEditor, StockDialog, UnitsDialog } from './MaterialDialogs'
 import { describeInventoryError, formatQty, type MaterialMoveType } from './inventoryModel'
+import './inventory.css'
 
-/** Tab Nguyên liệu: danh mục + tồn + nhập/xuất/kiểm kê. Quyền: 64 sửa danh mục, 67 đơn vị, 68 điều chỉnh kho. */
+/**
+ * Tab Nguyên liệu (hiện ở trang Dịch vụ & hàng hóa): danh mục + tồn + nhập/xuất/kiểm kê.
+ * Quyền: 64 sửa danh mục, 67 đơn vị, 68 điều chỉnh kho.
+ */
 export function MaterialsTab() {
   const queryClient = useQueryClient()
   const hasRight = useAuthStore((s) => s.hasRight)

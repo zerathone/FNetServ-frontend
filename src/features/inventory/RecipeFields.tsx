@@ -4,7 +4,7 @@ import { Button, InlineAlert, Segmented, Select } from '../../design-system/comp
 import { nextDraftKey, type RecipeDraft, type RecipeMode, type ToppingDraft } from './recipeDraftModel'
 import './inventory.css'
 
-// Ô nhập công thức + món bán kèm (controlled, không có nút Lưu). Dùng ở tab Công thức/Kho (mỗi khối tự lưu)
+// Ô nhập công thức + món bán kèm (controlled, không có nút Lưu). Dùng ở form Thêm/Sửa dịch vụ
 // và ở form Thêm/Sửa dịch vụ (lưu cùng lần bấm "Lưu"). Kiểu dáng `.inv-*` nằm trong inventory.css.
 
 export function RecipeFields({
