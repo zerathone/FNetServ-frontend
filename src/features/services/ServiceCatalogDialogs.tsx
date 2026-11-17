@@ -50,9 +50,6 @@ import {
   IMAGE_MAX_BYTES,
   IMAGE_MAX_SIDE,
   RIGHT_SERVICE_EDIT,
-  VAT_NONE,
-  vatLabel,
-  vatOptions,
   compareGroups,
   draftFromGroup,
   draftFromService,
@@ -67,6 +64,7 @@ import {
   inventoryFlagChanged,
   nextGroupOrder,
   pendingOrdersOf,
+  parseVatInput,
   pendingOrderStatus,
   planGroupMove,
   serviceSaveBody,
@@ -320,38 +318,124 @@ export function ServiceEditorDialog({
       }
     >
       <div className="svc-form">
-        <label className="ds-field svc-form__wide">
-          <span className="ds-field__label">Tên dịch vụ</span>
-          <input
-            className="ds-input"
-            value={draft.name}
-            maxLength={50}
-            autoFocus
-            aria-invalid={touched && validateServiceName(draft.name) !== null}
-            onChange={(e) => patch({ name: e.target.value })}
-          />
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Giá bán (đồng)</span>
-          <input
-            className="ds-input"
-            inputMode="numeric"
-            placeholder="15000"
-            value={draft.price}
-            onChange={(e) => patch({ price: e.target.value })}
-          />
-        </label>
-        <label className="ds-field">
-          <span className="ds-field__label">Đơn vị tính</span>
-          <Select className="ds-input" value={draft.unitId} onChange={(e) => patch({ unitId: Number(e.target.value) })}>
-            <option value={0}>Chưa chọn</option>
-            {units.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.unit}
-              </option>
-            ))}
-          </Select>
-        </label>
+        {/* Đầu form: trái = Tên dịch vụ, rồi dòng Giá bán | VAT | Đơn vị tính; phải = Hình ảnh chiếm cả 2 dòng. */}
+        <div className={`svc-top svc-form__wide${imageSupported ? '' : ' svc-top--noimg'}`}>
+          <label className="ds-field svc-top__name">
+            <span className="ds-field__label">Tên dịch vụ</span>
+            <input
+              className="ds-input"
+              value={draft.name}
+              maxLength={50}
+              autoFocus
+              aria-invalid={touched && validateServiceName(draft.name) !== null}
+              onChange={(e) => patch({ name: e.target.value })}
+            />
+          </label>
+          <div className={`svc-top__row${vatSupported ? '' : ' svc-top__row--2'}`}>
+            <label className="ds-field">
+              <span className="ds-field__label">Giá bán (đồng)</span>
+              <input
+                className="ds-input"
+                inputMode="numeric"
+                placeholder="15000"
+                value={draft.price}
+                onChange={(e) => patch({ price: e.target.value })}
+              />
+            </label>
+            {vatSupported ? (
+              <label className="ds-field">
+                <span className="ds-field__label">VAT (%)</span>
+                <input
+                  className="ds-input"
+                  inputMode="numeric"
+                  placeholder="Không áp dụng"
+                  maxLength={3}
+                  title="Để trống = không áp dụng thuế cho món này. Nhập 0 = thuế 0% (vẫn gửi sang bên thuế)."
+                  value={draft.vat}
+                  aria-invalid={touched && parseVatInput(draft.vat) === null}
+                  onChange={(e) => {
+                    if (/^\d{0,3}$/.test(e.target.value)) patch({ vat: e.target.value })
+                  }}
+                />
+              </label>
+            ) : null}
+            <label className="ds-field">
+              <span className="ds-field__label">Đơn vị tính</span>
+              <Select
+                className="ds-input"
+                value={draft.unitId}
+                onChange={(e) => patch({ unitId: Number(e.target.value) })}
+              >
+                <option value={0}>Chưa chọn</option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.unit}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+
+          {imageSupported ? (
+            <div className="ds-field svc-top__image">
+              <span className="ds-field__label">Hình ảnh</span>
+              <div className="svc-image">
+                <div className="svc-image__preview">
+                  {previewSrc ? (
+                    <img src={previewSrc} alt={draft.name.trim() || 'Ảnh dịch vụ'} />
+                  ) : (
+                    <span className="svc-muted">{imageQuery.isLoading ? 'Đang tải…' : 'Chưa có ảnh'}</span>
+                  )}
+                </div>
+                <div className="svc-image__actions">
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    hidden
+                    accept="image/png,image/jpeg"
+                    onChange={(e) => void onPickImage(e)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    loading={imageBusy}
+                    disabled={!canConfigure}
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    Chọn ảnh…
+                  </Button>
+                  {imageDraft.action === 'new' ? (
+                    <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
+                      Bỏ ảnh vừa chọn
+                    </Button>
+                  ) : imageDraft.action === 'clear' ? (
+                    <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
+                      Giữ lại ảnh cũ
+                    </Button>
+                  ) : previewSrc ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={!canConfigure}
+                      onClick={() => setImageDraft({ action: 'clear' })}
+                    >
+                      Gỡ ảnh
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+              <small className="svc-muted">
+                {imageDraft.action === 'new'
+                  ? `Ảnh mới ${imageDraft.width}×${imageDraft.height} px, ${Math.max(1, Math.round(imageDraft.bytes / 1024))} KB${imageDraft.resized ? ' (đã tự thu nhỏ)' : ''} — lưu cùng lúc với dịch vụ.`
+                  : imageDraft.action === 'clear'
+                    ? 'Ảnh sẽ được gỡ khi lưu.'
+                    : hasStoredImage && imageQuery.data && !imageQuery.data.hasImage
+                      ? `Không tìm thấy tệp ảnh “${service?.serviceImg}” trong thư mục ảnh.`
+                      : `PNG hoặc JPEG, tối đa ${IMAGE_MAX_SIDE}×${IMAGE_MAX_SIDE} px và ${IMAGE_MAX_BYTES / (1024 * 1024)}MB — ảnh lớn hơn sẽ tự thu nhỏ.`}
+              </small>
+            </div>
+          ) : null}
+        </div>
 
         <div className="ds-field svc-form__wide">
           <span className="ds-field__label">Nhóm dịch vụ</span>
@@ -396,97 +480,6 @@ export function ServiceEditorDialog({
             <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
           ) : null}
         </div>
-
-        {imageSupported ? (
-          <div className="ds-field">
-            <span className="ds-field__label">Hình ảnh</span>
-            <div className="svc-image">
-              <div className="svc-image__preview">
-                {previewSrc ? (
-                  <img src={previewSrc} alt={draft.name.trim() || 'Ảnh dịch vụ'} />
-                ) : (
-                  <span className="svc-muted">{imageQuery.isLoading ? 'Đang tải…' : 'Chưa có ảnh'}</span>
-                )}
-              </div>
-              <div className="svc-image__actions">
-                <input
-                  ref={fileInput}
-                  type="file"
-                  hidden
-                  accept="image/png,image/jpeg"
-                  onChange={(e) => void onPickImage(e)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  loading={imageBusy}
-                  disabled={!canConfigure}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  Chọn ảnh…
-                </Button>
-                {imageDraft.action === 'new' ? (
-                  <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
-                    Bỏ ảnh vừa chọn
-                  </Button>
-                ) : imageDraft.action === 'clear' ? (
-                  <Button type="button" variant="ghost" onClick={() => setImageDraft({ action: 'keep' })}>
-                    Giữ lại ảnh cũ
-                  </Button>
-                ) : previewSrc ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={!canConfigure}
-                    onClick={() => setImageDraft({ action: 'clear' })}
-                  >
-                    Gỡ ảnh
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-            <small className="svc-muted">
-              {imageDraft.action === 'new'
-                ? `Ảnh mới ${imageDraft.width}×${imageDraft.height} px, ${Math.max(1, Math.round(imageDraft.bytes / 1024))} KB${imageDraft.resized ? ' (đã tự thu nhỏ)' : ''} — lưu cùng lúc với dịch vụ.`
-                : imageDraft.action === 'clear'
-                  ? 'Ảnh sẽ được gỡ khi lưu.'
-                  : hasStoredImage && imageQuery.data && !imageQuery.data.hasImage
-                    ? `Không tìm thấy tệp ảnh “${service?.serviceImg}” trong thư mục ảnh.`
-                    : `PNG hoặc JPEG, tối đa ${IMAGE_MAX_SIDE}×${IMAGE_MAX_SIDE} px và ${IMAGE_MAX_BYTES / (1024 * 1024)}MB — ảnh lớn hơn sẽ tự thu nhỏ.`}
-            </small>
-          </div>
-        ) : null}
-        {vatSupported ? (
-          <div className="ds-field">
-            <span className="ds-field__label">VAT</span>
-            <div className="svc-tags" role="radiogroup" aria-label="VAT">
-              {vatOptions(draft.vat).map((value) => {
-                const selected = value === draft.vat
-                const previous = !selected && service !== null && value === service.vatPercent
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    title={previous ? 'VAT hiện tại của món' : undefined}
-                    className={['svc-tag', selected ? 'is-selected' : '', previous ? 'is-previous' : ''].filter(Boolean).join(' ')}
-                    onClick={() => patch({ vat: value })}
-                  >
-                    {vatLabel(value)}
-                  </button>
-                )
-              })}
-            </div>
-            <small className="svc-muted">
-              {draft.vat === VAT_NONE
-                ? 'Món không áp dụng thuế.'
-                : draft.vat === 0
-                  ? 'Thuế 0% — vẫn gửi sang bên thuế (khác “Không áp dụng thuế”).'
-                  : `Thuế ${draft.vat}% sẽ gửi sang bên thuế khi bán.`}
-            </small>
-          </div>
-        ) : null}
 
         <div className="svc-form__wide">
           <Switch

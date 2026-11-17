@@ -15,6 +15,7 @@ import {
   inventoryFlagChanged,
   isDiscontinued,
   isValidVat,
+  parseVatInput,
   isReadonlyService,
   nextGroupOrder,
   parseNonNegativeInt,
@@ -26,8 +27,7 @@ import {
   validateGroupDraft,
   validateServiceDraft,
   validateServiceName,
-  vatLabel,
-  vatOptions,
+  vatToInput,
   warningToInput,
 } from '../src/features/services/serviceCatalogModel.ts'
 
@@ -261,35 +261,42 @@ test('groupSaveBody: tao gui typeId + thu tu cuoi; sua giu thu tu cu, chi gui ty
 
 // ---- VAT + anh ----
 
-test('VAT: -1 (khong ap dung) va 0 (thue 0%) la hai gia tri rieng; tag them muc la neu ngoai danh sach chon nhanh', () => {
+test('VAT o nhap tu do: rong = -1 (khong ap dung), 0 = thue 0% (hai gia tri rieng), khong co muc dat san', () => {
   assert.equal(VAT_NONE, -1)
-  assert.notEqual(vatLabel(VAT_NONE), vatLabel(0))
-  assert.equal(vatLabel(-1), 'Không áp dụng thuế')
-  assert.equal(vatLabel(0), '0%')
+  assert.equal(parseVatInput(''), -1)
+  assert.equal(parseVatInput('  '), -1)
+  assert.equal(parseVatInput('0'), 0) // 0 khac rong
+  assert.equal(parseVatInput('8'), 8)
+  assert.equal(parseVatInput('100'), 100)
+  assert.equal(parseVatInput('101'), null)
+  assert.equal(parseVatInput('-1'), null) // -1 chi bieu dien bang o trong
+  assert.equal(parseVatInput('5.5'), null)
+  assert.equal(parseVatInput('abc'), null)
+  assert.equal(vatToInput(-1), '')
+  assert.equal(vatToInput(0), '0')
+  assert.equal(vatToInput(10), '10')
   assert.equal(isValidVat(-1) && isValidVat(0) && isValidVat(100), true)
   assert.equal(isValidVat(-2) || isValidVat(101) || isValidVat(5.5), false)
-  assert.deepEqual(vatOptions(8), [-1, 0, 5, 8, 10])
-  assert.deepEqual(vatOptions(3), [-1, 0, 5, 8, 10, 3]) // muc la co san trong DB van hien de khong mat
-  assert.deepEqual(vatOptions(-1), [-1, 0, 5, 8, 10])
 })
 
 test('VAT trong draft/body: server cu (khong vatPercent) khong gui; sua chi gui khi doi; them chi gui khi khac -1', () => {
-  assert.equal(draftFromService(service()).vat, -1) // thieu field -> khong ap dung
-  assert.equal(draftFromService(service({ vatPercent: 0 })).vat, 0)
-  assert.ok(validateServiceDraft({ ...emptyServiceDraft(), name: 'x', price: '1', groupId: 1, vat: 101 }))
+  assert.equal(draftFromService(service()).vat, '') // thieu field -> khong ap dung -> o trong
+  assert.equal(draftFromService(service({ vatPercent: 0 })).vat, '0')
+  assert.ok(validateServiceDraft({ ...emptyServiceDraft(), name: 'x', price: '1', groupId: 1, vat: '101' }))
+  assert.equal(validateServiceDraft({ ...emptyServiceDraft(), name: 'x', price: '1', groupId: 1, vat: '' }), null)
 
   const base = { ...emptyServiceDraft(), name: 'Trà', price: '5000', groupId: 2 }
   // them
-  assert.equal('vatPercent' in serviceSaveBody({ ...base, vat: -1 }, null), false)
-  assert.equal(serviceSaveBody({ ...base, vat: 0 }, null).vatPercent, 0) // 0% phai gui (khac -1)
-  assert.equal(serviceSaveBody({ ...base, vat: 10 }, null).vatPercent, 10)
+  assert.equal('vatPercent' in serviceSaveBody({ ...base, vat: '' }, null), false)
+  assert.equal(serviceSaveBody({ ...base, vat: '0' }, null).vatPercent, 0) // 0% phai gui (khac -1)
+  assert.equal(serviceSaveBody({ ...base, vat: '10' }, null).vatPercent, 10)
   // sua
   const old = service({ vatPercent: 8 })
   assert.equal('vatPercent' in serviceSaveBody({ ...draftFromService(old) }, old), false)
-  assert.equal(serviceSaveBody({ ...draftFromService(old), vat: -1 }, old).vatPercent, -1)
-  assert.equal(serviceSaveBody({ ...draftFromService(old), vat: 0 }, old).vatPercent, 0)
+  assert.equal(serviceSaveBody({ ...draftFromService(old), vat: '' }, old).vatPercent, -1)
+  assert.equal(serviceSaveBody({ ...draftFromService(old), vat: '0' }, old).vatPercent, 0)
   const noVat = service() // server cu / DB thieu cot
-  assert.equal('vatPercent' in serviceSaveBody({ ...draftFromService(noVat), vat: 10 }, noVat), false)
+  assert.equal('vatPercent' in serviceSaveBody({ ...draftFromService(noVat), vat: '10' }, noVat), false)
 })
 
 test('fitWithin: chi thu nho, giu ti le, khong phong to', () => {

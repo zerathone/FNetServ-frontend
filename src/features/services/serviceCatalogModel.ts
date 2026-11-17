@@ -75,22 +75,25 @@ export function parseNonNegativeInt(input: string, max = 9_999_999): number | nu
 /** VAT: `-1` = chưa khai báo / KHÔNG áp dụng thuế; `0` = thuế 0% (vẫn gửi sang bên thuế). Hai giá trị riêng. */
 export const VAT_NONE = -1
 export const VAT_MAX = 100
-/** Mức thuế chọn nhanh trên form; món có mức khác (đã có sẵn trong DB) vẫn hiện thêm một tag cho mức đó. */
-export const VAT_PRESETS = [VAT_NONE, 0, 5, 8, 10] as const
-
 export function isValidVat(value: number): boolean {
   return Number.isInteger(value) && value >= VAT_NONE && value <= VAT_MAX
 }
 
-export function vatLabel(value: number): string {
-  return value === VAT_NONE ? 'Không áp dụng thuế' : `${value}%`
+/**
+ * Ô nhập VAT (người dùng tự gõ — không có danh sách mức thuế đặt sẵn): để TRỐNG = không áp dụng thuế (-1);
+ * số nguyên 0..VAT_MAX = mức thuế (0 = thuế 0%, khác "không áp dụng"). Sai định dạng ⇒ null.
+ */
+export function parseVatInput(input: string): number | null {
+  const text = input.trim()
+  if (text === '') return VAT_NONE
+  if (!/^\d{1,3}$/.test(text)) return null
+  const value = Number(text)
+  return value <= VAT_MAX ? value : null
 }
 
-/** Các mức hiện thành tag: mức chọn nhanh + mức hiện tại của món nếu nằm ngoài danh sách (để không mất khi lưu). */
-export function vatOptions(current: number): number[] {
-  const list: number[] = [...VAT_PRESETS]
-  if (isValidVat(current) && !list.includes(current)) list.push(current)
-  return list
+/** Giá trị VAT của món → nội dung ô nhập (-1 ⇒ ô trống). */
+export function vatToInput(value: number): string {
+  return value === VAT_NONE || !isValidVat(value) ? '' : String(value)
 }
 
 export type ServiceDraft = {
@@ -103,8 +106,8 @@ export type ServiceDraft = {
   warning: string
   /** Chỉ dùng khi tạo. */
   active: boolean
-  /** VAT (xem VAT_NONE). */
-  vat: number
+  /** Nội dung ô VAT (xem parseVatInput): rỗng = không áp dụng thuế. */
+  vat: string
 }
 
 export function emptyServiceDraft(): ServiceDraft {
@@ -116,7 +119,7 @@ export function emptyServiceDraft(): ServiceDraft {
     inventoryManagement: false,
     warning: '',
     active: true,
-    vat: VAT_NONE,
+    vat: '',
   }
 }
 
@@ -134,7 +137,7 @@ export function draftFromService(service: ServiceItem): ServiceDraft {
     inventoryManagement: service.inventoryManagement === 1,
     warning: warningToInput(service.warningInventory),
     active: service.active !== 0,
-    vat: service.vatPercent ?? VAT_NONE,
+    vat: vatToInput(service.vatPercent ?? VAT_NONE),
   }
 }
 
@@ -146,7 +149,7 @@ export function validateServiceDraft(draft: ServiceDraft): string | null {
   if (draft.inventoryManagement && draft.warning.trim() !== '' && parseNonNegativeInt(draft.warning) === null) {
     return 'Mức cảnh báo tồn phải là số nguyên không âm.'
   }
-  if (!isValidVat(draft.vat)) return `VAT phải là “Không áp dụng thuế” hoặc số nguyên từ 0 đến ${VAT_MAX}.`
+  if (parseVatInput(draft.vat) === null) return `VAT để trống (không áp dụng thuế) hoặc nhập số nguyên từ 0 đến ${VAT_MAX}.`
   return null
 }
 
@@ -179,10 +182,11 @@ export function serviceSaveBody(
   }
   // VAT: sửa chỉ gửi khi đổi thật và server có trả `vatPercent` (server cũ/DB thiếu cột ⇒ không gửi, tránh `unsupported`);
   // thêm mới chỉ gửi khi khác -1 (DB mặc định -1) để DB chưa có cột VAT vẫn thêm món được.
+  const vat = parseVatInput(draft.vat) ?? VAT_NONE
   if (original) {
-    if (original.vatPercent !== undefined && draft.vat !== original.vatPercent) body.vatPercent = draft.vat
-  } else if (draft.vat !== VAT_NONE) {
-    body.vatPercent = draft.vat
+    if (original.vatPercent !== undefined && vat !== original.vatPercent) body.vatPercent = vat
+  } else if (vat !== VAT_NONE) {
+    body.vatPercent = vat
   }
   return body
 }
