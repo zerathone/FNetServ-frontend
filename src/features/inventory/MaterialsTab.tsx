@@ -12,26 +12,24 @@ import {
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
-import { MaterialEditor, StockDialog, UnitsDialog } from './MaterialDialogs'
+import { MaterialEditor, StockDialog } from './MaterialDialogs'
 import { describeInventoryError, formatQty, type MaterialMoveType } from './inventoryModel'
 import './inventory.css'
 
 /**
  * Tab Nguyên liệu (hiện ở trang Dịch vụ & hàng hóa): danh mục + tồn + nhập/xuất/kiểm kê.
- * Quyền: 64 sửa danh mục, 67 đơn vị, 68 điều chỉnh kho.
+ * Quyền: 64 sửa danh mục, 68 điều chỉnh kho. (Đơn vị tính dùng chung nên nút nằm ở đầu trang Dịch vụ.)
  */
 export function MaterialsTab() {
   const queryClient = useQueryClient()
   const hasRight = useAuthStore((s) => s.hasRight)
   const canCatalog = hasRight(64)
-  const canUnit = hasRight(67)
   const canStock = hasRight(68)
 
   const [search, setSearch] = useState('')
   const [activeOnly, setActiveOnly] = useState(true)
   const [lowOnly, setLowOnly] = useState(false)
   const [editing, setEditing] = useState<{ material: MaterialRow | null } | null>(null)
-  const [unitsOpen, setUnitsOpen] = useState(false)
   const [stock, setStock] = useState<{ material: MaterialRow; msType: MaterialMoveType } | null>(null)
 
   const query = useQuery({
@@ -82,9 +80,6 @@ export function MaterialsTab() {
         }
         actions={
           <>
-            <Button type="button" variant="secondary" onClick={() => setUnitsOpen(true)}>
-              Đơn vị tính
-            </Button>
             <Button
               type="button"
               variant="primary"
@@ -214,7 +209,6 @@ export function MaterialsTab() {
         material={editing?.material ?? null}
         onClose={() => setEditing(null)}
       />
-      <UnitsDialog open={unitsOpen} canEdit={canUnit} onClose={() => setUnitsOpen(false)} />
       <StockDialog material={stock?.material ?? null} msType={stock?.msType ?? 1} onClose={() => setStock(null)} />
     </section>
   )

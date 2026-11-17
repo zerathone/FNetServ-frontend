@@ -18,6 +18,7 @@ import {
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { UnitsDialog } from '../inventory/MaterialDialogs'
 import { MaterialsTab } from '../inventory/MaterialsTab'
 import { GroupsDialog, PendingOrdersDialog, ServiceEditorDialog } from './ServiceCatalogDialogs'
 import {
@@ -65,6 +66,22 @@ export function ServiceCatalogWorkspace() {
   // editor: undefined = đóng, null = thêm mới, ServiceItem = sửa món đó.
   const [editor, setEditor] = useState<ServiceItem | null | undefined>(undefined)
   const [groupsOpen, setGroupsOpen] = useState(false)
+  // Đơn vị tính dùng chung cho dịch vụ và nguyên liệu ⇒ nút nằm ở đầu trang, hiện ở cả hai tab.
+  const canUnit = hasRight(67)
+  const [unitsOpen, setUnitsOpen] = useState(false)
+  const unitsButton = (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={!canUnit}
+      title={canUnit ? 'Danh sách đơn vị tính dùng chung cho dịch vụ và nguyên liệu' : 'Cần quyền Quản lý đơn vị tính (67)'}
+      onClick={() => setUnitsOpen(true)}
+    >
+      Đơn vị tính
+    </Button>
+  )
+  const unitsDialog = <UnitsDialog open={unitsOpen} canEdit={canUnit} onClose={() => setUnitsOpen(false)} />
+
   const [toggling, setToggling] = useState<ServiceItem | null>(null)
   const [pending, setPending] = useState<{ info: PendingOrdersInfo; serviceName: string } | null>(null)
   const activeMutation = useMutation({
@@ -128,9 +145,11 @@ export function ServiceCatalogWorkspace() {
           eyebrow="Danh mục"
           title="Dịch vụ & hàng hóa"
           description="Quản lý danh sách nguyên liệu: thêm, sửa, ngừng dùng, nhập/xuất/kiểm kê. Công thức của món được cấu hình ngay trong form dịch vụ."
+          actions={unitsButton}
         />
         {tabs}
         <MaterialsTab />
+        {unitsDialog}
       </section>
     )
   }
@@ -152,6 +171,7 @@ export function ServiceCatalogWorkspace() {
             >
               Nhóm dịch vụ
             </Button>
+            {unitsButton}
             <Button
               type="button"
               variant="primary"
@@ -369,6 +389,7 @@ export function ServiceCatalogWorkspace() {
         onClose={() => setPending(null)}
       />
       <GroupsDialog open={groupsOpen} canEdit={canGroup} onClose={() => setGroupsOpen(false)} />
+      {unitsDialog}
       <ConfirmAction
         open={toggling !== null}
         title={`Ngừng bán [${toggling?.name ?? ''}]?`}
