@@ -679,7 +679,11 @@ label:has(input[type="radio"]) {
   user-select: none;
 }
 
+/* flex: 1 — khi group rộng hơn nội dung (vd nằm trong ô lưới), combo giãn hết phần còn lại để mũi tên dropdown
+   dính mép phải thay vì nằm sát chữ. Group co theo nội dung (bộ lọc báo cáo) thì không đổi gì. */
 .ds-input-group .ds-custom-select-container {
+  flex: 1 1 auto;
+  min-width: 0;
   width: auto;
   border-right: 1px solid var(--color-border-default);
 }
