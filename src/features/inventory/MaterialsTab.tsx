@@ -15,6 +15,7 @@ import {
   type MaterialStockFilter,
   type MaterialStockState,
 } from './inventoryModel'
+import '../services/services.css'
 import './inventory.css'
 
 const STATE_TONE: Record<MaterialStockState, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -25,9 +26,9 @@ const STATE_TONE: Record<MaterialStockState, 'success' | 'warning' | 'danger' | 
 }
 
 /**
- * Tab Nguyên liệu (hiện ở trang Dịch vụ & hàng hóa), cùng cách quản lý với danh sách dịch vụ: hàng ô thống kê bấm
+ * Tab Nguyên liệu của trang Kho, cùng cách quản lý với danh sách dịch vụ: hàng ô thống kê bấm
  * để lọc (Còn tồn / Sắp hết / Hết tồn / Ngừng dùng), ô tìm kiếm, danh sách. Quyền: 64 sửa danh mục, 68 điều chỉnh kho.
- * (Đơn vị tính dùng chung nên nút nằm ở đầu trang Dịch vụ.) Kiểu dáng ô thống kê dùng chung `.service-*` của services.css.
+ * (Đơn vị tính dùng chung nên nút nằm ở đầu trang Kho.) Kiểu dáng ô thống kê dùng chung `.service-*` của services.css.
  */
 export function MaterialsTab() {
   const queryClient = useQueryClient()
@@ -183,16 +184,20 @@ export function MaterialsTab() {
           <table className="inv-table">
             <thead>
               <tr>
+                <th className="inv-table__stt">STT</th>
                 <th>Nguyên liệu</th>
-                <th className="is-num">Tồn kho</th>
+                <th>Tồn kho</th>
                 <th className="is-num">Tối thiểu</th>
                 <th>Trạng thái</th>
+                <th className="inv-table__sale">Đang dùng</th>
                 <th aria-label="Thao tác" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => (
+              {rows.map((m, index) => (
                 <tr key={m.materialId} className={m.isActive === 1 ? '' : 'is-off'}>
+                  {/* STT theo danh sách đang lọc (không phải mã nguyên liệu). */}
+                  <td className="inv-table__stt">{index + 1}</td>
                   <td>
                     <strong>{m.name}</strong>
                     <small className="inv-muted">
@@ -200,14 +205,40 @@ export function MaterialsTab() {
                       {m.materialNote ? ` · ${m.materialNote}` : ''}
                     </small>
                   </td>
-                  <td className="is-num">
-                    <strong>{formatQty(m.stockQty)}</strong> <span className="inv-muted">{m.unit}</span>
+                  <td>
+                    <div className="inv-stock">
+                      <StatusBadge
+                        tone={STATE_TONE[materialStockState(m)]}
+                        dot
+                        title={MATERIAL_STOCK_LABEL[materialStockState(m)]}
+                      >
+                        {formatQty(m.stockQty)}
+                      </StatusBadge>
+                      {m.unit ? <span>{m.unit}</span> : null}
+                    </div>
                   </td>
                   <td className="is-num">{formatQty(m.minStockQty)}</td>
                   <td>
                     <StatusBadge tone={STATE_TONE[materialStockState(m)]}>
                       {MATERIAL_STOCK_LABEL[materialStockState(m)]}
                     </StatusBadge>
+                  </td>
+                  <td className="inv-table__sale">
+                    <input
+                      type="checkbox"
+                      className="inv-table__check"
+                      checked={m.isActive === 1}
+                      disabled={!canCatalog || toggle.isPending}
+                      aria-label={`${m.isActive === 1 ? 'Ngừng dùng' : 'Dùng lại'} ${m.name}`}
+                      title={
+                        !canCatalog
+                          ? 'Cần quyền Quản lý kho (64)'
+                          : m.isActive === 1
+                            ? 'Đang dùng — bỏ tick để ngừng dùng'
+                            : 'Đang ngừng dùng — tick để dùng lại'
+                      }
+                      onChange={() => toggle.mutate(m)}
+                    />
                   </td>
                   <td className="inv-table__actions">
                     <Button
@@ -245,14 +276,6 @@ export function MaterialsTab() {
                       onClick={() => setEditing({ material: m })}
                     >
                       Sửa
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={!canCatalog || toggle.isPending}
-                      onClick={() => toggle.mutate(m)}
-                    >
-                      {m.isActive === 1 ? 'Ngừng' : 'Dùng lại'}
                     </Button>
                   </td>
                 </tr>

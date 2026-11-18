@@ -66,6 +66,7 @@
 .service-stat__dot--not-managed { background: var(--color-text-secondary); }
 .service-stat__dot--low { background: var(--color-warning); }
 .service-stat__dot--stopped { background: var(--color-text-secondary); opacity: 0.55; }
+.service-stat__dot--topping { background: var(--color-info); }
 
 .service-stat__label {
   font-size: var(--font-size-sm);
@@ -110,72 +111,193 @@
   padding-right: var(--space-1);
 }
 
-.service-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
+/* Dạng danh sách: bảng một dòng mỗi món, tiêu đề cột dính trên cùng khi cuộn trong .service-list-region. */
+.service-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
 }
 
-.service-card {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(12rem, 1.3fr) minmax(8rem, 0.7fr) minmax(9rem, 0.8fr) auto;
+.service-table th,
+.service-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.service-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.service-table tbody tr:hover td {
+  background: var(--color-surface-hover);
+}
+
+.service-table .is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Mọi dòng cùng một chiều cao CỐ ĐỊNH, một tầng. Flex đặt ở div bên trong, KHÔNG đặt lên <td>. */
+.service-table td {
+  height: 3rem;
+  white-space: nowrap;
+}
+
+/* STT: cột hẹp, số căn giữa, mờ để không tranh với tên món. */
+.service-table .service-table__stt {
+  width: 3.5rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* [ảnh] tên ……………… [tag công thức]: ảnh + (tên | tag) cùng một hàng, tag dồn sát mép phải của ô.
+   Giới hạn độ rộng đặt ở div BÊN TRONG (max-width trên <td> không đáng tin với table auto-layout): cột tên co theo
+   nội dung nhưng không bao giờ rộng quá 40rem, dòng hẹp hơn thì tag vẫn dồn phải trong đúng độ rộng cột. */
+.service-table__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 18rem;
+  max-width: 40rem;
+}
+
+.service-table__text {
+  display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-default);
-  box-shadow: var(--shadow-sm);
-}
-
-.service-card__title,
-.service-card__price,
-.service-card__stock {
   min-width: 0;
-  display: grid;
+}
+
+.service-table__title {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 6rem;
+}
+
+/* Công thức thu gọn: một hàng tag `<số lượng> x <nguyên liệu>`, không xuống dòng (phần dư nằm trong tag "+N"). */
+.service-recipe {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--space-1);
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
 }
 
-.service-card__title > span,
-.service-card__price > span,
-.service-card__stock > span,
-.service-card__title small {
-  color: var(--color-text-muted);
+.service-recipe__tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 11rem;
+  overflow: hidden;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
+  line-height: 1.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.service-card__title strong {
+.service-recipe__tag.is-inactive {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.service-recipe__tag--more {
+  flex: none;
+  cursor: help;
+  font-weight: 600;
+}
+
+/* Ảnh món vuông 32px đứng trước tên; món chưa có ảnh hiện khung biểu tượng mờ cùng kích thước. */
+.service-thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+}
+
+.service-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.service-table__name strong {
+  min-width: 0;
   overflow: hidden;
   color: var(--color-text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.service-card__price,
-.service-card__stock {
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--color-border-default);
+.service-table__name .ds-badge {
+  flex: none;
 }
 
-.service-card__price strong {
-  color: var(--color-text-primary);
-  font-size: var(--font-size-lg);
+/* Dòng ngừng bán làm mờ, trừ ô "Mở bán" để ô tick vẫn rõ. */
+.service-table tr.is-off td:not(.service-table__sale) {
+  opacity: 0.6;
+}
+
+/* Tồn kho: [badge] (số lượng) đơn vị, một hàng. */
+.service-table__stock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 10rem;
   font-variant-numeric: tabular-nums;
 }
 
-.service-card__stock .ds-badge {
-  justify-self: start;
+.service-table__sale {
+  text-align: center !important;
+  width: 5rem;
 }
 
-.service-card__stock strong {
-  color: var(--color-text-primary);
+.service-table__check {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--color-action-primary);
+  cursor: pointer;
 }
 
-@media (max-width: 1100px) {
-  .service-grid {
-    grid-template-columns: 1fr;
-  }
+.service-table__check:disabled {
+  cursor: not-allowed;
+}
+
+.service-table__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  white-space: nowrap;
 }
 
 @media (max-width: 700px) {
@@ -199,42 +321,9 @@
     padding-left: 0;
     border-left: 0;
   }
-
-  .service-card {
-    grid-template-columns: 1fr;
-  }
-
-  .service-card__price,
-  .service-card__stock {
-    padding: var(--space-2) 0 0;
-    border-top: 1px solid var(--color-border-default);
-    border-left: 0;
-  }
 }
 
 /* ----- task service-catalog: thêm/sửa/ngừng bán + nhóm ----- */
-.service-card.is-off {
-  background: var(--color-surface-muted, var(--color-surface-default));
-}
-
-.service-card.is-off .service-card__title,
-.service-card.is-off .service-card__price,
-.service-card.is-off .service-card__stock {
-  opacity: 0.6;
-}
-
-.service-card__badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.service-card__actions {
-  display: flex;
-  gap: var(--space-2);
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--color-border-default);
-}
 
 .svc-muted {
   color: var(--color-text-muted);
@@ -604,13 +693,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 1100px) {
-  .service-card__actions {
-    padding-left: 0;
-    border-left: 0;
-  }
-}
-
 @media (max-width: 700px) {
   .svc-form,
   .svc-groups__form {
@@ -628,10 +710,5 @@
 
   .svc-top__rail {
     max-width: 11.5rem;
-  }
-
-  .service-card__actions {
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--color-border-default);
   }
 }

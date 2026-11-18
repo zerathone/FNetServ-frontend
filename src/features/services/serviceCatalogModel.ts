@@ -40,7 +40,7 @@ export function validateCatalogName(raw: string, label = 'Tên'): string | null 
 }
 
 export function validateServiceName(raw: string): string | null {
-  const error = validateCatalogName(raw, 'Tên dịch vụ')
+  const error = validateCatalogName(raw, 'Tên mặt hàng')
   if (error) return error
   if (raw.trim().toUpperCase() === RESERVED_NAME) return `Tên [${raw.trim()}] là tên hệ thống, vui lòng chọn tên khác.`
   return null
@@ -253,7 +253,7 @@ export function groupChoices(groups: readonly ServiceGroupRow[], currentGroupId 
 }
 
 export function groupTypeLabel(typeId: number): string {
-  return typeId === GROUP_TYPE_TOPPING ? 'Nhóm topping' : 'Nhóm thường'
+  return typeId === GROUP_TYPE_TOPPING ? 'Nhóm kèm thêm' : 'Nhóm thường'
 }
 
 /** Đổi loại nhóm bị khoá khi nhóm còn món (Q10) — kể cả món ngừng bán. */

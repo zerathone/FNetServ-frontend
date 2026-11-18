@@ -98,7 +98,7 @@ function invalidateCatalog(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ['inventory'] })
 }
 
-// ===== Thêm / sửa dịch vụ =====
+// ===== Thêm / sửa mặt hàng (dịch vụ & hàng hóa) =====
 
 /**
  * Ô nhập kiểu form thêm hội viên (`Field` của CreateUserDialog): ô tiền tố chứa icon + ô nhập trong cùng một khung;
@@ -331,18 +331,18 @@ export function ServiceEditorDialog({
     onSuccess: (result) => {
       invalidateCatalog(queryClient)
       if (result.failures.length === 0) {
-        pushToast(result.created ? 'Đã thêm dịch vụ.' : 'Đã lưu dịch vụ.', 'success')
+        pushToast(result.created ? 'Đã thêm mặt hàng.' : 'Đã lưu mặt hàng.', 'success')
         onClose()
         return
       }
       const what = result.failures.join('; ')
       if (result.created) {
         // Món đã có id: bấm Lưu lần nữa sẽ tạo món thứ hai ⇒ đóng form, người dùng mở lại món để cấu hình tiếp.
-        pushToast(`Đã thêm dịch vụ nhưng chưa lưu được ${what}. Mở lại món để cấu hình tiếp.`, 'error')
+        pushToast(`Đã thêm mặt hàng nhưng chưa lưu được ${what}. Mở lại món để cấu hình tiếp.`, 'error')
         onClose()
         return
       }
-      pushToast(`Đã lưu dịch vụ nhưng chưa lưu được ${what}.`, 'error')
+      pushToast(`Đã lưu mặt hàng nhưng chưa lưu được ${what}.`, 'error')
     },
     onError: (error) => {
       const pending = pendingOrdersOf(error)
@@ -368,7 +368,7 @@ export function ServiceEditorDialog({
     <>
     <Dialog
       open={open}
-      title={service ? 'Sửa dịch vụ' : 'Thêm dịch vụ'}
+      title={service ? 'Sửa mặt hàng' : 'Thêm mặt hàng'}
       description={
         service
           ? 'Tồn kho không sửa ở đây — nhập kho/kiểm kê ở trang Kho. Ngừng bán dùng nút riêng trên thẻ món.'
@@ -400,17 +400,17 @@ export function ServiceEditorDialog({
             fieldset có legend, khung hình ảnh dạng thẻ + nút icon bên phải. */}
         <div className={`svc-top svc-form__wide${imageSupported ? '' : ' svc-top--noimg'}`}>
           <fieldset className="svc-top__main">
-            <legend>Thông tin dịch vụ</legend>
+            <legend>Thông tin mặt hàng</legend>
             <SvcField
               id="svc-name"
-              label="Tên dịch vụ"
+              label="Tên mặt hàng"
               icon={<Tag size={18} weight="bold" aria-hidden="true" />}
               invalid={touched && validateServiceName(draft.name) !== null}
             >
               <input
                 id="svc-name"
                 className="ds-input"
-                placeholder="Tên dịch vụ *"
+                placeholder="Tên mặt hàng *"
                 value={draft.name}
                 maxLength={50}
                 autoFocus
@@ -531,7 +531,7 @@ export function ServiceEditorDialog({
                   </div>
                 )}
                 {groupKind === 'topping' ? (
-                  <small className="svc-muted">Món trong nhóm topping là topping, không hiện ở menu bán lẻ.</small>
+                  <small className="svc-muted">Món trong nhóm kèm thêm là món kèm thêm, không hiện ở menu bán lẻ.</small>
                 ) : null}
               </div>
             </div>
@@ -880,7 +880,7 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
         title="Nhóm dịch vụ"
         description={
           canEdit
-            ? 'Thêm nhóm, đổi tên, chọn nhóm thường hoặc nhóm topping, ngừng dùng hoặc dùng lại. Dùng nút mũi tên để đổi thứ tự hiển thị.'
+            ? 'Thêm nhóm, đổi tên, chọn nhóm thường hoặc nhóm kèm thêm, ngừng dùng hoặc dùng lại. Dùng nút mũi tên để đổi thứ tự hiển thị.'
             : 'Bạn chưa có quyền quản lý nhóm dịch vụ (66).'
         }
         size="lg"
@@ -935,7 +935,7 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
               {locked ? (
                 <small className="svc-muted svc-groups__wide">
                   Nhóm đang có {editing.group?.serviceCount} món — chuyển món sang nhóm khác trước khi đổi loại
-                  (đổi loại sẽ làm cả nhóm biến khỏi menu hoặc thành topping).
+                  (đổi loại sẽ làm cả nhóm biến khỏi menu hoặc thành kèm thêm).
                 </small>
               ) : null}
               {problem ? (

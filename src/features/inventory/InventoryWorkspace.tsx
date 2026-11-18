@@ -1,46 +1,67 @@
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PageHeader, Segmented, type SegmentedOption } from '../../design-system/components'
+import { Button, PageHeader, Segmented, type SegmentedOption } from '../../design-system/components'
+import { useAuthStore } from '../../store/auth'
 import { ClosingTab } from './ClosingTab'
-import { FinishedTab } from './FinishedTab'
 import { LedgerTab } from './LedgerTab'
+import { UnitsDialog } from './MaterialDialogs'
+import { MaterialsTab } from './MaterialsTab'
 import './inventory.css'
 
-// Danh mục nguyên liệu nay quản lý ở trang Dịch vụ & hàng hóa (tab Nguyên liệu); công thức/món bán kèm sửa
-// thẳng trong form dịch vụ. Link cũ `?tab=materials|recipes` rơi về tab mặc định.
-const TABS = ['finished', 'ledger', 'closing'] as const
+// Danh mục nguyên liệu quản lý ở tab Nguyên liệu của trang Kho; công thức/món bán kèm sửa thẳng trong form
+// dịch vụ. Tồn kho thành phẩm nay ở trang Dịch vụ & hàng hóa (tab Quản lý tồn). Link cũ `?tab=finished|recipes`
+// rơi về tab mặc định.
+const TABS = ['materials', 'ledger', 'closing'] as const
 type Tab = (typeof TABS)[number]
 
 const TAB_OPTIONS: readonly SegmentedOption<Tab>[] = [
-  { value: 'finished', label: 'Kho thành phẩm' },
+  { value: 'materials', label: 'Nguyên liệu' },
   { value: 'ledger', label: 'Sổ kho & tiêu hao' },
   { value: 'closing', label: 'Chốt kỳ' },
 ]
 
 function readTab(raw: string | null): Tab {
-  return (TABS as readonly string[]).includes(raw ?? '') ? (raw as Tab) : 'finished'
+  return (TABS as readonly string[]).includes(raw ?? '') ? (raw as Tab) : 'materials'
 }
 
 /** Trang Kho (task topping-kho / T3f). Tab nằm trong `?tab=` để mở thẳng/đánh dấu được. */
 export function InventoryWorkspace() {
   const [params, setParams] = useSearchParams()
   const tab = readTab(params.get('tab'))
+  // Đơn vị tính dùng chung cho dịch vụ và nguyên liệu ⇒ nút đặt ở đầu trang khi đang ở tab Nguyên liệu.
+  const canUnit = useAuthStore((s) => s.hasRight)(67)
+  const [unitsOpen, setUnitsOpen] = useState(false)
 
   return (
     <section className="inv-workspace">
       <PageHeader
         eyebrow="Quản lý"
-        title="Kho"
-        description="Kho thành phẩm, sổ kho & tiêu hao nguyên liệu và chốt kỳ. Danh mục nguyên liệu nằm ở trang Dịch vụ & hàng hóa."
+        title="Kho & nguyên liệu"
+        description="Danh mục nguyên liệu, sổ kho & tiêu hao nguyên liệu và chốt kỳ. Tồn kho hàng hóa nằm ở trang Dịch vụ & hàng hóa."
+        actions={
+          tab === 'materials' ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!canUnit}
+              title={canUnit ? 'Danh sách đơn vị tính dùng chung cho dịch vụ và nguyên liệu' : 'Cần quyền Quản lý đơn vị tính (67)'}
+              onClick={() => setUnitsOpen(true)}
+            >
+              Đơn vị tính
+            </Button>
+          ) : undefined
+        }
       />
       <Segmented<Tab>
         ariaLabel="Chức năng kho"
         value={tab}
         options={TAB_OPTIONS}
-        onChange={(next) => setParams(next === 'finished' ? {} : { tab: next }, { replace: true })}
+        onChange={(next) => setParams(next === 'materials' ? {} : { tab: next }, { replace: true })}
       />
-      {tab === 'finished' ? <FinishedTab /> : null}
+      {tab === 'materials' ? <MaterialsTab /> : null}
       {tab === 'ledger' ? <LedgerTab /> : null}
       {tab === 'closing' ? <ClosingTab /> : null}
+      <UnitsDialog open={unitsOpen} canEdit={canUnit} onClose={() => setUnitsOpen(false)} />
     </section>
   )
 }

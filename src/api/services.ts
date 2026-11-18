@@ -1,4 +1,5 @@
 import { apiGet } from './client'
+import type { RecipeLine } from './inventory'
 
 export type ServiceItem = {
   id: number
@@ -31,10 +32,24 @@ export type ServiceItem = {
   vatPercent?: number
   /** Tên file ảnh trong thư mục ảnh dùng chung với iCafe ("" = chưa có). `undefined` = server cũ. */
   serviceImg?: string
+  /**
+   * Công thức nguyên liệu của món — CHỈ có khi gọi `getServicesWithRecipe()` (`?include=recipe`) VÀ server mới đủ schema.
+   * `[]` = món chưa cấu hình công thức; `undefined` = server cũ / không hỏi ⇒ KHÔNG biết, đừng hiểu là "không có công thức".
+   * Cùng hình dạng với `/service/recipe-config` (`qty` là chuỗi decimal chuẩn, vd "1.500").
+   */
+  recipe?: RecipeLine[]
 }
 
 export function getServices() {
   return apiGet<ServiceItem[]>('/services')
+}
+
+/**
+ * Danh sách kèm công thức từng món trong CÙNG một request (server gộp 1 câu SQL, không N+1). Dùng queryKey riêng
+ * (`['services', 'catalog']`) — KHÔNG dùng chung `['services']` với các nơi gọi `getServices()` vì hình dạng dữ liệu khác.
+ */
+export function getServicesWithRecipe() {
+  return apiGet<ServiceItem[]>('/services?include=recipe')
 }
 
 export const servicesApi = {

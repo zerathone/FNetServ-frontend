@@ -16,6 +16,7 @@ import {
   formatQty,
   MOVE_TYPE_LABEL,
   previewStockAfter,
+  stockMoveTotal,
   suggestStockCode,
   toWireDecimal,
   validateStockMove,
@@ -325,6 +326,7 @@ export function StockDialog({
   const problem = validateStockMove({ msType, qty, price, code, note })
   const preview = qty.trim() === '' ? null : previewStockAfter(material.stockQty, { msType, qty })
   const qtyLabel = msType === 3 ? 'Số đếm thực tế' : msType === 1 ? 'Số lượng nhập' : 'Số lượng xuất'
+  const total = msType === 3 ? null : stockMoveTotal(qty, price)
 
   return (
     <Dialog
@@ -368,13 +370,21 @@ export function StockDialog({
             <input className="ds-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} />
           </label>
         ) : null}
+        {msType !== 3 ? (
+          <div className="ds-field">
+            <span className="ds-field__label">Tổng tiền</span>
+            <span className="inv-form__static" title="Số lượng × đơn giá; máy chủ tính lại, không tin số này.">
+              {total === null ? '—' : `${new Intl.NumberFormat('vi-VN').format(total)} đ`}
+            </span>
+          </div>
+        ) : null}
         <label className="ds-field">
           <span className="ds-field__label">
             {msType === 2 ? 'Mã phiếu NHẬP đã có' : 'Mã phiếu'}
           </span>
           <input className="ds-input" value={code} maxLength={20} onChange={(e) => setCode(e.target.value)} />
         </label>
-        <label className="ds-field">
+        <label className={msType !== 3 ? 'ds-field inv-form__wide' : 'ds-field'}>
           <span className="ds-field__label">Ghi chú</span>
           <input className="ds-input" value={note} maxLength={255} onChange={(e) => setNote(e.target.value)} />
         </label>

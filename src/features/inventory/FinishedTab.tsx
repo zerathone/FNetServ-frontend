@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass } from '@phosphor-icons/react'
 import {
   getFinished,
   importFinished,
@@ -8,7 +7,7 @@ import {
   type FinishedImportRow,
   type FinishedStocktakeRow,
 } from '../../api/inventory'
-import { getServices, type ServiceItem } from '../../api/services'
+import { type ServiceItem } from '../../api/services'
 import {
   Button,
   Dialog,
@@ -20,154 +19,44 @@ import {
   StatusBadge,
 } from '../../design-system/components'
 import { useIdempotentIntent } from '../../lib/idempotency'
-import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import { describeInventoryError, parseWholeNumber } from './inventoryModel'
+// Tab này nay nằm ở trang Dịch vụ & hàng hóa (tab Quản lý tồn) — tự nạp CSS .inv-* để không phụ thuộc trang Kho.
+import './inventory.css'
 
 const money = (n: number) => `${new Intl.NumberFormat('vi-VN').format(n)} đ`
 const num = (n: number) => new Intl.NumberFormat('vi-VN').format(n)
 
-type Dialog_ = { kind: 'import' | 'stocktake'; service: ServiceItem } | null
-
-/** Tab Kho thành phẩm: món có InventoryManagement=1 (tồn là số nguyên), nhập kho + kiểm kê + lịch sử. */
+/**
+ * Tab Quản lý tồn (trang Dịch vụ & hàng hóa): lịch sử phiếu nhập kho + kiểm kê của mặt hàng quản lý tồn.
+ * Danh sách mặt hàng và nút Nhập kho / Kiểm kê nằm ở tab Dịch vụ (dùng `ImportDialog` / `StocktakeDialog` bên dưới).
+ */
 export function FinishedTab() {
-  const hasRight = useAuthStore((s) => s.hasRight)
-  const canImport = hasRight(64)
-  const canStocktake = hasRight(68)
-  const [search, setSearch] = useState('')
-  const [dialog, setDialog] = useState<Dialog_>(null)
   const [history, setHistory] = useState<'imports' | 'stocktakes'>('imports')
 
-  const servicesQuery = useQuery({ queryKey: ['services'], queryFn: getServices })
   const historyQuery = useQuery({
     queryKey: ['inventory', 'finished', 'history'],
     queryFn: () => getFinished({ limit: 100 }),
   })
 
-  const managed = useMemo(() => {
-    const needle = search.trim().toLocaleLowerCase('vi')
-    return (servicesQuery.data ?? []).filter(
-      (s) => s.inventoryManagement === 1 && (!needle || s.name.toLocaleLowerCase('vi').includes(needle)),
-    )
-  }, [servicesQuery.data, search])
-
   return (
     <div className="inv-stack">
-      <section className="inv-panel" aria-label="Tồn kho thành phẩm">
-        <div className="inv-filters">
-          <div className="ds-search-input inv-filters__search">
-            <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
-            <input
-              className="ds-input"
-              type="search"
-              value={search}
-              aria-label="Tìm món quản lý tồn"
-              placeholder="Tìm món…"
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
-        <ListToolbar
-          count={
-            <>
-              <strong>{managed.length}</strong> món quản lý tồn
-            </>
-          }
-          actions={
-            <RefreshButton
-              loading={servicesQuery.isFetching}
-              onClick={() => {
-                void servicesQuery.refetch()
-                void historyQuery.refetch()
-              }}
-            />
-          }
-        />
-        {servicesQuery.isLoading ? (
-          <StateView title="Đang tải danh mục…" />
-        ) : servicesQuery.isError ? (
-          <StateView
-            title="Không tải được danh mục"
-            description={describeInventoryError(servicesQuery.error)}
-            action={
-              <Button type="button" onClick={() => void servicesQuery.refetch()}>
-                Thử lại
-              </Button>
-            }
-          />
-        ) : managed.length === 0 ? (
-          <StateView
-            title="Chưa có món nào quản lý tồn"
-            description="Chỉ món đã bật quản lý tồn kho (InventoryManagement) mới có kho thành phẩm."
-          />
-        ) : (
-          <div className="inv-table-wrap">
-            <table className="inv-table">
-              <thead>
-                <tr>
-                  <th>Món</th>
-                  <th className="is-num">Giá bán</th>
-                  <th className="is-num">Tồn kho</th>
-                  <th aria-label="Thao tác" />
-                </tr>
-              </thead>
-              <tbody>
-                {managed.map((s) => (
-                  <tr key={s.id} className={s.active === 0 ? 'is-off' : ''}>
-                    <td>
-                      <strong>{s.name}</strong>
-                      <small className="inv-muted">
-                        #{s.id}
-                        {s.groupName ? ` · ${s.groupName}` : ''}
-                      </small>
-                    </td>
-                    <td className="is-num">{money(s.price)}</td>
-                    <td className="is-num">
-                      <StatusBadge tone={s.inventory <= 0 ? 'danger' : 'success'}>
-                        {num(s.inventory)} {s.unit}
-                      </StatusBadge>
-                    </td>
-                    <td className="inv-table__actions">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!canImport}
-                        title={canImport ? undefined : 'Cần quyền Quản lý kho (64)'}
-                        onClick={() => setDialog({ kind: 'import', service: s })}
-                      >
-                        Nhập kho
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!canStocktake}
-                        title={canStocktake ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
-                        onClick={() => setDialog({ kind: 'stocktake', service: s })}
-                      >
-                        Kiểm kê
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
       <section className="inv-panel" aria-label="Lịch sử kho thành phẩm">
         <ListToolbar
           count={<strong>Lịch sử gần đây</strong>}
           actions={
-            <Segmented<'imports' | 'stocktakes'>
-              ariaLabel="Loại lịch sử"
-              value={history}
-              onChange={setHistory}
-              options={[
-                { value: 'imports', label: 'Nhập kho' },
-                { value: 'stocktakes', label: 'Kiểm kê' },
-              ]}
-            />
+            <>
+              <RefreshButton loading={historyQuery.isFetching} onClick={() => void historyQuery.refetch()} />
+              <Segmented<'imports' | 'stocktakes'>
+                ariaLabel="Loại lịch sử"
+                value={history}
+                onChange={setHistory}
+                options={[
+                  { value: 'imports', label: 'Nhập kho' },
+                  { value: 'stocktakes', label: 'Kiểm kê' },
+                ]}
+              />
+            </>
           }
         />
         {historyQuery.isLoading ? (
@@ -182,19 +71,9 @@ export function FinishedTab() {
           <StocktakeHistory rows={historyQuery.data?.stocktakes ?? []} />
         )}
       </section>
-
-      <ImportDialog
-        service={dialog?.kind === 'import' ? dialog.service : null}
-        onClose={() => setDialog(null)}
-      />
-      <StocktakeDialog
-        service={dialog?.kind === 'stocktake' ? dialog.service : null}
-        onClose={() => setDialog(null)}
-      />
     </div>
   )
 }
-
 function ImportHistory({ rows }: { rows: FinishedImportRow[] }) {
   if (rows.length === 0) return <StateView title="Chưa có phiếu nhập" />
   return (
@@ -273,7 +152,8 @@ function StocktakeHistory({ rows }: { rows: FinishedStocktakeRow[] }) {
   )
 }
 
-function ImportDialog({ service, onClose }: { service: ServiceItem | null; onClose: () => void }) {
+/** Dùng chung với danh sách Dịch vụ & hàng hóa (nút Nhập kho ở dòng mặt hàng có quản lý tồn). */
+export function ImportDialog({ service, onClose }: { service: ServiceItem | null; onClose: () => void }) {
   const queryClient = useQueryClient()
   const { getKey, clearKey } = useIdempotentIntent('fin-import')
   const [qty, setQty] = useState('')
@@ -341,51 +221,50 @@ function ImportDialog({ service, onClose }: { service: ServiceItem | null; onClo
           <span className="ds-field__label">Đơn giá nhập (đ)</span>
           <input className="ds-input" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
         </label>
-        <label className="ds-field inv-form__wide">
+        <div className="ds-field">
+          <span className="ds-field__label">Tổng tiền</span>
+          <span className="inv-form__static" title="Số lượng × đơn giá; máy chủ tính lại, không tin số này.">
+            {total === null ? '—' : money(total)}
+          </span>
+        </div>
+        <label className="ds-field">
           <span className="ds-field__label">Ghi chú</span>
           <input className="ds-input" value={note} maxLength={250} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <div className="inv-form__wide">
-          <InlineAlert tone={total !== null && total > 999_999_999 ? 'danger' : 'info'}>
-            {total === null
-              ? 'Nhập số nguyên cho số lượng và đơn giá.'
-              : total > 999_999_999
-                ? 'Thành tiền vượt giới hạn 999.999.999 đ.'
-                : `Thành tiền ${money(total)} — máy chủ tính lại, không tin số này.`}
-          </InlineAlert>
-        </div>
+        {total !== null && total > 999_999_999 ? (
+          <div className="inv-form__wide">
+            <InlineAlert tone="danger">Tổng tiền vượt giới hạn 999.999.999 đ.</InlineAlert>
+          </div>
+        ) : null}
       </div>
     </Dialog>
   )
 }
 
-function StocktakeDialog({ service, onClose }: { service: ServiceItem | null; onClose: () => void }) {
+/** Dùng chung với danh sách Dịch vụ & hàng hóa (nút Kiểm kê ở dòng mặt hàng có quản lý tồn). */
+export function StocktakeDialog({ service, onClose }: { service: ServiceItem | null; onClose: () => void }) {
   const queryClient = useQueryClient()
   const { getKey, clearKey } = useIdempotentIntent('fin-stktk')
-  const [mode, setMode] = useState<'real' | 'adjust'>('real')
+  // Nhập số đếm thực tế; chênh lệch = thực tế − tồn, tự tính (server vẫn tính lại từ numReal).
   const [value, setValue] = useState('')
   const [note, setNote] = useState('')
 
   useEffect(() => {
     if (service) {
-      setMode('real')
       setValue('')
       setNote('')
       clearKey()
     }
   }, [service, clearKey])
 
-  const parsed = parseWholeNumber(value, mode === 'adjust')
-  const after = service && parsed !== null ? (mode === 'real' ? parsed : service.inventory + parsed) : null
-  const valid = service !== null && parsed !== null && after !== null && after >= 0 && Math.abs(parsed) <= 1_000_000
+  const parsed = parseWholeNumber(value, false)
+  const diff = service && parsed !== null ? parsed - service.inventory : null
+  const valid = service !== null && parsed !== null && parsed >= 0 && parsed <= 1_000_000
 
   const mutation = useMutation({
     mutationFn: () => {
       if (!service || parsed === null) throw new Error('Dữ liệu chưa hợp lệ.')
-      const body =
-        mode === 'real'
-          ? { serviceId: service.id, numReal: parsed, note: note.trim() || undefined }
-          : { serviceId: service.id, numAdjust: parsed, note: note.trim() || undefined }
+      const body = { serviceId: service.id, numReal: parsed, note: note.trim() || undefined }
       return stocktakeFinished({ ...body, idem: getKey(JSON.stringify(body)) })
     },
     onSuccess: (result) => {
@@ -420,22 +299,14 @@ function StocktakeDialog({ service, onClose }: { service: ServiceItem | null; on
       }
     >
       <div className="inv-form">
-        <div className="inv-form__wide">
-          <Segmented<'real' | 'adjust'>
-            ariaLabel="Cách nhập kiểm kê"
-            value={mode}
-            onChange={(next) => {
-              setMode(next)
-              setValue('')
-            }}
-            options={[
-              { value: 'real', label: 'Số đếm thực tế' },
-              { value: 'adjust', label: 'Chênh lệch (+/−)' },
-            ]}
-          />
+        <div className="ds-field">
+          <span className="ds-field__label">Số lượng tồn</span>
+          <span className="inv-form__static">
+            {num(service.inventory)} {service.unit}
+          </span>
         </div>
         <label className="ds-field">
-          <span className="ds-field__label">{mode === 'real' ? 'Số đếm thực tế' : 'Chênh lệch so với tồn'}</span>
+          <span className="ds-field__label">Số lượng thực tế</span>
           <input
             className="ds-input"
             inputMode="numeric"
@@ -444,17 +315,27 @@ function StocktakeDialog({ service, onClose }: { service: ServiceItem | null; on
             onChange={(e) => setValue(e.target.value)}
           />
         </label>
+        <div className="ds-field">
+          <span className="ds-field__label">Chênh lệch</span>
+          <span className="inv-form__static">
+            {diff === null ? (
+              '—'
+            ) : diff === 0 ? (
+              <StatusBadge tone="success" dot>
+                Cân bằng
+              </StatusBadge>
+            ) : (
+              <StatusBadge tone={diff < 0 ? 'danger' : 'warning'} dot>
+                {diff > 0 ? '+' : ''}
+                {num(diff)} {service.unit}
+              </StatusBadge>
+            )}
+          </span>
+        </div>
         <label className="ds-field">
           <span className="ds-field__label">Ghi chú</span>
           <input className="ds-input" value={note} maxLength={250} onChange={(e) => setNote(e.target.value)} />
         </label>
-        {after !== null ? (
-          <div className="inv-form__wide">
-            <InlineAlert tone={after < 0 ? 'danger' : 'info'}>
-              {after < 0 ? 'Tồn sau điều chỉnh không được âm.' : `Tồn sau kiểm kê: ${num(after)} ${service.unit}`.trim()}
-            </InlineAlert>
-          </div>
-        ) : null}
       </div>
     </Dialog>
   )

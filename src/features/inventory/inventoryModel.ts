@@ -134,6 +134,18 @@ export function validateStockMove(input: StockMoveInput): string | null {
   return null
 }
 
+/**
+ * Tổng tiền của phiếu = số lượng × đơn giá (đ), làm tròn đến đồng. Chỉ để hiển thị — server tính lại.
+ * Trả null khi thiếu/sai số lượng hoặc đơn giá (đơn giá không bắt buộc ⇒ chưa nhập thì không có tổng).
+ */
+export function stockMoveTotal(qty: string, price: string): number | null {
+  if (qty.trim() === '' || price.trim() === '') return null
+  const q = parseMilli(qty)
+  const p = parseMilli(price)
+  if (q === null || p === null) return null
+  return Math.round((q * p) / 1_000_000)
+}
+
 /** Xem trước tồn sau phiếu để người dùng thấy trước (xuất vượt tồn bị server chặn). */
 export function previewStockAfter(
   stockQty: string,

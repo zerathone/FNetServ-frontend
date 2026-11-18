@@ -1,4 +1,4 @@
-/* task topping-kho / T3f — trang Kho + tab Nguyên liệu của trang Dịch vụ. Chỉ dùng token của design-system. */
+/* task topping-kho / T3f — trang Kho (gồm tab Nguyên liệu). Chỉ dùng token của design-system. */
 
 .inv-workspace {
   min-width: 0;
@@ -40,11 +40,6 @@
   flex-wrap: wrap;
   align-items: end;
   gap: var(--space-3);
-}
-
-.inv-filters__search {
-  flex: 1 1 16rem;
-  max-width: 28rem;
 }
 
 .inv-filters__field {
@@ -96,8 +91,34 @@
   white-space: nowrap;
 }
 
-.inv-table tr.is-off td {
+/* Dòng ngừng dùng làm mờ, trừ ô "Đang dùng" để ô tick vẫn rõ. */
+.inv-table tr.is-off td:not(.inv-table__sale) {
   opacity: 0.6;
+}
+
+/* STT: cột hẹp, số căn giữa, mờ để không tranh với tên. */
+.inv-table .inv-table__stt {
+  width: 3.5rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.inv-table .inv-table__sale {
+  width: 5.5rem;
+  text-align: center;
+}
+
+.inv-table__check {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--color-action-primary);
+  cursor: pointer;
+}
+
+.inv-table__check:disabled {
+  cursor: not-allowed;
 }
 
 .inv-table__actions {
@@ -116,6 +137,24 @@
 
 .inv-form__wide {
   grid-column: 1 / -1;
+}
+
+/* Tồn kho trong bảng: [badge số] đơn vị, một hàng (giống .service-table__stock). */
+.inv-stock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Giá trị chỉ đọc (không phải ô nhập): cao bằng ô input để hàng không lệch, không viền ⇒ phân biệt được với ô sửa được. */
+.inv-form__static {
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
 
 /* ----- đơn vị tính ----- */
