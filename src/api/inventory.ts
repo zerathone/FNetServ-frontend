@@ -230,95 +230,238 @@ export function getUsage(filter: InventoryFilter = {}) {
   return apiPost<UsageResult, InventoryFilter>('/inventory/material-usage', filter)
 }
 
-// ===== Kho thành phẩm (T3d) — dịch vụ có InventoryManagement=1 =====
+// ===== Kho thành phẩm — dịch vụ có InventoryManagement=1 (task service-catalog đợt 2, theo Qt) =====
+// Hợp đồng: handoff/HANDOFF_service-catalog.md §7; BE: ServerSide_ai/FNetHttp/FinishedStockHandlers.cpp.
+// Phản hồi `{status:"1"|"0", message, data}`; lỗi có `data.code` (ApiError.code) + `message` tiếng Việt — hiển thị nguyên văn.
+// Phiếu nhiều dòng KHÔNG nguyên tử (MyISAM): từng dòng ghi độc lập, kết quả trả theo dòng.
 
-export type FinishedImportRow = {
-  id: number
-  createDate: string
-  createTime: string
-  staffId: number
-  note: string
+/** Một dòng kết quả của phiếu nhiều dòng. Dòng lỗi chỉ chắc chắn có `index`, `ok`, `code`, `message`. */
+export type BatchLineStatus = { index: number; ok: boolean; code?: string; message?: string }
+
+// ----- Phiếu nhập nhiều dòng (quyền 64) -----
+
+export type FinishedImportLineBody = {
   serviceId: number
-  importQuantity: number
-  importPrice: number
-  importTotalAmount: number
-  serviceName: string
-  unit: string
-  groupName: string
-  userName: string
-}
-
-export type FinishedStocktakeRow = {
-  id: number
-  createDate: string
-  createTime: string
-  staffId: number
-  numInventoryExpected: number
-  numInventoryReal: number
-  numAdjust: number
-  numPreAdjust: number
-  note: string
-  serviceId: number
-  serviceName: string
-  unit: string
-  groupName: string
-  userName: string
-}
-
-export type FinishedResult = {
-  supported: boolean
-  imports: FinishedImportRow[]
-  stocktakes: FinishedStocktakeRow[]
-}
-
-export function getFinished(filter: InventoryFilter = {}) {
-  return apiPost<FinishedResult, InventoryFilter>('/inventory/finished', filter)
-}
-
-/** `idem` bắt buộc (≤50 ký tự) — retry mạng không được nhập đôi. */
-export type FinishedImportBody = {
-  serviceId: number
+  /** Theo ĐƠN VỊ ĐÃ CHỌN (nguyên ≥1). */
   quantity: number
+  /** Trống = đơn vị gốc của món. */
+  unitId?: number
+  /** Giá nhập theo đơn vị đã chọn (nguyên ≥0). */
   price: number
   note?: string
-  idem: string
 }
 
-export type FinishedImportResult = {
-  id: number
-  serviceId: number
-  quantity: number
-  importTotalAmount: number
-  inventoryBefore: number
-  inventoryAfter: number
+export type FinishedImportBatchBody = { idem: string; lines: FinishedImportLineBody[] }
+
+export type FinishedImportLineResult = BatchLineStatus & {
+  id?: number
+  serviceId?: number
+  unitId?: number
+  unit?: string
+  factor?: number
+  quantity?: number
+  /** SL sau quy đổi về đơn vị gốc. */
+  quantityBase?: number
+  importPrice?: number
+  /** true = giá lẻ bị cắt khi chia hệ số (parity Qt). */
+  priceRounded?: boolean
+  importTotalAmount?: number
+  inventoryBefore?: number
+  inventoryAfter?: number
+}
+
+export type FinishedImportBatchResult = {
+  results: FinishedImportLineResult[]
+  okCount: number
+  failCount: number
+  totalAmount: number
   duplicated?: boolean
 }
 
-export function importFinished(body: FinishedImportBody) {
-  return apiPost<FinishedImportResult, FinishedImportBody>('/inventory/finished/import', body)
+/** `idem` bao cả phiếu (≤50 ký tự): retry cùng nội dung không nhập đôi. */
+export function importFinishedBatch(body: FinishedImportBatchBody) {
+  return apiPost<FinishedImportBatchResult, FinishedImportBatchBody>('/inventory/finished/import-batch', body)
 }
 
+// ----- Phiếu kiểm kê nhiều dòng (quyền 68) -----
+
 /** ĐÚNG MỘT trong numReal (số đếm thực tế ≥0) / numAdjust (chênh lệch, có thể âm). */
-export type FinishedStocktakeBody = {
+export type FinishedStocktakeLineBody = {
   serviceId: number
   numReal?: number
   numAdjust?: number
   note?: string
-  idem: string
 }
 
-export type FinishedStocktakeResult = {
+export type FinishedStocktakeBatchBody = { idem: string; lines: FinishedStocktakeLineBody[] }
+
+export type FinishedStocktakeLineResult = BatchLineStatus & {
+  id?: number
+  serviceId?: number
+  numInventoryExpected?: number
+  numPreAdjust?: number
+  numAdjust?: number
+  numInventoryReal?: number
+}
+
+export type FinishedStocktakeBatchResult = {
+  results: FinishedStocktakeLineResult[]
+  okCount: number
+  failCount: number
+  duplicated?: boolean
+}
+
+export function stocktakeFinishedBatch(body: FinishedStocktakeBatchBody) {
+  return apiPost<FinishedStocktakeBatchResult, FinishedStocktakeBatchBody>(
+    '/inventory/finished/stocktake-batch',
+    body,
+  )
+}
+
+// ----- Báo cáo nhập kho / kiểm kê (quyền 9391/93911, 9392/93921) -----
+
+export type FinishedReportFilter = {
+  /** YYYY-MM-DD, gồm cả hai đầu; Từ > Đến ⇒ invalid_request. */
+  fromDate?: string
+  toDate?: string
+  /** 'HH:mm' (tuỳ chọn, chỉ có tác dụng khi có ngày tương ứng): thiếu ⇒ cả ngày. Đến giờ gồm hết phút đó. Máy chủ cũ bỏ qua. */
+  fromTime?: string
+  toTime?: string
+  groupId?: number
+  serviceId?: number
+  /** Chỉ có tác dụng khi có quyền ALL; không có ⇒ máy chủ ép về chính người gọi. */
+  staffId?: number
+  /** ≤200. */
+  limit: number
+  offset: number
+}
+
+type FinishedReportRowBase = {
   id: number
+  createDate: string
+  createTime: string
+  staffId: number
+  userName: string
+  note: string
   serviceId: number
+  serviceName: string
+  unit: string
+  groupId: number
+  groupName: string
+}
+
+export type FinishedImportReportRow = FinishedReportRowBase & {
+  /** Theo ĐƠN VỊ GỐC (Q21). */
+  importQuantity: number
+  importPrice: number
+  importTotalAmount: number
+}
+
+export type FinishedStocktakeReportRow = FinishedReportRowBase & {
   numInventoryExpected: number
   numPreAdjust: number
   numAdjust: number
   numInventoryReal: number
+}
+
+export type FinishedReportResult<Row> = {
+  supported: boolean
+  kind: string
+  total: number
+  /** Chỉ có ở kind=imports: SUM ImportTotalAmount cả khoảng lọc (không chỉ trang hiện tại). */
+  totalAmount?: number
+  limit: number
+  offset: number
+  rows: Row[]
+}
+
+export function getFinishedImportReport(filter: FinishedReportFilter) {
+  return apiPost<FinishedReportResult<FinishedImportReportRow>, FinishedReportFilter & { kind: 'imports' }>(
+    '/inventory/finished/report',
+    { ...filter, kind: 'imports' },
+  )
+}
+
+export function getFinishedStocktakeReport(filter: FinishedReportFilter) {
+  return apiPost<FinishedReportResult<FinishedStocktakeReportRow>, FinishedReportFilter & { kind: 'stocktakes' }>(
+    '/inventory/finished/report',
+    { ...filter, kind: 'stocktakes' },
+  )
+}
+
+// ----- Báo cáo Nhập – xuất = lịch sử chốt kho (quyền 9394/93941) -----
+
+/** Số ĐÃ LƯU lúc chốt — hiển thị nguyên, không tính lại. */
+export type FinishedClosingRow = FinishedReportRowBase & {
+  fromDate: string
+  fromTime: string
+  numBalance: number
+  importQuantity: number
+  importTotalAmount: number
+  saleQuantity: number
+  saleTotalAmount: number
+  numAdjust: number
+  numInventoryExpected: number
+  numInventoryReal: number
+}
+
+export function getFinishedClosings(filter: FinishedReportFilter) {
+  return apiPost<FinishedReportResult<FinishedClosingRow>, FinishedReportFilter>('/inventory/finished/closings', filter)
+}
+
+// ----- Chốt kho (quyền 69) -----
+
+export type FinishedClosingCommitResult = {
+  closingAt: string
+  closedCount: number
+  skipped: Array<{ serviceId: number; code: string }>
   duplicated?: boolean
 }
 
-export function stocktakeFinished(body: FinishedStocktakeBody) {
-  return apiPost<FinishedStocktakeResult, FinishedStocktakeBody>('/inventory/finished/stocktake', body)
+export function commitFinishedClosing(body: { idem: string; note?: string }) {
+  return apiPost<FinishedClosingCommitResult, typeof body>('/inventory/finished/closing/commit', body)
+}
+
+// ----- Đơn vị quy đổi (đọc: không quyền; ghi/xoá: 65) -----
+
+export type ConvertUnitRow = {
+  /** 0 = dòng đơn vị gốc chưa có trong bảng (món tạo từ web/iCafe). */
+  id: number
+  unitId: number
+  unit: string
+  /** Số đơn vị gốc trong 1 đơn vị này (gốc = 1). */
+  quantity: number
+  root: boolean
+}
+
+export type ConvertUnitList = {
+  supported: boolean
+  serviceId: number
+  rootUnitId: number
+  rootUnit: string
+  rows: ConvertUnitRow[]
+}
+
+export function getConvertUnits(serviceId: number) {
+  return apiPost<ConvertUnitList, { serviceId: number }>('/service/convert-unit/list', { serviceId })
+}
+
+export type ConvertUnitSaveBody = {
+  serviceId: number
+  unitId: number
+  /** 2..1.000.000 = số đơn vị gốc trong 1 đơn vị này. */
+  quantity: number
+}
+
+export function saveConvertUnit(body: ConvertUnitSaveBody) {
+  return apiPost<
+    { id: number; serviceId: number; unitId: number; unit: string; quantity: number; created: boolean },
+    ConvertUnitSaveBody
+  >('/service/convert-unit/save', body)
+}
+
+export function removeConvertUnit(id: number) {
+  return apiPost<{ id: number; removed: boolean }, { id: number }>('/service/convert-unit/remove', { id })
 }
 
 // ===== Chốt kỳ kho nguyên liệu (R6b) =====

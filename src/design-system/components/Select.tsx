@@ -6,10 +6,15 @@ interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>
   // Phần tử nhận focus là <button> chứ không phải <select> nên onBlur gắn vào button.
   onBlur?: React.FocusEventHandler<HTMLButtonElement>;
   className?: string;
+  /** Luôn hiện ô gõ để lọc, kể cả khi danh sách ngắn (mặc định chỉ từ FILTER_MIN_OPTIONS mục trở lên). Dùng cho combo hàng hoá/dịch vụ — danh sách sẽ dài ra theo thời gian. */
+  searchable?: boolean;
 }
 
 /** Danh sách từ ngần này mục trở lên mới hiện ô gõ để lọc (danh sách ngắn thì chọn thẳng, đỡ rối). */
 const FILTER_MIN_OPTIONS = 7;
+
+/** Danh sách ngắn mới đo "nhãn dài nhất" để định bề rộng nút; danh sách dài (dịch vụ, nhân viên…) giữ co giãn theo nhãn đang chọn. */
+const SIZER_MAX_OPTIONS = 12;
 
 /** Chữ thuần của nhãn option (nhãn có thể là mảng như `{tên} ({số})`). */
 function textOf(node: React.ReactNode): string {
@@ -36,6 +41,7 @@ export function Select({
   onChange,
   onBlur,
   className = '',
+  searchable = false,
   disabled,
   id,
   name,
@@ -86,7 +92,7 @@ export function Select({
 
   const selectedOption = options.find(opt => String(opt.value) === String(value)) || options[0];
 
-  const filterable = options.length >= FILTER_MIN_OPTIONS;
+  const filterable = searchable || options.length >= FILTER_MIN_OPTIONS;
   const needle = fold(query.trim());
   // Giữ chỉ số gốc để biết mục nào đang được chọn khi danh sách đã bị lọc.
   const visible = options
@@ -189,7 +195,18 @@ export function Select({
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid}
       >
-        <span className="ds-custom-select-value">{selectedOption?.label || ''}</span>
+        <span className="ds-custom-select-value">
+          <span className="ds-custom-select-value__text">{selectedOption?.label || ''}</span>
+          {/* Bản ẩn của MỌI nhãn xếp chồng cùng ô lưới ⇒ trong .ds-input-group, nút rộng đúng bằng nhãn DÀI NHẤT
+              (đổi lựa chọn không làm group nhảy rộng/hẹp). Ngoài group CSS ẩn hẳn (display:none). */}
+          {options.length > 1 && options.length <= SIZER_MAX_OPTIONS
+            ? options.map((opt) => (
+                <span key={String(opt.value)} className="ds-custom-select-value__sizer" aria-hidden="true">
+                  {opt.label}
+                </span>
+              ))
+            : null}
+        </span>
         <CaretDown weight="bold" className="ds-custom-select-icon" />
       </button>
 

@@ -30,6 +30,11 @@ export type ServiceItem = {
    * riêng biệt. `undefined` = server cũ hoặc DB chưa có cột ⇒ không hiện/không gửi VAT.
    */
   vatPercent?: number
+  /**
+   * Tồn SỔ SÁCH (NumInventoryExpected: nhập − bán, kiểm kê không đụng) — CHỈ có ở món inventoryManagement === 1, server mới.
+   * Chênh lệch = inventoryExpected − inventory (tính ở FE); undefined = server cũ ⇒ hiện —, không lỗi.
+   */
+  inventoryExpected?: number
   /** Tên file ảnh trong thư mục ảnh dùng chung với iCafe ("" = chưa có). `undefined` = server cũ. */
   serviceImg?: string
   /**

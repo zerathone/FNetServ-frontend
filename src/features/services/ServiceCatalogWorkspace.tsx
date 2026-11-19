@@ -19,7 +19,9 @@ import {
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
-import { FinishedTab, ImportDialog, StocktakeDialog } from '../inventory/FinishedTab'
+import { FinishedTab } from '../inventory/FinishedTab'
+import { ImportVoucherDialog, StocktakeVoucherDialog } from '../inventory/FinishedVoucherDialogs'
+import { diffBadge, formatInt, MAX_BATCH_LINES, stockDiff } from '../inventory/finishedStockModel'
 import { UnitsDialog } from '../inventory/MaterialDialogs'
 import { GroupsDialog, PendingOrdersDialog, ServiceEditorDialog } from './ServiceCatalogDialogs'
 import { ServiceRecipeTags } from './ServiceRecipeTags'
@@ -80,7 +82,10 @@ export function ServiceCatalogWorkspace() {
   // Nhập kho / Kiểm kê mặt hàng có quản lý tồn — cùng quyền với tab Quản lý tồn (64 nhập, 68 kiểm kê).
   const canImport = hasRight(64)
   const canStocktake = hasRight(68)
-  const [stockDialog, setStockDialog] = useState<{ kind: 'import' | 'stocktake'; service: ServiceItem } | null>(null)
+  // `ids` = các mặt hàng điền sẵn vào lưới phiếu (một món từ nút ở dòng, nhiều món từ ô tick).
+  const [stockDialog, setStockDialog] = useState<{ kind: 'import' | 'stocktake'; ids: number[] } | null>(null)
+  // Tick chọn nhiều mặt hàng (chỉ món có quản lý tồn, không phải dòng hệ thống) để lập phiếu nhập / kiểm kê một lần.
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
   // editor: undefined = đóng, null = thêm mới, ServiceItem = sửa món đó.
   const [editor, setEditor] = useState<ServiceItem | null | undefined>(undefined)
   const [groupsOpen, setGroupsOpen] = useState(false)
@@ -157,6 +162,30 @@ export function ServiceCatalogWorkspace() {
   )
   const totalPages = Math.max(1, Math.ceil(services.length / PAGE_SIZE))
   const visibleServices = services.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const isSelectable = (service: ServiceItem) => service.inventoryManagement === 1 && !isReadonlyService(service)
+  // Chỉ tính món ĐANG HIỂN THỊ theo bộ lọc (mọi trang) và còn quản lý tồn ⇒ "k / Tổng" luôn khớp thứ nhìn thấy; món đã tick
+  // nhưng đang bị lọc ẩn thì giữ trong lựa chọn, hiện lại khi bỏ lọc, và không đưa vào phiếu.
+  const selectedIds = services.filter((service) => selected.has(service.id) && isSelectable(service)).map((service) => service.id)
+  const selectableOnPage = visibleServices.filter(isSelectable)
+  const allPageSelected = selectableOnPage.length > 0 && selectableOnPage.every((service) => selected.has(service.id))
+  const somePageSelected = selectableOnPage.some((service) => selected.has(service.id))
+  const toggleSelected = (id: number) =>
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  // "Chọn tất cả" chỉ áp cho các dòng chọn được của TRANG đang xem; lựa chọn ở trang khác giữ nguyên.
+  const togglePage = () =>
+    setSelected((current) => {
+      const next = new Set(current)
+      for (const service of selectableOnPage) {
+        if (allPageSelected) next.delete(service.id)
+        else next.add(service.id)
+      }
+      return next
+    })
   const availableCount = source.filter((service) => matchesServiceStock(service, 'available')).length
   const outCount = source.filter((service) => matchesServiceStock(service, 'out')).length
   const notManagedCount = source.filter((service) => matchesServiceStock(service, 'not-managed')).length
@@ -212,7 +241,7 @@ export function ServiceCatalogWorkspace() {
         <PageHeader
           eyebrow="Danh mục"
           title="Dịch vụ & hàng hóa"
-          description="Lịch sử phiếu nhập kho và kiểm kê của mặt hàng có quản lý tồn. Nhập kho và kiểm kê thực hiện ở tab Dịch vụ."
+          description="Tồn kho, phiếu nhập kho, kiểm kê và chốt kho của mặt hàng có quản lý tồn. Có thể nhập kho hoặc kiểm kê từng mặt hàng ngay ở tab Dịch vụ."
         />
         {tabs}
         <FinishedTab />
@@ -374,7 +403,42 @@ export function ServiceCatalogWorkspace() {
 
       <section className="service-panel" aria-label="Danh sách dịch vụ">
         <ListToolbar
-          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(services.length)}</strong></>}
+          count={
+            selectedIds.length > 0 ? (
+              // Có tick: "k / Tổng mặt hàng đã chọn" + nút thao tác ngay cạnh (thay cho chữ "Tổng N").
+              <span className="inv-toolbar-selection" role="region" aria-label="Thao tác mặt hàng đã chọn">
+                <span>
+                  <strong>{formatInt(selectedIds.length)}</strong> / <strong>{formatInt(services.length)}</strong> mặt hàng đã chọn
+                  {selectedIds.length > MAX_BATCH_LINES ? ` · phiếu chỉ nhận ${MAX_BATCH_LINES} món đầu` : ''}
+                </span>
+                <Button
+                  type="button"
+                  variant="primary"
+                  icon={<TrayArrowDown size={18} weight="bold" aria-hidden="true" />}
+                  disabled={!canImport}
+                  title={canImport ? undefined : 'Cần quyền Quản lý kho (64)'}
+                  onClick={() => setStockDialog({ kind: 'import', ids: selectedIds })}
+                >
+                  Nhập kho
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  icon={<ListChecks size={18} weight="bold" aria-hidden="true" />}
+                  disabled={!canStocktake}
+                  title={canStocktake ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
+                  onClick={() => setStockDialog({ kind: 'stocktake', ids: selectedIds })}
+                >
+                  Kiểm kê
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setSelected(new Set())}>
+                  Bỏ chọn
+                </Button>
+              </span>
+            ) : (
+              <>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(services.length)}</strong></>
+            )
+          }
           actions={
             <>
               <RefreshButton loading={servicesQuery.isFetching} onClick={() => void servicesQuery.refetch()} />
@@ -422,24 +486,48 @@ export function ServiceCatalogWorkspace() {
             <table className="service-table">
               <thead>
                 <tr>
-                  <th className="service-table__stt">STT</th>
+                  <th className="service-table__select">
+                    <input
+                      type="checkbox"
+                      className="service-table__check"
+                      aria-label="Chọn tất cả mặt hàng quản lý tồn trên trang"
+                      title={selectableOnPage.length === 0 ? 'Không có mặt hàng quản lý tồn trên trang này' : undefined}
+                      checked={allPageSelected}
+                      disabled={selectableOnPage.length === 0}
+                      ref={(el) => {
+                        if (el) el.indeterminate = !allPageSelected && somePageSelected
+                      }}
+                      onChange={togglePage}
+                    />
+                  </th>
                   <th>Mặt hàng</th>
                   <th>Nhóm</th>
                   <th className="is-num">Giá bán</th>
                   <th>Tồn kho</th>
+                  <th>Dự kiến / Chênh lệch</th>
                   <th className="service-table__sale">Mở bán</th>
                   <th aria-label="Thao tác" />
                 </tr>
               </thead>
               <tbody>
-                {visibleServices.map((service, index) => {
+                {visibleServices.map((service) => {
                   const stock = serviceStockLabel(service)
+                  const diffTag = diffBadge(stockDiff(service))
                   const system = isReadonlyService(service)
                   const stopped = isDiscontinued(service)
                   return (
-                    <tr className={stopped ? 'is-off' : undefined} key={service.id}>
-                      {/* STT liên tục qua các trang (trang 2 bắt đầu từ 51), theo đúng danh sách đang lọc. */}
-                      <td className="service-table__stt">{page * PAGE_SIZE + index + 1}</td>
+                    <tr className={[stopped ? 'is-off' : '', selected.has(service.id) ? 'is-selected' : ''].filter(Boolean).join(' ') || undefined} key={service.id}>
+                      <td className="service-table__select">
+                        <input
+                          type="checkbox"
+                          className="service-table__check"
+                          aria-label={`Chọn ${service.name}`}
+                          title={isSelectable(service) ? undefined : 'Chỉ chọn được mặt hàng có quản lý tồn kho'}
+                          checked={selected.has(service.id) && isSelectable(service)}
+                          disabled={!isSelectable(service)}
+                          onChange={() => toggleSelected(service.id)}
+                        />
+                      </td>
                       <td>
                         <div className="service-table__name">
                           <ServiceThumb service={service} />
@@ -470,6 +558,21 @@ export function ServiceCatalogWorkspace() {
                           </StatusBadge>
                           {service.inventoryManagement === 1 ? <span>{service.unit}</span> : null}
                         </div>
+                      </td>
+                      <td>
+                        {/* Dự kiến = tồn sổ sách; Chênh lệch = Dự kiến − Thực tế (âm danger, dương warning, 0 để trống). Server cũ chưa trả inventoryExpected ⇒ —. */}
+                        {service.inventoryManagement === 1 && service.inventoryExpected !== undefined ? (
+                          <div className="service-table__stock">
+                            <span>{formatInt(service.inventoryExpected)}</span>
+                            {diffTag ? (
+                              <StatusBadge tone={diffTag.tone} dot={false} title="Dự kiến − Thực tế">
+                                {diffTag.text}
+                              </StatusBadge>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="svc-muted">—</span>
+                        )}
                       </td>
                       <td className="service-table__sale">
                         <input
@@ -510,7 +613,7 @@ export function ServiceCatalogWorkspace() {
                                   icon={<TrayArrowDown size={18} weight="bold" aria-hidden="true" />}
                                   disabled={!canImport}
                                   title={canImport ? undefined : 'Cần quyền Quản lý kho (64)'}
-                                  onClick={() => setStockDialog({ kind: 'import', service })}
+                                  onClick={() => setStockDialog({ kind: 'import', ids: [service.id] })}
                                 >
                                   Nhập kho
                                 </Button>
@@ -520,7 +623,7 @@ export function ServiceCatalogWorkspace() {
                                   icon={<ListChecks size={18} weight="bold" aria-hidden="true" />}
                                   disabled={!canStocktake}
                                   title={canStocktake ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
-                                  onClick={() => setStockDialog({ kind: 'stocktake', service })}
+                                  onClick={() => setStockDialog({ kind: 'stocktake', ids: [service.id] })}
                                 >
                                   Kiểm kê
                                 </Button>
@@ -559,11 +662,12 @@ export function ServiceCatalogWorkspace() {
         onClose={() => setPending(null)}
       />
       <GroupsDialog open={groupsOpen} canEdit={canGroup} onClose={() => setGroupsOpen(false)} />
-      <ImportDialog service={stockDialog?.kind === 'import' ? stockDialog.service : null} onClose={() => setStockDialog(null)} />
-      <StocktakeDialog
-        service={stockDialog?.kind === 'stocktake' ? stockDialog.service : null}
-        onClose={() => setStockDialog(null)}
-      />
+      {stockDialog?.kind === 'import' ? (
+        <ImportVoucherDialog key={stockDialog.ids.join(',')} initialServiceIds={stockDialog.ids} onClose={() => setStockDialog(null)} />
+      ) : null}
+      {stockDialog?.kind === 'stocktake' ? (
+        <StocktakeVoucherDialog key={stockDialog.ids.join(',')} initialServiceIds={stockDialog.ids} onClose={() => setStockDialog(null)} />
+      ) : null}
       {unitsDialog}
       <ConfirmAction
         open={toggling !== null}

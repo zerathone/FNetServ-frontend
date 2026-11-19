@@ -8,6 +8,14 @@ type DateRangePickerProps = {
   onToDateChange: (value: string) => void
   label?: string
   className?: string
+  /**
+   * Chọn thêm giờ:phút ('HH:mm', 24h) cho hai đầu khoảng: truyền ĐỦ cả 4 prop dưới đây thì ô hiện "dd/mm/yyyy HH:mm" và
+   * popup có hàng chọn giờ ở chân. Không truyền ⇒ chỉ chọn ngày như cũ.
+   */
+  fromTime?: string
+  toTime?: string
+  onFromTimeChange?: (value: string) => void
+  onToTimeChange?: (value: string) => void
   /** Preset shortcuts giống Ant Design RangePicker. Mặc định: Hôm nay, Hôm qua, 7 ngày, 30 ngày, Tháng này, Tháng trước */
   presets?: Array<{ label: string; value: () => [string, string] }>
 }
@@ -54,6 +62,27 @@ function formatMonth(month: Date) {
 function formatValue(value: string, placeholder: string) {
   const date = parseDate(value)
   return date ? date.toLocaleDateString('vi-VN') : placeholder
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** Hai ô chọn giờ + phút (24h) cho một đầu khoảng. `value` dạng 'HH:mm'; sai định dạng ⇒ 00:00. */
+function TimeSelects({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value)
+  const hour = match ? Math.min(23, Number(match[1])) : 0
+  const minute = match ? Math.min(59, Number(match[2])) : 0
+  return (
+    <span className="ds-date-picker__time ds-date-range__time">
+      <span className="ds-date-range__time-label">{label}</span>
+      <select aria-label={`${label} — giờ`} value={hour} onChange={(e) => onChange(`${pad2(Number(e.target.value))}:${pad2(minute)}`)}>
+        {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{pad2(h)}</option>)}
+      </select>
+      :
+      <select aria-label={`${label} — phút`} value={minute} onChange={(e) => onChange(`${pad2(hour)}:${pad2(Number(e.target.value))}`)}>
+        {Array.from({ length: 60 }, (_, m) => <option key={m} value={m}>{pad2(m)}</option>)}
+      </select>
+    </span>
+  )
 }
 
 function getTodayValue() {
@@ -116,7 +145,12 @@ export function DateRangePicker({
   label = 'Khoảng thời gian',
   className = '',
   presets = DEFAULT_PRESETS,
+  fromTime = '00:00',
+  toTime = '23:59',
+  onFromTimeChange,
+  onToTimeChange,
 }: DateRangePickerProps) {
+  const showTime = onFromTimeChange !== undefined && onToTimeChange !== undefined
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [boundary, setBoundary] = useState<RangeBoundary>('start')
@@ -226,7 +260,7 @@ export function DateRangePicker({
       : visibleToDate
 
   return (
-    <div ref={rootRef} className={`ds-date-range ${className}`.trim()}>
+    <div ref={rootRef} className={`ds-date-range${showTime ? ' ds-date-range--time' : ''} ${className}`.trim()}>
       <div className="ds-date-range__control" role="group" aria-label={label}>
         <CalendarBlank className="ds-date-range__calendar" size={18} weight="bold" aria-hidden="true" />
         <button
@@ -238,6 +272,7 @@ export function DateRangePicker({
           onClick={() => openPicker('start')}
         >
           {formatValue(previewFrom, 'Từ ngày')}
+          {showTime && previewFrom ? ` ${fromTime}` : ''}
         </button>
         <ArrowRight className="ds-date-range__separator" size={16} weight="bold" aria-hidden="true" />
         <button
@@ -249,6 +284,7 @@ export function DateRangePicker({
           onClick={() => openPicker('end')}
         >
           {formatValue(previewTo, 'Đến ngày')}
+          {showTime && previewTo ? ` ${toTime}` : ''}
         </button>
         {visibleFromDate || visibleToDate ? (
           <button type="button" className="ds-date-range__clear" aria-label="Xóa khoảng ngày" title="Xóa khoảng ngày" onClick={clear}>
@@ -313,6 +349,13 @@ export function DateRangePicker({
               </section>
             ))}
           </div>
+
+          {showTime ? (
+            <div className="ds-date-range__times">
+              <TimeSelects label="Từ giờ" value={fromTime} onChange={(value) => onFromTimeChange?.(value)} />
+              <TimeSelects label="Đến giờ" value={toTime} onChange={(value) => onToTimeChange?.(value)} />
+            </div>
+          ) : null}
 
           {presets && presets.length > 0 && (
             <div className="ds-date-range__presets">

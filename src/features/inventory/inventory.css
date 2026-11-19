@@ -47,6 +47,23 @@
   min-width: 9rem;
 }
 
+/* Thanh lọc 3 báo cáo thành phẩm (Nhập kho | Kiểm kê | Nhập – xuất): "Từ ngày → Đến ngày" co gọn
+   (mặc định .ds-date-range rộng 100% ⇒ chiếm nguyên 1 dòng), mỗi nhóm [nhãn | combo] co theo nội dung. */
+.inv-filters--report > .ds-date-range {
+  flex: 0 0 auto;
+  width: 21rem;
+}
+
+/* Có chọn giờ:phút ("dd/mm/yyyy HH:mm → dd/mm/yyyy HH:mm") cần rộng hơn. */
+.inv-filters--report > .ds-date-range--time {
+  width: 29rem;
+}
+
+.inv-filters--report > .ds-input-group {
+  flex: 0 1 auto;
+  min-width: 12rem;
+}
+
 /* ----- bảng ----- */
 .inv-table-wrap {
   max-height: min(60vh, 46rem);
@@ -293,6 +310,196 @@
   }
 
   .inv-lines__row > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ----- Quản lý tồn kho thành phẩm (service-catalog đợt 2) ----- */
+.inv-viewbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.inv-viewbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.inv-filters__search {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+}
+
+.inv-warn {
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
+}
+
+.inv-table tr.is-error td {
+  background: var(--color-danger-surface);
+}
+
+/* Phiếu nhập / kiểm kê nhiều dòng: hộp thoại rộng hơn cỡ "lg" mặc định để đủ chỗ cho lưới. */
+.ds-dialog:has(.inv-voucher) {
+  width: min(100%, 72rem);
+}
+
+.inv-voucher {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.inv-voucher__entry {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) minmax(6rem, 1fr) minmax(9rem, 1.4fr) minmax(8rem, 1.2fr) minmax(7rem, 1fr);
+  align-items: end;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md, var(--radius-sm));
+  min-width: 0;
+}
+
+.inv-voucher__entry > legend {
+  padding: 0 var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.inv-voucher__note {
+  grid-column: span 3;
+}
+
+.inv-voucher__entry-actions {
+  grid-column: span 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.inv-voucher__entry-warn {
+  grid-column: 1 / -1;
+}
+
+.inv-voucher__mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.inv-voucher__grid {
+  max-height: none;
+  overflow-x: auto;
+}
+
+/* Danh sách Tồn kho: cột tick + thanh thao tác khi có mặt hàng được chọn. */
+.inv-col-check {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.inv-table tr.is-selected td {
+  background: var(--color-surface-hover);
+}
+
+/* Thanh ListToolbar khi có tick: "k / Tổng mặt hàng đã chọn" rồi (cách một khoảng nhỏ) các nút thao tác. */
+.inv-toolbar-selection {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.ds-list-toolbar__count:has(.inv-toolbar-selection) {
+  white-space: normal;
+}
+
+/* Lưới kiểm kê chỉnh sửa trực tiếp: combo mặt hàng thả xuống phải thoát khỏi khung bảng (không bị cắt/cuộn). */
+.inv-voucher__grid--editable {
+  overflow: visible;
+  /* Phiếu mới chỉ có 1 dòng ⇒ hộp thoại ngắn, danh sách thả xuống (cao tới 16rem + ô lọc) bị thân hộp thoại cắt.
+     Giữ chiều cao tối thiểu đủ chứa danh sách mở từ dòng đầu; dòng sau đó thì thân hộp thoại cuộn. */
+  min-height: 24rem;
+}
+
+.inv-voucher__item-cell {
+  min-width: 14rem;
+}
+
+.inv-voucher__row-actions {
+  white-space: nowrap;
+}
+
+.inv-voucher__row-actions > * + * {
+  margin-left: var(--space-1);
+}
+
+.inv-voucher__status {
+  min-width: 11rem;
+  max-width: 18rem;
+}
+
+.inv-voucher__status small {
+  margin-top: var(--space-1);
+  white-space: normal;
+}
+
+.inv-cell-input {
+  width: 100%;
+  min-width: 5rem;
+  text-align: right;
+}
+
+.inv-cell-input--wide {
+  min-width: 9rem;
+  text-align: left;
+}
+
+/* Thanh tóm tắt phía trên lưới phiếu: chữ bên trái, nút (nếu có) bên phải. */
+.inv-voucher__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.inv-voucher__summary strong {
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-voucher__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.inv-voucher__total strong {
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .inv-voucher__entry {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .inv-voucher__item,
+  .inv-voucher__note,
+  .inv-voucher__entry-actions {
     grid-column: 1 / -1;
   }
 }

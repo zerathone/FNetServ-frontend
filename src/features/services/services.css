@@ -154,6 +154,16 @@
 }
 
 /* STT: cột hẹp, số căn giữa, mờ để không tranh với tên món. */
+/* Cột tick chọn mặt hàng (thay cột STT cũ). */
+.service-table .service-table__select {
+  width: 3rem;
+  text-align: center;
+}
+
+.service-table tbody tr.is-selected td {
+  background: var(--color-surface-hover);
+}
+
 .service-table .service-table__stt {
   width: 3.5rem;
   color: var(--color-text-muted);

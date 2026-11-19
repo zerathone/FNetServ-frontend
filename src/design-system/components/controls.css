@@ -431,6 +431,26 @@
 }
 
 /* Preset shortcuts â€” Ant Design RangePicker presets pattern */
+/* Hàng chọn giờ:phút hai đầu khoảng (chỉ khi DateRangePicker có `onFromTimeChange`/`onToTimeChange`). */
+.ds-date-range__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.ds-date-range__time-label {
+  margin-right: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.ds-date-range--time .ds-date-range__value {
+  white-space: nowrap;
+}
+
 .ds-date-range__presets {
   display: flex;
   flex-wrap: wrap;
@@ -686,6 +706,63 @@ label:has(input[type="radio"]) {
   min-width: 0;
   width: auto;
   border-right: 1px solid var(--color-border-default);
+}
+
+/* Combo trong group rộng vừa nhãn dài nhất (xem Select.tsx — sizer ẩn). Ngoài group các sizer ẩn display:none. */
+.ds-custom-select-value__sizer {
+  display: none;
+}
+
+/* Chữ phụ trong combo (nhóm dịch vụ…): chỉ in đậm, không nền, không viền. */
+.ds-option-tag {
+  font-weight: 700;
+}
+
+/* Nút combo (đã chọn) có chữ phụ: tên canh trái, chữ phụ canh phải nhưng vẫn nằm bên TRÁI mũi tên dropdown
+   (value giãn hết phần còn lại của nút, icon vẫn dính mép phải). */
+.ds-custom-select-value:has(.ds-option-tag) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ds-custom-select-value__text:has(.ds-option-tag) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ds-custom-select-value .ds-option-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-custom-select-value .ds-option-tag {
+  flex: none;
+}
+
+.ds-input-group .ds-custom-select-value {
+  display: grid;
+}
+
+.ds-input-group .ds-custom-select-value > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-input-group .ds-custom-select-value > .ds-custom-select-value__sizer {
+  display: block;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Group "combo + ô tìm kiếm": combo CHỈ rộng bằng nhãn dài nhất, KHÔNG giãn — phần còn lại dành cho ô tìm kiếm. */
+.ds-input-group--search > .ds-custom-select-container {
+  flex: 0 0 auto;
 }
 
 /* XÃ³a border-right khi combo lÃ  pháº§n tá»­ cuá»‘i trong group â€” trÃ¡nh dáº¥u | thá»«a á»Ÿ rÃ¬a pháº£i */
@@ -971,7 +1048,12 @@ input[type="radio"]:disabled {
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* Mục có thẻ phụ (vd tên hàng + nhóm dạng badge): tên canh trái, thẻ canh phải. Mục chỉ có chữ giữ nguyên. */
 .ds-custom-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   cursor: pointer;
