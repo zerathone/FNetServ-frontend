@@ -291,6 +291,12 @@
   width: 5rem;
 }
 
+/* Công tắc "Mở bán": span chứa title (Switch không nhận title) và giữ công tắc căn giữa ô. */
+.service-table__switch {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
 .service-table__check {
   width: 1.1rem;
   height: 1.1rem;

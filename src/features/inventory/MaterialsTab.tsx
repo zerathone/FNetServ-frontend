@@ -1,15 +1,29 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass } from '@phosphor-icons/react'
+import { ClipboardText, DownloadSimple, MagnifyingGlass, UploadSimple } from '@phosphor-icons/react'
 import { getMaterials, toggleMaterialActive, type MaterialRow } from '../../api/inventory'
-import { Button, ListToolbar, RefreshButton, StateView, StatusBadge } from '../../design-system/components'
+import {
+  Button,
+  FilterHeaderCell,
+  ListToolbar,
+  RefreshButton,
+  SortHeaderCell,
+  StateView,
+  StatusBadge,
+  Switch,
+} from '../../design-system/components'
+import { sortRows, type SortState } from '../../lib/tableSort'
+import { MATERIAL_SORT, type MaterialSortKey } from './materialSort'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { MaterialBatchDialog } from './MaterialBatchDialog'
 import { MaterialEditor, StockDialog } from './MaterialDialogs'
 import {
   describeInventoryError,
   formatQty,
+  MATERIAL_STOCK_FILTER_OPTIONS,
   MATERIAL_STOCK_LABEL,
+  MAX_MATERIAL_BATCH,
   materialStockState,
   type MaterialMoveType,
   type MaterialStockFilter,
@@ -25,6 +39,17 @@ const STATE_TONE: Record<MaterialStockState, 'success' | 'warning' | 'danger' | 
   stopped: 'neutral',
 }
 
+const BATCH_BUTTON_LABEL: Record<MaterialMoveType, string> = { 1: 'Nhập kho', 2: 'Xuất kho', 3: 'Kiểm kê' }
+
+/** Icon dùng chung cho nút Nhập / Xuất / Kiểm kê ở thanh thao tác hàng loạt và ở từng dòng. */
+const BATCH_BUTTON_ICON: Record<MaterialMoveType, ReactNode> = {
+  1: <DownloadSimple size={16} weight="bold" aria-hidden="true" />,
+  2: <UploadSimple size={16} weight="bold" aria-hidden="true" />,
+  3: <ClipboardText size={16} weight="bold" aria-hidden="true" />,
+}
+
+const formatInt = (n: number) => new Intl.NumberFormat('vi-VN').format(n)
+
 /**
  * Tab Nguyên liệu của trang Kho, cùng cách quản lý với danh sách dịch vụ: hàng ô thống kê bấm
  * để lọc (Còn tồn / Sắp hết / Hết tồn / Ngừng dùng), ô tìm kiếm, danh sách. Quyền: 64 sửa danh mục, 68 điều chỉnh kho.
@@ -38,8 +63,12 @@ export function MaterialsTab() {
 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<MaterialStockFilter>('all')
+  const [sort, setSort] = useState<SortState<MaterialSortKey>>(null)
   const [editing, setEditing] = useState<{ material: MaterialRow | null } | null>(null)
   const [stock, setStock] = useState<{ material: MaterialRow; msType: MaterialMoveType } | null>(null)
+  // Tick chọn nhiều nguyên liệu để nhập / xuất / kiểm kê một phiếu (mỗi nguyên liệu một dòng).
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
+  const [batchType, setBatchType] = useState<MaterialMoveType | null>(null)
 
   // Lấy cả nguyên liệu ngừng dùng (hiện mờ + nhãn như món "Ngừng bán" ở danh sách dịch vụ); lọc ở client.
   const query = useQuery({
@@ -65,12 +94,38 @@ export function MaterialsTab() {
 
   const rows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')
-    return source.filter(
+    const filtered = source.filter(
       (m) =>
         (filter === 'all' || materialStockState(m) === filter) &&
         (!needle || m.name.toLocaleLowerCase('vi').includes(needle)),
     )
-  }, [source, search, filter])
+    return sortRows(filtered, sort, MATERIAL_SORT)
+  }, [source, search, filter, sort])
+
+  // Chỉ nguyên liệu ĐANG DÙNG chọn được (máy chủ từ chối điều chỉnh kho của nguyên liệu ngừng dùng) và chỉ tính những dòng
+  // ĐANG HIỂN THỊ theo tìm/lọc ⇒ "k / Tổng" khớp thứ nhìn thấy; dòng đã tick nhưng đang bị lọc ẩn giữ lại trong lựa chọn,
+  // hiện lại khi bỏ lọc và không đưa vào phiếu.
+  const selectable = useMemo(() => rows.filter((m) => m.isActive === 1), [rows])
+  const selectedRows = useMemo(() => selectable.filter((m) => selected.has(m.materialId)), [selectable, selected])
+  const allVisibleSelected = selectable.length > 0 && selectedRows.length === selectable.length
+  const someVisibleSelected = selectedRows.length > 0
+  const toggleOne = (id: number) =>
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  // "Chọn tất cả" chỉ áp cho các dòng đang hiển thị; bỏ chọn cũng chỉ bỏ các dòng đó.
+  const toggleVisible = () =>
+    setSelected((cur) => {
+      const next = new Set(cur)
+      for (const m of selectable) {
+        if (allVisibleSelected) next.delete(m.materialId)
+        else next.add(m.materialId)
+      }
+      return next
+    })
 
   const supported = query.data?.supported !== false
   const hasActiveFilter = filter !== 'all' || search.trim() !== ''
@@ -138,9 +193,35 @@ export function MaterialsTab() {
       <section className="service-panel" aria-label="Danh sách nguyên liệu">
         <ListToolbar
           count={
-            <>
-              Tổng <strong>{new Intl.NumberFormat('vi-VN').format(rows.length)}</strong>
-            </>
+            selectedRows.length > 0 ? (
+              // Có tick: "k / Tổng nguyên liệu đã chọn" + nút thao tác hàng loạt ngay cạnh (thay chữ "Tổng N").
+              <span className="inv-toolbar-selection" role="region" aria-label="Thao tác nguyên liệu đã chọn">
+                <span>
+                  <strong>{formatInt(selectedRows.length)}</strong> / <strong>{formatInt(rows.length)}</strong> nguyên liệu đã chọn
+                  {selectedRows.length > MAX_MATERIAL_BATCH ? ` · phiếu chỉ nhận ${MAX_MATERIAL_BATCH} nguyên liệu đầu` : ''}
+                </span>
+                {([1, 2, 3] as const).map((type) => (
+                  <Button
+                    key={type}
+                    type="button"
+                    variant="primary"
+                    icon={BATCH_BUTTON_ICON[type]}
+                    disabled={!canStock}
+                    title={canStock ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
+                    onClick={() => setBatchType(type)}
+                  >
+                    {BATCH_BUTTON_LABEL[type]}
+                  </Button>
+                ))}
+                <Button type="button" variant="ghost" onClick={() => setSelected(new Set())}>
+                  Bỏ chọn
+                </Button>
+              </span>
+            ) : (
+              <>
+                Tổng <strong>{formatInt(rows.length)}</strong>
+              </>
+            )
           }
           actions={<RefreshButton loading={query.isFetching} onClick={() => void query.refetch()} />}
         />
@@ -184,39 +265,68 @@ export function MaterialsTab() {
           <table className="inv-table">
             <thead>
               <tr>
-                <th className="inv-table__stt">STT</th>
+                <th className="inv-col-check">
+                  <input
+                    type="checkbox"
+                    aria-label="Chọn tất cả nguyên liệu đang hiển thị"
+                    checked={allVisibleSelected}
+                    disabled={selectable.length === 0}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected
+                    }}
+                    onChange={toggleVisible}
+                  />
+                </th>
                 <th>Nguyên liệu</th>
-                <th>Tồn kho</th>
-                <th className="is-num">Tối thiểu</th>
-                <th>Trạng thái</th>
+                <SortHeaderCell label="Tồn kho" sortKey="stock" sort={sort} onSort={setSort} />
+                <th>Đơn vị</th>
+                <SortHeaderCell label="Tối thiểu" sortKey="min" sort={sort} onSort={setSort} className="is-num" />
+                <FilterHeaderCell
+                  as="th"
+                  label="Trạng thái"
+                  options={MATERIAL_STOCK_FILTER_OPTIONS}
+                  value={filter}
+                  baseline="all"
+                  onChange={setFilter}
+                  menuLabel="Lọc theo trạng thái tồn"
+                  clearLabel="Bỏ lọc trạng thái tồn"
+                />
                 <th className="inv-table__sale">Đang dùng</th>
                 <th aria-label="Thao tác" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((m, index) => (
-                <tr key={m.materialId} className={m.isActive === 1 ? '' : 'is-off'}>
-                  {/* STT theo danh sách đang lọc (không phải mã nguyên liệu). */}
-                  <td className="inv-table__stt">{index + 1}</td>
+              {rows.map((m) => (
+                <tr
+                  key={m.materialId}
+                  className={[m.isActive === 1 ? '' : 'is-off', selected.has(m.materialId) ? 'is-selected' : '']
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <td className="inv-col-check">
+                    <input
+                      type="checkbox"
+                      aria-label={`Chọn ${m.name}`}
+                      checked={m.isActive === 1 && selected.has(m.materialId)}
+                      disabled={m.isActive !== 1}
+                      title={m.isActive !== 1 ? 'Nguyên liệu đang ngừng dùng — không nhập/xuất được' : undefined}
+                      onChange={() => toggleOne(m.materialId)}
+                    />
+                  </td>
                   <td>
                     <strong>{m.name}</strong>
-                    <small className="inv-muted">
-                      #{m.materialId}
-                      {m.materialNote ? ` · ${m.materialNote}` : ''}
-                    </small>
+                    {m.materialNote ? <small className="inv-muted">{m.materialNote}</small> : null}
                   </td>
                   <td>
-                    <div className="inv-stock">
-                      <StatusBadge
-                        tone={STATE_TONE[materialStockState(m)]}
-                        dot
-                        title={MATERIAL_STOCK_LABEL[materialStockState(m)]}
-                      >
-                        {formatQty(m.stockQty)}
-                      </StatusBadge>
-                      {m.unit ? <span>{m.unit}</span> : null}
-                    </div>
+                    <StatusBadge
+                      tone={STATE_TONE[materialStockState(m)]}
+                      dot
+                      title={MATERIAL_STOCK_LABEL[materialStockState(m)]}
+                    >
+                      {formatQty(m.stockQty)}
+                    </StatusBadge>
                   </td>
+                  <td>{m.unit || '—'}</td>
                   <td className="is-num">{formatQty(m.minStockQty)}</td>
                   <td>
                     <StatusBadge tone={STATE_TONE[materialStockState(m)]}>
@@ -224,26 +334,29 @@ export function MaterialsTab() {
                     </StatusBadge>
                   </td>
                   <td className="inv-table__sale">
-                    <input
-                      type="checkbox"
-                      className="inv-table__check"
-                      checked={m.isActive === 1}
-                      disabled={!canCatalog || toggle.isPending}
-                      aria-label={`${m.isActive === 1 ? 'Ngừng dùng' : 'Dùng lại'} ${m.name}`}
+                    <span
+                      className="inv-table__switch"
                       title={
                         !canCatalog
                           ? 'Cần quyền Quản lý kho (64)'
                           : m.isActive === 1
-                            ? 'Đang dùng — bỏ tick để ngừng dùng'
-                            : 'Đang ngừng dùng — tick để dùng lại'
+                            ? 'Đang dùng — tắt để ngừng dùng'
+                            : 'Đang ngừng dùng — bật để dùng lại'
                       }
-                      onChange={() => toggle.mutate(m)}
-                    />
+                    >
+                      <Switch
+                        checked={m.isActive === 1}
+                        disabled={!canCatalog || toggle.isPending}
+                        aria-label={`${m.isActive === 1 ? 'Ngừng dùng' : 'Dùng lại'} ${m.name}`}
+                        onCheckedChange={() => toggle.mutate(m)}
+                      />
+                    </span>
                   </td>
                   <td className="inv-table__actions">
                     <Button
                       type="button"
                       variant="outline"
+                      icon={BATCH_BUTTON_ICON[1]}
                       disabled={!canStock || m.isActive !== 1}
                       title={canStock ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
                       onClick={() => setStock({ material: m, msType: 1 })}
@@ -253,6 +366,7 @@ export function MaterialsTab() {
                     <Button
                       type="button"
                       variant="outline"
+                      icon={BATCH_BUTTON_ICON[2]}
                       disabled={!canStock || m.isActive !== 1}
                       title={canStock ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
                       onClick={() => setStock({ material: m, msType: 2 })}
@@ -262,6 +376,7 @@ export function MaterialsTab() {
                     <Button
                       type="button"
                       variant="outline"
+                      icon={BATCH_BUTTON_ICON[3]}
                       disabled={!canStock || m.isActive !== 1}
                       title={canStock ? undefined : 'Cần quyền Điều chỉnh kho (68)'}
                       onClick={() => setStock({ material: m, msType: 3 })}
@@ -270,7 +385,7 @@ export function MaterialsTab() {
                     </Button>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="warning-outline"
                       disabled={!canCatalog}
                       title={canCatalog ? undefined : 'Cần quyền Quản lý kho (64)'}
                       onClick={() => setEditing({ material: m })}
@@ -292,6 +407,20 @@ export function MaterialsTab() {
         onClose={() => setEditing(null)}
       />
       <StockDialog material={stock?.material ?? null} msType={stock?.msType ?? 1} onClose={() => setStock(null)} />
+      {batchType !== null ? (
+        <MaterialBatchDialog
+          initialMaterialIds={selectedRows.map((m) => m.materialId)}
+          msType={batchType}
+          onClose={() => setBatchType(null)}
+          onRecorded={(ids) =>
+            setSelected((cur) => {
+              const next = new Set(cur)
+              for (const id of ids) next.delete(id)
+              return next
+            })
+          }
+        />
+      ) : null}
     </>
   )
 }

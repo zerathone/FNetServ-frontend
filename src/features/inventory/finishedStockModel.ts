@@ -72,6 +72,73 @@ export function diffBadge(diff: number | null): DiffBadge | null {
   return { tone: diff < 0 ? 'danger' : 'warning', text: formatSigned(diff) }
 }
 
+export type ClosingGroup<T> = { key: string; createDate: string; createTime: string; staffId: number; rows: T[] }
+
+/**
+ * Gom các dòng báo cáo Nhập – xuất theo MỘT lần chốt = cùng thời điểm chốt (ngày + giờ) và cùng người chốt; thứ tự nhóm và
+ * thứ tự dòng trong nhóm giữ nguyên như máy chủ trả. Dùng để vẽ ô "Thời điểm chốt" / "Người chốt" gộp (rowSpan) một lần cho cả kỳ.
+ */
+export function groupClosingRows<T extends { createDate: string; createTime: string; staffId: number }>(
+  rows: readonly T[],
+): ClosingGroup<T>[] {
+  const groups: ClosingGroup<T>[] = []
+  const byKey = new Map<string, ClosingGroup<T>>()
+  for (const r of rows) {
+    const key = `${r.createDate} ${r.createTime}|${r.staffId}`
+    let group = byKey.get(key)
+    if (!group) {
+      group = { key, createDate: r.createDate, createTime: r.createTime, staffId: r.staffId, rows: [] }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+    group.rows.push(r)
+  }
+  return groups
+}
+
+/**
+ * Mốc "Từ" của MỘT lần chốt (đầu kỳ). Mỗi dòng mang mốc riêng (lần chốt trước của chính mặt hàng đó) nhưng thường giống nhau
+ * cả kỳ ⇒ trả mốc SỚM NHẤT + số mốc khác nhau còn lại (`extra`; > 0 khi mặt hàng thêm sau lần chốt trước có mốc riêng). Dòng
+ * không có mốc (rỗng) bị bỏ qua; không dòng nào có ⇒ null.
+ */
+export function closingGroupFrom(
+  rows: readonly { fromDate: string; fromTime: string }[],
+): { fromDate: string; fromTime: string; extra: number } | null {
+  const distinct = [...new Set(rows.filter((r) => r.fromDate !== '').map((r) => `${r.fromDate} ${r.fromTime}`))].sort()
+  if (distinct.length === 0) return null
+  const [fromDate, fromTime = ''] = distinct[0].split(' ')
+  return { fromDate, fromTime, extra: distinct.length - 1 }
+}
+
+/**
+ * Thống kê điều chỉnh của các dòng báo cáo kiểm kê hàng hóa: tổng số lượng giảm (diff < 0), tổng tăng (diff > 0), số dòng không
+ * đổi (diff = 0), cùng số dòng giảm / tăng. `decrease` trả số dương (hiển thị kèm dấu "−"). Số lượng hàng hóa là số nguyên ⇒
+ * cộng thẳng, không lo làm tròn. Chỉ tính các dòng đã tải (một trang) — máy chủ chưa trả tổng cho cả khoảng lọc.
+ */
+export function summarizeStocktakeAdjust(rows: readonly { numAdjust: number }[]): {
+  decrease: number
+  increase: number
+  decreaseLines: number
+  increaseLines: number
+  unchanged: number
+} {
+  let decrease = 0
+  let increase = 0
+  let decreaseLines = 0
+  let increaseLines = 0
+  let unchanged = 0
+  for (const r of rows) {
+    if (r.numAdjust < 0) {
+      decrease += -r.numAdjust
+      decreaseLines += 1
+    } else if (r.numAdjust > 0) {
+      increase += r.numAdjust
+      increaseLines += 1
+    } else unchanged += 1
+  }
+  return { decrease, increase, decreaseLines, increaseLines, unchanged }
+}
+
 /** Món quản lý tồn (cờ `inventoryManagement === 1`). */
 export function isManagedStock(service: Pick<ServiceItem, 'inventoryManagement'>): boolean {
   return service.inventoryManagement === 1

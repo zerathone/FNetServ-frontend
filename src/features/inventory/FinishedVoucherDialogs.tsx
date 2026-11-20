@@ -54,7 +54,7 @@ import { describeInventoryError } from './inventoryModel'
 import { useFinishedServices } from './useFinishedServices'
 import './inventory.css'
 
-/** Sau mọi lần ghi: số tồn (tab Dịch vụ, Tồn kho) và mọi báo cáo kho thành phẩm phải tải lại. */
+/** Sau mọi lần ghi: số tồn (tab Dịch vụ, Tồn kho) và mọi báo cáo kho hàng hóa phải tải lại. */
 function useInvalidateFinished() {
   const queryClient = useQueryClient()
   return () => {
@@ -275,7 +275,6 @@ export function ImportVoucherDialog({
                 {effective.map((line, index) => {
                   const service = byId.get(line.serviceId)
                   const hasService = line.serviceId > 0
-                  const isLast = index === effective.length - 1
                   const choices = choicesFor(line.serviceId)
                   const total = importLineTotal(line)
                   const touched = line.quantity.trim() !== '' || line.price.trim() !== ''
@@ -361,16 +360,7 @@ export function ImportVoucherDialog({
                         )}
                       </td>
                       <td className="inv-voucher__row-actions">
-                        {isLast ? (
-                          <IconButton
-                            label={full ? `Tối đa ${MAX_BATCH_LINES} dòng` : 'Thêm mặt hàng kế tiếp'}
-                            variant="secondary"
-                            icon={<Plus size={16} weight="bold" />}
-                            disabled={pending || !hasService || full}
-                            onClick={addLine}
-                          />
-                        ) : null}
-                        {!isLast || effective.length > 1 ? (
+                        {effective.length > 1 ? (
                           <IconButton
                             label={`Xoá dòng ${service?.name ?? index + 1}`}
                             icon={<Trash size={16} weight="bold" />}
@@ -384,6 +374,16 @@ export function ImportVoucherDialog({
                 })}
               </tbody>
             </table>
+            {/* Nút thêm dòng nằm dưới dòng cuối (không chen vào cột thao tác của dòng). */}
+            <div className="inv-voucher__add">
+              <IconButton
+                label={full ? `Tối đa ${MAX_BATCH_LINES} dòng` : 'Thêm mặt hàng kế tiếp'}
+                variant="secondary"
+                icon={<Plus size={16} weight="bold" />}
+                disabled={pending || full || (effective.length > 0 && effective[effective.length - 1].serviceId <= 0)}
+                onClick={addLine}
+              />
+            </div>
           </div>
 
         </div>
@@ -551,7 +551,7 @@ export function StocktakeVoucherDialog({
                 <th className="is-num">Tồn hiện tại</th>
                 <th className="is-num">Dự kiến</th>
                 <th className="is-num">Thực tế</th>
-                <th>Chênh lệch so với tồn hiện tại</th>
+                <th>Chênh lệch</th>
                 <th>Ghi chú</th>
                 <th>Trạng thái</th>
                 <th aria-label="Thêm / xoá dòng" />
@@ -560,7 +560,6 @@ export function StocktakeVoucherDialog({
             <tbody>
               {checks.map(({ line, check }, index) => {
                 const service = byId.get(line.serviceId)
-                const isLast = index === checks.length - 1
                 const hasService = line.serviceId > 0
                 const takenByOthers = new Set(lines.filter((o) => o.key !== line.key).map((o) => o.serviceId))
                 const serverError = errors[line.key]
@@ -645,16 +644,7 @@ export function StocktakeVoucherDialog({
                       )}
                     </td>
                     <td className="inv-voucher__row-actions">
-                      {isLast ? (
-                        <IconButton
-                          label={full ? `Tối đa ${MAX_BATCH_LINES} dòng` : 'Thêm mặt hàng kế tiếp'}
-                          variant="secondary"
-                          icon={<Plus size={16} weight="bold" />}
-                          disabled={pending || !hasService || full}
-                          onClick={addLine}
-                        />
-                      ) : null}
-                      {!isLast || checks.length > 1 ? (
+                      {checks.length > 1 ? (
                         <IconButton
                           label={`Xoá dòng ${service?.name ?? index + 1}`}
                           icon={<Trash size={16} weight="bold" />}
@@ -668,6 +658,16 @@ export function StocktakeVoucherDialog({
               })}
             </tbody>
           </table>
+          {/* Nút thêm dòng nằm dưới dòng cuối (không chen vào cột thao tác của dòng). */}
+          <div className="inv-voucher__add">
+            <IconButton
+              label={full ? `Tối đa ${MAX_BATCH_LINES} dòng` : 'Thêm mặt hàng kế tiếp'}
+              variant="secondary"
+              icon={<Plus size={16} weight="bold" />}
+              disabled={pending || full || (checks.length > 0 && checks[checks.length - 1].line.serviceId <= 0)}
+              onClick={addLine}
+            />
+          </div>
         </div>
       </div>
     </Dialog>

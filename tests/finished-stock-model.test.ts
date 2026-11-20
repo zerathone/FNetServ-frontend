@@ -8,6 +8,9 @@ import {
   defaultReportRange,
   describeLineError,
   diffBadge,
+  closingGroupFrom,
+  groupClosingRows,
+  summarizeStocktakeAdjust,
   effectiveStaffFilter,
   formatDateTimeText,
   formatInt,
@@ -297,4 +300,41 @@ test('đơn vị quy đổi: hệ số 2..1.000.000, nhãn, lựa chọn đơn v
 test('closingResultText', () => {
   assert.equal(closingResultText(12, 0), 'Đã chốt kho cho 12 mặt hàng.')
   assert.match(closingResultText(12, 2), /2 mặt hàng bị bỏ qua/)
+})
+
+test('summarizeStocktakeAdjust: tổng giảm, tổng tăng, số dòng không đổi', () => {
+  assert.deepEqual(summarizeStocktakeAdjust([{ numAdjust: -3 }, { numAdjust: 5 }, { numAdjust: 0 }, { numAdjust: -2 }, { numAdjust: 0 }]), {
+    decrease: 5,
+    increase: 5,
+    decreaseLines: 2,
+    increaseLines: 1,
+    unchanged: 2,
+  })
+  assert.deepEqual(summarizeStocktakeAdjust([]), { decrease: 0, increase: 0, decreaseLines: 0, increaseLines: 0, unchanged: 0 })
+})
+
+test('groupClosingRows: gom theo thời điểm chốt + người chốt, giữ thứ tự máy chủ', () => {
+  const r = (id: number, date: string, time: string, staffId: number) => ({ id, createDate: date, createTime: time, staffId })
+  const groups = groupClosingRows([
+    r(1, '2026-11-20', '10:00:00', 7),
+    r(2, '2026-11-20', '10:00:00', 7),
+    r(3, '2026-11-19', '22:00:00', 7),
+    r(4, '2026-11-20', '10:00:00', 8),
+    r(5, '2026-11-19', '22:00:00', 7),
+  ])
+  assert.deepEqual(groups.map((g) => g.rows.map((x) => x.id)), [[1, 2], [3, 5], [4]])
+  assert.equal(groups[0].createTime, '10:00:00')
+  assert.deepEqual(groupClosingRows([]), [])
+})
+
+test('closingGroupFrom: mốc Từ sớm nhất của kỳ + số mốc khác; rỗng thì null', () => {
+  const same = [
+    { fromDate: '2026-11-19', fromTime: '10:48:23' },
+    { fromDate: '2026-11-19', fromTime: '10:48:23' },
+  ]
+  assert.deepEqual(closingGroupFrom(same), { fromDate: '2026-11-19', fromTime: '10:48:23', extra: 0 })
+  const mixed = [...same, { fromDate: '2026-11-18', fromTime: '09:00:00' }, { fromDate: '', fromTime: '' }]
+  assert.deepEqual(closingGroupFrom(mixed), { fromDate: '2026-11-18', fromTime: '09:00:00', extra: 1 })
+  assert.equal(closingGroupFrom([{ fromDate: '', fromTime: '' }]), null)
+  assert.equal(closingGroupFrom([]), null)
 })

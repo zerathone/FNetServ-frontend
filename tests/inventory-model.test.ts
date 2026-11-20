@@ -18,6 +18,11 @@ import {
   toppingLinesBody,
   toWireDecimal,
   validateRecipeDraft,
+  stocktakeDiff,
+  closingsInRange,
+  sumStocktakeAdjust,
+  validateStockHeader,
+  validateStockLine,
   validateStockMove,
   validateToppingDraft,
 } from '../src/features/inventory/inventoryModel.ts'
@@ -81,6 +86,38 @@ test('validateStockMove: xuất/nhập > 0, kiểm kê cho phép 0', () => {
   assert.match(validateStockMove({ ...base, qty: '1.2345' }) ?? '', /Số lượng/)
   assert.match(validateStockMove({ ...base, code: 'sai ma' }) ?? '', /Mã phiếu/)
   assert.match(validateStockMove({ ...base, price: 'x' }) ?? '', /Đơn giá/)
+})
+
+test('stocktakeDiff: đếm thực tế − tồn hiện tại, âm = hao hụt', () => {
+  assert.equal(stocktakeDiff('10.000', '8'), '-2')
+  assert.equal(stocktakeDiff('10.000', '10,5'), '0.5')
+  assert.equal(stocktakeDiff('10.000', '10'), '0')
+  assert.equal(stocktakeDiff('0.500', '0'), '-0.5')
+  assert.equal(stocktakeDiff('10.000', ''), null)
+  assert.equal(stocktakeDiff('10.000', 'abc'), null)
+})
+
+test('sumStocktakeAdjust: cộng riêng phần giảm và phần tăng, bỏ dòng không có nhật ký', () => {
+  const rows = [{ diff: '-2.000' }, { diff: '0.500' }, { diff: '-0.250' }, { diff: '1.5' }, { diff: '0.000' }, { diff: null }]
+  assert.deepEqual(sumStocktakeAdjust(rows), {
+    decrease: '2.25',
+    increase: '2',
+    decreaseLines: 2,
+    increaseLines: 2,
+    unchanged: 1,
+  })
+  assert.deepEqual(sumStocktakeAdjust([]), { decrease: '0', increase: '0', decreaseLines: 0, increaseLines: 0, unchanged: 0 })
+})
+
+test('phiếu nhiều dòng: validateStockLine / validateStockHeader tách riêng dòng và mã phiếu', () => {
+  assert.equal(validateStockLine({ msType: 2, qty: '1,5', price: '' }), null)
+  assert.match(validateStockLine({ msType: 2, qty: '', price: '' }) ?? '', /Số lượng/)
+  assert.match(validateStockLine({ msType: 1, qty: '0', price: '' }) ?? '', /lớn hơn 0/)
+  assert.equal(validateStockLine({ msType: 3, qty: '0', price: '' }), null)
+  assert.match(validateStockLine({ msType: 1, qty: '2', price: 'abc' }) ?? '', /Đơn giá/)
+  assert.equal(validateStockHeader({ code: 'NK260101', note: '' }), null)
+  assert.match(validateStockHeader({ code: ' ', note: '' }) ?? '', /Mã phiếu/)
+  assert.match(validateStockHeader({ code: 'NK1', note: 'x'.repeat(256) }) ?? '', /Ghi chú/)
 })
 
 test('previewStockAfter cảnh báo xuất vượt tồn', () => {
@@ -157,4 +194,16 @@ test('materialStockState: ngung dung > het ton (<=0) > sap het (<= toi thieu) > 
   assert.equal(materialStockState(m(1, '5.000', '5.000')), 'low')
   assert.equal(materialStockState(m(1, '5.001', '5.000')), 'available')
   assert.equal(materialStockState(m(1, '0.500', '0.000')), 'available')
+})
+
+test('closingsInRange: lọc theo ngày chốt (gồm hai đầu), rỗng = không giới hạn, giữ thứ tự', () => {
+  const rows = [
+    { id: 3, createDate: '2026-11-20 14:54:56' },
+    { id: 2, createDate: '2026-11-10 09:00:00' },
+    { id: 1, createDate: '2026-10-01 08:00:00' },
+  ]
+  assert.deepEqual(closingsInRange(rows, '2026-11-10', '2026-11-20').map((r) => r.id), [3, 2])
+  assert.deepEqual(closingsInRange(rows, '2026-11-11', '').map((r) => r.id), [3])
+  assert.deepEqual(closingsInRange(rows, '', '2026-10-31').map((r) => r.id), [1])
+  assert.deepEqual(closingsInRange(rows, '', '').map((r) => r.id), [3, 2, 1])
 })

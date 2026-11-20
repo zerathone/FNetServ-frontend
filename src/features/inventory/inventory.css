@@ -47,7 +47,7 @@
   min-width: 9rem;
 }
 
-/* Thanh lọc 3 báo cáo thành phẩm (Nhập kho | Kiểm kê | Nhập – xuất): "Từ ngày → Đến ngày" co gọn
+/* Thanh lọc 3 báo cáo hàng hóa (Nhập kho | Kiểm kê | Nhập – xuất): "Từ ngày → Đến ngày" co gọn
    (mặc định .ds-date-range rộng 100% ⇒ chiếm nguyên 1 dòng), mỗi nhóm [nhãn | combo] co theo nội dung. */
 .inv-filters--report > .ds-date-range {
   flex: 0 0 auto;
@@ -113,29 +113,15 @@
   opacity: 0.6;
 }
 
-/* STT: cột hẹp, số căn giữa, mờ để không tranh với tên. */
-.inv-table .inv-table__stt {
-  width: 3.5rem;
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
 .inv-table .inv-table__sale {
   width: 5.5rem;
   text-align: center;
 }
 
-.inv-table__check {
-  width: 1.1rem;
-  height: 1.1rem;
-  margin: 0;
-  accent-color: var(--color-action-primary);
-  cursor: pointer;
-}
-
-.inv-table__check:disabled {
-  cursor: not-allowed;
+/* Công tắc "Đang dùng": span chứa title (Switch không nhận title) và giữ công tắc căn giữa ô. */
+.inv-table__switch {
+  display: inline-flex;
+  vertical-align: middle;
 }
 
 .inv-table__actions {
@@ -156,13 +142,12 @@
   grid-column: 1 / -1;
 }
 
-/* Tồn kho trong bảng: [badge số] đơn vị, một hàng (giống .service-table__stock). */
-.inv-stock {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 8rem;
-  font-variant-numeric: tabular-nums;
+/* Form ngắn có combo thả xuống (Đơn vị tính): danh sách thả xuống nằm TRONG thân hộp thoại nên bị xén nếu form thấp.
+   Giữ chiều cao tối thiểu đủ cho ô lọc + 5 mục (~16rem) kể từ ô combo; hàng không bị kéo giãn nhờ align-content: start.
+   Thân hộp thoại vẫn tự cuộn khi cửa sổ thấp hơn mức này. */
+.inv-form--select-room {
+  min-height: 27rem;
+  align-content: start;
 }
 
 /* Giá trị chỉ đọc (không phải ô nhập): cao bằng ô input để hàng không lệch, không viền ⇒ phân biệt được với ô sửa được. */
@@ -314,7 +299,7 @@
   }
 }
 
-/* ----- Quản lý tồn kho thành phẩm (service-catalog đợt 2) ----- */
+/* ----- Quản lý tồn kho hàng hóa (service-catalog đợt 2) ----- */
 .inv-viewbar {
   display: flex;
   flex-wrap: wrap;
@@ -352,6 +337,34 @@
   display: grid;
   gap: var(--space-3);
   min-width: 0;
+}
+
+/* Phiếu nhiều nguyên liệu có nhiều cột hơn phiếu hàng hóa (nhập/xuất ~8 cột, kiểm kê ~8 cột) và lưới phải để overflow hiện
+   (combo thả xuống không bị cắt) ⇒ nếu quá rộng thì cột bên phải (Trạng thái, nút +/xoá) bị hộp thoại cắt mất, không cuộn được.
+   Nên: hộp thoại rộng hơn một chút, ô gọn hơn và các cột co về mức tối thiểu đủ dùng. (Khai báo SAU luật width 72rem ở trên.) */
+.ds-dialog:has(.inv-voucher--compact) {
+  width: min(100%, 84rem);
+}
+
+.inv-voucher--compact .inv-table th,
+.inv-voucher--compact .inv-table td {
+  padding-inline: var(--space-2);
+}
+
+.inv-voucher--compact .inv-voucher__item-cell {
+  min-width: 12rem;
+}
+
+.inv-voucher--compact .inv-cell-input {
+  min-width: 4.5rem;
+}
+
+.inv-voucher--compact .inv-cell-input--wide {
+  min-width: 7rem;
+}
+
+.inv-voucher--compact .inv-voucher__status {
+  min-width: 6rem;
 }
 
 .inv-voucher__entry {
@@ -439,13 +452,128 @@
   white-space: nowrap;
 }
 
+/* Báo cáo Nhập – xuất gom theo lần chốt: ô Thời điểm chốt / Người chốt gộp dọc cả kỳ, nhóm cách nhau bằng đường kẻ đậm. */
+.inv-table tr.is-group-start > td {
+  border-top: 2px solid var(--color-border-strong);
+}
+
+.inv-table td.inv-group-cell {
+  vertical-align: top;
+  background: color-mix(in srgb, var(--color-surface-hover) 55%, transparent);
+  white-space: nowrap;
+}
+
+/* Ghi chú của lần chốt: nằm dưới hai ô gộp, được xuống dòng (ô gộp mặc định không xuống dòng) và mờ hơn chữ chính. */
+.inv-table td.inv-group-note,
+.inv-table small.inv-group-note {
+  white-space: normal;
+  max-width: 22rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Hộp xác nhận Chốt kho / Chốt kỳ: form gọn, bảng xem trước đóng/mở và cuộn khi dài. */
+.inv-form--closing {
+  gap: var(--space-2);
+}
+
+/* Đoạn tóm tắt mặc định có lề trên/dưới của trình duyệt ⇒ khoảng cách giữa các dòng quá thưa; bỏ lề, để gap của form lo. */
+.inv-form--closing > p {
+  margin: 0;
+}
+
+/* Hộp thoại chốt: co header + thân + chân cho gọn (mặc định đệm 1rem mỗi phía). */
+.ds-dialog:has(.inv-form--closing) .ds-dialog__header {
+  padding: var(--space-3) var(--space-4);
+}
+
+.ds-dialog:has(.inv-form--closing) .ds-dialog__header h2 {
+  font-size: var(--font-size-lg);
+}
+
+.ds-dialog:has(.inv-form--closing) .ds-dialog__body {
+  padding: var(--space-3) var(--space-4);
+}
+
+.ds-dialog:has(.inv-form--closing) .ds-dialog__footer {
+  padding: var(--space-2) var(--space-4);
+}
+
+.ds-dialog:has(.inv-form--closing) .ds-field {
+  gap: var(--space-1);
+}
+
+/* Hộp Chốt kỳ nguyên liệu: bảng kết quả có 9 cột ⇒ nới rộng hộp thoại (như phiếu nhiều dòng). */
+.ds-dialog:has(.inv-form--closing-wide) {
+  width: min(100%, 56rem);
+}
+
+/* Bảng xem trước dài (cả trăm dòng): CHỈ khung này cuộn; bảng Chi tiết dùng lại ở đây bỏ khung cuộn riêng (.inv-table-wrap) để
+   không bị hai thanh cuộn lồng nhau, và tiêu đề cột (sticky) dính theo khung này. */
+.inv-closing-preview__body .inv-table-wrap {
+  max-height: none;
+  overflow: visible;
+}
+
+.inv-closing-preview__body {
+  max-height: min(18rem, 40vh);
+  margin-top: var(--space-1);
+  overflow: auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.inv-closing-preview__body .inv-table th,
+.inv-closing-preview__body .inv-table td {
+  padding: var(--space-1) var(--space-2);
+}
+
+.inv-closing-preview__hint {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* "Kỳ đang mở: … → …" của kho hàng hóa, đứng bên trái nút Chốt kho. */
+.inv-closing-period {
+  align-self: center;
+  margin-right: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.inv-closing-period strong {
+  color: var(--color-text-primary);
+}
+
+/* Vạch ngăn dọc mảnh giữa "số dòng" và "tổng số lượng" trong badge thống kê kiểm kê (màu theo chữ badge). */
+.inv-stat-sep {
+  display: inline-block;
+  width: 1px;
+  height: 0.9em;
+  margin: 0 0.5em;
+  vertical-align: -0.1em;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+/* Nút "+" thêm dòng: nằm dưới dòng cuối của lưới phiếu, căn trái. */
+.inv-voucher__add {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-2) var(--space-2) 0;
+}
+
 .inv-voucher__row-actions > * + * {
   margin-left: var(--space-1);
 }
 
+/* Cột Trạng thái vừa khít nhãn dài nhất ("Cảnh báo"); lý do lỗi/cảnh báo dài hơn thì xuống dòng trong cột. */
 .inv-voucher__status {
-  min-width: 11rem;
-  max-width: 18rem;
+  min-width: 6rem;
+  max-width: 9rem;
 }
 
 .inv-voucher__status small {

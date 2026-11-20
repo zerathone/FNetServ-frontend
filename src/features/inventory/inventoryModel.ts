@@ -84,6 +84,15 @@ export const MATERIAL_STOCK_LABEL: Record<MaterialStockState, string> = {
   stopped: 'Ngừng dùng',
 }
 
+/** Mục của dropdown lọc ở header cột Trạng thái (Tất cả + bốn nhóm rời nhau). */
+export const MATERIAL_STOCK_FILTER_OPTIONS: { value: MaterialStockFilter; label: string }[] = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'available', label: MATERIAL_STOCK_LABEL.available },
+  { value: 'low', label: MATERIAL_STOCK_LABEL.low },
+  { value: 'out', label: MATERIAL_STOCK_LABEL.out },
+  { value: 'stopped', label: MATERIAL_STOCK_LABEL.stopped },
+]
+
 // ----- Phiếu nhập/xuất/kiểm kê nguyên liệu -----
 
 export type MaterialMoveType = 1 | 2 | 3
@@ -92,6 +101,13 @@ export const MOVE_TYPE_LABEL: Record<number, string> = {
   1: 'Nhập kho',
   2: 'Xuất / trả',
   3: 'Kiểm kê',
+}
+
+/** Nhãn nút mở phiếu nhiều nguyên liệu (dùng ở mục Nhập kho/Xuất/Kiểm kê và ở thanh chọn của Tồn kho). */
+export const VOUCHER_BUTTON_LABEL: Record<MaterialMoveType, string> = {
+  1: 'Tạo phiếu nhập kho',
+  2: 'Tạo phiếu xuất',
+  3: 'Tạo phiếu kiểm kê',
 }
 
 const MOVE_CODE_PREFIX: Record<MaterialMoveType, string> = { 1: 'NK', 2: 'XK', 3: 'KK' }
@@ -123,16 +139,29 @@ export type StockMoveInput = {
   note: string
 }
 
-/** Lỗi nhập liệu (tiếng Việt) hoặc null nếu hợp lệ. Kiểm tra phía server vẫn là nguồn sự thật. */
-export function validateStockMove(input: StockMoveInput): string | null {
+/** Lỗi số lượng / đơn giá của MỘT dòng phiếu (tiếng Việt) hoặc null. Dùng chung cho phiếu 1 dòng và phiếu nhiều dòng. */
+export function validateStockLine(input: Pick<StockMoveInput, 'msType' | 'qty' | 'price'>): string | null {
   const qty = parseMilli(input.qty)
   if (qty === null) return 'Số lượng không hợp lệ (tối đa 3 số lẻ).'
   if (input.msType !== 3 && qty <= 0) return 'Số lượng phải lớn hơn 0.'
   if (input.price.trim() !== '' && parseMilli(input.price) === null) return 'Đơn giá không hợp lệ.'
+  return null
+}
+
+/** Lỗi mã phiếu / ghi chú (dùng chung cho cả phiếu), hoặc null. */
+export function validateStockHeader(input: Pick<StockMoveInput, 'code' | 'note'>): string | null {
   if (!isValidStockCode(input.code.trim())) return 'Mã phiếu 1–20 ký tự gồm chữ, số và _ . - /'
   if (input.note.length > 255) return 'Ghi chú tối đa 255 ký tự.'
   return null
 }
+
+/** Lỗi nhập liệu (tiếng Việt) hoặc null nếu hợp lệ. Kiểm tra phía server vẫn là nguồn sự thật. */
+export function validateStockMove(input: StockMoveInput): string | null {
+  return validateStockLine(input) ?? validateStockHeader(input)
+}
+
+/** Số nguyên liệu tối đa trong một lần nhập/xuất/kiểm kê hàng loạt (mỗi dòng là một lần gọi máy chủ). */
+export const MAX_MATERIAL_BATCH = 50
 
 /**
  * Tổng tiền của phiếu = số lượng × đơn giá (đ), làm tròn đến đồng. Chỉ để hiển thị — server tính lại.
@@ -157,6 +186,17 @@ export function previewStockAfter(
   if (input.msType === 1) return { after: milliToString(stock + qty), short: false }
   if (input.msType === 3) return { after: milliToString(qty), short: false }
   return { after: milliToString(stock - qty), short: stock - qty < 0 }
+}
+
+/**
+ * Chênh lệch kiểm kê = số đếm thực tế − tồn hiện tại, dạng chuỗi decimal có dấu ("-1.5", "0", "2"); null khi chưa/sai số.
+ * Cùng quy ước dấu với kiểm kê hàng hóa (âm = hao hụt) và với `diff` máy chủ trả về.
+ */
+export function stocktakeDiff(stockQty: string, countedQty: string): string | null {
+  const stock = parseMilli(stockQty)
+  const counted = parseMilli(countedQty)
+  if (stock === null || counted === null) return null
+  return milliToString(counted - stock)
 }
 
 // ----- Công thức / topping của một món -----
@@ -220,7 +260,7 @@ export function toppingLinesBody(lines: readonly ToppingDraftLine[]) {
   }))
 }
 
-// ----- Kho thành phẩm -----
+// ----- Kho hàng hóa -----
 
 export function parseWholeNumber(input: string, allowNegative = false): number | null {
   const m = (allowNegative ? /^-?\d{1,7}$/ : /^\d{1,7}$/).exec(input.trim())
@@ -268,6 +308,52 @@ export function formatUnixSeconds(sec: number): string {
 /** Dòng sổ kho kiểm kê mà FNet ghi kèm số cũ (R6a) → có thể hiển thị "từ X → Y (lệch Z)". */
 export function ledgerHasStocktakeLog(row: Pick<LedgerRow, 'msType' | 'stockBefore'>): boolean {
   return row.msType === 3 && row.stockBefore !== null
+}
+
+/**
+ * Tổng điều chỉnh của các dòng kiểm kê: cộng riêng phần giảm (diff < 0) và phần tăng (diff > 0), trả số tuyệt đối dạng chuỗi
+ * thập phân ("12.5"). Bỏ qua dòng không có nhật ký kiểm kê (iCafe tạo ⇒ `diff` null). Cộng bằng số nguyên (milli), không qua float.
+ * Lưu ý: đây là tổng SỐ LƯỢNG (nhiều nguyên liệu có thể khác đơn vị) — phiếu kiểm kê không ghi đơn giá nên không quy ra tiền.
+ * `unchanged` = số dòng kiểm kê có nhật ký mà chênh lệch bằng 0 (đếm dòng, vì số lượng không đổi luôn là 0);
+ * `decreaseLines` / `increaseLines` = số dòng giảm / tăng tương ứng.
+ */
+export function sumStocktakeAdjust(rows: readonly Pick<LedgerRow, 'diff'>[]): {
+  decrease: string
+  increase: string
+  decreaseLines: number
+  increaseLines: number
+  unchanged: number
+} {
+  let dec = 0
+  let inc = 0
+  let decreaseLines = 0
+  let increaseLines = 0
+  let unchanged = 0
+  for (const r of rows) {
+    if (!r.diff) continue
+    const milli = parseMilli(r.diff.replace(/^-/, ''))
+    if (milli === null) continue
+    if (milli === 0) unchanged += 1
+    else if (r.diff.startsWith('-')) {
+      dec += milli
+      decreaseLines += 1
+    } else {
+      inc += milli
+      increaseLines += 1
+    }
+  }
+  return { decrease: milliToString(dec), increase: milliToString(inc), decreaseLines, increaseLines, unchanged }
+}
+
+/**
+ * Các kỳ chốt có NGÀY chốt (phần `YYYY-MM-DD` đầu `createDate`) nằm trong [fromDate, toDate] (gồm hai đầu; rỗng = không giới hạn
+ * phía đó). Giữ nguyên thứ tự đầu vào.
+ */
+export function closingsInRange<T extends { createDate: string }>(rows: readonly T[], fromDate: string, toDate: string): T[] {
+  return rows.filter((r) => {
+    const day = r.createDate.slice(0, 10)
+    return (fromDate === '' || day >= fromDate) && (toDate === '' || day <= toDate)
+  })
 }
 
 /** Ngày YYYY-MM-DD cho bộ lọc; rỗng hoặc sai dạng → undefined (không gửi). */

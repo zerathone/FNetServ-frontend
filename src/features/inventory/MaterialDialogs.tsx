@@ -99,7 +99,7 @@ export function MaterialEditor({
         </>
       }
     >
-      <div className="inv-form">
+      <div className="inv-form inv-form--select-room">
         <label className="ds-field inv-form__wide">
           <span className="ds-field__label">Tên nguyên liệu</span>
           <input className="ds-input" value={name} maxLength={255} autoFocus onChange={(e) => setName(e.target.value)} />
@@ -394,13 +394,6 @@ export function StockDialog({
               {preview.short
                 ? `Không đủ tồn để xuất (còn ${formatQty(material.stockQty)}).`
                 : `Tồn sau phiếu: ${formatQty(preview.after)} ${material.unit}`.trim()}
-            </InlineAlert>
-          </div>
-        ) : null}
-        {msType === 2 ? (
-          <div className="inv-form__wide">
-            <InlineAlert tone="info">
-              Xuất/trả phải ghi đúng mã của một phiếu nhập cũ của nguyên liệu này (cùng quy tắc iCafe).
             </InlineAlert>
           </div>
         ) : null}

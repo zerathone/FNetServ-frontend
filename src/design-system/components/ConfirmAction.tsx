@@ -13,6 +13,8 @@ type ConfirmActionProps = {
   pending?: boolean
   /** Tắt nút xác nhận (vd bắt tick "đã hiểu" trước khi cho hủy đơn đã thu tiền). */
   confirmDisabled?: boolean
+  /** Bề rộng hộp thoại; mặc định 'sm' (hộp xác nhận ngắn). Hộp có bảng xem trước dùng 'md'. */
+  size?: 'sm' | 'md'
   onCancel: () => void
   onConfirm: () => void
 }
@@ -27,6 +29,7 @@ export function ConfirmAction({
   danger = false,
   pending = false,
   confirmDisabled = false,
+  size = 'sm',
   onCancel,
   onConfirm,
 }: ConfirmActionProps) {
@@ -35,7 +38,7 @@ export function ConfirmAction({
       open={open}
       title={title}
       description={description}
-      size="sm"
+      size={size}
       onClose={pending ? () => undefined : onCancel}
       footer={
         <>

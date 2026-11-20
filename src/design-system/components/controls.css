@@ -969,6 +969,39 @@ label:has(input[type="radio"]) {
   background: color-mix(in srgb, currentColor 14%, var(--color-surface-default));
 }
 
+/* SORT HEADER CELL: nút trong <th> bấm để sắp xếp cột (thời gian / số lượng / tiền). Cột số (.is-num) tự căn phải theo th. */
+.ds-sort-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.ds-sort-head:hover,
+.ds-sort-head.is-active {
+  color: var(--color-action-primary);
+}
+
+.ds-sort-head__icon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.ds-sort-head:hover .ds-sort-head__icon,
+.ds-sort-head.is-active .ds-sort-head__icon {
+  color: var(--color-action-primary);
+  opacity: 1;
+}
+
 label:has(input[type="checkbox"]:disabled),
 label:has(input[type="radio"]:disabled) {
   opacity: 0.58;

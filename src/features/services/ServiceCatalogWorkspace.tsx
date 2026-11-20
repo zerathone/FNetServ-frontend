@@ -13,10 +13,13 @@ import {
   RefreshButton,
   Segmented,
   Select,
+  SortHeaderCell,
   StateView,
   StatusBadge,
+  Switch,
   type SegmentedOption,
 } from '../../design-system/components'
+import { sortRows, type SortState, type SortValue } from '../../lib/tableSort'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import { FinishedTab } from '../inventory/FinishedTab'
@@ -57,6 +60,15 @@ const TAB_OPTIONS: readonly SegmentedOption<Tab>[] = [
 // Bộ lọc trạng thái bán: mở bán (đang bán) | ngừng bán.
 type SaleFilter = 'all' | 'on' | 'off'
 
+type ServiceSortKey = 'price' | 'stock' | 'expected'
+
+/** Món không quản lý tồn không có số tồn / dự kiến ⇒ null ⇒ luôn xếp cuối dù tăng hay giảm. */
+const SERVICE_SORT: Record<ServiceSortKey, (s: ServiceItem) => SortValue> = {
+  price: (s) => s.price,
+  stock: (s) => (s.inventoryManagement === 1 ? s.inventory : null),
+  expected: (s) => (s.inventoryManagement === 1 ? s.inventoryExpected : null),
+}
+
 function formatMoney(value: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
 }
@@ -73,6 +85,7 @@ export function ServiceCatalogWorkspace() {
   // Lọc theo nhóm: 0 = mọi nhóm, còn lại = groupId.
   const [groupFilter, setGroupFilter] = useState(0)
   const [page, setPage] = useState(0)
+  const [sort, setSort] = useState<SortState<ServiceSortKey>>(null)
   const queryClient = useQueryClient()
   const hasRight = useAuthStore((s) => s.hasRight)
   const canAdd = hasRight(RIGHT_SERVICE_ADD)
@@ -150,16 +163,25 @@ export function ServiceCatalogWorkspace() {
     return { groups, counts }
   }, [source, groupRows])
   const normalizedSearch = search.trim().toLocaleLowerCase('vi')
-  const services = source.filter(
-    (service) =>
-      matchesServiceStock(service, stockFilter) &&
-      (saleFilter === 'all' || (saleFilter === 'off') === isDiscontinued(service)) &&
-      (!toppingOnly || service.groupTypeId === GROUP_TYPE_TOPPING) &&
-      (groupFilter === 0|| service.groupId === groupFilter) &&
-      (!normalizedSearch ||
-        service.name.toLocaleLowerCase('vi').includes(normalizedSearch) ||
-        service.unit.toLocaleLowerCase('vi').includes(normalizedSearch)),
+  // Sắp xếp theo cột số (giá bán, tồn kho, dự kiến) ở header — trên toàn danh sách đang lọc, trước khi cắt trang.
+  const services = sortRows(
+    source.filter(
+      (service) =>
+        matchesServiceStock(service, stockFilter) &&
+        (saleFilter === 'all' || (saleFilter === 'off') === isDiscontinued(service)) &&
+        (!toppingOnly || service.groupTypeId === GROUP_TYPE_TOPPING) &&
+        (groupFilter === 0|| service.groupId === groupFilter) &&
+        (!normalizedSearch ||
+          service.name.toLocaleLowerCase('vi').includes(normalizedSearch) ||
+          service.unit.toLocaleLowerCase('vi').includes(normalizedSearch)),
+    ),
+    sort,
+    SERVICE_SORT,
   )
+  const changeSort = (next: SortState<ServiceSortKey>) => {
+    setSort(next)
+    setPage(0)
+  }
   const totalPages = Math.max(1, Math.ceil(services.length / PAGE_SIZE))
   const visibleServices = services.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
   const isSelectable = (service: ServiceItem) => service.inventoryManagement === 1 && !isReadonlyService(service)
@@ -187,6 +209,7 @@ export function ServiceCatalogWorkspace() {
       return next
     })
   const availableCount = source.filter((service) => matchesServiceStock(service, 'available')).length
+  const lowCount = source.filter((service) => matchesServiceStock(service, 'low')).length
   const outCount = source.filter((service) => matchesServiceStock(service, 'out')).length
   const notManagedCount = source.filter((service) => matchesServiceStock(service, 'not-managed')).length
   const offCount = source.filter((service) => isDiscontinued(service)).length
@@ -290,6 +313,16 @@ export function ServiceCatalogWorkspace() {
             <span className="service-stat__dot service-stat__dot--available" aria-hidden="true" />
             <span className="service-stat__label">Còn tồn</span>
             <strong>{availableCount}</strong>
+          </button>
+          <button
+            type="button"
+            className={`service-stat ${stockFilter === 'low' ? 'is-active' : ''}`}
+            onClick={() => toggleStock('low')}
+            title="Còn hàng nhưng đã chạm mức cảnh báo tồn"
+          >
+            <span className="service-stat__dot service-stat__dot--low" aria-hidden="true" />
+            <span className="service-stat__label">Sắp hết</span>
+            <strong>{lowCount}</strong>
           </button>
           <button
             type="button"
@@ -502,9 +535,9 @@ export function ServiceCatalogWorkspace() {
                   </th>
                   <th>Mặt hàng</th>
                   <th>Nhóm</th>
-                  <th className="is-num">Giá bán</th>
-                  <th>Tồn kho</th>
-                  <th>Dự kiến / Chênh lệch</th>
+                  <SortHeaderCell label="Giá bán" sortKey="price" sort={sort} onSort={changeSort} className="is-num" />
+                  <SortHeaderCell label="Tồn kho" sortKey="stock" sort={sort} onSort={changeSort} />
+                  <SortHeaderCell label="Dự kiến / Chênh lệch" sortKey="expected" sort={sort} onSort={changeSort} />
                   <th className="service-table__sale">Mở bán</th>
                   <th aria-label="Thao tác" />
                 </tr>
@@ -575,31 +608,33 @@ export function ServiceCatalogWorkspace() {
                         )}
                       </td>
                       <td className="service-table__sale">
-                        <input
-                          type="checkbox"
-                          className="service-table__check"
-                          checked={!stopped}
-                          disabled={
-                            system || activeMutation.isPending || (stopped ? !canEdit : !canDisable)
-                          }
-                          aria-label={`${stopped ? 'Mở bán lại' : 'Ngừng bán'} ${service.name}`}
+                        <span
+                          className="service-table__switch"
                           title={
                             system
                               ? 'Dòng hệ thống, không đổi ở màn này'
                               : stopped
                                 ? canEdit
-                                  ? 'Đang ngừng bán — tick để bán lại'
+                                  ? 'Đang ngừng bán — bật để bán lại'
                                   : 'Cần quyền Sửa dịch vụ (62)'
                                 : canDisable
-                                  ? 'Đang mở bán — bỏ tick để ngừng bán'
+                                  ? 'Đang mở bán — tắt để ngừng bán'
                                   : 'Cần quyền Xoá/ngừng bán dịch vụ (63)'
                           }
-                          onChange={() =>
-                            stopped
-                              ? activeMutation.mutate({ serviceId: service.id, active: true })
-                              : setToggling(service)
-                          }
-                        />
+                        >
+                          <Switch
+                            checked={!stopped}
+                            disabled={
+                              system || activeMutation.isPending || (stopped ? !canEdit : !canDisable)
+                            }
+                            aria-label={`${stopped ? 'Mở bán lại' : 'Ngừng bán'} ${service.name}`}
+                            onCheckedChange={() =>
+                              stopped
+                                ? activeMutation.mutate({ serviceId: service.id, active: true })
+                                : setToggling(service)
+                            }
+                          />
+                        </span>
                       </td>
                       <td>
                         {system ? null : (
@@ -631,7 +666,7 @@ export function ServiceCatalogWorkspace() {
                             ) : null}
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="warning-outline"
                               disabled={!canEdit}
                               title={canEdit ? undefined : 'Cần quyền Sửa dịch vụ (62)'}
                               onClick={() => setEditor(service)}
@@ -672,7 +707,7 @@ export function ServiceCatalogWorkspace() {
       <ConfirmAction
         open={toggling !== null}
         title={`Ngừng bán [${toggling?.name ?? ''}]?`}
-        description="Món bị ẩn khỏi menu bán. Lịch sử bán và công thức giữ nguyên, bật lại bất cứ lúc nào bằng cách tick lại ở cột “Mở bán”."
+        description="Món bị ẩn khỏi menu bán. Lịch sử bán và công thức giữ nguyên, bật lại bất cứ lúc nào bằng cách bật lại công tắc ở cột “Mở bán”."
         confirmLabel="Ngừng bán"
         danger
         pending={activeMutation.isPending}

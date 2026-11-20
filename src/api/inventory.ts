@@ -1,6 +1,6 @@
 import { apiPost } from './client'
 
-// task topping-kho / T3f — admin kho nguyên liệu, công thức, topping, kho thành phẩm, chốt kỳ.
+// task topping-kho / T3f — admin kho nguyên liệu, công thức, topping, kho hàng hóa, chốt kỳ.
 // Hợp đồng: ServerSide_ai/FNetHttp/InventoryHandlers.cpp. Mọi route đều là POST (kể cả route đọc).
 // Số lượng nguyên liệu là CHUỖI decimal(12,3) ("1.500") — không đi qua float; gửi lên cũng là chuỗi.
 // Schema DB chưa có bảng ⇒ route đọc trả `supported:false` (KHÔNG lỗi); route ghi trả code `unsupported`.
@@ -9,8 +9,12 @@ export type InventoryFilter = {
   materialId?: number
   serviceId?: number
   serviceDetailId?: number
+  /** Chỉ `/inventory/material-ledger`: chỉ phiếu do nhân viên này ghi (msUid); bỏ trống = tất cả. Server cũ bỏ qua tham số này. */
+  staffId?: number
   /** 0 = tất cả; 1 nhập, 2 xuất/trả, 3 kiểm kê (đặt số). */
   msType?: number
+  /** Chỉ `/inventory/material-usage`: 0 = theo công thức, 1 = bán kèm (topping); bỏ trống = tất cả. Server cũ bỏ qua tham số này. */
+  isTopping?: 0 | 1
   activeOnly?: boolean
   lowOnly?: boolean
   /** YYYY-MM-DD. */
@@ -230,7 +234,7 @@ export function getUsage(filter: InventoryFilter = {}) {
   return apiPost<UsageResult, InventoryFilter>('/inventory/material-usage', filter)
 }
 
-// ===== Kho thành phẩm — dịch vụ có InventoryManagement=1 (task service-catalog đợt 2, theo Qt) =====
+// ===== Kho hàng hóa — dịch vụ có InventoryManagement=1 (task service-catalog đợt 2, theo Qt) =====
 // Hợp đồng: handoff/HANDOFF_service-catalog.md §7; BE: ServerSide_ai/FNetHttp/FinishedStockHandlers.cpp.
 // Phản hồi `{status:"1"|"0", message, data}`; lỗi có `data.code` (ApiError.code) + `message` tiếng Việt — hiển thị nguyên văn.
 // Phiếu nhiều dòng KHÔNG nguyên tử (MyISAM): từng dòng ghi độc lập, kết quả trả theo dòng.
@@ -410,6 +414,33 @@ export function getFinishedClosings(filter: FinishedReportFilter) {
 }
 
 // ----- Chốt kho (quyền 69) -----
+
+/** Một dòng XEM TRƯỚC chốt kho: đúng số sẽ ghi lúc chốt (máy chủ chạy cùng phép tính, không ghi gì). Máy chủ cũ chưa có route. */
+export type FinishedClosingPreviewRow = {
+  serviceId: number
+  fromDate: string
+  fromTime: string
+  numBalance: number
+  importQuantity: number
+  importTotalAmount: number
+  saleQuantity: number
+  saleTotalAmount: number
+  numAdjust: number
+  numInventoryExpected: number
+  numInventoryReal: number
+  /** Kỳ rỗng: chưa từng chốt/nhập kho. */
+  empty: boolean
+}
+
+export type FinishedClosingPreview = {
+  closingAt: string
+  rows: FinishedClosingPreviewRow[]
+  skipped: { serviceId: number; code: string }[]
+}
+
+export function getFinishedClosingPreview() {
+  return apiPost<FinishedClosingPreview, Record<string, never>>('/inventory/finished/closing/preview', {})
+}
 
 export type FinishedClosingCommitResult = {
   closingAt: string

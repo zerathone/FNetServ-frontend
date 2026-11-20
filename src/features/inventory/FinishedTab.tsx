@@ -1,23 +1,28 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { ListChecks, MagnifyingGlass, Plus } from '@phosphor-icons/react'
-import { commitFinishedClosing } from '../../api/inventory'
+import { commitFinishedClosing, getFinishedClosingPreview, getFinishedClosings } from '../../api/inventory'
 import {
   Button,
   ConfirmAction,
-  InlineAlert,
+  FilterHeaderCell,
   ListToolbar,
   RefreshButton,
   Segmented,
   Select,
+  SortHeaderCell,
   StateView,
   StatusBadge,
+  type FilterMenuOption,
   type SegmentedOption,
 } from '../../design-system/components'
 import { useIdempotentIntent } from '../../lib/idempotency'
+import { sortRows, type SortState, type SortValue } from '../../lib/tableSort'
+import type { ServiceItem } from '../../api/services'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { ClosingPreviewToggle } from './ClosingPreviewToggle'
 import { ClosingsReportView, ImportReportView, StocktakeReportView } from './FinishedReportViews'
 import { ImportVoucherDialog, StocktakeVoucherDialog } from './FinishedVoucherDialogs'
 import {
@@ -25,28 +30,49 @@ import {
   closingResultText,
   diffBadge,
   formatInt,
+  formatMoney,
+  formatSigned,
   MAX_BATCH_LINES,
   parseStockView,
   RIGHT_FINISHED_CLOSING,
   RIGHT_FINISHED_IMPORT,
+  REPORT_RIGHTS,
   RIGHT_FINISHED_STOCKTAKE,
   stockDiff,
   type StockView,
 } from './finishedStockModel'
 import { describeInventoryError } from './inventoryModel'
+import { matchesServiceStock, serviceStockLabel, type ServiceStockFilter } from '../services/serviceModel'
 import { useFinishedServices } from './useFinishedServices'
 // Tab này nay nằm ở trang Dịch vụ & hàng hóa (tab Quản lý tồn) — tự nạp CSS .inv-* để không phụ thuộc trang Kho.
 import './inventory.css'
+
+/** Dropdown lọc ở header cột Trạng thái của Tồn kho (chỉ mặt hàng quản lý tồn ⇒ không có nhóm "Không quản lý tồn"). */
+const STOCK_STATE_OPTIONS: FilterMenuOption<ServiceStockFilter>[] = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'available', label: 'Còn tồn' },
+  { value: 'low', label: 'Sắp hết' },
+  { value: 'out', label: 'Hết tồn' },
+]
+
+type StockSortKey = 'expected' | 'real' | 'diff'
+
+/** Cột số lượng sắp xếp được của Tồn kho hàng hóa (đủ mọi mặt hàng nên sắp trên toàn danh sách đang lọc). */
+const STOCK_SORT: Record<StockSortKey, (s: ServiceItem) => SortValue> = {
+  expected: (s) => s.inventoryExpected,
+  real: (s) => s.inventory,
+  diff: (s) => stockDiff(s),
+}
 
 const VIEW_OPTIONS: readonly SegmentedOption<StockView>[] = [
   { value: 'stock', label: 'Tồn kho' },
   { value: 'imports', label: 'Nhập kho' },
   { value: 'stocktakes', label: 'Kiểm kê' },
-  { value: 'closings', label: 'Nhập – xuất' },
+  { value: 'closings', label: 'Chốt kho' },
 ]
 
 /**
- * Tab Quản lý tồn (trang Dịch vụ & hàng hóa) của kho THÀNH PHẨM, theo Qt: Tồn kho (mặc định) | Nhập kho | Kiểm kê | Nhập – xuất.
+ * Tab Quản lý tồn (trang Dịch vụ & hàng hóa) của kho THÀNH PHẨM, theo Qt: Tồn kho (mặc định) | Nhập kho | Kiểm kê | Chốt kho (lịch sử các lần chốt).
  * Mục đang chọn nằm trên URL (`?tab=stock&view=imports`). Kho NGUYÊN LIỆU (/inventory) là thứ riêng, không dùng chung state.
  */
 export function FinishedTab() {
@@ -70,7 +96,12 @@ export function FinishedTab() {
       <div className="inv-viewbar">
         <Segmented<StockView> ariaLabel="Mục quản lý tồn" value={view} options={VIEW_OPTIONS} onChange={changeView} />
         <div className="inv-viewbar__actions">
-          {view === 'stock' ? <ClosingButton /> : null}
+          {view === 'stock' ? (
+            <>
+              <ClosingPeriod />
+              <ClosingButton />
+            </>
+          ) : null}
           {view === 'imports' ? (
             <Button
               type="button"
@@ -118,6 +149,8 @@ function StockOnHand() {
   const canStocktake = hasRight(RIGHT_FINISHED_STOCKTAKE)
   const [search, setSearch] = useState('')
   const [groupId, setGroupId] = useState(0)
+  const [stockState, setStockState] = useState<ServiceStockFilter>('all')
+  const [sort, setSort] = useState<SortState<StockSortKey>>(null)
   // Tick chọn nhiều mặt hàng để lập phiếu nhập / kiểm kê một lần (mỗi món thành một dòng của phiếu).
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
   const [voucher, setVoucher] = useState<'import' | 'stocktake' | null>(null)
@@ -131,8 +164,15 @@ function StockOnHand() {
   }, [managed])
 
   const needle = search.trim().toLocaleLowerCase('vi')
-  const rows = managed.filter(
-    (s) => (groupId === 0 || s.groupId === groupId) && (!needle || s.name.toLocaleLowerCase('vi').includes(needle)),
+  const rows = sortRows(
+    managed.filter(
+      (s) =>
+        (groupId === 0 || s.groupId === groupId) &&
+        matchesServiceStock(s, stockState) &&
+        (!needle || s.name.toLocaleLowerCase('vi').includes(needle)),
+    ),
+    sort,
+    STOCK_SORT,
   )
 
   // Chỉ tính món ĐANG HIỂN THỊ theo tìm/lọc nhóm ⇒ "k / Tổng" khớp thứ nhìn thấy; món đã tick nhưng đang bị lọc ẩn thì giữ trong
@@ -160,7 +200,7 @@ function StockOnHand() {
   const overLimit = selectedIds.length > MAX_BATCH_LINES
 
   return (
-    <section className="inv-panel" aria-label="Tồn kho thành phẩm">
+    <section className="inv-panel" aria-label="Tồn kho hàng hóa">
       <div className="inv-filters inv-filters--report">
         <div className="ds-field inv-filters__search">
           <div className="ds-input-group ds-input-group--search">
@@ -269,16 +309,27 @@ function StockOnHand() {
                 </th>
                 <th>Mặt hàng</th>
                 <th>Nhóm</th>
-                <th className="is-num">Dự kiến</th>
-                <th className="is-num">Thực tế</th>
-                <th className="is-num">Chênh lệch</th>
+                <SortHeaderCell label="Dự kiến" sortKey="expected" sort={sort} onSort={setSort} className="is-num" />
+                <SortHeaderCell label="Thực tế" sortKey="real" sort={sort} onSort={setSort} className="is-num" />
+                <SortHeaderCell label="Chênh lệch" sortKey="diff" sort={sort} onSort={setSort} className="is-num" />
                 <th>Đơn vị</th>
+                <FilterHeaderCell
+                  as="th"
+                  label="Trạng thái"
+                  options={STOCK_STATE_OPTIONS}
+                  value={stockState}
+                  baseline="all"
+                  onChange={setStockState}
+                  menuLabel="Lọc theo trạng thái tồn"
+                  clearLabel="Bỏ lọc trạng thái tồn"
+                />
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => {
                 const diff = stockDiff(s)
                 const badge = diffBadge(diff)
+                const stock = serviceStockLabel(s)
                 return (
                   <tr key={s.id} className={selected.has(s.id) ? 'is-selected' : undefined}>
                     <td className="inv-col-check">
@@ -307,6 +358,11 @@ function StockOnHand() {
                       ) : null}
                     </td>
                     <td>{s.unit}</td>
+                    <td>
+                      <StatusBadge tone={stock.tone} dot={stock.dot}>
+                        {stock.label}
+                      </StatusBadge>
+                    </td>
                   </tr>
                 )
               })}
@@ -321,17 +377,54 @@ function StockOnHand() {
   )
 }
 
+/**
+ * "Kỳ đang mở: <lần chốt gần nhất> → hiện tại" đặt trước nút Chốt kho (giống kỳ đang mở của kho nguyên liệu). Kho thành
+ * phẩm không có bảng đầu kỳ chốt: lấy thời điểm chốt gần nhất từ lịch sử chốt (dòng mới nhất, máy chủ sắp mới → cũ); đầu "đến"
+ * luôn là "hiện tại" vì kỳ còn mở. Cần quyền xem báo cáo Chốt kho (cũ: Nhập – xuất) của MỌI nhân viên (93941) vì dòng mới nhất có thể do người khác
+ * chốt; không đủ quyền hoặc lỗi ⇒ ẩn, không chặn nút Chốt kho. Làm mới sau mỗi lần chốt (khoá nằm dưới ['inventory','finished']).
+ */
+function ClosingPeriod() {
+  const canAll = useAuthStore((s) => s.hasRight)(REPORT_RIGHTS.closings.all)
+  const last = useQuery({
+    queryKey: ['inventory', 'finished', 'closings', 'last'],
+    queryFn: () => getFinishedClosings({ limit: 1, offset: 0 }),
+    enabled: canAll,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+  if (!canAll || last.isLoading || last.isError || last.data?.supported === false) return null
+  const latest = last.data?.rows[0]
+  const from = latest ? `${latest.createDate} ${latest.createTime}` : null
+  return (
+    <span className="inv-closing-period" title="Từ lần chốt kho gần nhất đến hiện tại">
+      Kỳ đang mở: <strong>{from ?? 'từ đầu'}</strong> → <strong>hiện tại</strong>
+    </span>
+  )
+}
+
 // ----- Chốt kho (quyền 69): ghi sổ kỳ cho TOÀN BỘ mặt hàng quản lý tồn, đưa Dự kiến về bằng Thực tế -----
 
 function ClosingButton() {
   const queryClient = useQueryClient()
   const canClose = useAuthStore((s) => s.hasRight)(RIGHT_FINISHED_CLOSING)
-  const { all, query } = useFinishedServices()
+  const { all, query, byId } = useFinishedServices()
   const { getKey, clearKey } = useIdempotentIntent('fin-close')
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
 
   const preview = closingPreview(all)
+  // Kết quả SẼ ghi lúc chốt (Đầu kỳ, Nhập, Điều chỉnh, Bán, Cuối kỳ, Giá trị…): máy chủ chạy đúng phép tính của việc chốt nhưng
+  // không ghi gì. Chỉ tải khi hộp xác nhận đang mở; mở lại là tính lại (số tồn/đơn có thể đã đổi).
+  const previewQuery = useQuery({
+    queryKey: ['inventory', 'finished', 'closing', 'preview'],
+    queryFn: getFinishedClosingPreview,
+    enabled: open,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+  const previewRows = previewQuery.data?.rows ?? []
+  const skippedCount = previewQuery.data?.skipped.length ?? 0
 
   const commit = useMutation({
     mutationFn: () => commitFinishedClosing({ note: note.trim() || undefined, idem: getKey(note.trim()) }),
@@ -363,36 +456,77 @@ function ClosingButton() {
       </Button>
       <ConfirmAction
         open={open}
-        title="Chốt kho thành phẩm?"
-        description={`Ghi sổ kỳ này cho ${formatInt(preview.managedCount)} mặt hàng và đưa số lượng dự kiến về bằng số lượng thực tế — không hoàn tác.`}
+        title="Chốt kho hàng hóa?"
+        description="Ghi sổ kỳ và đưa Dự kiến về bằng Thực tế — không hoàn tác."
         confirmLabel="Chốt kho"
         danger
+        size="md"
         pending={commit.isPending}
         onCancel={() => setOpen(false)}
         onConfirm={() => commit.mutate()}
       >
-        <div className="inv-form">
+        <div className="inv-form inv-form--closing inv-form--closing-wide">
           <p className="inv-form__wide">
-            <strong>{formatInt(preview.managedCount)}</strong> mặt hàng sẽ được chốt ·{' '}
+            <strong>{formatInt(preview.managedCount)}</strong> mặt hàng sẽ chốt ·{' '}
             {preview.unknownDiff ? (
-              'chưa biết số mặt hàng đang chênh lệch (máy chủ chưa trả số lượng dự kiến).'
+              'chưa biết số mặt hàng chênh lệch (máy chủ chưa trả dự kiến).'
             ) : (
               <>
-                <strong>{formatInt(preview.diffCount)}</strong> mặt hàng đang có chênh lệch khác 0.
+                <strong>{formatInt(preview.diffCount)}</strong> đang chênh lệch (về 0 sau chốt).
               </>
             )}
           </p>
-          {preview.diffCount > 0 ? (
-            <div className="inv-form__wide">
-              <InlineAlert tone="warning">
-                Sau khi chốt, chênh lệch của các mặt hàng này về 0; số lượng thực tế giữ nguyên.
-              </InlineAlert>
-            </div>
-          ) : null}
           <label className="ds-field inv-form__wide">
             <span className="ds-field__label">Ghi chú (không bắt buộc)</span>
             <input className="ds-input" value={note} maxLength={250} onChange={(e) => setNote(e.target.value)} />
           </label>
+          <ClosingPreviewToggle
+            count={previewRows.length}
+            loading={previewQuery.isLoading}
+            error={previewQuery.isError ? describeInventoryError(previewQuery.error) : undefined}
+          >
+            <p className="inv-closing-preview__hint">
+              Kết quả cuối cùng sẽ ghi vào kỳ (giống bảng của lịch sử Chốt kho).
+              {skippedCount > 0 ? ` ${skippedCount} mặt hàng không tính được sẽ bị bỏ qua khi chốt.` : ''}
+            </p>
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th>Mặt hàng</th>
+                  <th>Nhóm</th>
+                  <th className="is-num">Đầu kỳ</th>
+                  <th className="is-num">Nhập</th>
+                  <th className="is-num">Điều chỉnh</th>
+                  <th className="is-num">Bán</th>
+                  <th className="is-num">Cuối kỳ</th>
+                  <th className="is-num">Giá trị nhập</th>
+                  <th className="is-num">Giá trị bán</th>
+                  <th>Đơn vị</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((r) => {
+                  const s = byId.get(r.serviceId)
+                  return (
+                    <tr key={r.serviceId}>
+                      <td>{s?.name ?? `#${r.serviceId}`}</td>
+                      <td>{s?.groupName ?? ''}</td>
+                      <td className="is-num">{formatInt(r.numBalance)}</td>
+                      <td className="is-num">{formatInt(r.importQuantity)}</td>
+                      <td className="is-num">{formatSigned(r.numAdjust)}</td>
+                      <td className="is-num">{formatInt(r.saleQuantity)}</td>
+                      <td className="is-num">
+                        <strong>{formatInt(r.numInventoryReal)}</strong>
+                      </td>
+                      <td className="is-num">{formatMoney(r.importTotalAmount)}</td>
+                      <td className="is-num">{formatMoney(r.saleTotalAmount)}</td>
+                      <td>{s?.unit ?? ''}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </ClosingPreviewToggle>
         </div>
       </ConfirmAction>
     </>

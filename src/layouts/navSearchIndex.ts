@@ -32,7 +32,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   '/users/legacy': ['hội viên', 'khách hàng', 'nạp tiền', 'số dư', 'mật khẩu hội viên', 'khóa tài khoản', 'thông tin khách'],
   '/cards': ['thẻ cào', 'mã thẻ', 'phát hành thẻ', 'seri', 'thẻ nạp'],
   '/anonyms': ['vãng lai', 'khách lẻ', 'khách vãng lai', 'anonym'],
-  '/services': ['dịch vụ', 'quản lý tồn', 'tồn kho', 'nhập kho', 'kiểm kê', 'thành phẩm', 'công thức', 'định lượng', 'topping', 'đồ ăn', 'nước uống', 'mặt hàng', 'sản phẩm', 'giá bán', 'thực đơn', 'menu'],
+  '/services': ['dịch vụ', 'quản lý tồn', 'tồn kho', 'nhập kho', 'kiểm kê', 'kho hàng hóa', 'hàng hóa', 'thành phẩm', 'công thức', 'định lượng', 'topping', 'đồ ăn', 'nước uống', 'mặt hàng', 'sản phẩm', 'giá bán', 'thực đơn', 'menu'],
   '/inventory': ['kho', 'nguyên liệu', 'nhập kho', 'xuất kho', 'chốt kỳ', 'tiêu hao'],
   '/combos': ['combo', 'gói giờ', 'gói chơi', 'giờ chơi', 'vé'],
   '/user-groups': ['nhóm hội viên', 'nhóm khách', 'phân nhóm', 'nhóm tài khoản'],

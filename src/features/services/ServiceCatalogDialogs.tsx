@@ -632,7 +632,7 @@ export function ServiceEditorDialog({
             label="Quản lý tồn kho"
             description={
               draft.inventoryManagement
-                ? 'Món quản lý tồn chỉ hiện ở menu bán khi còn tồn > 0 — nhập kho ở tab Kho thành phẩm.'
+                ? 'Món quản lý tồn chỉ hiện ở menu bán khi còn tồn > 0 — nhập kho ở tab Kho hàng hóa.'
                 : 'Không theo dõi số lượng tồn của món này.'
             }
           />
