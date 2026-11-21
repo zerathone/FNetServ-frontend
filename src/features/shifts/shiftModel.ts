@@ -148,12 +148,33 @@ export function normalizeSummary(raw: unknown): ShiftSummary {
       : fallback
   return {
     sources,
-    refund: { count: toNumber(refund.count), cash: toNumber(refund.cash), online: toNumber(refund.online) },
+    refund: {
+      count: toNumber(refund.count),
+      cash: toNumber(refund.cash),
+      online: toNumber(refund.online),
+      qr: toNumber(refund.qr),
+    },
     totals,
     expectedCash: toNumber(r.expectedCash),
     refundsQrCanceled: normalizeCountTotal(r.refundsQrCanceled, 'total'),
     onlineBook: normalizeCountTotal(r.onlineBook, 'walletTotal'),
   }
+}
+
+/**
+ * `/shift/summary` thật (S1 + design mục 14) trả LỒNG `{live, shift, summary}`; `summary` = null khi ca đã đóng mà bản chụp
+ * tóm tắt hỏng/thiếu ⇒ trả null để nơi gọi báo lỗi thay vì hiện "chưa có khoản thu" sai. B2 (S3) thêm `refundsQrCanceled`,
+ * `onlineBook` vào `data` (cùng cấp `summary` — giả định, handoff S3be chỉ nói "thêm vào data"); đọc thêm cả trong `summary`.
+ */
+export function normalizeSummaryResponse(raw: unknown): ShiftSummary | null {
+  const r = asRecord(raw)
+  if (!r.summary || typeof r.summary !== 'object') return null
+  const inner = asRecord(r.summary)
+  return normalizeSummary({
+    ...inner,
+    refundsQrCanceled: r.refundsQrCanceled !== undefined ? r.refundsQrCanceled : inner.refundsQrCanceled,
+    onlineBook: r.onlineBook !== undefined ? r.onlineBook : inner.onlineBook,
+  })
 }
 
 /** `{count, <totalKey>}` hoặc null (máy chủ chưa có dữ liệu / không gửi). Chỉ ép số khi là đối tượng. */
@@ -163,68 +184,42 @@ function normalizeCountTotal<K extends string>(raw: unknown, totalKey: K): ({ co
   return { count: toNumber(r.count), [totalKey]: toNumber(r[totalKey]) } as { count: number } & Record<K, number>
 }
 
-/** Đếm đơn chờ — nhận cả dạng số lẫn {count, amount} cho `qrPaidUnconfirmed`; bóc `data` lồng nếu có. */
+/**
+ * Số đơn chờ của `SHIFT_PENDING_ORDERS` (đọc từ `ApiError.details` = `data` cùng cấp `code`) và của `warnings` (S1, D7):
+ * `{pendingService, pendingCombo, qrPaidUnconfirmed (số đơn), qrPaidAmount (tổng tiền)}`. Không có trường nào ⇒ null.
+ */
 export function normalizePendingCounts(raw: unknown): ShiftPendingCounts | null {
-  let r = asRecord(raw)
-  if (r.pendingService === undefined && r.pendingCombo === undefined && r.data) r = asRecord(r.data)
+  const r = asRecord(raw)
   if (r.pendingService === undefined && r.pendingCombo === undefined && r.qrPaidUnconfirmed === undefined) return null
-  const qr = r.qrPaidUnconfirmed
-  const qrRecord = asRecord(qr)
   return {
     pendingService: toNumber(r.pendingService),
     pendingCombo: toNumber(r.pendingCombo),
-    qrPaidUnconfirmed:
-      qr && typeof qr === 'object'
-        ? { count: toNumber(qrRecord.count), amount: toNullableNumber(qrRecord.amount) }
-        : { count: toNumber(qr), amount: null },
+    qrPaidUnconfirmed: toNumber(r.qrPaidUnconfirmed),
+    qrPaidAmount: toNumber(r.qrPaidAmount),
   }
 }
 
 export function hasPending(counts: ShiftPendingCounts | null | undefined): boolean {
-  return Boolean(
-    counts && (counts.pendingService > 0 || counts.pendingCombo > 0 || counts.qrPaidUnconfirmed.count > 0),
-  )
+  return Boolean(counts && (counts.pendingService > 0 || counts.pendingCombo > 0 || counts.qrPaidUnconfirmed > 0))
 }
 
-/** Kết quả `/shift/close`: nhận dạng lồng {shift, summary, warnings} lẫn dạng phẳng. */
+/** Kết quả `/shift/close` (và `/shift/force-close`): `{alreadyClosed, shift{đủ trường}, summary|null, warnings?}`. */
 export function normalizeCloseResult(raw: unknown): ShiftCloseResult {
   const r = asRecord(raw)
-  const shiftRaw = asRecord(r.shift && typeof r.shift === 'object' ? r.shift : r)
-  const summaryRaw = r.summary && typeof r.summary === 'object' ? r.summary : r.sources ? r : null
-  const summary = summaryRaw ? normalizeSummary(summaryRaw) : null
-  const read = (key: string) => (shiftRaw[key] !== undefined ? shiftRaw[key] : r[key])
+  const shiftRaw = asRecord(r.shift)
+  const summary = r.summary && typeof r.summary === 'object' ? normalizeSummary(r.summary) : null
   return {
     alreadyClosed: r.alreadyClosed === true,
     shift: {
       ...normalizeShiftInfo(shiftRaw),
-      closeTime: toText(read('closeTime')),
-      countedCash: toNullableNumber(read('countedCash')),
-      expectedCash: toNullableNumber(read('expectedCash')) ?? summary?.expectedCash ?? null,
-      cashDiff: toNullableNumber(read('cashDiff')),
-      note: toText(read('note')),
+      closeTime: toText(shiftRaw.closeTime),
+      countedCash: toNullableNumber(shiftRaw.countedCash),
+      expectedCash: toNullableNumber(shiftRaw.expectedCash) ?? summary?.expectedCash ?? null,
+      cashDiff: toNullableNumber(shiftRaw.cashDiff),
+      note: toText(shiftRaw.note),
     },
     summary,
     warnings: normalizePendingCounts(r.warnings),
-  }
-}
-
-/**
- * Hợp đồng S1 không quy định chắc hình dạng response của /shift/close ⇒ điền các trường định danh của ca còn thiếu từ ca
- * mà client đang giữ (cùng một ca nên tiền đầu ca không thể khác). Chỉ ghi đè khi server không gửi / gửi id khác 0 trùng.
- */
-export function fillCloseFromSnapshot(result: ShiftCloseResult, snapshot: ShiftInfo): ShiftCloseResult {
-  const same = result.shift.shiftId <= 0 || result.shift.shiftId === snapshot.shiftId
-  if (!same) return result
-  return {
-    ...result,
-    shift: {
-      ...result.shift,
-      shiftId: snapshot.shiftId,
-      staffId: result.shift.staffId || snapshot.staffId,
-      staffName: result.shift.staffName || snapshot.staffName,
-      openTime: result.shift.openTime || snapshot.openTime,
-      openingCash: snapshot.openingCash,
-    },
   }
 }
 
@@ -332,8 +327,10 @@ export function buildCloseTicketHtml({ shopName, result, type }: CloseTicketInpu
       if (source.count === 0 && source.total === 0) continue
       rows.push(receiptRow(`${source.name}:`, formatReceiptNumber(source.total)))
     }
-    if (summary.refund.count > 0 || summary.refund.cash !== 0 || summary.refund.online !== 0) {
-      rows.push(receiptRow('Hoàn tiền:', formatReceiptNumber(summary.refund.cash + summary.refund.online)))
+    if (summary.refund.count > 0 || summary.refund.cash !== 0 || summary.refund.online !== 0 || summary.refund.qr !== 0) {
+      rows.push(
+        receiptRow('Hoàn tiền:', formatReceiptNumber(summary.refund.cash + summary.refund.online + summary.refund.qr)),
+      )
     }
     rows.push(receiptRow('Doanh thu ca:', formatReceiptNumber(totals.total), true))
     rows.push(receiptDivider(type))

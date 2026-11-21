@@ -32,7 +32,6 @@ import {
   countPendingMainLines,
   formatMoney,
   formatShiftDateTime,
-  fillCloseFromSnapshot,
   formatSigned,
   hasPending,
   normalizePendingCounts,
@@ -127,7 +126,7 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
       }),
     onSuccess: (data) => {
       applyClosed()
-      onClosed(fillCloseFromSnapshot(data, shift))
+      onClosed(data)
     },
     onError: (error: Error) => {
       if (error instanceof ApiError && error.code === 'idem_mismatch') {
@@ -137,7 +136,7 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
         setFailure('Lần chốt trước chưa rõ kết quả. Bấm Chốt ca lại để kiểm tra.')
       } else if (error instanceof ApiError && error.code === 'SHIFT_PENDING_ORDERS') {
         // Server đặt số lượng trong data (cùng cấp `code`) — đọc từ details.
-        setLock(normalizePendingCounts(error.details) ?? { pendingService: 0, pendingCombo: 0, qrPaidUnconfirmed: { count: 0, amount: null } })
+        setLock(normalizePendingCounts(error.details) ?? { pendingService: 0, pendingCombo: 0, qrPaidUnconfirmed: 0, qrPaidAmount: 0 })
         setFailure(null)
       } else {
         setFailure(error.message || 'Không chốt được ca. Ca vẫn đang mở.')
@@ -206,8 +205,8 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
               <li>{lock.pendingService} món chờ duyệt</li>
               <li>{lock.pendingCombo} combo chờ xác nhận</li>
               <li>
-                {lock.qrPaidUnconfirmed.count} đơn QR đã thanh toán chưa xác nhận
-                {lock.qrPaidUnconfirmed.amount !== null ? ` (${formatMoney(lock.qrPaidUnconfirmed.amount)})` : ''}
+                {lock.qrPaidUnconfirmed} đơn QR đã thanh toán chưa xác nhận
+                {lock.qrPaidAmount > 0 ? ` (${formatMoney(lock.qrPaidAmount)})` : ''}
               </li>
             </ul>
             <p className="shift-form__hint">
@@ -465,7 +464,7 @@ function CloseResultDialog({
             <span className="shift-inline-icon">
               <Warning size={18} weight="fill" aria-hidden="true" />
               Còn ca khác đang mở — {warnings.pendingService} món, {warnings.pendingCombo} combo và{' '}
-              {warnings.qrPaidUnconfirmed.count} đơn QR đã trả chưa xác nhận sẽ do ca còn lại xử lý.
+              {warnings.qrPaidUnconfirmed} đơn QR đã trả chưa xác nhận sẽ do ca còn lại xử lý.
             </span>
           </InlineAlert>
         ) : null}

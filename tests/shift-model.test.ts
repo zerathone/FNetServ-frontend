@@ -5,7 +5,6 @@ import {
   buildCloseTicketHtml,
   cashDifference,
   countPendingMainLines,
-  fillCloseFromSnapshot,
   formatShiftDateTime,
   formatShiftTime,
   formatSigned,
@@ -14,6 +13,7 @@ import {
   normalizeCurrent,
   normalizePendingCounts,
   normalizeSummary,
+  normalizeSummaryResponse,
   sanitizeNoteInput,
   sumSources,
   validateCashInput,
@@ -97,41 +97,54 @@ test('normalizeCurrent: lastClosed chỉ giữ khi chưa có ca và có tiền t
   assert.equal(open.lastClosed, null)
 })
 
-test('normalizeCloseResult: nhận cả dạng lồng và dạng phẳng; thiếu countedCash không vỡ', () => {
-  const nested = normalizeCloseResult({
+test('normalizeCloseResult: hình dạng S1 thật {alreadyClosed, shift đủ trường, summary, warnings}; thiếu countedCash không vỡ', () => {
+  const closed = normalizeCloseResult({
     alreadyClosed: false,
-    shift: { shiftId: 3, staffName: 'A', openTime: '2026-11-21 08:00:00', closeTime: '2026-11-21 16:00:00', openingCash: 100, expectedCash: 400, countedCash: null, cashDiff: null },
-    summary: { sources: [source()], expectedCash: 400 },
+    shift: {
+      shiftId: 3, staffId: 7, staffName: 'A', status: 2, openTime: '2026-11-21 08:00:00', openingCash: 100,
+      closeTime: '2026-11-21 16:00:00', expectedCash: 400, countedCash: null, cashDiff: null, note: '', closedBy: 7,
+    },
+    summary: { v: 1, from: 'a', to: 'b', openingCash: 100, sources: [source()], refund: { count: 0, cash: 0, online: 0, qr: 0 }, totals: { count: 3, cash: 100, online: 20, qr: 30, deduct: 500, total: 150 }, cashIn: 100, expectedCash: 400, types: [], ignoredTypes: [] },
+    warnings: { pendingService: 2, pendingCombo: 0, qrPaidUnconfirmed: 1, qrPaidAmount: 55000 },
   })
-  assert.equal(nested.shift.countedCash, null)
-  assert.equal(nested.shift.expectedCash, 400)
-  assert.equal(nested.summary?.sources.length, 1)
+  assert.equal(closed.shift.countedCash, null)
+  assert.equal(closed.shift.expectedCash, 400)
+  assert.equal(closed.shift.openingCash, 100)
+  assert.equal(closed.summary?.sources.length, 1)
+  assert.equal(closed.warnings?.qrPaidAmount, 55000)
 
-  const flat = normalizeCloseResult({
-    alreadyClosed: true,
-    shiftId: 3,
-    closeTime: 'x',
-    expectedCash: 400,
-    countedCash: 410,
-    cashDiff: 10,
-    sources: [source()],
-  })
-  assert.equal(flat.alreadyClosed, true)
-  assert.equal(flat.shift.cashDiff, 10)
-  assert.equal(flat.summary?.sources.length, 1)
+  // ca đã chốt mà bản chụp tóm tắt hỏng: summary = null ⇒ không ném
+  const already = normalizeCloseResult({ alreadyClosed: true, shift: { shiftId: 3, closeTime: 'x', expectedCash: 400, countedCash: 410, cashDiff: 10 }, summary: null })
+  assert.equal(already.alreadyClosed, true)
+  assert.equal(already.shift.cashDiff, 10)
+  assert.equal(already.summary, null)
+  assert.equal(already.warnings, null)
 })
 
-test('normalizePendingCounts: qrPaidUnconfirmed dạng số hoặc {count, amount}; bóc data lồng', () => {
-  assert.deepEqual(normalizePendingCounts({ code: 'X', pendingService: 3, pendingCombo: 1, qrPaidUnconfirmed: 2 }), {
-    pendingService: 3,
-    pendingCombo: 1,
-    qrPaidUnconfirmed: { count: 2, amount: null },
+test('normalizeSummaryResponse: /shift/summary LỒNG {live, shift, summary}; summary null ⇒ null; extras B2 cùng cấp', () => {
+  const nested = normalizeSummaryResponse({
+    live: true,
+    shift: { shiftId: 1 },
+    summary: { sources: [source()], refund: { count: 1, cash: -20, online: 0, qr: -5 }, totals: { count: 3, cash: 100, online: 20, qr: 30, deduct: 500, total: 150 }, expectedCash: 600 },
+    refundsQrCanceled: { count: 2, total: 180000 },
   })
-  const obj = normalizePendingCounts({ data: { pendingService: 1, pendingCombo: 0, qrPaidUnconfirmed: { count: 1, amount: 55000 } } })
-  assert.equal(obj?.qrPaidUnconfirmed.amount, 55000)
+  assert.equal(nested?.totals.total, 150)
+  assert.equal(nested?.expectedCash, 600)
+  assert.equal(nested?.refund.qr, -5)
+  assert.deepEqual(nested?.refundsQrCanceled, { count: 2, total: 180000 })
+  assert.equal(nested?.onlineBook, null)
+  assert.equal(normalizeSummaryResponse({ live: false, shift: {}, summary: null }), null)
+  // dạng phẳng cũ KHÔNG còn được nhận
+  assert.equal(normalizeSummaryResponse({ sources: [source()], expectedCash: 1 }), null)
+})
+
+test('normalizePendingCounts: S1 thật — qrPaidUnconfirmed (số đơn) + qrPaidAmount (tiền), phẳng cùng cấp code', () => {
+  const obj = normalizePendingCounts({ code: 'SHIFT_PENDING_ORDERS', pendingService: 3, pendingCombo: 1, qrPaidUnconfirmed: 2, qrPaidAmount: 55000 })
+  assert.deepEqual(obj, { pendingService: 3, pendingCombo: 1, qrPaidUnconfirmed: 2, qrPaidAmount: 55000 })
   assert.equal(normalizePendingCounts({ message: 'x' }), null)
   assert.equal(hasPending(obj), true)
-  assert.equal(hasPending({ pendingService: 0, pendingCombo: 0, qrPaidUnconfirmed: { count: 0, amount: null } }), false)
+  assert.equal(hasPending({ pendingService: 0, pendingCombo: 0, qrPaidUnconfirmed: 0, qrPaidAmount: 0 }), false)
+  assert.equal(hasPending({ pendingService: 0, pendingCombo: 0, qrPaidUnconfirmed: 1, qrPaidAmount: 5 }), true)
 })
 
 test('countPendingMainLines: chỉ đếm món chính, bỏ topping; đếm riêng QR đã trả', () => {
@@ -158,19 +171,6 @@ test('cashDifference / formatSigned', () => {
   assert.equal(formatSigned(10_000), '+10.000 đ')
   assert.equal(formatSigned(-10_000), '−10.000 đ')
   assert.equal(formatSigned(0), '0 đ')
-})
-
-test('fillCloseFromSnapshot: response thiếu trường ca thì lấy từ ca đang giữ; tiền đầu ca luôn theo snapshot', () => {
-  const snapshot = { shiftId: 7, staffId: 3, staffName: 'Thu Ngân', status: 1, openTime: '2026-11-21 08:00:00', openingCash: 500_000 }
-  const bare = normalizeCloseResult({ alreadyClosed: false, expectedCash: 1_000_000, countedCash: 990_000, cashDiff: -10_000 })
-  const filled = fillCloseFromSnapshot(bare, snapshot)
-  assert.equal(filled.shift.shiftId, 7)
-  assert.equal(filled.shift.staffName, 'Thu Ngân')
-  assert.equal(filled.shift.openingCash, 500_000)
-  assert.equal(filled.shift.cashDiff, -10_000)
-  // ca khác (id khác) thì không đụng
-  const other = normalizeCloseResult({ shift: { shiftId: 99, openingCash: 1 } })
-  assert.equal(fillCloseFromSnapshot(other, snapshot).shift.shiftId, 99)
 })
 
 test('normalizeCurrent: shift không có shiftId hợp lệ coi như chưa có ca', () => {
@@ -208,7 +208,7 @@ const result = (over: Record<string, unknown> = {}) =>
     },
     summary: {
       sources: [source({ name: 'Dịch vụ', count: 2, cash: 100, online: 0, qr: 0, deduct: 700, total: 100 })],
-      refund: { count: 1, cash: -20, online: 0 },
+      refund: { count: 1, cash: -20, online: 0, qr: 0 },
       totals: { count: 2, cash: 100, online: 0, qr: 0, deduct: 700, total: 100 },
       expectedCash: 1_000_000,
     },

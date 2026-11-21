@@ -6,7 +6,7 @@ import {
   normalizeCloseResult,
   normalizeCurrent,
   normalizeShiftInfo,
-  normalizeSummary,
+  normalizeSummaryResponse,
 } from '../features/shifts/shiftModel'
 import {
   normalizeReconcile,
@@ -57,7 +57,7 @@ export type ShiftSource = {
   total: number
 }
 
-export type ShiftRefund = { count: number; cash: number; online: number }
+export type ShiftRefund = { count: number; cash: number; online: number; qr: number }
 
 export type ShiftTotals = {
   count: number
@@ -85,8 +85,10 @@ export type ShiftSummary = {
 export type ShiftPendingCounts = {
   pendingService: number
   pendingCombo: number
-  /** Số đơn món QR đã trả tiền chưa xác nhận (+ tổng tiền nếu server trả). */
-  qrPaidUnconfirmed: { count: number; amount: number | null }
+  /** Số đơn món QR đã trả tiền chưa xác nhận. */
+  qrPaidUnconfirmed: number
+  /** Tổng tiền các đơn QR đó (`qrPaidAmount` — S1 design mục 14 D7). */
+  qrPaidAmount: number
 }
 
 export type ShiftCloseResult = {
@@ -204,15 +206,20 @@ export async function getShiftCurrent(): Promise<ShiftCurrent> {
 }
 
 export async function openShift(payload: { idem: string; openingCash?: number }) {
+  // S1 thật: `{resumed, shift}`. Replay RAM (idem trùng trong 10 phút) trả ẢNH CHỤP lúc mở — status có thể đã cũ (D6) ⇒ nơi gọi
+  // KHÔNG tin `shift` này làm trạng thái, phải đọc lại /shift/current (xem `useShift().applyOpened`).
   const raw = (await call('/shift/open', payload)) as { shift?: unknown; resumed?: unknown } | undefined
-  // Hợp đồng: trả ca (kèm `resumed`). Chấp nhận cả dạng {shift:{...}} lẫn phẳng.
-  const info = normalizeShiftInfo(raw && typeof raw === 'object' && 'shift' in raw && raw.shift ? raw.shift : raw)
-  return { shift: info, resumed: Boolean(raw && typeof raw === 'object' && (raw as { resumed?: unknown }).resumed) }
+  return { shift: normalizeShiftInfo(raw?.shift), resumed: raw?.resumed === true }
 }
 
-/** `shiftId` bỏ trống = ca đang mở của chính mình. Xem ca người khác cần quyền "Xem mọi ca" (server kiểm). */
+/**
+ * `shiftId` bỏ trống = ca đang mở của chính mình. Xem ca người khác cần quyền "Xem mọi ca" (server kiểm).
+ * Response thật là `{live, shift, summary}`; ca đã đóng mà không có bản chụp tóm tắt ⇒ ném lỗi (UI hiện "Thử lại").
+ */
 export async function getShiftSummary(shiftId?: number): Promise<ShiftSummary> {
-  return normalizeSummary(await call('/shift/summary', shiftId ? { shiftId } : {}))
+  const summary = normalizeSummaryResponse(await call('/shift/summary', shiftId ? { shiftId } : {}))
+  if (!summary) throw new Error('Ca này chưa lưu được tóm tắt doanh thu.')
+  return summary
 }
 
 /** Danh sách ca của một ngày (`date` = YYYY-MM-DD) + mọi ca còn mở từ trước + Thu ngoài ca. */

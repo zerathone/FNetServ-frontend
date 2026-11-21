@@ -37,16 +37,14 @@ export function useShift() {
   const data = query.data
   const enabled = data?.enabled === true
 
-  /** Sau mở ca thành công: đặt ngay vào cache (widget hiện tức thì) rồi đồng bộ lại với server. */
-  const applyOpened = useCallback(
-    (shift: ShiftInfo) => {
-      queryClient.setQueryData<ShiftCurrent>(shiftCurrentKey(staffId), (old) =>
-        old ? { ...old, shift, lastClosed: null } : old,
-      )
-      void queryClient.invalidateQueries({ queryKey: ['shift'] })
-    },
-    [queryClient, staffId],
-  )
+  /**
+   * Sau mở ca thành công: KHÔNG tin `shift` trong response /shift/open (replay RAM trả ảnh chụp lúc mở — S1 design mục 14 D6),
+   * luôn đọc lại /shift/current. Trả ca thật (null nếu server không thấy ca mở, vd ca vừa bị chốt ở nơi khác).
+   */
+  const applyOpened = useCallback(async (): Promise<ShiftInfo | null> => {
+    await queryClient.invalidateQueries({ queryKey: ['shift'] })
+    return queryClient.getQueryData<ShiftCurrent>(shiftCurrentKey(staffId))?.shift ?? null
+  }, [queryClient, staffId])
 
   /** Sau chốt ca thành công. */
   const applyClosed = useCallback(() => {

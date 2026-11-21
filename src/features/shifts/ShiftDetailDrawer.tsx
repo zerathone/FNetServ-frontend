@@ -243,6 +243,10 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
                       <dt>Đã hoàn bằng chuyển khoản</dt>
                       <dd>{formatMoney(Math.abs(data.refund.online))}</dd>
                     </div>
+                    <div>
+                      <dt>Đã hoàn bằng QR</dt>
+                      <dd>{formatMoney(Math.abs(data.refund.qr))}</dd>
+                    </div>
                   </dl>
                   <p className="shift-form__hint">Hoàn tiền (số âm) đã được trừ sẵn trong doanh thu các nguồn ở tab Doanh thu.</p>
                   {data.refundsQrCanceled ? (

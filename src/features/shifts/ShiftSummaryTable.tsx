@@ -21,7 +21,7 @@ type Props = {
 
 export function ShiftSummaryTable({ summary, compact = false, onCellClick }: Props) {
   const { sources, totals, refund } = summary
-  const hasRefund = refund.count > 0 || refund.cash !== 0 || refund.online !== 0
+  const hasRefund = refund.count > 0 || refund.cash !== 0 || refund.online !== 0 || refund.qr !== 0
   const cols = compact ? 3 : 7
 
   const cell = (
@@ -102,11 +102,11 @@ export function ShiftSummaryTable({ summary, compact = false, onCellClick }: Pro
                   <>
                     <td className="shift-table__num">{num(refund.cash)}</td>
                     <td className="shift-table__num">{num(refund.online)}</td>
-                    <td className="shift-table__num">—</td>
+                    <td className="shift-table__num">{num(refund.qr)}</td>
                     <td className="shift-table__num shift-table__deduct">—</td>
                   </>
                 )}
-                <td className="shift-table__num">{num(refund.cash + refund.online)}</td>
+                <td className="shift-table__num">{num(refund.cash + refund.online + refund.qr)}</td>
               </tr>
             ) : null}
           </tbody>

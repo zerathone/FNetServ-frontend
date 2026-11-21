@@ -43,12 +43,19 @@ export function OpenShiftDialog({
 
   const mutation = useMutation({
     mutationFn: () => openShift({ idem, openingCash: cash ?? 0 }),
-    onSuccess: ({ shift, resumed }) => {
+    onSuccess: async ({ resumed }) => {
+      // Trạng thái thật luôn lấy từ /shift/current (replay idem của server có thể trả ảnh chụp cũ — D6).
+      const actual = await applyOpened()
+      if (!actual) {
+        // Server không thấy ca mở (vd ca vừa chốt ở nơi khác sau khi replay): dùng mã mới để lần bấm sau mở ca thật.
+        setIdem(createIdempotencyKey('shift-open'))
+        setFailure('Chưa thấy ca đang mở trên máy chủ. Bấm Mở ca lại.')
+        return
+      }
       // `resumed` = ca đã có từ trước (vd mở ở tab khác): không báo lỗi, chỉ đóng dialog.
       useShiftUiStore.getState().clearRequest() // lần "Mở ca" thủ công từ widget đã xong
-      applyOpened(shift)
       pushToast(
-        resumed ? `Đang tiếp tục ca #${shift.shiftId} đã mở trước đó.` : `Đã mở ca #${shift.shiftId}.`,
+        resumed ? `Đang tiếp tục ca #${actual.shiftId} đã mở trước đó.` : `Đã mở ca #${actual.shiftId}.`,
         resumed ? 'info' : 'success',
       )
     },

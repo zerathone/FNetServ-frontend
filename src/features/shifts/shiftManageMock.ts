@@ -35,7 +35,7 @@ const METHOD_LABEL: Record<string, string> = { cash: 'Tiền mặt', online: 'Ch
 
 const SOURCES = [
   { key: 'member', name: 'Nạp hội viên', type: 1, count: 24, cash: 1_850_000, online: 400_000, qr: 1_200_000, deduct: 0 },
-  { key: 'guest', name: 'Khách vãng lai', type: 2, count: 9, cash: 380_000, online: 0, qr: 120_000, deduct: 0 },
+  { key: 'anonymous', name: 'Khách vãng lai', type: 2, count: 9, cash: 380_000, online: 0, qr: 120_000, deduct: 0 },
   { key: 'combo', name: 'Combo', type: 3, count: 7, cash: 210_000, online: 150_000, qr: 300_000, deduct: 90_000 },
   { key: 'card', name: 'Thẻ nạp tiền', type: 4, count: 3, cash: 150_000, online: 0, qr: 50_000, deduct: 0 },
   // 140 lượt để danh sách giao dịch (ô Dịch vụ × Tiền mặt) vượt 50 dòng và thấy phân trang.
@@ -220,13 +220,32 @@ function buildStock(shift: ManagedShift, open: boolean) {
   })
 }
 
-function managedSummary(shift: ManagedShift) {
+/** `summary` đúng hình dạng S1 (summaryJson) — chỉ phần tóm tắt, không có extras của B2. */
+function managedSummaryBody(shift: ManagedShift, from: string, to: string) {
   const parts = summaryParts(shift)
   return {
-    sources: parts.sources,
-    refund: { count: shift.refundsQr ? 1 : 0, cash: shift.refundsQr ? -50_000 : 0, online: 0 },
+    v: 1,
+    from,
+    to,
+    openingCash: shift.openingCash,
+    sources: parts.sources.map((s) => ({ ...s, refund: { count: 0, cash: 0, online: 0 } })),
+    refund: { count: shift.refundsQr ? 1 : 0, cash: shift.refundsQr ? -50_000 : 0, online: 0, qr: 0 },
     totals: parts.totals,
+    cashIn: parts.totals.cash,
     expectedCash: parts.expectedCash,
+    types: [],
+    ignoredTypes: [],
+  }
+}
+
+/** `/shift/summary` của ca bất kỳ: `{live, shift, summary}` (S1) + `refundsQrCanceled`, `onlineBook` cùng cấp (B2, giả định). */
+function managedSummary(shift: ManagedShift, now: Date = new Date()) {
+  const date = ymd(now)
+  const item = listItem(shift, date, now)
+  return {
+    live: item.status === 1,
+    shift: { ...item, note: '', closedBy: item.status === 1 ? null : shift.staffId },
+    summary: managedSummaryBody(shift, item.openTime, item.closeTime ?? stamp(now)),
     refundsQrCanceled: shift.refundsQr,
     onlineBook: shift.onlineBook,
   }
@@ -301,5 +320,10 @@ export async function mockManageRequest(mode: string, path: string, body?: unkno
   const already = effectiveStatus(shift) !== 1
   if (!already) forced.set(shift.shiftId, stamp(now))
   const item = listItem(shift, ymd(now), now)
-  return { alreadyClosed: already, shift: { ...item, note }, summary: managedSummary(shift) }
+  // Hình dạng /shift/close của S1: `{alreadyClosed, shift (đủ trường), summary}`.
+  return {
+    alreadyClosed: already,
+    shift: { ...item, note, closedBy: 1 },
+    summary: managedSummaryBody(shift, item.openTime, item.closeTime ?? stamp(now)),
+  }
 }
