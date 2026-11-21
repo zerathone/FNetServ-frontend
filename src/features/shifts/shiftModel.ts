@@ -6,7 +6,9 @@ import type {
   ShiftInfo,
   ShiftIntakePending,
   ShiftLastClosed,
+  ShiftDrift,
   ShiftModeSetting,
+  ShiftOnlineBook,
   ShiftOrderPause,
   ShiftPendingCounts,
   ShiftSource,
@@ -127,47 +129,61 @@ function isTruthyFlag(value: unknown): boolean {
 }
 
 /**
- * `orderPause` của `/shift/current`. Hợp đồng B3: `{on, since, byStaffId, byName, reason, pendingOrders}`; design 8b (S4b) còn
- * cho `reason = "manual" | "no_shift"` ⇒ `reason` mơ hồ (chữ người gõ hay mã nguồn?). Đọc phòng thủ: `source`/`kind` nếu có,
- * hoặc `reason` đúng bằng "no_shift" / "manual" là mã nguồn; chuỗi khác là lý do người gõ.
- * Thiếu / sai kiểu ⇒ null (coi như đang nhận đơn — đúng hướng an toàn của server).
+ * `orderPause` của `/shift/current` — hợp đồng đã chốt 2026-11-21:
+ * `{on, manual:{on, since, byStaffId, byName, reason}, noShift, pendingOrders:{service, combo, qrPaid}}`.
+ * Thiếu / sai kiểu ⇒ null (máy chủ cũ hoặc chế độ ca tắt: coi như không có tính năng).
  */
 export function normalizeOrderPause(raw: unknown): ShiftOrderPause | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const r = asRecord(raw)
-  const on = isTruthyFlag(r.on)
-  const reasonText = toText(r.reason).trim()
-  const codeText = toText(r.source ?? r.kind).trim()
-  const source: ShiftOrderPause['source'] = codeText === 'no_shift' || reasonText === 'no_shift' ? 'no_shift' : 'manual'
-  const reason = reasonText === 'no_shift' || reasonText === 'manual' ? '' : reasonText
+  const manual = asRecord(r.manual)
+  const manualOn = isTruthyFlag(manual.on)
   return {
-    on,
-    source,
-    since: on ? toText(r.since) : '',
-    byStaffId: toNumber(r.byStaffId),
-    byName: toText(r.byName),
-    reason: source === 'manual' ? reason : '',
+    on: isTruthyFlag(r.on),
+    manual: {
+      on: manualOn,
+      since: manualOn ? toText(manual.since) : '',
+      byStaffId: toNumber(manual.byStaffId),
+      byName: toText(manual.byName),
+      reason: toText(manual.reason).trim(),
+    },
+    noShift: isTruthyFlag(r.noShift),
     pendingOrders: normalizeIntakePending(r.pendingOrders ?? NO_PENDING),
   }
 }
 
-/** Phản hồi `/orders/intake/pause|resume`: `{changed, state?/orderPause?}` (B3 ghi "trả {changed, state}"). */
+/** Phản hồi `/orders/intake/pause|resume`: `{changed, orderPause}` (cùng hình dạng `/shift/current.orderPause`). */
 export function normalizeOrderPauseResponse(raw: unknown): { changed: boolean; orderPause: ShiftOrderPause | null } {
   const r = asRecord(raw)
-  return { changed: isTruthyFlag(r.changed), orderPause: normalizeOrderPause(r.orderPause ?? r.state) }
+  return { changed: isTruthyFlag(r.changed), orderPause: normalizeOrderPause(r.orderPause) }
 }
 
-/** Chế độ ca hợp lệ 0 | 1 | 2; ngoài khoảng ⇒ 0 (tắt — hướng an toàn). */
+/** Chế độ ca hợp lệ 0 | 1 | 2; ngoài khoảng ⇒ 0 (tắt — hướng an toàn). `changed` chỉ có ở phản hồi PUT. */
 export function normalizeShiftModeSetting(raw: unknown): ShiftModeSetting {
   const r = asRecord(raw)
   const clamp = (value: number) => (Number.isInteger(value) && value >= 0 && value <= 2 ? value : 0)
   const mode = clamp(toNumber(r.mode))
-  return { mode, effective: clamp(toNumber(r.effective, mode)) }
+  return {
+    mode,
+    effective: clamp(toNumber(r.effective, mode)),
+    ...(r.enabled !== undefined ? { enabled: isTruthyFlag(r.enabled) } : {}),
+    ...(r.changed !== undefined ? { changed: isTruthyFlag(r.changed) } : {}),
+  }
 }
 
-/** Đang ngừng nhận đơn (cả hai nguồn). */
+/** Trạng thái CHẶN hiệu lực (`on` do máy chủ quyết, đã tính cả chế độ ca) — nút Tạo đơn khoá theo cờ này. */
 export function isIntakePaused(orderPause: ShiftOrderPause | null | undefined): boolean {
   return orderPause?.on === true
+}
+
+/** Cờ do người bấm Ngừng (kiểm kho) còn bật — chỉ cờ này mới có nút "Tiếp tục nhận đơn" và câu hỏi ở Dialog Mở ca. */
+export function isManualPaused(orderPause: ShiftOrderPause | null | undefined): boolean {
+  return orderPause?.manual.on === true
+}
+
+/** Không còn ca nào mở nhưng KHÔNG chặn (chế độ 1 — ghi sổ): chỉ cảnh báo, không khoá nút. */
+export function isNoShiftWarningOnly(orderPause: ShiftOrderPause | null | undefined): boolean {
+  return Boolean(orderPause && orderPause.noShift && !orderPause.on)
 }
 
 /** "YYYY-MM-DD HH:MM:SS" -> mili-giây (coi như UTC — chỉ để TRỪ hai mốc cùng múi giờ máy chủ). Sai định dạng ⇒ null. */
@@ -207,19 +223,62 @@ export function formatClock(value: string): string {
   return match ? `${match[4]}:${match[5]}` : value
 }
 
-/** Dòng chính của banner: "Đang ngừng nhận đơn từ 10:02 · A" (+ lý do) hoặc câu cho nguồn tự động "không có ca". */
+/**
+ * Dòng chính của banner. Cờ thủ công thắng (người ca sau cần thấy ai ngừng): "Đang ngừng nhận đơn từ 10:02 · A · Lý do: …".
+ * Không có cờ thủ công mà vẫn chặn (`noShift` + chế độ 2): "Chưa có ca nào mở — đang ngừng nhận đơn". Chế độ 1: chỉ nhắc.
+ */
 export function pauseHeadline(pause: ShiftOrderPause): string {
-  if (pause.source === 'no_shift') return 'Chưa có ca nào mở — đang ngừng nhận đơn'
-  const parts = [`Đang ngừng nhận đơn${pause.since ? ` từ ${formatClock(pause.since)}` : ''}`]
-  if (pause.byName) parts.push(pause.byName)
-  if (pause.reason) parts.push(`Lý do: ${pause.reason}`)
-  return parts.join(' · ')
+  const { manual } = pause
+  if (manual.on) {
+    const parts = [`Đang ngừng nhận đơn${manual.since ? ` từ ${formatClock(manual.since)}` : ''}`]
+    if (manual.byName) parts.push(manual.byName)
+    if (manual.reason) parts.push(`Lý do: ${manual.reason}`)
+    return parts.join(' · ')
+  }
+  return pause.on ? 'Chưa có ca nào mở — đang ngừng nhận đơn' : 'Chưa có ca nào đang mở'
 }
 
-/** Câu hỏi ở Dialog Mở ca (Q8): "Đang ngừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?" */
+export type PauseChipText = {
+  /** Chữ gọn cho màn hẹp — luôn giữ ý chính, không cắt cụt. */
+  short: string
+  /** Chữ đầy đủ cho màn rộng (kèm giờ ngừng + tên người ngừng). */
+  long: string
+  /** Giải thích đầy đủ (title): lý do, thời gian đã ngừng, việc vẫn dùng được. */
+  tooltip: string
+}
+
+/**
+ * Chữ của khối cảnh báo ở thanh trên cùng (topbar). Ba trường hợp khớp `pauseHeadline`: cờ thủ công, "không có ca" bị chặn
+ * (chế độ Bắt buộc), "không có ca" chỉ nhắc (chế độ Ghi sổ). `minutes` = số phút đã ngừng (null nếu không tính được).
+ */
+export function pauseChipText(pause: ShiftOrderPause, minutes: number | null): PauseChipText {
+  const { manual } = pause
+  if (manual.on) {
+    const long = `Đang ngừng nhận đơn${manual.since ? ` từ ${formatClock(manual.since)}` : ''}${manual.byName ? ` · ${manual.byName}` : ''}`
+    const lines = [pauseHeadline(pause)]
+    if (minutes !== null) lines.push(`Đã ngừng ${formatElapsed(minutes)}.`)
+    lines.push('Duyệt, hủy và thu đơn đã có vẫn dùng được.')
+    if (isPauseOverdue(minutes)) lines.push('Kiểm kho xong thì bấm Tiếp tục nhận đơn để khách gọi món lại.')
+    return { short: 'Đang ngừng nhận đơn', long, tooltip: lines.join(' ') }
+  }
+  if (pause.on) {
+    return {
+      short: 'Đang ngừng nhận đơn',
+      long: 'Chưa có ca nào mở — đang ngừng nhận đơn',
+      tooltip: 'Chưa có ca nào mở nên quán đang ngừng nhận đơn. Ca đầu tiên được mở thì quán nhận đơn trở lại.',
+    }
+  }
+  return {
+    short: 'Chưa có ca nào mở',
+    long: 'Chưa có ca nào đang mở',
+    tooltip: 'Quán vẫn nhận đơn, nhưng khoản thu lúc này chưa thuộc ca nào. Hãy mở ca để ghi doanh thu đúng ca.',
+  }
+}
+
+/** Câu hỏi ở Dialog Mở ca (Q8): "Đang ngừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?" — dựa vào `manual`. */
 export function pauseResumeQuestion(pause: ShiftOrderPause): string {
-  const from = pause.since ? ` từ ${formatClock(pause.since)}` : ''
-  const by = pause.byName ? ` (bởi ${pause.byName})` : ''
+  const from = pause.manual.since ? ` từ ${formatClock(pause.manual.since)}` : ''
+  const by = pause.manual.byName ? ` (bởi ${pause.manual.byName})` : ''
   return `Đang ngừng nhận đơn${from}${by}. Tiếp tục nhận đơn?`
 }
 
@@ -235,8 +294,6 @@ export function describeIntakePending(pending: ShiftIntakePending): string {
 /** Lý do ngừng nhận đơn: ≤ 40 ký tự, không `'` `\` (server `isSqlSafeText`); ký tự điều khiển đã bị `sanitizeNoteInput` đổi thành khoảng trắng. */
 export function validatePauseReason(value: string): string | undefined {
   if (value.length > MAX_PAUSE_REASON) return `Lý do tối đa ${MAX_PAUSE_REASON} ký tự.`
-  // Hai chuỗi này là MÃ NGUỒN trong `orderPause.reason` (design 8b) — để người dùng gõ sẽ bị đọc nhầm thành nguồn tự động.
-  if (/^\s*(no_shift|manual)\s*$/i.test(value)) return 'Lý do này trùng mã hệ thống, hãy ghi rõ hơn.'
   if (/['\\]/.test(value)) return "Lý do không dùng dấu nháy đơn (') hoặc gạch chéo ngược (\\)."
   return undefined
 }
@@ -301,14 +358,56 @@ export function normalizeSummary(raw: unknown): ShiftSummary {
     totals,
     expectedCash: toNumber(r.expectedCash),
     refundsQrCanceled: normalizeCountTotal(r.refundsQrCanceled, 'total'),
-    onlineBook: normalizeCountTotal(r.onlineBook, 'walletTotal'),
+    onlineBook: normalizeOnlineBook(r.onlineBook),
+    drift: normalizeDrift(r.drift),
   }
 }
 
 /**
- * `/shift/summary` thật (S1 + design mục 14) trả LỒNG `{live, shift, summary}`; `summary` = null khi ca đã đóng mà bản chụp
- * tóm tắt hỏng/thiếu ⇒ trả null để nơi gọi báo lỗi thay vì hiện "chưa có khoản thu" sai. B2 (S3) thêm `refundsQrCanceled`,
- * `onlineBook` vào `data` (cùng cấp `summary` — giả định, handoff S3be chỉ nói "thêm vào data"); đọc thêm cả trong `summary`.
+ * `onlineBook = {count, walletTotal, creditCount, creditTotal, netTotal}` (design 14b D20). Thiếu trường hoàn ví (máy chủ cũ)
+ * ⇒ 0; thiếu `netTotal` ⇒ `walletTotal − creditTotal`. Không phải đối tượng ⇒ null (máy chủ không có số liệu).
+ */
+export function normalizeOnlineBook(raw: unknown): ShiftOnlineBook | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = asRecord(raw)
+  const walletTotal = toNumber(r.walletTotal)
+  const creditTotal = toNumber(r.creditTotal)
+  return {
+    count: toNumber(r.count),
+    walletTotal,
+    creditCount: toNumber(r.creditCount),
+    creditTotal,
+    netTotal: toNumber(r.netTotal, walletTotal - creditTotal),
+  }
+}
+
+/** `drift = {total, cash}` của ca đã đóng. Không phải đối tượng ⇒ null. */
+export function normalizeDrift(raw: unknown): ShiftDrift | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = asRecord(raw)
+  return { total: toNumber(r.total), cash: toNumber(r.cash) }
+}
+
+/** Có lệch thật (khác 0 ở tổng hoặc tiền mặt) ⇒ phải cảnh báo "Số liệu đã thay đổi sau khi chốt ca". */
+export function hasDrift(drift: ShiftDrift | null | undefined): drift is ShiftDrift {
+  return Boolean(drift && (drift.total !== 0 || drift.cash !== 0))
+}
+
+/**
+ * Câu mô tả drift. `drift = số chụp lúc chốt − số tính lại hiện tại`: dương ⇒ số hiện tại THẤP hơn số lúc chốt
+ * (phiếu bị hủy/sửa giảm sau chốt), âm ⇒ cao hơn.
+ */
+export function describeDrift(drift: ShiftDrift): string[] {
+  const line = (label: string, value: number) =>
+    value === 0 ? '' : `${label} tính lại hiện ${value > 0 ? 'thấp' : 'cao'} hơn số lúc chốt ${formatMoney(Math.abs(value))}.`
+  return [line('Doanh thu', drift.total), line('Tiền mặt', drift.cash)].filter(Boolean)
+}
+
+/**
+ * `/shift/summary` thật trả LỒNG `{live, shift, summary, refundsQrCanceled, onlineBook, drift?}` — các trường thêm nằm CÙNG CẤP
+ * với `summary` (xác nhận ở "Kết quả thực hiện" của S3be; riêng `drift` design 14b D17 chỉ ghi "ở /shift/summary" nên vẫn đọc
+ * dự phòng cả trong `summary`). `summary` = null khi ca đã đóng mà bản chụp hỏng/thiếu ⇒ trả null để nơi gọi báo lỗi thay vì
+ * hiện "chưa có khoản thu" sai.
  */
 export function normalizeSummaryResponse(raw: unknown): ShiftSummary | null {
   const r = asRecord(raw)
@@ -316,8 +415,9 @@ export function normalizeSummaryResponse(raw: unknown): ShiftSummary | null {
   const inner = asRecord(r.summary)
   return normalizeSummary({
     ...inner,
-    refundsQrCanceled: r.refundsQrCanceled !== undefined ? r.refundsQrCanceled : inner.refundsQrCanceled,
-    onlineBook: r.onlineBook !== undefined ? r.onlineBook : inner.onlineBook,
+    refundsQrCanceled: r.refundsQrCanceled,
+    onlineBook: r.onlineBook,
+    drift: r.drift !== undefined ? r.drift : inner.drift,
   })
 }
 

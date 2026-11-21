@@ -11,7 +11,9 @@
 //   error    /shift/list trả lỗi máy chủ ⇒ "Không tải được danh sách ca" + Thử lại
 //
 // Đóng cưỡng bức trong mock: ca đang mở (201, 205) chuyển sang trạng thái 3 trong bộ nhớ trang (F5 là về như ban đầu).
-// Hình dạng dữ liệu = hợp đồng handoff/HANDOFF_work-shift-S3be.md mục 3; chỗ hợp đồng mơ hồ là GIẢ ĐỊNH (ghi ở handoff F2).
+// Hình dạng dữ liệu = backend thật ("Kết quả thực hiện" của handoff/HANDOFF_work-shift-S3be.md) + design 14b D16/D17/D20:
+// /shift/list có `revenueOnDate`, `crossDay`, `drift`; ca qua đêm hiện ở mọi ngày chạm tới (ca 207 = ngày chốt, 208 = ngày mở,
+// chỉ ở ngày quá khứ); ca 202 có `drift` ⇒ cảnh báo "Số liệu đã thay đổi"; ca 206 thiếu ảnh chụp đầu ca của một nguyên liệu.
 import { ApiError, RbacDeniedError } from '../../api/client'
 
 type Json = Record<string, unknown>
@@ -58,19 +60,35 @@ type ManagedShift = {
   /** Tiền thực đếm − dự kiến; null = không đếm. */
   countDelta: number | null
   hung?: boolean
+  /** Máy chủ hiện luôn trả null (design 14b D14); mock giữ một ca có số để xem được cách hiện nếu sau này có dữ liệu. */
   refundsQr: { count: number; total: number } | null
-  onlineBook: { count: number; walletTotal: number } | null
+  onlineBook: { count: number; walletTotal: number; creditCount: number; creditTotal: number } | null
+  /** Ngày chốt: mặc định 'D' (cùng ngày đang xem); 'D+1' = chốt sáng hôm sau (ca qua đêm, ngày mở). */
+  closeDay?: 'D' | 'D+1'
+  /** Tỉ lệ doanh thu thuộc ngày đang xem (ca qua đêm); mặc định 1. */
+  onDateRatio?: number
+  /** `drift` (số chụp − số tính lại) của ca đã đóng. */
+  drift?: { total: number; cash: number }
+  /** Ghi chú lúc chốt / lý do đóng cưỡng bức. */
+  note?: string
   /** Có trong danh sách ngày quá khứ không (ca mở / treo chỉ có ở "hôm nay"). */
   pastToo: boolean
+  /** Chỉ hiện ở ngày quá khứ (ca chốt sang ngày sau — hôm nay chưa tới ngày chốt). */
+  onlyPast?: boolean
 }
 
 const SHIFTS: ManagedShift[] = [
-  { shiftId: 201, staffId: 7, staffName: 'Nguyễn Thu Ngân', status: 1, openDay: 'D', openAt: '__NOW-3.5h', closeAt: null, openingCash: 500_000, scale: 1, countDelta: null, refundsQr: { count: 0, total: 0 }, onlineBook: { count: 0, walletTotal: 0 }, pastToo: false },
-  { shiftId: 202, staffId: 8, staffName: 'Phạm Minh Tuấn', status: 2, openDay: 'D', openAt: '06:00', closeAt: '14:00', openingCash: 1_200_000, scale: 1.2, countDelta: -10_000, refundsQr: { count: 2, total: 180_000 }, onlineBook: { count: 3, walletTotal: 240_000 }, pastToo: true },
-  { shiftId: 203, staffId: 9, staffName: 'Lê Hoài An', status: 2, openDay: 'D', openAt: '14:00', closeAt: '22:00', openingCash: 800_000, scale: 0.8, countDelta: 0, refundsQr: { count: 0, total: 0 }, onlineBook: { count: 1, walletTotal: 60_000 }, pastToo: true },
-  { shiftId: 204, staffId: 10, staffName: 'Võ Quốc Bảo', status: 3, openDay: 'D', openAt: '07:00', closeAt: '09:00', openingCash: 300_000, scale: 0.3, countDelta: null, refundsQr: null, onlineBook: { count: 0, walletTotal: 0 }, pastToo: true },
-  { shiftId: 205, staffId: 11, staffName: 'Đặng Thị Hạnh', status: 1, openDay: 'D-1', openAt: '20:00', closeAt: null, openingCash: 400_000, scale: 0.5, countDelta: null, hung: true, refundsQr: { count: 0, total: 0 }, onlineBook: { count: 0, walletTotal: 0 }, pastToo: false },
-  { shiftId: 206, staffId: 12, staffName: 'Trần Đức Long', status: 2, openDay: 'D', openAt: '12:00', closeAt: '18:00', openingCash: 600_000, scale: 0.6, countDelta: 5_000, refundsQr: { count: 0, total: 0 }, onlineBook: null, pastToo: true },
+  { shiftId: 201, staffId: 7, staffName: 'Nguyễn Thu Ngân', status: 1, openDay: 'D', openAt: '__NOW-3.5h', closeAt: null, openingCash: 500_000, scale: 1, countDelta: null, refundsQr: null, onlineBook: { count: 0, walletTotal: 0, creditCount: 0, creditTotal: 0 }, pastToo: false },
+  // Có `drift`: số liệu đổi sau khi chốt (phiếu bị hủy) ⇒ nhãn "Số liệu đã thay đổi" + cảnh báo.
+  { shiftId: 202, staffId: 8, staffName: 'Phạm Minh Tuấn', status: 2, openDay: 'D', openAt: '06:00', closeAt: '14:00', openingCash: 1_200_000, scale: 1.2, countDelta: -10_000, refundsQr: null, onlineBook: { count: 3, walletTotal: 240_000, creditCount: 1, creditTotal: 80_000 }, drift: { total: 50_000, cash: 50_000 }, pastToo: true },
+  { shiftId: 203, staffId: 9, staffName: 'Lê Hoài An', status: 2, openDay: 'D', openAt: '14:00', closeAt: '22:00', openingCash: 800_000, scale: 0.8, countDelta: 0, refundsQr: null, onlineBook: { count: 1, walletTotal: 60_000, creditCount: 0, creditTotal: 0 }, pastToo: true },
+  { shiftId: 204, staffId: 10, staffName: 'Võ Quốc Bảo', status: 3, openDay: 'D', openAt: '07:00', closeAt: '09:00', openingCash: 300_000, scale: 0.3, countDelta: null, refundsQr: null, onlineBook: { count: 0, walletTotal: 0, creditCount: 0, creditTotal: 0 }, note: 'Nhân viên về mà quên chốt ca', pastToo: true },
+  { shiftId: 205, staffId: 11, staffName: 'Đặng Thị Hạnh', status: 1, openDay: 'D-1', openAt: '20:00', closeAt: null, openingCash: 400_000, scale: 0.5, countDelta: null, hung: true, refundsQr: null, onlineBook: { count: 0, walletTotal: 0, creditCount: 0, creditTotal: 0 }, onDateRatio: 0.7, pastToo: false },
+  { shiftId: 206, staffId: 12, staffName: 'Trần Đức Long', status: 2, openDay: 'D', openAt: '12:00', closeAt: '18:00', openingCash: 600_000, scale: 0.6, countDelta: 5_000, refundsQr: null, onlineBook: null, pastToo: true },
+  // Ca qua đêm: ngày CHỐT (mở từ hôm trước 22:00, chốt 06:00) — đủ tiền đầu ca / đếm / chênh; chỉ 40% doanh thu thuộc ngày này.
+  { shiftId: 207, staffId: 13, staffName: 'Bùi Ngọc Mai', status: 2, openDay: 'D-1', openAt: '22:00', closeAt: '06:00', openingCash: 700_000, scale: 0.9, countDelta: -20_000, refundsQr: null, onlineBook: { count: 0, walletTotal: 0, creditCount: 0, creditTotal: 0 }, onDateRatio: 0.4, pastToo: true },
+  // Ca qua đêm: ngày MỞ (mở 22:00, chốt 06:00 sáng hôm sau) — chỉ ở ngày quá khứ; dòng ghi "Ca qua đêm, chốt ngày …", ô tiền để "—".
+  { shiftId: 208, staffId: 14, staffName: 'Hồ Anh Khoa', status: 2, openDay: 'D', openAt: '22:00', closeAt: '06:00', closeDay: 'D+1', openingCash: 650_000, scale: 0.7, countDelta: 0, refundsQr: null, onlineBook: { count: 0, walletTotal: 0, creditCount: 0, creditTotal: 0 }, onDateRatio: 0.6, pastToo: true, onlyPast: true },
 ]
 
 /** Ca đã đóng cưỡng bức trong phiên mock (mã ca → giờ đóng). */
@@ -95,7 +113,8 @@ function effectiveStatus(shift: ManagedShift) {
 function timesFor(shift: ManagedShift, date: string, now: Date) {
   const openDate = shift.openDay === 'D' ? date : addDays(date, -1)
   const openTime = shift.openAt === '__NOW-3.5h' ? stamp(new Date(now.getTime() - 3.5 * 3600_000)) : `${openDate} ${shift.openAt}:00`
-  const closeTime = forced.get(shift.shiftId) ?? (shift.closeAt ? `${date} ${shift.closeAt}:00` : null)
+  const closeDate = shift.closeDay === 'D+1' ? addDays(date, 1) : date
+  const closeTime = forced.get(shift.shiftId) ?? (shift.closeAt ? `${closeDate} ${shift.closeAt}:00` : null)
   return { openTime, closeTime }
 }
 
@@ -125,22 +144,28 @@ function listItem(shift: ManagedShift, date: string, now: Date) {
     openTime,
     closeTime,
     openingCash: shift.openingCash,
+    // Hình dạng /shift/list sau S3-fix (design 14b D16/D17): `revenueOnDate` (phần thuộc ngày) + `revenue` (cả ca) + `crossDay` + `drift`.
     revenue: parts.totals.total,
+    revenueOnDate: Math.round((parts.totals.total * (shift.onDateRatio ?? 1)) / 1000) * 1000,
+    crossDay: { openDate: openTime.slice(0, 10), closeDate: closeTime ? closeTime.slice(0, 10) : null },
     expectedCash: parts.expectedCash,
     countedCash: counted,
     cashDiff: counted === null ? null : counted - parts.expectedCash,
+    note: shift.note ?? '',
+    drift: status === 1 ? null : (shift.drift ?? { total: 0, cash: 0 }),
     hung: status === 1 && Boolean(shift.hung),
   }
 }
 
 function shiftsFor(date: string, now: Date) {
   const isToday = date === ymd(now)
-  return SHIFTS.filter((s) => isToday || s.pastToo).map((s) => listItem(s, date, now))
+  return SHIFTS.filter((s) => (isToday ? !s.onlyPast : s.pastToo)).map((s) => listItem(s, date, now))
 }
 
 function reconcileFor(mode: string, date: string, now: Date) {
   const shifts = shiftsFor(date, now)
-  const shiftsTotal = shifts.reduce((acc, s) => acc + s.revenue, 0)
+  // Cộng PHẦN THUỘC NGÀY (revenueOnDate) ⇒ Σ dòng + ngoài ca = báo cáo ngày kể cả khi có ca qua đêm.
+  const shiftsTotal = shifts.reduce((acc, s) => acc + s.revenueOnDate, 0)
   const systemTotal = 1_850_000
   const otherTotal = 130_000
   const bucketTotal = shiftsTotal + systemTotal + otherTotal
@@ -157,6 +182,8 @@ function reconcileFor(mode: string, date: string, now: Date) {
     otherTotal,
     orphans: bad ? ['10234', '10241'] : [],
     duplicates: bad ? ['10188'] : [],
+    // Phiếu không gắn tài khoản người dùng (báo cáo bỏ qua) — chỉ ở chế độ diff để xem dòng ghi chú.
+    excludedNoUser: bad ? { count: 2, total: 60_000 } : { count: 0, total: 0 },
   }
 }
 
@@ -205,14 +232,16 @@ function buildStock(shift: ManagedShift, open: boolean) {
   return MATERIALS.map((m) => {
     const exported = Math.round(m.exported * shift.scale * 100) / 100
     const closeValue = Math.round((m.open + m.imported - exported + m.adjusted) * 100) / 100
+    // Ca 206: nguyên liệu 6 không có ảnh chụp đầu ca ⇒ `open` và `delta` null (máy chủ thật trả null).
+    const noOpen = shift.shiftId === 206 && m.materialId === 6
     return {
       materialId: m.materialId,
       name: m.name,
       unit: m.unit,
-      open: m.open,
-      // Hợp đồng: ca đã đóng ⇒ `close`; ca còn mở ⇒ `current`.
+      open: noOpen ? null : m.open,
+      // Hợp đồng: ca đã đóng ⇒ `close`; ca còn mở ⇒ `current` (chỉ trả MỘT trong hai).
       ...(open ? { current: closeValue } : { close: closeValue }),
-      delta: Math.round((closeValue - m.open) * 100) / 100,
+      delta: noOpen ? null : Math.round((closeValue - m.open) * 100) / 100,
       imported: m.imported,
       exported,
       adjusted: m.adjusted,
@@ -238,7 +267,7 @@ function managedSummaryBody(shift: ManagedShift, from: string, to: string) {
   }
 }
 
-/** `/shift/summary` của ca bất kỳ: `{live, shift, summary}` (S1) + `refundsQrCanceled`, `onlineBook` cùng cấp (B2, giả định). */
+/** `/shift/summary` của ca bất kỳ: `{live, shift, summary}` (S1) + `refundsQrCanceled`, `onlineBook`, `drift` cùng cấp `summary` (backend thật). */
 function managedSummary(shift: ManagedShift, now: Date = new Date()) {
   const date = ymd(now)
   const item = listItem(shift, date, now)
@@ -247,7 +276,11 @@ function managedSummary(shift: ManagedShift, now: Date = new Date()) {
     shift: { ...item, note: '', closedBy: item.status === 1 ? null : shift.staffId },
     summary: managedSummaryBody(shift, item.openTime, item.closeTime ?? stamp(now)),
     refundsQrCanceled: shift.refundsQr,
-    onlineBook: shift.onlineBook,
+    onlineBook: shift.onlineBook
+      ? { ...shift.onlineBook, netTotal: shift.onlineBook.walletTotal - shift.onlineBook.creditTotal }
+      : null,
+    // Chỉ ca đã đóng có `drift`.
+    ...(item.status === 1 ? {} : { drift: shift.drift ?? { total: 0, cash: 0 } }),
   }
 }
 
@@ -275,7 +308,12 @@ export async function mockManageRequest(mode: string, path: string, body?: unkno
   if (path === '/shift/list') {
     const date = typeof req.date === 'string' ? req.date : ymd(now)
     const r = reconcileFor(mode, date, now)
-    return { shifts: r.shifts, outside: r.outside, reconcile: { reportTotal: r.reportTotal, bucketTotal: r.bucketTotal, diff: r.diff } }
+    return {
+      date,
+      shifts: r.shifts,
+      outside: r.outside,
+      reconcile: { reportTotal: r.reportTotal, bucketTotal: r.bucketTotal, diff: r.diff, excludedNoUser: r.excludedNoUser },
+    }
   }
 
   if (path === '/shift/reconcile') {
@@ -288,6 +326,7 @@ export async function mockManageRequest(mode: string, path: string, body?: unkno
       systemTotal: r.systemTotal,
       otherTotal: r.otherTotal,
       diff: r.diff,
+      excludedNoUser: r.excludedNoUser,
       orphans: r.orphans,
       duplicates: r.duplicates,
     }
@@ -300,15 +339,23 @@ export async function mockManageRequest(mode: string, path: string, body?: unkno
     const method = typeof req.method === 'string' && req.method ? req.method : null
     const limit = Math.min(200, typeof req.limit === 'number' ? req.limit : 50)
     const offset = typeof req.offset === 'number' ? req.offset : 0
-    const all = buildPayments(shift, date).filter((i) => (!source || i.source === source) && (!method || i.method === method))
+    // Bỏ `method` = tiền mặt + chuyển khoản + QR (KHÔNG gồm cấn trừ) ⇒ Σ `amount` = tổng của ô; `method=deduct` xem cấn trừ.
+    const all = buildPayments(shift, date).filter(
+      (i) => (!source || i.source === source) && (method ? i.method === method : i.method !== 'deduct'),
+    )
     await delay(150)
-    return { total: all.length, items: all.slice(offset, offset + limit) }
+    return {
+      total: all.length,
+      sumAmount: all.reduce((sum, i) => sum + (i.amount as number), 0),
+      items: all.slice(offset, offset + limit),
+    }
   }
 
   if (path === '/shift/stock') {
     const shift = managed(req.shiftId)
-    if (mode === 'nostock') return { available: false, rows: [] }
-    return { available: true, rows: buildStock(shift, effectiveStatus(shift) === 1) }
+    if (mode === 'nostock') return { available: false, openSnapshot: false, closeSnapshot: false, rows: [] }
+    const isOpen = effectiveStatus(shift) === 1
+    return { available: true, openSnapshot: true, closeSnapshot: !isOpen, rows: buildStock(shift, isOpen) }
   }
 
   // /shift/force-close

@@ -11,7 +11,7 @@ import { pushToast } from '../../store/toast'
 import {
   formatMoney,
   formatShiftDateTime,
-  isIntakePaused,
+  isManualPaused,
   pauseResumeQuestion,
   validateCashInput,
 } from './shiftModel'
@@ -40,7 +40,8 @@ export function OpenShiftDialog({
 }: Props) {
   const { applyOpened, orderPause } = useShift()
   // Q8: ngừng nhận đơn sống qua chốt ca — người mở ca sau được HỎI, mặc định KHÔNG tự bật lại.
-  const askResume = isIntakePaused(orderPause) && orderPause?.source === 'manual'
+  // Hỏi theo cờ THỦ CÔNG (`manual.on`), không theo `on`: người ca trước ngừng rồi chốt ca cuối thì `noShift` cũng true.
+  const askResume = isManualPaused(orderPause)
   const [resumeIntake, setResumeIntake] = useState(false)
   // `idem` sinh MỘT lần khi dialog mở, dùng lại cho mọi lần bấm / thử lại (server chống mở trùng).
   const [idem, setIdem] = useState(() => createIdempotencyKey('shift-open'))
@@ -54,7 +55,7 @@ export function OpenShiftDialog({
     mutationFn: async () => {
       const opened = await openShift({ idem, openingCash: cash ?? 0 })
       // Tiếp tục nhận đơn SAU khi mở ca xong, ngay trong mutation (dialog còn sống để báo lỗi). Lỗi ở bước này không làm
-      // hỏng ca vừa mở: banner vẫn còn nút "Tiếp tục nhận đơn".
+      // hỏng ca vừa mở: thanh trên cùng vẫn còn nút "Tiếp tục nhận đơn".
       let resumeFailed = false
       if (askResume && resumeIntake) {
         try {
@@ -82,7 +83,7 @@ export function OpenShiftDialog({
         resumed ? 'info' : 'success',
       )
       if (resumedIntake) pushToast('Đã tiếp tục nhận đơn.', 'success')
-      if (resumeFailed) pushToast('Đã mở ca nhưng chưa tiếp tục nhận đơn được. Bấm Tiếp tục nhận đơn ở dải đỏ phía dưới.')
+      if (resumeFailed) pushToast('Đã mở ca nhưng chưa tiếp tục nhận đơn được. Bấm Tiếp tục nhận đơn ở thanh trên cùng.')
     },
     onError: (error: Error) => {
       if (error instanceof ApiError && error.code === 'INVALID_INPUT') {
@@ -196,7 +197,7 @@ export function OpenShiftDialog({
               Tiếp tục nhận đơn sau khi mở ca
             </label>
             <p className="shift-form__hint">
-              Không chọn thì quán vẫn ngừng nhận đơn; có thể bấm Tiếp tục nhận đơn sau ở dải đỏ phía dưới màn hình.
+              Không chọn thì quán vẫn ngừng nhận đơn; có thể bấm Tiếp tục nhận đơn sau ở thanh trên cùng của màn hình.
             </p>
           </div>
         ) : null}

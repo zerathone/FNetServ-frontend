@@ -16,11 +16,11 @@ import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
-import { OrderPauseBanner } from '../features/shifts/OrderPauseBanner'
+import { OrderPauseTopbar } from '../features/shifts/OrderPauseTopbar'
 import { ShiftGate } from '../features/shifts/ShiftGate'
 import { ShiftTopbarChip, ShiftWidget } from '../features/shifts/ShiftWidget'
 import { useShift } from '../features/shifts/useShift'
-import { SHIFT_RIGHTS, shiftRightCodes } from '../features/shifts/shiftManageModel'
+import { SHIFT_RIGHTS } from '../features/shifts/shiftManageModel'
 import type { ShiftInfo } from '../api/shift'
 import { NavItemBadges } from './NavItemBadges'
 import { NavSearchBox, NavSearchResults } from './NavSearch'
@@ -163,14 +163,14 @@ const workspaces: readonly Workspace[] = [
       },
       { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <CallBell size={24} weight="duotone" /> },
       { to: '/online-booking', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarPlus size={24} weight="duotone" /> },
-      // Ca làm việc (S3/F2): nhân viên có quyền "Xem mọi ca" (rightAny; chưa biết mã quyền ⇒ chỉ admin thấy) hoặc admin.
+      // Ca làm việc (S3/F2): admin hoặc nhân viên có quyền 9418 "Xem mọi ca làm việc" (rightAny).
       {
         to: '/shifts',
         label: 'Ca làm việc',
         shortLabel: 'Ca',
         icon: <ClipboardText size={24} weight="duotone" />,
         shiftOnly: true,
-        rightAny: shiftRightCodes(SHIFT_RIGHTS.VIEW_ALL),
+        rightAny: [SHIFT_RIGHTS.VIEW_ALL],
         description: 'doanh thu theo ca, đối soát, đóng ca',
       },
       { to: '/combo_sale', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
@@ -479,6 +479,9 @@ export function MainLayout({ children }: { children: ReactNode }) {
           <PromoBannerCluster />
           {/* task work-shift S2: lối vào ca cho giao diện Cổ điển (sidebar header bị ẩn); chỉ hiện bằng CSS ở classic. */}
           {workspaceId === 'pos' ? <ShiftTopbarChip /> : null}
+          {/* task work-shift S3b-FE: "Đang ngừng nhận đơn" mọi trang/vai trò, nằm trong chiều cao topbar (tự ẩn khi INT_SHIFT_MODE = 0
+              hoặc đang nhận đơn). Đặt cạnh chip ca để giao diện Cổ điển (không có widget sidebar) cũng thấy ngay. */}
+          <OrderPauseTopbar />
         </div>
 
         <div className="app-topbar__end">
@@ -691,8 +694,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
         onLogout={() => logoutMutation.mutate()}
         logoutPending={logoutMutation.isPending}
       />
-      {/* task work-shift S3b-FE: dải đỏ "Đang ngừng nhận đơn" mọi trang (tự ẩn khi INT_SHIFT_MODE = 0 hoặc đang nhận đơn). */}
-      <OrderPauseBanner />
     </div>
   )
 }

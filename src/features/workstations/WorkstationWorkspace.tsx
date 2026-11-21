@@ -2633,7 +2633,7 @@ export function WorkstationWorkspace() {
                     type="button"
                     variant="primary"
                     disabled={isPaused || intakePaused}
-                    title={intakePaused ? 'Đang ngừng nhận đơn — xem dải đỏ phía dưới màn hình' : undefined}
+                    title={intakePaused ? 'Đang ngừng nhận đơn — xem thanh trên cùng màn hình' : undefined}
                     onClick={() => setStaffOrderOpen(true)}
                   >
                     Tạo đơn

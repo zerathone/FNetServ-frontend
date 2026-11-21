@@ -19,7 +19,7 @@ type Props = {
 export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
   const summaryQuery = useShiftSummary(shift.shiftId, open)
   const summary = summaryQuery.data
-  const { enabled, orderPause, paused, canResume } = useOrderIntake()
+  const { enabled, orderPause, manualPaused: paused } = useOrderIntake()
   // Hộp xác nhận ngừng nhận đơn đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Drawer (cả hai nghe Esc trên document).
   const pauseDialogOpen = useRef(false)
 
@@ -59,7 +59,8 @@ export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
           </div>
         </dl>
 
-        {enabled && (!paused || canResume) ? (
+        {/* Máy chủ chưa gửi orderPause (bản cũ) ⇒ không có tính năng: không hiện lời nhắc mà không có nút. */}
+        {enabled && orderPause ? (
           <div className={`shift-intake${paused ? ' is-paused' : ''}`}>
             <p>
               {paused && orderPause

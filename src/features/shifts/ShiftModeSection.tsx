@@ -27,7 +27,11 @@ export function ShiftModeSection({ isAdmin }: { isAdmin: boolean }) {
       // Đọc lại mọi thứ về ca (kể cả /shift/current ⇒ widget / hộp thoại Mở ca bật hoặc tắt ngay trên máy này).
       await queryClient.invalidateQueries({ queryKey: ['shift'] })
       const label = SHIFT_MODE_OPTIONS.find((item) => item.mode === saved.mode)?.label ?? ''
-      pushToast(`Đã đổi chế độ ca sang "${label}".`, 'success')
+      // `changed = false`: máy chủ đã ở đúng chế độ này (đổi từ máy khác) ⇒ không ghi nhật ký, nói đúng sự thật.
+      pushToast(
+        saved.changed === false ? `Chế độ ca đã là "${label}" từ trước.` : `Đã đổi chế độ ca sang "${label}".`,
+        saved.changed === false ? 'info' : 'success',
+      )
     },
     onError: (error: Error) => {
       setPendingMode(null)

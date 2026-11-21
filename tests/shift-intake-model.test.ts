@@ -5,12 +5,15 @@ import {
   formatClock,
   formatElapsed,
   isIntakePaused,
+  isManualPaused,
+  isNoShiftWarningOnly,
   isPauseOverdue,
   normalizeCurrent,
   normalizeOrderPause,
   normalizeOrderPauseResponse,
   normalizeShiftModeSetting,
   parseServerStamp,
+  pauseChipText,
   pauseElapsedMinutes,
   pauseHeadline,
   pauseResumeQuestion,
@@ -23,53 +26,84 @@ import {
   shiftModeToValue,
 } from '../src/features/shifts/shiftModeModel.ts'
 
+// Hợp đồng chốt 2026-11-21 (`handoff/HANDOFF_work-shift-S3b-be.md` mục 3): tách nguồn khỏi lý do.
 const manualRaw = {
-  on: 1,
-  since: '2026-11-21 10:02:00',
-  byStaffId: 7,
-  byName: 'A',
-  reason: 'Kiểm kho giao ca',
+  on: true,
+  manual: { on: true, since: '2026-11-21 10:02:00', byStaffId: 7, byName: 'A', reason: 'Kiểm kho giao ca' },
+  noShift: false,
   pendingOrders: { service: 3, combo: 1, qrPaid: 1 },
 }
+const idleRaw = {
+  on: false,
+  manual: { on: false, since: null, byStaffId: null, byName: null, reason: null },
+  noShift: false,
+  pendingOrders: { service: 2, combo: 0, qrPaid: 0 },
+}
 
-test('normalizeOrderPause: hợp đồng B3 (on số 1, lý do người gõ) ⇒ nguồn manual', () => {
+test('normalizeOrderPause: cờ thủ công — manual.on, giờ, tên, lý do người gõ, số đơn chờ', () => {
   const pause = normalizeOrderPause(manualRaw)
   assert.ok(pause)
   assert.equal(pause.on, true)
-  assert.equal(pause.source, 'manual')
-  assert.equal(pause.byName, 'A')
-  assert.equal(pause.reason, 'Kiểm kho giao ca')
+  assert.equal(pause.manual.on, true)
+  assert.equal(pause.manual.since, '2026-11-21 10:02:00')
+  assert.equal(pause.manual.byStaffId, 7)
+  assert.equal(pause.manual.byName, 'A')
+  assert.equal(pause.manual.reason, 'Kiểm kho giao ca')
+  assert.equal(pause.noShift, false)
   assert.deepEqual(pause.pendingOrders, { service: 3, combo: 1, qrPaid: 1 })
+  assert.equal(isManualPaused(pause), true)
 })
 
-test('normalizeOrderPause: reason = "no_shift" (design 8b, S4b) là mã nguồn tự động, không phải lý do người gõ', () => {
-  const pause = normalizeOrderPause({ on: true, reason: 'no_shift', since: '2026-11-21 10:02:00' })
-  assert.ok(pause)
-  assert.equal(pause.source, 'no_shift')
-  assert.equal(pause.reason, '')
-  assert.equal(pauseHeadline(pause), 'Chưa có ca nào mở — đang ngừng nhận đơn')
-  // `source` tường minh cũng được nhận; reason "manual" là mã, không hiện thành lý do.
-  const explicit = normalizeOrderPause({ on: true, source: 'no_shift' })
-  assert.equal(explicit?.source, 'no_shift')
-  assert.equal(normalizeOrderPause({ on: true, reason: 'manual', since: '2026-11-21 10:02:00' })?.reason, '')
-})
-
-test('normalizeOrderPause: không ngừng / thiếu / sai kiểu', () => {
-  const off = normalizeOrderPause({ on: 0, pendingOrders: { service: 2 } })
-  assert.equal(off?.on, false)
-  assert.equal(off?.since, '')
-  assert.equal(off?.pendingOrders.service, 2) // số đơn chờ vẫn giữ để hộp xác nhận hiện
+test('normalizeOrderPause: không ngừng — manual toàn null ⇒ chuỗi rỗng, số đơn chờ vẫn giữ để hộp xác nhận hiện', () => {
+  const off = normalizeOrderPause(idleRaw)
+  assert.ok(off)
+  assert.equal(off.on, false)
+  assert.deepEqual(off.manual, { on: false, since: '', byStaffId: 0, byName: '', reason: '' })
+  assert.equal(off.pendingOrders.service, 2)
   assert.equal(isIntakePaused(off), false)
+  assert.equal(isManualPaused(off), false)
+})
+
+test('normalizeOrderPause: noShift + chế độ 2 ⇒ on mà không manual (khoá, không có nút Tiếp tục)', () => {
+  const pause = normalizeOrderPause({ ...idleRaw, on: true, noShift: true })
+  assert.ok(pause)
+  assert.equal(isIntakePaused(pause), true)
+  assert.equal(isManualPaused(pause), false)
+  assert.equal(isNoShiftWarningOnly(pause), false)
+  assert.equal(pauseHeadline(pause), 'Chưa có ca nào mở — đang ngừng nhận đơn')
+})
+
+test('normalizeOrderPause: noShift + chế độ 1 ⇒ on=false mà noShift=true: CHỈ cảnh báo, không khoá nút', () => {
+  const pause = normalizeOrderPause({ ...idleRaw, on: false, noShift: true })
+  assert.ok(pause)
+  assert.equal(isIntakePaused(pause), false) // nút Tạo đơn không khoá
+  assert.equal(isNoShiftWarningOnly(pause), true)
+  assert.equal(pauseHeadline(pause), 'Chưa có ca nào đang mở')
+})
+
+test('normalizeOrderPause: A ngừng thủ công rồi chốt ca cuối ⇒ manual.on VÀ noShift cùng true — hỏi theo manual, headline là của người ngừng', () => {
+  const pause = normalizeOrderPause({ ...manualRaw, noShift: true })
+  assert.ok(pause)
+  assert.equal(isManualPaused(pause), true) // Dialog Mở ca hỏi "Tiếp tục nhận đơn?" dựa vào đây
+  assert.equal(isNoShiftWarningOnly(pause), false)
+  assert.match(pauseHeadline(pause), /^Đang ngừng nhận đơn từ 10:02 · A/)
+})
+
+test('normalizeOrderPause: thiếu / sai kiểu ⇒ null hoặc coi như đang nhận đơn', () => {
   assert.equal(normalizeOrderPause(undefined), null)
   assert.equal(normalizeOrderPause('on'), null)
   assert.equal(normalizeOrderPause([]), null)
   assert.equal(isIntakePaused(null), false)
+  assert.equal(isManualPaused(null), false)
   assert.equal(normalizeOrderPause({ on: 'abc' })?.on, false) // chuỗi lạ ⇒ coi như đang nhận đơn
-  assert.deepEqual(normalizeOrderPause({ on: 1, pendingOrders: { service: -3, combo: 'x' } })?.pendingOrders, {
+  assert.equal(normalizeOrderPause({ on: true })?.manual.on, false) // thiếu manual ⇒ không có nút Tiếp tục
+  assert.deepEqual(normalizeOrderPause({ on: true, pendingOrders: { service: -3, combo: 'x' } })?.pendingOrders, {
     service: 0,
     combo: 0,
     qrPaid: 0,
   })
+  // Bản cũ: `reason` chỉ là chữ người gõ, không còn là mã nguồn.
+  assert.equal(normalizeOrderPause({ ...manualRaw, manual: { ...manualRaw.manual, reason: 'no_shift' } })?.manual.reason, 'no_shift')
 })
 
 test('normalizeCurrent: mode 0 bỏ qua orderPause; mode ≥ 1 mang theo orderPause', () => {
@@ -80,13 +114,13 @@ test('normalizeCurrent: mode 0 bỏ qua orderPause; mode ≥ 1 mang theo orderPa
   assert.equal(normalizeCurrent({ enabled: true, mode: 1 }).orderPause, null) // máy chủ cũ không gửi
 })
 
-test('normalizeOrderPauseResponse: nhận cả state lẫn orderPause', () => {
-  const a = normalizeOrderPauseResponse({ changed: true, state: manualRaw })
+test('normalizeOrderPauseResponse: {changed, orderPause} cùng hình dạng /shift/current', () => {
+  const a = normalizeOrderPauseResponse({ changed: true, orderPause: manualRaw })
   assert.equal(a.changed, true)
-  assert.equal(a.orderPause?.byName, 'A')
-  const b = normalizeOrderPauseResponse({ changed: false, orderPause: manualRaw })
+  assert.equal(a.orderPause?.manual.byName, 'A')
+  const b = normalizeOrderPauseResponse({ changed: false, orderPause: idleRaw })
   assert.equal(b.changed, false)
-  assert.equal(b.orderPause?.on, true)
+  assert.equal(b.orderPause?.on, false)
   assert.deepEqual(normalizeOrderPauseResponse(undefined), { changed: false, orderPause: null })
 })
 
@@ -94,9 +128,38 @@ test('pauseHeadline / pauseResumeQuestion theo đúng câu design 8b', () => {
   const pause = normalizeOrderPause(manualRaw)
   assert.ok(pause)
   assert.equal(pauseHeadline(pause), 'Đang ngừng nhận đơn từ 10:02 · A · Lý do: Kiểm kho giao ca')
-  assert.equal(pauseHeadline({ ...pause, reason: '' }), 'Đang ngừng nhận đơn từ 10:02 · A')
+  assert.equal(
+    pauseHeadline({ ...pause, manual: { ...pause.manual, reason: '' } }),
+    'Đang ngừng nhận đơn từ 10:02 · A',
+  )
   assert.equal(pauseResumeQuestion(pause), 'Đang ngừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?')
-  assert.equal(pauseResumeQuestion({ ...pause, byName: '' }), 'Đang ngừng nhận đơn từ 10:02. Tiếp tục nhận đơn?')
+  assert.equal(
+    pauseResumeQuestion({ ...pause, manual: { ...pause.manual, byName: '' } }),
+    'Đang ngừng nhận đơn từ 10:02. Tiếp tục nhận đơn?',
+  )
+})
+
+test('pauseChipText (khối ở topbar): chữ gọn luôn giữ ý chính; giờ + tên ở bản đầy đủ; lý do + thời gian ở tooltip', () => {
+  const manual = normalizeOrderPause(manualRaw)
+  assert.ok(manual)
+  const chip = pauseChipText(manual, 47)
+  assert.equal(chip.short, 'Đang ngừng nhận đơn')
+  assert.equal(chip.long, 'Đang ngừng nhận đơn từ 10:02 · A')
+  assert.match(chip.tooltip, /Lý do: Kiểm kho giao ca/)
+  assert.match(chip.tooltip, /Đã ngừng 47 phút/)
+  assert.match(chip.tooltip, /Tiếp tục nhận đơn/) // quá 30 phút: nhắc bấm tiếp tục
+  assert.doesNotMatch(pauseChipText(manual, 12).tooltip, /kiểm kho xong thì bấm/i)
+  assert.doesNotMatch(pauseChipText(manual, null).tooltip, /Đã ngừng \d/)
+
+  const blocking = normalizeOrderPause({ ...idleRaw, on: true, noShift: true })
+  assert.ok(blocking)
+  assert.equal(pauseChipText(blocking, null).short, 'Đang ngừng nhận đơn')
+  assert.equal(pauseChipText(blocking, null).long, 'Chưa có ca nào mở — đang ngừng nhận đơn')
+
+  const warn = normalizeOrderPause({ ...idleRaw, noShift: true })
+  assert.ok(warn)
+  assert.equal(pauseChipText(warn, null).short, 'Chưa có ca nào mở')
+  assert.match(pauseChipText(warn, null).tooltip, /vẫn nhận đơn/)
 })
 
 test('parseServerStamp + pauseElapsedMinutes: tính theo giờ máy chủ, không theo đồng hồ trình duyệt', () => {
@@ -150,9 +213,8 @@ test('validatePauseReason: ≤ 40 ký tự, không dấu nháy đơn / gạch ch
   assert.ok(validatePauseReason('x'.repeat(41)))
   assert.ok(validatePauseReason("it's"))
   assert.ok(validatePauseReason('a\\b'))
-  // Mã nguồn của `orderPause.reason` không được là lý do người gõ (sẽ bị đọc nhầm thành nguồn tự động).
-  assert.ok(validatePauseReason('no_shift'))
-  assert.ok(validatePauseReason(' Manual '))
+  // Nguồn đã tách khỏi lý do (`manual.reason` chỉ là chữ người gõ) ⇒ gõ gì cũng được, kể cả chữ "no_shift".
+  assert.equal(validatePauseReason('no_shift'), undefined)
   assert.equal(validatePauseReason('manual stock check'), undefined)
 })
 
@@ -166,6 +228,10 @@ test('normalizeShiftModeSetting: chỉ 0/1/2; effective thiếu ⇒ bằng mode;
   assert.deepEqual(normalizeShiftModeSetting({ mode: '1' }), { mode: 1, effective: 1 })
   assert.deepEqual(normalizeShiftModeSetting({ mode: 7, effective: 9 }), { mode: 0, effective: 0 })
   assert.deepEqual(normalizeShiftModeSetting(undefined), { mode: 0, effective: 0 })
+  // GET thêm `enabled`; PUT thêm `changed` (false = đã đúng chế độ đó từ trước).
+  assert.deepEqual(normalizeShiftModeSetting({ mode: 1, effective: 1, enabled: true }), { mode: 1, effective: 1, enabled: true })
+  assert.deepEqual(normalizeShiftModeSetting({ mode: 2, effective: 1, changed: false }), { mode: 2, effective: 1, changed: false })
+  assert.equal(normalizeShiftModeSetting({ mode: 2, effective: 1, changed: 1 }).changed, true)
 })
 
 test('chế độ ca: nhãn đúng chữ user chốt, chuyển đổi giá trị Segmented', () => {

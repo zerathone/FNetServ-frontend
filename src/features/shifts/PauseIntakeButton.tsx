@@ -17,10 +17,12 @@ import './shifts.css'
 
 type ButtonProps = {
   block?: boolean
+  /** Ở thanh trên cùng: màn hẹp chỉ còn biểu tượng (tên nút vẫn có ở `aria-label` / `title`), không phình topbar. */
+  compact?: boolean
   onDialogOpenChange?: (open: boolean) => void
 }
 
-export function PauseIntakeButton({ block, onDialogOpenChange }: ButtonProps) {
+export function PauseIntakeButton({ block, compact, onDialogOpenChange }: ButtonProps) {
   const { enabled, orderPause, canResume, paused, resumeMutation } = useOrderIntake()
   const [open, setOpen] = useState(false)
   // Hộp chỉ hiện khi đang nhận đơn; trạng thái đổi sang ngừng (máy khác bấm / poll) thì tự đóng, không kẹt open.
@@ -46,17 +48,23 @@ export function PauseIntakeButton({ block, onDialogOpenChange }: ButtonProps) {
         type="button"
         variant="primary"
         block={block}
+        className={compact ? 'order-pause-chip__resume' : undefined}
+        title="Tiếp tục nhận đơn"
+        aria-label="Tiếp tục nhận đơn"
         loading={resumeMutation.isPending}
         icon={<PlayCircle size={18} weight="bold" aria-hidden="true" />}
         onClick={() =>
           resumeMutation.mutate(undefined, {
             onSuccess: (result) =>
-              pushToast(result.changed ? 'Đã tiếp tục nhận đơn.' : 'Quán đã nhận đơn trở lại từ trước.', 'success'),
+              result.orderPause?.on
+                ? // S4b: đã bỏ cờ thủ công nhưng chế độ Bắt buộc + chưa có ca nào mở vẫn đang chặn ⇒ nói đúng sự thật.
+                  pushToast('Đã bỏ cờ ngừng thủ công, nhưng quán vẫn ngừng nhận đơn vì chưa có ca nào mở.', 'info')
+                : pushToast(result.changed ? 'Đã tiếp tục nhận đơn.' : 'Quán đã nhận đơn trở lại từ trước.', 'success'),
             onError: (error: Error) => pushToast(error.message || 'Không tiếp tục nhận đơn được. Thử lại.'),
           })
         }
       >
-        Tiếp tục nhận đơn
+        <span className={compact ? 'order-pause-chip__resume-label' : undefined}>Tiếp tục nhận đơn</span>
       </Button>
     )
   }

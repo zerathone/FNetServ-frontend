@@ -20,6 +20,14 @@ export function ShiftStockPanel({ isOpen, isLoading, error, data, onRetry }: Pro
       <InlineAlert tone="info">
         Kho là bể chung — các ca chồng giờ cùng thấy biến động của nhau. Số tin cậy là Đầu ca và {isOpen ? 'Hiện tại' : 'Cuối ca'}.
       </InlineAlert>
+      {data && !data.openSnapshot ? (
+        <InlineAlert tone="warning">
+          Ca này không có ảnh chụp tồn kho lúc mở ca, nên cột Đầu ca và Chênh lệch để trống.
+        </InlineAlert>
+      ) : null}
+      {data && !isOpen && !data.closeSnapshot ? (
+        <InlineAlert tone="warning">Ca này không có ảnh chụp tồn kho lúc chốt ca, nên cột Cuối ca không đáng tin.</InlineAlert>
+      ) : null}
       {isLoading ? (
         <StateView title="Đang tải tồn kho của ca" />
       ) : error || !data ? (
@@ -50,9 +58,9 @@ export function ShiftStockPanel({ isOpen, isLoading, error, data, onRetry }: Pro
                 <tr key={row.materialId}>
                   <th scope="row">{row.name || `Nguyên liệu #${row.materialId}`}</th>
                   <td>{row.unit || '—'}</td>
-                  <td className="shift-table__num">{formatQty(row.open)}</td>
+                  <td className="shift-table__num">{row.open === null ? '—' : formatQty(row.open)}</td>
                   <td className="shift-table__num">{formatQty(row.close)}</td>
-                  <td className="shift-table__num shift-table__total">{formatSignedQty(row.delta)}</td>
+                  <td className="shift-table__num shift-table__total">{row.delta === null ? '—' : formatSignedQty(row.delta)}</td>
                   <td className="shift-table__num">{formatQty(row.imported)}</td>
                   <td className="shift-table__num">{formatQty(row.exported)}</td>
                   <td className="shift-table__num">{formatSignedQty(row.adjusted)}</td>

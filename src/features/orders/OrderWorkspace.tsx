@@ -882,7 +882,7 @@ export function OrderWorkspace() {
             onClick={() => setStaffOrderOpen(true)}
             title={
               intakePaused
-                ? 'Đang ngừng nhận đơn — xem dải đỏ phía dưới màn hình'
+                ? 'Đang ngừng nhận đơn — xem thanh trên cùng màn hình'
                 : 'Nhân viên chọn món thay khách đang ngồi máy hoặc khách vãng lai tại quầy'
             }
           >

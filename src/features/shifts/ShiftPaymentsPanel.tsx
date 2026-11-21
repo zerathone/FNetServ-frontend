@@ -26,7 +26,7 @@ export function ShiftPaymentsPanel({ shiftId, target, onClear }: Props) {
   const data = query.data
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAYMENTS_PAGE_SIZE))
-  const title = `${target.source?.name ?? 'Mọi nguồn thu'} · ${target.method ? methodLabel(target.method) : 'mọi hình thức'}`
+  const title = `${target.source?.name ?? 'Mọi nguồn thu'} · ${target.method ? methodLabel(target.method) : 'tiền mặt, chuyển khoản, QR'}`
 
   return (
     <section className="shift-payments" aria-label={`Giao dịch: ${title}`}>
@@ -34,9 +34,9 @@ export function ShiftPaymentsPanel({ shiftId, target, onClear }: Props) {
         <div>
           <h3 className="shift-payments__title">Giao dịch: {title}</h3>
           <p className="shift-form__hint">
-            {data ? `${num(total)} giao dịch` : 'Đang tải…'}
+            {data ? `${num(total)} phiếu · tổng ${num(data.sumAmount)} đ` : 'Đang tải…'}
             {target.method === 'deduct' ? ' · Cấn trừ chỉ để xem, không cộng vào doanh thu ca.' : ''}
-            {target.method === null ? ' · Danh sách gồm mọi hình thức, kể cả Cấn trừ (không cộng vào Tổng).' : ''}
+            {target.method === null ? ' · Gồm tiền mặt, chuyển khoản và QR; không gồm Cấn trừ — cộng ra đúng ô Tổng.' : ''}
           </p>
         </div>
         <Button type="button" variant="ghost" icon={<X size={18} weight="bold" aria-hidden="true" />} onClick={onClear}>

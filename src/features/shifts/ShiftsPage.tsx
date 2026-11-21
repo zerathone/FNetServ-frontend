@@ -1,6 +1,7 @@
 // task work-shift S3 (F2) — trang quản lý "Ca làm việc" (/shifts): chọn ngày ⇒ danh sách ca (đang mở / đã chốt / cưỡng bức / treo),
 // thẻ tóm tắt ngày + Thu ngoài ca, dòng ĐỐI SOÁT với báo cáo doanh thu (Q24), bấm một ca ⇒ Drawer chi tiết.
 // Quyền: admin hoặc "Xem mọi ca" — server là lớp chặn thật (403), trang chỉ ẩn/hiện cho đúng.
+import { MoonStars, Warning } from '@phosphor-icons/react'
 import { useMemo, useState } from 'react'
 import type { ShiftListItem, ShiftReconcile } from '../../api/shift'
 import {
@@ -19,16 +20,17 @@ import { ShiftDetailDrawer } from './ShiftDetailDrawer'
 import {
   SHIFT_LIST_POLL_MS,
   canForceClose,
+  canViewAllShifts,
   cashDiffView,
   isTodayYmd,
   reconcileFromList,
   reconcileVerdict,
+  shiftDayView,
   shiftStatusView,
   summarizeDay,
   todayYmd,
-  viewAllGate,
 } from './shiftManageModel'
-import { formatMoney, formatShiftTime } from './shiftModel'
+import { describeDrift, formatMoney, formatShiftTime, hasDrift } from './shiftModel'
 import { shiftErrorKind, useShiftList, useShiftReconcile } from './useShiftManage'
 import './shifts.css'
 
@@ -42,13 +44,12 @@ export function ShiftsPage() {
   // Subscribe `rights` để trang tự cập nhật khi quyền phiên đổi (hasRight đọc store, không tự re-render).
   const rights = useAuthStore((state) => state.rights)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
-  const gate = useMemo(() => viewAllGate(isAdmin, hasRight), [isAdmin, hasRight, rights])
+  const allowed = useMemo(() => canViewAllShifts(isAdmin, hasRight), [isAdmin, hasRight, rights])
 
   const [date, setDate] = useState(() => todayYmd())
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showBad, setShowBad] = useState(false)
 
-  const allowed = gate !== 'denied'
   const listQuery = useShiftList(date, allowed)
   // Chỉ đối soát sau khi danh sách tải được: không quyền / chưa bật chế độ ca thì không bắn thêm một request (và toast 403) nữa.
   const reconcileQuery = useShiftReconcile(date, allowed && listQuery.isSuccess)
@@ -165,10 +166,15 @@ export function ShiftsPage() {
 
   const verdict = reconcile ? reconcileVerdict(reconcile) : null
   const badCodes = reconcile ? [...reconcile.orphans, ...reconcile.duplicates] : []
+  const excluded = reconcile?.excludedNoUser
+  const excludedNote =
+    excluded && excluded.count > 0
+      ? `Có ${num(excluded.count)} phiếu (${formatMoney(excluded.total)}) không gắn với tài khoản người dùng nào: báo cáo doanh thu bỏ qua các phiếu này nên được tách riêng khi đối soát.`
+      : ''
   const shiftsSub = [
     `${num(totals.openCount)} đang mở`,
     totals.hungCount > 0 ? `${num(totals.hungCount)} treo` : '',
-    totals.carriedOver > 0 ? `${num(totals.carriedOver)} mở từ hôm trước` : '',
+    totals.carriedOver > 0 ? `${num(totals.carriedOver)} ca qua đêm (mở từ ngày trước)` : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -184,9 +190,12 @@ export function ShiftsPage() {
             <p className="shift-kpi__sub">{shiftsSub}</p>
           </article>
           <article className="shift-kpi">
-            <h2 className="shift-kpi__label">Tổng doanh thu các ca</h2>
+            <h2 className="shift-kpi__label">Doanh thu các ca trong ngày</h2>
             <p className="shift-kpi__value">{formatMoney(totals.revenueTotal)}</p>
-            <p className="shift-kpi__sub">Tính theo khung giờ của ca (gồm ca qua đêm); không gồm Thu ngoài ca</p>
+            <p className="shift-kpi__sub">
+              Số tính lại hiện tại, chỉ phần thuộc ngày đang xem (ca qua đêm chia theo ngày); không gồm Thu ngoài ca và phiếu
+              không gắn tài khoản người dùng
+            </p>
           </article>
           <article className="shift-kpi">
             <h2 className="shift-kpi__label">Thu ngoài ca</h2>
@@ -218,6 +227,7 @@ export function ShiftsPage() {
                   Báo cáo {formatMoney(reconcile.reportTotal)} = các ca {formatMoney(reconcile.shiftsTotal)} + Hệ thống{' '}
                   {formatMoney(reconcile.systemTotal)} + Khác {formatMoney(reconcile.otherTotal)}
                 </span>
+                {excludedNote ? <span className="shift-reconcile__detail">{excludedNote}</span> : null}
               </span>
             </InlineAlert>
           ) : (
@@ -232,6 +242,7 @@ export function ShiftsPage() {
                     Báo cáo {formatMoney(reconcile.reportTotal)} · các ca {formatMoney(reconcile.shiftsTotal)} + Hệ thống{' '}
                     {formatMoney(reconcile.systemTotal)} + Khác {formatMoney(reconcile.otherTotal)}
                   </span>
+                  {excludedNote ? <span className="shift-reconcile__detail">{excludedNote}</span> : null}
                   {badCodes.length > 0 ? (
                     <span className="shift-actions">
                       <Button type="button" variant="secondary" aria-expanded={showBad} onClick={() => setShowBad((v) => !v)}>
@@ -280,6 +291,22 @@ export function ShiftsPage() {
           <p className="shift-form__hint" role="status">Đang đối soát với báo cáo doanh thu…</p>
         ) : null}
 
+        {totals.driftCount > 0 ? (
+          <InlineAlert tone="warning">
+            <span className="shift-inline-icon">
+              <Warning size={18} weight="fill" aria-hidden="true" />
+              <span>
+                <strong>Số liệu đã thay đổi sau khi chốt ca ({num(totals.driftCount)} ca)</strong>
+                <span className="shift-reconcile__detail">
+                  Có phiếu bị sửa hoặc hủy sau khi chốt. Cột Doanh thu cả ca của ca đã chốt là số đã lưu lúc chốt; cột Doanh thu
+                  trong ngày, danh sách giao dịch và đối soát là số tính lại hiện tại. Các ca này có nhãn “Số liệu đã thay đổi”
+                  ở cột Trạng thái.
+                </span>
+              </span>
+            </span>
+          </InlineAlert>
+        ) : null}
+
         <div className="log-table-card shifts-page__table">
           <ListToolbar
             count={
@@ -298,7 +325,8 @@ export function ShiftsPage() {
                   <th scope="col">Mở ca</th>
                   <th scope="col">Chốt ca</th>
                   <th scope="col">Trạng thái</th>
-                  <th scope="col" className="cell-number">Doanh thu</th>
+                  <th scope="col" className="cell-number" title="Phần doanh thu thuộc ngày đang xem, tính lại từ phiếu hiện tại">Doanh thu trong ngày</th>
+                  <th scope="col" className="cell-number" title="Toàn bộ doanh thu của ca, kể cả phần sang ngày khác. Ca đã chốt: số đã lưu lúc chốt">Doanh thu cả ca</th>
                   <th scope="col" className="cell-number">Tiền đầu ca</th>
                   <th scope="col" className="cell-number">Tiền mặt dự kiến</th>
                   <th scope="col" className="cell-number">Thực đếm</th>
@@ -308,7 +336,7 @@ export function ShiftsPage() {
               <tbody>
                 {list.shifts.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="shifts-table__empty">
+                    <td colSpan={10} className="shifts-table__empty">
                       Không có ca nào {today ? 'hôm nay' : 'trong ngày này'}.
                     </td>
                   </tr>
@@ -316,6 +344,14 @@ export function ShiftsPage() {
                   list.shifts.map((shift) => {
                     const status = shiftStatusView(shift)
                     const diff = cashDiffView(shift.cashDiff, shift.status)
+                    const dayView = shiftDayView(shift, date)
+                    const drift = hasDrift(shift.drift) ? shift.drift : null
+                    // Ca còn kéo sang sau ngày đang xem: tiền đầu ca / đếm / chênh lệch chỉ có đủ ở dòng ngày chốt.
+                    const pendingCash = (label: string) => (
+                      <td className="cell-number shifts-table__deferred" title={`${label}: xem ở dòng của ngày chốt ca`}>
+                        —
+                      </td>
+                    )
                     return (
                       <tr
                         key={shift.shiftId}
@@ -336,25 +372,50 @@ export function ShiftsPage() {
                             Ca #{shift.shiftId}
                           </button>
                           <span className="shifts-table__staff">{shift.staffName || '—'}</span>
+                          {dayView.note ? (
+                            <span className="shifts-table__overnight">
+                              <MoonStars size={14} weight="fill" aria-hidden="true" />
+                              {dayView.note}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="shift-table__nowrap">{formatShiftTime(shift.openTime)}</td>
                         <td className="shift-table__nowrap">{shift.closeTime ? formatShiftTime(shift.closeTime) : '—'}</td>
                         <td>
-                          <StatusBadge tone={status.tone} title={status.hint} dot={shift.status === 1}>
-                            {status.label}
-                          </StatusBadge>
+                          <span className="shifts-table__badges">
+                            <StatusBadge tone={status.tone} title={status.hint} dot={shift.status === 1}>
+                              {status.label}
+                            </StatusBadge>
+                            {drift ? (
+                              <StatusBadge tone="warning" title={describeDrift(drift).join(' ')}>
+                                Số liệu đã thay đổi
+                              </StatusBadge>
+                            ) : null}
+                          </span>
                         </td>
-                        <td className="cell-number">{num(shift.revenue)}</td>
-                        <td className="cell-number">{num(shift.openingCash)}</td>
-                        <td className="cell-number">{shift.expectedCash === null ? '—' : num(shift.expectedCash)}</td>
-                        <td className="cell-number">{shift.countedCash === null ? '—' : num(shift.countedCash)}</td>
-                        <td
-                          className={`cell-number shifts-table__diff${
-                            diff.kind === 'short' ? ' is-short' : diff.kind === 'over' ? ' is-over' : diff.kind === 'ok' ? ' is-ok' : ''
-                          }`}
-                        >
-                          {diff.text}
-                        </td>
+                        <td className="cell-number shifts-table__ondate">{num(shift.revenueOnDate)}</td>
+                        <td className="cell-number shifts-table__shiftwide">{num(shift.revenue)}</td>
+                        {dayView.continuesAfter ? (
+                          <>
+                            {pendingCash('Tiền đầu ca')}
+                            {pendingCash('Tiền mặt dự kiến')}
+                            {pendingCash('Tiền thực đếm')}
+                            {pendingCash('Chênh lệch')}
+                          </>
+                        ) : (
+                          <>
+                            <td className="cell-number">{num(shift.openingCash)}</td>
+                            <td className="cell-number">{shift.expectedCash === null ? '—' : num(shift.expectedCash)}</td>
+                            <td className="cell-number">{shift.countedCash === null ? '—' : num(shift.countedCash)}</td>
+                            <td
+                              className={`cell-number shifts-table__diff${
+                                diff.kind === 'short' ? ' is-short' : diff.kind === 'over' ? ' is-over' : diff.kind === 'ok' ? ' is-ok' : ''
+                              }`}
+                            >
+                              {diff.text}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     )
                   })
@@ -363,10 +424,15 @@ export function ShiftsPage() {
             </table>
           </div>
         </div>
+        <p className="shift-form__hint">
+          Hai cột doanh thu có thể khác nhau ngay cả khi ca không qua đêm: Doanh thu trong ngày là số tính lại từ phiếu hiện tại
+          (không gồm phiếu không gắn tài khoản người dùng), còn Doanh thu cả ca của ca đã chốt là số đã lưu lúc chốt.
+        </p>
       </section>
 
       <ShiftDetailDrawer
         shift={selected}
+        date={date}
         canForceClose={selected ? canForceClose(selected.status, isAdmin, hasRight) : false}
         onClose={() => setSelectedId(null)}
       />

@@ -1,6 +1,6 @@
 // task work-shift S3 (F2) — Drawer chi tiết một ca (trang quản lý /shifts). Tabs bằng Segmented:
 // Tổng quan · Doanh thu (bấm ô ⇒ giao dịch) · Hoàn tiền · Kho (ẩn khi máy chủ không có bảng kho) · Đặt máy (tham khảo).
-import { Lock, Warning } from '@phosphor-icons/react'
+import { Lock, MoonStars, Warning } from '@phosphor-icons/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import type { ShiftListItem, ShiftSummary } from '../../api/shift'
 import {
@@ -17,8 +17,8 @@ import { ShiftPaymentsPanel } from './ShiftPaymentsPanel'
 import { ShiftPrintSection } from './ShiftPrintSection'
 import { ShiftStockPanel } from './ShiftStockPanel'
 import { ShiftSummaryTable, type ShiftCellTarget } from './ShiftSummaryTable'
-import { cashDiffView, listItemToCloseResult, shiftStatusView } from './shiftManageModel'
-import { formatMoney, formatShiftDateTime } from './shiftModel'
+import { cashDiffView, formatDayMonth, listItemToCloseResult, shiftDayView, shiftStatusView } from './shiftManageModel'
+import { describeDrift, formatMoney, formatShiftDateTime, hasDrift } from './shiftModel'
 import { useShiftSummary } from './useShift'
 import { useShiftStock } from './useShiftManage'
 import './shifts.css'
@@ -28,17 +28,19 @@ type TabId = 'overview' | 'revenue' | 'refund' | 'stock' | 'booking'
 type Props = {
   /** null = đóng Drawer. */
   shift: ShiftListItem | null
+  /** Ngày đang xem ở danh sách (YYYY-MM-DD) — để nói rõ phần doanh thu thuộc ngày của ca qua đêm. */
+  date: string
   canForceClose: boolean
   onClose: () => void
 }
 
-export function ShiftDetailDrawer({ shift, canForceClose, onClose }: Props) {
+export function ShiftDetailDrawer({ shift, date, canForceClose, onClose }: Props) {
   // `key` theo ca: đổi ca khác ⇒ tab, ô đang chọn, hộp thoại đều về trạng thái đầu. Làm mới danh sách (cùng shiftId) thì giữ nguyên.
   if (!shift) return null
-  return <DrawerBody key={shift.shiftId} shift={shift} canForceClose={canForceClose} onClose={onClose} />
+  return <DrawerBody key={shift.shiftId} shift={shift} date={date} canForceClose={canForceClose} onClose={onClose} />
 }
 
-function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { shift: ShiftListItem }) {
+function DrawerBody({ shift, date, canForceClose, onClose }: Omit<Props, 'shift'> & { shift: ShiftListItem }) {
   const [tab, setTab] = useState<TabId>('overview')
   const [cell, setCell] = useState<ShiftCellTarget | null>(null)
   const [forceOpen, setForceOpen] = useState(false)
@@ -79,6 +81,28 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
 
   const refundsQr = summary?.refundsQrCanceled ?? null
   const bookings = summary?.onlineBook ?? null
+  const dayView = shiftDayView(shift, date)
+  // Số chụp lúc chốt khác số tính lại hiện tại (sửa / hủy phiếu sau chốt): ưu tiên `drift` của tóm tắt, dự phòng của dòng danh sách.
+  const drift = hasDrift(summary?.drift) ? summary.drift : hasDrift(shift.drift) ? shift.drift : null
+  const driftAlert = drift ? (
+    <InlineAlert tone="warning">
+      <span className="shift-inline-icon">
+        <Warning size={18} weight="fill" aria-hidden="true" />
+        <span>
+          <strong>Số liệu đã thay đổi sau khi chốt ca</strong>
+          {describeDrift(drift).map((line) => (
+            <span key={line} className="shift-reconcile__detail">
+              {line}
+            </span>
+          ))}
+          <span className="shift-reconcile__detail">
+            Bảng tổng hợp là số đã lưu lúc chốt; danh sách giao dịch bên dưới là số tính lại hiện tại nên có thể không cộng ra
+            đúng bảng.
+          </span>
+        </span>
+      </span>
+    </InlineAlert>
+  ) : null
 
   return (
     <>
@@ -122,6 +146,20 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
                     <Warning size={18} weight="fill" aria-hidden="true" />
                     Ca này đã mở quá 16 giờ nên được coi là treo (có thể nhân viên quên chốt ca).
                     {canForceClose ? ' Bạn có thể đóng cưỡng bức ở góc dưới.' : ''}
+                  </span>
+                </InlineAlert>
+              ) : null}
+              {driftAlert}
+              {dayView.crossesDays ? (
+                <InlineAlert tone="info">
+                  <span className="shift-inline-icon">
+                    <MoonStars size={18} weight="fill" aria-hidden="true" />
+                    <span>
+                      Ca qua đêm: mở ngày {formatDayMonth(shift.crossDay.openDate)},{' '}
+                      {shift.crossDay.closeDate ? `chốt ngày ${formatDayMonth(shift.crossDay.closeDate)}` : 'chưa chốt'}. Doanh
+                      thu trong ngày {formatDayMonth(date)} chỉ là phần thuộc ngày này; tiền đầu ca, tiền thực đếm và chênh
+                      lệch là số của cả ca.
+                    </span>
                   </span>
                 </InlineAlert>
               ) : null}
@@ -184,8 +222,14 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
                     {diff.text}
                   </dd>
                 </div>
+                {dayView.crossesDays ? (
+                  <div className="shift-stats__key">
+                    <dt>Doanh thu trong ngày {formatDayMonth(date)}</dt>
+                    <dd>{formatMoney(shift.revenueOnDate)}</dd>
+                  </div>
+                ) : null}
                 <div className="shift-stats__key">
-                  <dt>Doanh thu ca</dt>
+                  <dt>{dayView.crossesDays ? 'Doanh thu cả ca' : 'Doanh thu ca'}</dt>
                   <dd>{formatMoney(shift.revenue)}</dd>
                 </div>
               </dl>
@@ -214,6 +258,7 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
           {activeTab === 'revenue'
             ? summaryFallback((data) => (
                 <>
+                  {driftAlert}
                   <ShiftSummaryTable summary={data} onCellClick={setCell} />
                   {cell ? (
                     <ShiftPaymentsPanel
@@ -261,7 +306,13 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
                     ) : (
                       <p className="shift-form__hint">Không có đơn QR đã thu bị hủy trong ca này.</p>
                     )
-                  ) : null}
+                  ) : (
+                    // Máy chủ trả null: hệ thống không ghi ai hủy phiếu QR nào, lúc nào (design 14b D14) — nói thật thay vì im lặng.
+                    <p className="shift-form__hint">
+                      Hệ thống chưa thống kê được đơn QR đã thu tiền rồi bị hủy. Nếu có khách cần hoàn tiền, kiểm tra ở Quản lý ›
+                      Nhật ký giao dịch.
+                    </p>
+                  )}
                 </div>
               ))
             : null}
@@ -283,12 +334,24 @@ function DrawerBody({ shift, canForceClose, onClose }: Omit<Props, 'shift'> & { 
                   {bookings ? (
                     <dl className="shift-stats">
                       <div>
-                        <dt>Số đơn đặt máy do chủ ca duyệt hoặc đặt hộ</dt>
+                        <dt>Số đơn đặt máy trừ ví (chủ ca duyệt hoặc đặt hộ)</dt>
                         <dd>{bookings.count}</dd>
                       </div>
                       <div>
-                        <dt>Tổng tiền trừ ví</dt>
+                        <dt>Tiền đã trừ ví</dt>
                         <dd>{formatMoney(bookings.walletTotal)}</dd>
+                      </div>
+                      <div>
+                        <dt>Số đơn hủy được hoàn lại ví</dt>
+                        <dd>{bookings.creditCount}</dd>
+                      </div>
+                      <div>
+                        <dt>Tiền đã hoàn lại ví</dt>
+                        <dd>{formatMoney(bookings.creditTotal)}</dd>
+                      </div>
+                      <div className="shift-stats__key">
+                        <dt>Thực trừ ví (đã trừ − đã hoàn)</dt>
+                        <dd>{formatMoney(bookings.netTotal)}</dd>
                       </div>
                     </dl>
                   ) : (

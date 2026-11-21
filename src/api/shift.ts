@@ -38,19 +38,27 @@ export type ShiftLastClosed = {
 /** Số đơn đang chờ lúc ngừng nhận đơn (đơn món chính, combo, đơn QR đã trả chưa xác nhận). */
 export type ShiftIntakePending = { service: number; combo: number; qrPaid: number }
 
-/**
- * Trạng thái ngừng nhận đơn (task S3b-FE; hợp đồng `handoff/HANDOFF_work-shift-S3b-be.md` mục 3).
- * `source`: `manual` = nhân viên bấm Ngừng (kiểm kho); `no_shift` = tự động vì không còn ca nào mở (S4b — web đã nhận sẵn).
- */
-export type ShiftOrderPause = {
+/** Cờ ngừng nhận đơn do nhân viên bấm (kiểm kho giao ca). Sống qua chốt ca (Q8). */
+export type ShiftManualPause = {
   on: boolean
-  source: 'manual' | 'no_shift'
-  /** "YYYY-MM-DD HH:MM:SS" giờ máy chủ; rỗng khi không ngừng / nguồn tự động. */
+  /** "YYYY-MM-DD HH:MM:SS" giờ máy chủ; rỗng khi không ngừng. */
   since: string
   byStaffId: number
   byName: string
   /** Lý do người bấm gõ (≤ 40 ký tự), rỗng nếu không nhập. */
   reason: string
+}
+
+/**
+ * Trạng thái ngừng nhận đơn — hợp đồng đã chốt 2026-11-21 (`handoff/HANDOFF_work-shift-S3b-be.md` mục 3), tách nguồn khỏi lý do:
+ *  - `on`: trạng thái CHẶN hiệu lực (S3b = `manual.on`; S4b = `manual.on || (noShift && chế độ 2)`). Nút Tạo đơn khoá theo cờ này.
+ *  - `manual`: cờ do người bấm. Dialog Mở ca hỏi "Tiếp tục nhận đơn?" dựa vào `manual.on` (kể cả khi `noShift` cũng true).
+ *  - `noShift`: không còn ca nào mở. Chế độ 1 thì `on = false` mà `noShift = true` ⇒ chỉ cảnh báo, không khoá nút.
+ */
+export type ShiftOrderPause = {
+  on: boolean
+  manual: ShiftManualPause
+  noShift: boolean
   pendingOrders: ShiftIntakePending
 }
 
@@ -66,8 +74,11 @@ export type ShiftCurrent = {
   orderPause: ShiftOrderPause | null
 }
 
-/** Chế độ ca: 0 tắt · 1 ghi sổ (chưa chặn) · 2 bắt buộc mở ca. `effective` = chế độ máy chủ đang áp dụng thật. */
-export type ShiftModeSetting = { mode: number; effective: number }
+/**
+ * Chế độ ca: 0 tắt · 1 ghi sổ (chưa chặn) · 2 bắt buộc mở ca. `effective` = chế độ máy chủ đang áp dụng thật.
+ * `GET` trả thêm `enabled`; `PUT` trả thêm `changed` (false = đã đúng chế độ đó từ trước, không ghi nhật ký).
+ */
+export type ShiftModeSetting = { mode: number; effective: number; enabled?: boolean; changed?: boolean }
 
 export type ShiftSource = {
   key: string
@@ -94,18 +105,38 @@ export type ShiftTotals = {
   total: number
 }
 
+/**
+ * Số liệu ca ĐÃ ĐÓNG đã thay đổi sau khi chốt (sửa / hủy phiếu): `drift = số chụp lúc chốt − số tính lại hiện tại`.
+ * Khác 0 ⇒ phải cảnh báo "Số liệu đã thay đổi sau khi chốt ca" (design 14b D17). Ca đang mở không có drift.
+ */
+export type ShiftDrift = { total: number; cash: number }
+
+/** Đặt máy online do chủ ca duyệt / đặt hộ (OB4, design 14b D20). Chỉ tham khảo, KHÔNG cộng vào doanh thu ca. */
+export type ShiftOnlineBook = {
+  /** Số phiếu trừ ví (phiếu 39). */
+  count: number
+  /** Tổng tiền đã trừ ví (số dương). */
+  walletTotal: number
+  /** Số phiếu hoàn lại ví vì đơn bị hủy (phiếu 40) của chủ ca trong khung ca. */
+  creditCount: number
+  creditTotal: number
+  /** `walletTotal − creditTotal`: số thực sự đã trừ ví. */
+  netTotal: number
+}
+
 export type ShiftSummary = {
   sources: ShiftSource[]
   refund: ShiftRefund
   totals: ShiftTotals
   expectedCash: number
   /**
-   * S3 (Q15): đơn QR ĐÃ THU TIỀN rồi bị hủy — tiền đã ở ngân hàng, cần hoàn khách ngoài hệ thống. `null` = máy chủ không
-   * có dữ liệu (không biết ai hủy / lúc nào) ⇒ không hiện dòng nhắc.
+   * S3 (Q15): đơn QR ĐÃ THU TIỀN rồi bị hủy — tiền đã ở ngân hàng, cần hoàn khách ngoài hệ thống. Máy chủ hiện luôn trả
+   * `null` (hệ thống không ghi ai hủy phiếu QR nào, lúc nào — design 14b D14) ⇒ không hiện dòng nhắc.
    */
   refundsQrCanceled?: { count: number; total: number } | null
-  /** S3 (OB4): đặt máy do chủ ca duyệt / đặt hộ — CHỈ tham khảo, không cộng vào doanh thu ca. */
-  onlineBook?: { count: number; walletTotal: number } | null
+  onlineBook?: ShiftOnlineBook | null
+  /** Chỉ có ở ca đã đóng. `null`/thiếu = không có dữ liệu so sánh. */
+  drift?: ShiftDrift | null
 }
 
 export type ShiftPendingCounts = {
@@ -143,17 +174,32 @@ export type ShiftListItem = {
   /** null khi ca còn mở. */
   closeTime: string | null
   openingCash: number
+  /** Doanh thu CẢ ca (kể cả phần sang ngày khác). */
   revenue: number
+  /** Doanh thu phần thuộc NGÀY đang xem — cộng các dòng + Thu ngoài ca = báo cáo ngày (D16). */
+  revenueOnDate: number
+  /** Ca qua đêm hiện ở mọi ngày ca chạm tới: ngày mở và ngày chốt (`closeDate` null = chưa chốt). */
+  crossDay: { openDate: string; closeDate: string | null }
   expectedCash: number | null
   countedCash: number | null
   cashDiff: number | null
+  /** Lý do / ghi chú lúc chốt (ca đóng cưỡng bức: lý do quản lý nhập). */
+  note: string
+  /** Chỉ ca đã đóng; xem `ShiftDrift`. */
+  drift: ShiftDrift | null
   /** Ca mở quá 16 giờ (do máy chủ quyết định) — hiển thị "Treo". */
   hung: boolean
 }
 
 export type ShiftBucket = { count: number; total: number }
 
-export type ShiftReconcileSummary = { reportTotal: number; bucketTotal: number; diff: number }
+export type ShiftReconcileSummary = {
+  reportTotal: number
+  bucketTotal: number
+  diff: number
+  /** Phiếu không gắn với tài khoản người dùng nào: báo cáo doanh thu bỏ qua, tách riêng khi đối soát. */
+  excludedNoUser: ShiftBucket
+}
 
 export type ShiftListResult = {
   shifts: ShiftListItem[]
@@ -170,6 +216,7 @@ export type ShiftReconcile = {
   otherTotal: number
   /** reportTotal − (shiftsTotal + systemTotal + otherTotal). 0 = khớp. */
   diff: number
+  excludedNoUser: ShiftBucket
   /** Phiếu có trong báo cáo nhưng không thuộc ô nào. */
   orphans: string[]
   /** Phiếu bị xếp vào hơn một ô. */
@@ -184,29 +231,38 @@ export type ShiftPaymentItem = {
   typeName: string
   /** key nguồn thu (trùng `ShiftSource.key`). */
   source: string
-  /** 'cash' | 'online' | 'qr' | 'deduct' (giả định — xem handoff F2). */
+  /** 'cash' | 'online' | 'qr' | 'deduct' (máy chủ trả khoá). */
   method: string
   amount: number
   member: string
   staff: string
 }
 
-export type ShiftPaymentsResult = { total: number; items: ShiftPaymentItem[] }
+/** `total` = SỐ PHIẾU của ô (không phải số dòng trang); `sumAmount` = tổng tiền các phiếu đó. */
+export type ShiftPaymentsResult = { total: number; sumAmount: number; items: ShiftPaymentItem[] }
 
 export type ShiftStockRow = {
   materialId: number
   name: string
   unit: string
-  open: number
-  /** Cuối ca (ca đã đóng) hoặc tồn hiện tại (ca còn mở). */
+  /** null = không có ảnh chụp đầu ca cho nguyên liệu này. */
+  open: number | null
+  /** Cuối ca (ca đã đóng: `close`) hoặc tồn hiện tại (ca còn mở: `current`). */
   close: number
-  delta: number
+  /** null khi thiếu số đầu ca. */
+  delta: number | null
   imported: number
   exported: number
   adjusted: number
 }
 
-export type ShiftStockResult = { available: boolean; rows: ShiftStockRow[] }
+export type ShiftStockResult = {
+  available: boolean
+  /** Có ảnh chụp tồn kho lúc mở ca / lúc chốt ca không (ca cũ trước khi có tính năng kho thì không có). */
+  openSnapshot: boolean
+  closeSnapshot: boolean
+  rows: ShiftStockRow[]
+}
 
 const SHIFT_MOCK = (() => {
   const raw = import.meta.env.DEV ? (import.meta.env.VITE_SHIFT_MOCK as string | undefined) : undefined

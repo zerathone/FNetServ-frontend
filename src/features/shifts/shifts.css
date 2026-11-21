@@ -479,6 +479,43 @@
   font-size: var(--font-size-sm);
 }
 
+/* Ca qua đêm: ghi chú dưới tên nhân viên (biểu tượng + chữ, không chỉ màu). Cho xuống dòng thay vì cắt chữ. */
+.shifts-table__overnight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 14rem;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: normal;
+}
+
+.shifts-table__overnight svg {
+  flex: none;
+}
+
+.shifts-table__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* Doanh thu trong ngày là số cộng ra thẻ tổng ⇒ đậm; doanh thu cả ca là số tham khảo ⇒ nhạt hơn. */
+.data-table td.shifts-table__ondate {
+  font-weight: 650;
+}
+
+.data-table td.shifts-table__shiftwide {
+  color: var(--color-text-secondary);
+}
+
+/* Ô chưa có số ở dòng ngày mở của ca qua đêm — "—" kèm title chỉ sang dòng ngày chốt. */
+.data-table td.shifts-table__deferred {
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
 .shifts-table__empty {
   padding: var(--space-6);
   color: var(--color-text-muted);
@@ -586,61 +623,82 @@
    Ngừng / Tiếp tục nhận đơn (task work-shift S3b-FE)
    ==================================================================================== */
 
-/* Banner toàn trang: dải CỐ ĐỊNH ở đáy giữa màn hình — không đổi chiều cao khung trang (nhiều trang tính theo 100vh) và
-   không phụ thuộc layout từng theme (topbar/sidebar khác nhau ở theme Cổ điển). Thấp hơn hộp thoại, cao hơn nội dung. */
-.order-pause-banner {
-  position: fixed;
-  /* Dưới Drawer (--z-drawer) và hộp thoại để không che nút duyệt / hủy / thu ở chân Drawer; trên topbar, sidebar, nội dung. */
-  z-index: calc(var(--z-drawer) - 5);
-  left: 50%;
-  bottom: max(var(--space-3), env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+/* "Đang ngừng nhận đơn" ở TOPBAR (user chốt 2026-11-21, thay dải cố định ở đáy màn hình). Phải NẰM TRONG chiều cao topbar hiện có
+   (4rem) — không thêm hàng, không đổi chiều cao khung trang (nhiều trang tính theo 100vh). Cao tối đa 2.75rem. */
+.order-pause-chip {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
-  gap: var(--space-3);
-  width: min(54rem, calc(100vw - 2 * var(--space-4)));
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  min-width: 0;
+  max-height: 2.75rem;
+  /* Cứng trong chiều cao topbar: nội dung dài không được tràn xuống nội dung trang. */
+  overflow: hidden;
+  padding: 0.25rem var(--space-2);
   border: 1px solid var(--color-danger);
   border-radius: var(--radius-md);
   background: var(--color-danger-surface);
   color: var(--color-danger-text);
-  box-shadow: var(--shadow-md);
 }
 
-.order-pause-banner__icon {
+.order-pause-chip__icon {
   flex: none;
 }
 
-.order-pause-banner__text {
-  display: grid;
-  flex: 1 1 auto;
-  gap: 2px;
+/* Tối đa 2 dòng rồi cắt bằng dấu "…" (đủ chữ nằm ở `title` của khối) — không bẻ giữa từ, không tràn khỏi topbar. */
+.order-pause-chip__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   min-width: 0;
-}
-
-.order-pause-banner__text strong {
-  font-size: var(--font-size-md);
-  overflow-wrap: anywhere;
-}
-
-.order-pause-banner__text span {
-  color: var(--color-text-secondary);
+  overflow: hidden;
   font-size: var(--font-size-sm);
+  line-height: 1.2;
+}
+
+/* Màn rộng thấy chữ đầy đủ (giờ ngừng + tên); màn hẹp chỉ thấy chữ gọn — phần còn lại nằm ở `title` của khối. */
+.order-pause-chip__long {
+  display: none;
+}
+
+@media (min-width: 1281px) {
+  .order-pause-chip__short {
+    display: none;
+  }
+
+  .order-pause-chip__long {
+    display: inline;
+  }
+}
+
+/* Nút Tiếp tục nhận đơn: gọn trong topbar; màn hẹp chỉ còn biểu tượng (tên nút ở aria-label + title). */
+.order-pause-chip .ds-button {
+  flex: none;
+  min-height: 2.25rem;
+  padding-block: 0.25rem;
+  white-space: nowrap;
 }
 
 /* Quá 30 phút: viền dày + nền đậm hơn + biểu tượng nhấp nháy nhẹ (tắt khi người dùng chọn giảm chuyển động). */
-.order-pause-banner.is-overdue {
+.order-pause-chip.is-overdue {
   border-width: 2px;
   background: color-mix(in srgb, var(--color-danger) 16%, var(--color-danger-surface));
 }
 
-.order-pause-banner.is-overdue .order-pause-banner__text span {
+/* "Không có ca" ở chế độ Ghi sổ: chỉ nhắc, không chặn gì ⇒ vàng thay vì đỏ (vẫn kèm biểu tượng + chữ). */
+.order-pause-chip.is-warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-surface);
   color: var(--color-text-primary);
-  font-weight: 600;
+}
+
+.order-pause-chip.is-warning .order-pause-chip__icon {
+  color: var(--color-warning);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .order-pause-banner.is-overdue .order-pause-banner__icon {
+  .order-pause-chip.is-overdue .order-pause-chip__icon {
     animation: order-pause-pulse 1.6s ease-in-out infinite;
   }
 }
@@ -651,9 +709,26 @@
   }
 }
 
-.order-pause-banner .ds-button {
-  flex: none;
-  white-space: nowrap;
+@media (max-width: 900px) {
+  .order-pause-chip {
+    gap: var(--space-1);
+    padding-inline: var(--space-1);
+  }
+
+  .order-pause-chip__text {
+    font-size: var(--font-size-xs);
+  }
+
+  .order-pause-chip__resume-label {
+    display: none;
+  }
+
+  /* Chỉ biểu tượng: vẫn giữ vùng bấm 44px. */
+  .order-pause-chip .ds-button.order-pause-chip__resume {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding-inline: var(--space-1);
+  }
 }
 
 /* Hàng thao tác trong Dialog Chốt ca / Drawer Thông tin ca. */
@@ -717,18 +792,6 @@
 }
 
 @media (max-width: 640px) {
-  .order-pause-banner {
-    flex-wrap: wrap;
-    bottom: 0;
-    width: 100%;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-  }
-
-  .order-pause-banner .ds-button {
-    flex: 1 1 100%;
-    justify-content: center;
-  }
-
   .shifts-page__actions {
     justify-content: flex-start;
   }

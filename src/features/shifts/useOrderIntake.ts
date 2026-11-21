@@ -4,25 +4,26 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { pauseOrderIntake, resumeOrderIntake } from '../../api/shift'
-import { isIntakePaused, pauseElapsedMinutes } from './shiftModel'
+import { isIntakePaused, isManualPaused, pauseElapsedMinutes } from './shiftModel'
 import { useShift } from './useShift'
 
 const ELAPSED_TICK_MS = 30_000
 
 /**
  * Chỉ để khoá nút tạo đơn: mode 0 / chưa biết / đang nhận đơn ⇒ false (không đổi hành vi nào so với trước).
- * Nguồn tự động "không có ca" (`no_shift`) chỉ khoá khi chế độ Bắt buộc (2): ở Ghi sổ (1) máy chủ chỉ ghi "would-block".
+ * Dùng thẳng `orderPause.on` — máy chủ đã tính sẵn (cờ thủ công, hoặc "không có ca" ở chế độ Bắt buộc); chế độ Ghi sổ có
+ * `noShift = true` nhưng `on = false` ⇒ chỉ cảnh báo, không khoá.
  */
 export function useIntakePaused(): boolean {
-  const { orderPause, mode } = useShift()
-  return isIntakePaused(orderPause) && (orderPause?.source === 'manual' || mode >= 2)
+  const { orderPause } = useShift()
+  return isIntakePaused(orderPause)
 }
 
-/** Số phút đã ngừng theo giờ máy chủ, tự cập nhật mỗi 30 giây; null khi không ngừng hoặc không tính được. */
+/** Số phút đã ngừng theo giờ máy chủ, tự cập nhật mỗi 30 giây; null khi không có cờ thủ công hoặc không tính được. */
 export function usePauseElapsedMinutes(): number | null {
   const { orderPause, serverTime, dataUpdatedAt } = useShift()
   const [now, setNow] = useState(() => Date.now())
-  const running = isIntakePaused(orderPause) && orderPause?.source === 'manual'
+  const running = isManualPaused(orderPause)
 
   useEffect(() => {
     if (!running) return
@@ -31,7 +32,7 @@ export function usePauseElapsedMinutes(): number | null {
   }, [running])
 
   if (!running || !orderPause) return null
-  return pauseElapsedMinutes(orderPause.since, serverTime, dataUpdatedAt, now)
+  return pauseElapsedMinutes(orderPause.manual.since, serverTime, dataUpdatedAt, now)
 }
 
 export function useOrderIntake() {
@@ -52,12 +53,16 @@ export function useOrderIntake() {
   })
 
   const paused = isIntakePaused(orderPause)
+  const manualPaused = isManualPaused(orderPause)
   return {
     enabled,
     orderPause,
+    /** Đang CHẶN nhận đơn (cờ thủ công hoặc "không có ca" ở chế độ Bắt buộc). */
     paused,
-    /** Chỉ cờ thủ công mới bấm "Tiếp tục" được; nguồn tự động (không có ca) tự hết khi có người mở ca. */
-    canResume: paused && orderPause?.source === 'manual',
+    /** Cờ thủ công còn bật (kể cả khi `noShift` cũng true). */
+    manualPaused,
+    /** Chỉ cờ thủ công mới bấm "Tiếp tục" được; "không có ca" tự hết khi có người mở ca. */
+    canResume: manualPaused,
     pauseMutation,
     resumeMutation,
   }

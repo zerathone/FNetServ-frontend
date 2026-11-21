@@ -4,8 +4,10 @@ import {
   PAYMENT_METHODS,
   SHIFT_RIGHTS,
   canForceClose,
+  canViewAllShifts,
   cashDiffView,
   classifyShiftError,
+  formatDayMonth,
   formatSignedQty,
   isTodayYmd,
   listItemToCloseResult,
@@ -16,14 +18,20 @@ import {
   normalizeShiftStock,
   reconcileFromList,
   reconcileVerdict,
+  shiftDayView,
   shiftStatusView,
   sortShifts,
   summarizeDay,
   todayYmd,
   validateForceCloseNote,
-  viewAllGate,
 } from '../src/features/shifts/shiftManageModel.ts'
-import { buildCloseTicketHtml, normalizeSummary } from '../src/features/shifts/shiftModel.ts'
+import {
+  buildCloseTicketHtml,
+  describeDrift,
+  hasDrift,
+  normalizeSummary,
+  normalizeSummaryResponse,
+} from '../src/features/shifts/shiftModel.ts'
 
 const rawShift = (over: Record<string, unknown> = {}) => ({
   shiftId: 10,
@@ -60,6 +68,82 @@ test('normalizeShiftList: số dạng chuỗi được ép số, ca đang mở k
   assert.equal(list.outside.system.count, 12)
   // thiếu diff ⇒ tự tính reportTotal − bucketTotal
   assert.equal(list.reconcile?.diff, 200000)
+  assert.deepEqual(list.reconcile?.excludedNoUser, { count: 0, total: 0 })
+})
+
+test('normalizeShiftList S3-fix: revenueOnDate / crossDay / drift / note; máy chủ cũ ⇒ suy ra từ revenue và giờ mở/chốt', () => {
+  const [full] = normalizeShiftList({
+    shifts: [
+      rawShift({
+        revenue: '1000000',
+        revenueOnDate: '400000',
+        crossDay: { openDate: '2026-11-20', closeDate: '2026-11-21' },
+        drift: { total: '50000', cash: 50000 },
+        note: 'Quên chốt ca',
+        openTime: '2026-11-20 22:00:00',
+      }),
+    ],
+  }).shifts
+  assert.equal(full.revenueOnDate, 400000)
+  assert.equal(full.revenue, 1000000)
+  assert.deepEqual(full.crossDay, { openDate: '2026-11-20', closeDate: '2026-11-21' })
+  assert.deepEqual(full.drift, { total: 50000, cash: 50000 })
+  assert.equal(full.note, 'Quên chốt ca')
+
+  const [old] = normalizeShiftList({ shifts: [rawShift()] }).shifts
+  assert.equal(old.revenueOnDate, old.revenue)
+  assert.deepEqual(old.crossDay, { openDate: '2026-11-21', closeDate: '2026-11-21' })
+  assert.equal(old.drift, null)
+
+  // Ca đang mở: closeDate null và không có drift (dù máy chủ gửi lạc).
+  const [open] = normalizeShiftList({
+    shifts: [rawShift({ status: 1, closeTime: '', crossDay: { openDate: '2026-11-21', closeDate: null }, drift: { total: 5, cash: 5 } })],
+  }).shifts
+  assert.equal(open.crossDay.closeDate, null)
+  assert.equal(open.drift, null)
+})
+
+test('shiftDayView: ca qua đêm hiện ở mọi ngày chạm tới — ngày mở ghi "chốt ngày …", ngày chốt đủ số; ca mở hôm nay thì đủ số', () => {
+  const night = { openDate: '2026-11-20', closeDate: '2026-11-21' }
+  // Ngày MỞ (20/11): còn kéo sang sau ⇒ ô tiền để "—", ghi chú chốt ngày 21/11.
+  const openDay = shiftDayView({ crossDay: night }, '2026-11-20', '2026-11-22')
+  assert.deepEqual(openDay, { crossesDays: true, continuesAfter: true, note: 'Ca qua đêm, chốt ngày 21/11' })
+  // Ngày CHỐT (21/11): hiện đủ, ghi chú mở từ 20/11.
+  const closeDay = shiftDayView({ crossDay: night }, '2026-11-21', '2026-11-22')
+  assert.deepEqual(closeDay, { crossesDays: true, continuesAfter: false, note: 'Ca qua đêm, mở từ ngày 20/11' })
+  // Ca trong ngày: không ghi chú.
+  assert.deepEqual(shiftDayView({ crossDay: { openDate: '2026-11-21', closeDate: '2026-11-21' } }, '2026-11-21', '2026-11-21'), {
+    crossesDays: false,
+    continuesAfter: false,
+    note: '',
+  })
+  // Ca đang mở từ hôm qua, xem HÔM NAY: tiền mặt dự kiến hiện tại có nghĩa ⇒ đủ số; xem hôm qua: còn kéo sang sau.
+  const openNight = { openDate: '2026-11-20', closeDate: null }
+  assert.deepEqual(shiftDayView({ crossDay: openNight }, '2026-11-21', '2026-11-21'), {
+    crossesDays: true,
+    continuesAfter: false,
+    note: 'Ca qua đêm, mở từ ngày 20/11',
+  })
+  assert.deepEqual(shiftDayView({ crossDay: openNight }, '2026-11-20', '2026-11-21'), {
+    crossesDays: true,
+    continuesAfter: true,
+    note: 'Ca qua đêm, chưa chốt',
+  })
+  // Ca mở trong ngày hôm nay: bình thường.
+  assert.equal(shiftDayView({ crossDay: { openDate: '2026-11-21', closeDate: null } }, '2026-11-21', '2026-11-21').note, '')
+  assert.equal(formatDayMonth('2026-11-05'), '05/11')
+  assert.equal(formatDayMonth('lạ'), 'lạ')
+})
+
+test('drift: khác 0 ở tổng hoặc tiền mặt ⇒ cảnh báo; câu mô tả đúng chiều (số chụp − số tính lại)', () => {
+  assert.equal(hasDrift(null), false)
+  assert.equal(hasDrift({ total: 0, cash: 0 }), false)
+  assert.equal(hasDrift({ total: 0, cash: -1 }), true)
+  assert.deepEqual(describeDrift({ total: 50000, cash: 0 }), ['Doanh thu tính lại hiện thấp hơn số lúc chốt 50.000 đ.'])
+  assert.deepEqual(describeDrift({ total: -20000, cash: 20000 }), [
+    'Doanh thu tính lại hiện cao hơn số lúc chốt 20.000 đ.',
+    'Tiền mặt tính lại hiện thấp hơn số lúc chốt 20.000 đ.',
+  ])
 })
 
 test('normalizeShiftList: thiếu mọi trường vẫn trả cấu trúc đủ (không ném)', () => {
@@ -107,16 +191,17 @@ test('normalizeShiftList: thiếu status ⇒ coi như đã chốt (không hiện
   assert.equal(item.status, 2)
 })
 
-test('summarizeDay: đếm ca đang mở / treo / mở từ hôm trước; tổng doanh thu chỉ cộng các ca', () => {
+test('summarizeDay: đếm ca đang mở / treo / mở từ hôm trước / số liệu đổi; tổng doanh thu cộng PHẦN THUỘC NGÀY của các ca', () => {
   const shifts = normalizeShiftList({
     shifts: [
-      rawShift({ shiftId: 1, revenue: 100 }),
+      rawShift({ shiftId: 1, revenue: 100, drift: { total: 10, cash: 0 } }),
       rawShift({ shiftId: 2, status: 1, closeTime: '', revenue: 50 }),
-      rawShift({ shiftId: 3, status: 1, closeTime: '', hung: true, openTime: '2026-11-20 20:00:00', revenue: 25 }),
+      rawShift({ shiftId: 3, status: 1, closeTime: '', hung: true, openTime: '2026-11-20 20:00:00', revenue: 100, revenueOnDate: 25 }),
     ],
   }).shifts
   const totals = summarizeDay(shifts, '2026-11-21')
-  assert.deepEqual(totals, { shiftCount: 3, openCount: 2, hungCount: 1, carriedOver: 1, revenueTotal: 175 })
+  // ca 3 qua đêm: cả ca 100 nhưng chỉ 25 thuộc ngày ⇒ 100 + 50 + 25 = 175 (không phải 250)
+  assert.deepEqual(totals, { shiftCount: 3, openCount: 2, hungCount: 1, carriedOver: 1, revenueTotal: 175, driftCount: 1 })
 })
 
 test('đối soát: diff = 0 ⇒ khớp; lệch ⇒ đếm phiếu gây lệch; mã phiếu số hay chuỗi đều thành chuỗi', () => {
@@ -131,6 +216,17 @@ test('đối soát: diff = 0 ⇒ khớp; lệch ⇒ đếm phiếu gây lệch; 
   // thiếu diff ⇒ reportTotal − (ca + hệ thống + khác); âm = thừa (đếm hai lần)
   const derived = normalizeReconcile({ reportTotal: 90, shiftsTotal: 60, systemTotal: 30, otherTotal: 10 })
   assert.equal(derived.diff, -10)
+})
+
+test('đối soát: excludedNoUser đọc được cả dạng {count,total} lẫn hai trường phẳng; mặc định 0', () => {
+  assert.deepEqual(normalizeReconcile({ excludedNoUser: { count: '2', total: '60000' } }).excludedNoUser, { count: 2, total: 60000 })
+  assert.deepEqual(normalizeReconcile({ excludedNoUser: 3, excludedNoUserTotal: 90000 }).excludedNoUser, { count: 3, total: 90000 })
+  assert.deepEqual(normalizeReconcile({}).excludedNoUser, { count: 0, total: 0 })
+  const list = normalizeShiftList({
+    shifts: [],
+    reconcile: { reportTotal: 10, bucketTotal: 10, diff: 0, excludedNoUser: { count: 1, total: 5 } },
+  })
+  assert.deepEqual(reconcileFromList(list)?.excludedNoUser, { count: 1, total: 5 })
 })
 
 test('reconcileFromList: dựng bản rút gọn từ /shift/list khi /shift/reconcile lỗi (không có danh sách phiếu)', () => {
@@ -174,6 +270,25 @@ test('normalizeShiftStock: available:false ⇒ ẩn tab; close hoặc current đ
   assert.equal(normalizeShiftStock({ rows: [] }).available, true) // thiếu cờ ⇒ coi như có kho
 })
 
+test('normalizeShiftStock: open/delta null khi không có ảnh chụp đầu ca (không đổi thành 0); cờ openSnapshot/closeSnapshot', () => {
+  const stock = normalizeShiftStock({
+    available: true,
+    openSnapshot: false,
+    closeSnapshot: true,
+    rows: [
+      { materialId: 1, name: 'Sữa', unit: 'lon', open: null, close: 8, delta: null, imported: 0, exported: 2, adjusted: 0 },
+      { materialId: 2, name: 'Trứng', unit: 'quả', open: 0, close: 5, imported: 5, exported: 0, adjusted: 0 },
+    ],
+  })
+  assert.equal(stock.openSnapshot, false)
+  assert.equal(stock.closeSnapshot, true)
+  assert.equal(stock.rows[0].open, null)
+  assert.equal(stock.rows[0].delta, null)
+  assert.equal(stock.rows[1].open, 0) // 0 thật khác với "không có"
+  assert.equal(stock.rows[1].delta, 5)
+  assert.equal(normalizeShiftStock({ rows: [] }).openSnapshot, true) // thiếu cờ ⇒ coi như có
+})
+
 test('formatSignedQty: có dấu +/−, số lẻ giữ tới 3 chữ số', () => {
   assert.equal(formatSignedQty(12), '+12')
   assert.equal(formatSignedQty(-3.5), '−3,5')
@@ -185,10 +300,13 @@ test('normalizeShiftPayments: total thiếu ⇒ số dòng; phân trang do máy 
     total: '120',
     items: [{ voucherId: 12345, date: '2026-11-21', time: '08:00:00', paymentType: '1', typeName: 'Nạp tiền', source: 'member', method: 'cash', amount: '50000', member: 'hv1', staff: 'A' }],
   })
-  assert.equal(page.total, 120)
+  assert.equal(page.total, 120) // số phiếu của ô, không phải số dòng của trang
   assert.equal(page.items[0].voucherId, '12345')
   assert.equal(page.items[0].amount, 50000)
   assert.equal(normalizeShiftPayments({ items: [{}, {}] }).total, 2)
+  // `sumAmount` = tổng tiền của cả ô (máy chủ tính); thiếu ⇒ cộng các dòng đang có.
+  assert.equal(normalizeShiftPayments({ total: 120, sumAmount: '6000000', items: [] }).sumAmount, 6000000)
+  assert.equal(normalizeShiftPayments({ items: [{ amount: 10 }, { amount: 5 }] }).sumAmount, 15)
 })
 
 test('methodLabel: 4 hình thức không viết tắt; khoá lạ giữ nguyên', () => {
@@ -197,14 +315,43 @@ test('methodLabel: 4 hình thức không viết tắt; khoá lạ giữ nguyên'
   assert.equal(methodLabel('zalo'), 'zalo')
 })
 
-test('normalizeSummary S3: refundsQrCanceled / onlineBook — thiếu hoặc null ⇒ null (không hiện dòng nhắc)', () => {
+test('normalizeSummary S3: refundsQrCanceled / onlineBook / drift — thiếu hoặc null ⇒ null (không hiện dòng nhắc)', () => {
   const none = normalizeSummary({ sources: [] })
   assert.equal(none.refundsQrCanceled, null)
   assert.equal(none.onlineBook, null)
-  const some = normalizeSummary({ sources: [], refundsQrCanceled: { count: '2', total: '180000' }, onlineBook: { count: 1, walletTotal: 60000 } })
+  assert.equal(none.drift, null)
+  const some = normalizeSummary({ sources: [], refundsQrCanceled: { count: '2', total: '180000' } })
   assert.deepEqual(some.refundsQrCanceled, { count: 2, total: 180000 })
-  assert.deepEqual(some.onlineBook, { count: 1, walletTotal: 60000 })
   assert.equal(normalizeSummary({ sources: [], refundsQrCanceled: 'x' }).refundsQrCanceled, null)
+})
+
+test('onlineBook (design 14b D20): trừ ví / hoàn ví / ròng; thiếu phần hoàn ví ⇒ 0; thiếu netTotal ⇒ đã trừ − đã hoàn', () => {
+  const full = normalizeSummary({
+    sources: [],
+    onlineBook: { count: '3', walletTotal: '240000', creditCount: 1, creditTotal: 80000, netTotal: 160000 },
+  })
+  assert.deepEqual(full.onlineBook, { count: 3, walletTotal: 240000, creditCount: 1, creditTotal: 80000, netTotal: 160000 })
+  const derived = normalizeSummary({ sources: [], onlineBook: { count: 2, walletTotal: 100, creditCount: 1, creditTotal: 30 } })
+  assert.equal(derived.onlineBook?.netTotal, 70)
+  const old = normalizeSummary({ sources: [], onlineBook: { count: 1, walletTotal: 60000 } })
+  assert.deepEqual(old.onlineBook, { count: 1, walletTotal: 60000, creditCount: 0, creditTotal: 0, netTotal: 60000 })
+})
+
+test('normalizeSummaryResponse: refundsQrCanceled (null) / onlineBook / drift nằm CÙNG CẤP summary', () => {
+  const res = normalizeSummaryResponse({
+    live: false,
+    shift: {},
+    summary: { sources: [], expectedCash: 5 },
+    refundsQrCanceled: null,
+    onlineBook: { count: 1, walletTotal: 60000, creditCount: 0, creditTotal: 0, netTotal: 60000 },
+    drift: { total: 50000, cash: 0 },
+  })
+  assert.ok(res)
+  assert.equal(res.refundsQrCanceled, null)
+  assert.equal(res.onlineBook?.netTotal, 60000)
+  assert.deepEqual(res.drift, { total: 50000, cash: 0 })
+  assert.equal(normalizeSummaryResponse({ live: true, shift: {}, summary: { sources: [] } })?.drift, null) // ca đang mở: không có drift
+  assert.equal(normalizeSummaryResponse({ live: false, shift: {}, summary: null }), null)
 })
 
 test('listItemToCloseResult: phiếu ca đã đóng dựng được từ dòng danh sách, kể cả khi chưa có tóm tắt hay chưa đếm tiền', () => {
@@ -214,7 +361,8 @@ test('listItemToCloseResult: phiếu ca đã đóng dựng được từ dòng d
   assert.equal(result.shift.expectedCash, 777) // thiếu ở danh sách ⇒ lấy ở tóm tắt
   assert.equal(result.shift.closeTime, '2026-11-21 14:00:00')
   assert.equal(result.shift.note, '')
-  assert.match(listItemToCloseResult({ ...item, status: 3 }, summary).shift.note, /cưỡng bức/)
+  assert.match(listItemToCloseResult({ ...item, status: 3 }, summary).shift.note, /cưỡng bức/) // máy chủ không có ghi chú
+  assert.equal(listItemToCloseResult({ ...item, status: 3, note: 'Quên chốt ca' }, summary).shift.note, 'Quên chốt ca') // dùng lý do thật
   const html = buildCloseTicketHtml({ shopName: 'Quán <A>', result, type: 1 })
   assert.match(html, /Ca số:/)
   assert.match(html, /Không nhập/) // chưa đếm tiền
@@ -234,13 +382,18 @@ test('validateForceCloseNote: bắt buộc 1–500 ký tự; từ chối nháy �
   assert.equal(validateForceCloseNote('dòng một\ndòng hai'), undefined)
 })
 
-test('quyền: admin luôn được; chưa biết mã quyền ⇒ unknown (để server quyết định) và nút Đóng cưỡng bức chỉ cho admin', () => {
+test('quyền thật 9418 / 9419: admin luôn được; nhân viên cần đúng mã; nút Đóng cưỡng bức chỉ ở ca đang mở', () => {
   const none = () => false
-  assert.equal(SHIFT_RIGHTS.VIEW_ALL, null) // đổi test này khi B2 chốt mã quyền
-  assert.equal(viewAllGate(true, none), 'allowed')
-  assert.equal(viewAllGate(false, none), 'unknown')
+  assert.equal(SHIFT_RIGHTS.VIEW_ALL, 9418) // Xem mọi ca làm việc
+  assert.equal(SHIFT_RIGHTS.FORCE_CLOSE, 9419) // Đóng cưỡng bức ca làm việc
+  assert.equal(canViewAllShifts(true, none), true)
+  assert.equal(canViewAllShifts(false, none), false)
+  assert.equal(canViewAllShifts(false, (code) => code === 9418), true)
+  assert.equal(canViewAllShifts(false, (code) => code === 9419), false) // mã đóng cưỡng bức không cho xem mọi ca
   assert.equal(canForceClose(1, true, none), true)
-  assert.equal(canForceClose(1, false, () => true), false) // chưa có mã ⇒ không tự cho
+  assert.equal(canForceClose(1, false, none), false)
+  assert.equal(canForceClose(1, false, (code) => code === 9418), false) // chỉ quyền xem thì không có nút
+  assert.equal(canForceClose(1, false, (code) => code === 9419), true)
   assert.equal(canForceClose(2, true, none), false) // ca đã đóng: không có nút
   assert.equal(canForceClose(3, true, none), false)
 })

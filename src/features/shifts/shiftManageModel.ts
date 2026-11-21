@@ -1,6 +1,7 @@
 // task work-shift S3 (F2) — logic THUẦN của trang quản lý /shifts (không React, không fetch) để test bằng `node --test`
-// (tests/shift-manage-model.test.ts). Chuẩn hoá response `/shift/list|payments|stock|reconcile` (đọc phòng thủ — hợp đồng
-// S3 chưa có B2 thật), trạng thái hiển thị, chênh lệch tiền, tổng ngày, quyền, kiểm ghi chú đóng cưỡng bức.
+// (tests/shift-manage-model.test.ts). Chuẩn hoá response `/shift/list|payments|stock|reconcile` (đã đối chiếu backend thật
+// 2026-11-21 + design 14b D16/D17/D20; vẫn đọc phòng thủ vì số có thể về dạng chuỗi), trạng thái hiển thị, chênh lệch tiền,
+// tổng ngày (phần doanh thu thuộc ngày), ca qua đêm, quyền, kiểm ghi chú đóng cưỡng bức.
 import type {
   ShiftBucket,
   ShiftCloseResult,
@@ -17,6 +18,8 @@ import type {
 import {
   MAX_SHIFT_NOTE,
   asRecord,
+  hasDrift,
+  normalizeDrift,
   sanitizeNoteInput,
   toNullableNumber,
   toNumber,
@@ -33,32 +36,26 @@ export const SHIFT_LIST_POLL_MS = 30_000
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Mã quyền do B2 chọn khi làm backend (handoff S3be: "chọn mã chưa dùng", seed theo mẫu OB 9416/9417). Chưa có B2 ⇒ `null`:
- *  - nhân viên KHÔNG phải admin sẽ không thấy mục menu (`rightAny` rỗng); admin dùng bình thường;
- *  - mở thẳng `/shifts` thì trang vẫn gọi API và để server quyết định (403 ⇒ "Bạn không có quyền xem danh sách ca").
- * ⚠️ Điền hai mã này NGAY khi B2 xong (grep `R_SHIFT` ở define.h / "Mã quyền đã chọn" trong handoff S3be).
+ * Mã quyền thật (`R_SHIFT_VIEW_ALL` / `R_SHIFT_FORCE_CLOSE` ở `ServerSide_ai/define.h`, seed `functiontb` nhóm 900001;
+ * chốt 2026-11-21 ở `handoff/HANDOFF_work-shift-S3be.md`). Server kiểm CỨNG "admin hoặc có mã" (kể cả khi `INT_RBAC_ENFORCE` tắt);
+ * web chỉ dùng để ẩn/hiện menu và nút cho đúng.
  */
-export const SHIFT_RIGHTS: { VIEW_ALL: number | null; FORCE_CLOSE: number | null } = {
-  VIEW_ALL: null,
-  FORCE_CLOSE: null,
+export const SHIFT_RIGHTS = {
+  /** 9418 — Xem mọi ca làm việc. */
+  VIEW_ALL: 9418,
+  /** 9419 — Đóng cưỡng bức ca làm việc. */
+  FORCE_CLOSE: 9419,
+} as const
+
+/** Trang quản lý ca: admin hoặc có quyền "Xem mọi ca làm việc". */
+export function canViewAllShifts(isAdmin: boolean, hasRight: (code: number) => boolean): boolean {
+  return isAdmin || hasRight(SHIFT_RIGHTS.VIEW_ALL)
 }
 
-export function shiftRightCodes(code: number | null): number[] {
-  return code === null ? [] : [code]
-}
-
-/** `unknown` = chưa biết mã quyền ⇒ không tự chặn ở client, để server trả 403. */
-export function viewAllGate(isAdmin: boolean, hasRight: (code: number) => boolean): 'allowed' | 'denied' | 'unknown' {
-  if (isAdmin) return 'allowed'
-  if (SHIFT_RIGHTS.VIEW_ALL === null) return 'unknown'
-  return hasRight(SHIFT_RIGHTS.VIEW_ALL) ? 'allowed' : 'denied'
-}
-
-/** Nút Đóng cưỡng bức: chỉ ca ĐANG MỞ và người xem là admin hoặc có quyền tương ứng. */
+/** Nút Đóng cưỡng bức: chỉ ca ĐANG MỞ và người xem là admin hoặc có quyền "Đóng cưỡng bức ca làm việc". */
 export function canForceClose(status: number, isAdmin: boolean, hasRight: (code: number) => boolean): boolean {
   if (status !== 1) return false
-  if (isAdmin) return true
-  return SHIFT_RIGHTS.FORCE_CLOSE !== null && hasRight(SHIFT_RIGHTS.FORCE_CLOSE)
+  return isAdmin || hasRight(SHIFT_RIGHTS.FORCE_CLOSE)
 }
 
 export type ShiftErrorKind = 'denied' | 'disabled' | 'other'
@@ -79,20 +76,38 @@ function normalizeListItem(raw: unknown): ShiftListItem {
   const closeTime = toText(r.closeTime)
   // Thiếu / sai `status` ⇒ coi như đã chốt (không hiện nút Đóng cưỡng bức nhầm lên dòng dữ liệu hỏng).
   const status = toNumber(r.status, 2)
+  const openTime = toText(r.openTime)
+  const revenue = toNumber(r.revenue)
   return {
     shiftId: toNumber(r.shiftId),
     staffId: toNumber(r.staffId),
     staffName: toText(r.staffName),
     status,
-    openTime: toText(r.openTime),
+    openTime,
     closeTime: status === 1 || closeTime === '' ? null : closeTime,
     openingCash: toNumber(r.openingCash),
-    revenue: toNumber(r.revenue),
+    revenue,
+    // Máy chủ cũ (trước S3-fix) không có `revenueOnDate` ⇒ lấy doanh thu cả ca, đúng khi ca không qua đêm.
+    revenueOnDate: toNumber(r.revenueOnDate, revenue),
+    crossDay: normalizeCrossDay(r.crossDay, openTime, status === 1 || closeTime === '' ? null : closeTime),
     expectedCash: toNullableNumber(r.expectedCash),
     countedCash: toNullableNumber(r.countedCash),
     cashDiff: toNullableNumber(r.cashDiff),
+    note: toText(r.note),
+    drift: status === 1 ? null : normalizeDrift(r.drift),
     hung: r.hung === true || r.hung === 1 || r.hung === '1',
   }
+}
+
+const dayOf = (time: string) => /^(\d{4}-\d{2}-\d{2})/.exec(time.trim())?.[1] ?? ''
+
+/** `crossDay = {openDate, closeDate|null}`; thiếu ⇒ suy từ giờ mở / giờ chốt của dòng. */
+function normalizeCrossDay(raw: unknown, openTime: string, closeTime: string | null): ShiftListItem['crossDay'] {
+  const r = asRecord(raw)
+  const openDate = toText(r.openDate) || dayOf(openTime)
+  const closeDateRaw = toText(r.closeDate)
+  const closeDate = r.closeDate !== undefined ? (closeDateRaw === '' ? null : closeDateRaw) : closeTime ? dayOf(closeTime) || null : null
+  return { openDate, closeDate }
 }
 
 function normalizeBucket(raw: unknown): ShiftBucket {
@@ -105,7 +120,12 @@ function normalizeReconcileSummary(raw: unknown): ShiftReconcileSummary | null {
   const r = asRecord(raw)
   const reportTotal = toNumber(r.reportTotal)
   const bucketTotal = toNumber(r.bucketTotal)
-  return { reportTotal, bucketTotal, diff: toNumber(r.diff, reportTotal - bucketTotal) }
+  return {
+    reportTotal,
+    bucketTotal,
+    diff: toNumber(r.diff, reportTotal - bucketTotal),
+    excludedNoUser: normalizeBucket(r.excludedNoUser),
+  }
 }
 
 /** Ca đang mở lên đầu (cần chú ý nhất), còn lại mới mở sau cùng trước. Ca không có giờ hợp lệ xếp cuối. */
@@ -128,6 +148,15 @@ export function normalizeShiftList(raw: unknown): ShiftListResult {
   }
 }
 
+/**
+ * `/shift/reconcile` trả phiếu không gắn tài khoản người dùng. Design 14b D15 ghi `excludedNoUser {count,total}`, còn bảng hình
+ * dạng ở handoff S3be ghi hai trường phẳng `excludedNoUser` (số phiếu) + `excludedNoUserTotal` ⇒ đọc được cả hai.
+ */
+function normalizeExcludedNoUser(r: Record<string, unknown>): ShiftBucket {
+  if (r.excludedNoUser && typeof r.excludedNoUser === 'object') return normalizeBucket(r.excludedNoUser)
+  return { count: toNumber(r.excludedNoUser), total: toNumber(r.excludedNoUserTotal) }
+}
+
 function toVoucherList(value: unknown): string[] {
   return (Array.isArray(value) ? value : []).map((v) => toText(v)).filter((v) => v !== '')
 }
@@ -144,6 +173,7 @@ export function normalizeReconcile(raw: unknown): ShiftReconcile {
     systemTotal,
     otherTotal,
     diff: toNumber(r.diff, reportTotal - (shiftsTotal + systemTotal + otherTotal)),
+    excludedNoUser: normalizeExcludedNoUser(r),
     orphans: toVoucherList(r.orphans),
     duplicates: toVoucherList(r.duplicates),
   }
@@ -168,13 +198,19 @@ function normalizePaymentItem(raw: unknown): ShiftPaymentItem {
 export function normalizeShiftPayments(raw: unknown): ShiftPaymentsResult {
   const r = asRecord(raw)
   const items = (Array.isArray(r.items) ? r.items : []).map(normalizePaymentItem)
-  return { total: toNumber(r.total, items.length), items }
+  // `total` = số PHIẾU của ô; `sumAmount` = tổng tiền (thiếu ⇒ cộng các dòng đang có, chỉ đúng khi chưa phân trang).
+  return {
+    total: toNumber(r.total, items.length),
+    sumAmount: toNumber(r.sumAmount, items.reduce((sum, item) => sum + item.amount, 0)),
+    items,
+  }
 }
 
 function normalizeStockRow(raw: unknown): ShiftStockRow {
   const r = asRecord(raw)
-  const open = toNumber(r.open)
-  // Hợp đồng: `close` (ca đã đóng) hoặc `current` (ca còn mở) — cùng một vai trò "cuối kỳ".
+  // `open` = null khi nguyên liệu không có ảnh chụp đầu ca (ca cũ / nguyên liệu mới) — không đổi thành 0 vì sẽ tính sai chênh lệch.
+  const open = toNullableNumber(r.open)
+  // Ca đã đóng ⇒ `close`; ca còn mở ⇒ `current` (máy chủ chỉ trả MỘT trong hai) — cùng một vai trò "cuối kỳ".
   const close = toNumber(r.close !== undefined ? r.close : r.current)
   return {
     materialId: toNumber(r.materialId),
@@ -182,7 +218,7 @@ function normalizeStockRow(raw: unknown): ShiftStockRow {
     unit: toText(r.unit),
     open,
     close,
-    delta: toNumber(r.delta, close - open),
+    delta: open === null ? toNullableNumber(r.delta) : toNumber(r.delta, close - open),
     imported: toNumber(r.imported),
     exported: toNumber(r.exported),
     adjusted: toNumber(r.adjusted),
@@ -194,6 +230,8 @@ export function normalizeShiftStock(raw: unknown): ShiftStockResult {
   return {
     // Thiếu `available` ⇒ coi như có kho nếu có dòng; `false` rõ ràng ⇒ ẩn tab.
     available: r.available === false || r.available === 0 ? false : true,
+    openSnapshot: r.openSnapshot !== false && r.openSnapshot !== 0,
+    closeSnapshot: r.closeSnapshot !== false && r.closeSnapshot !== 0,
     rows: (Array.isArray(r.rows) ? r.rows : []).map(normalizeStockRow),
   }
 }
@@ -261,25 +299,58 @@ export type DayTotals = {
   shiftCount: number
   openCount: number
   hungCount: number
-  /** Số ca mở từ ngày trước (vẫn còn mở) được kéo vào danh sách. */
+  /** Số ca qua đêm (mở từ ngày trước ngày đang xem — còn mở hoặc đã chốt) có mặt trong danh sách. */
   carriedOver: number
-  /** Tổng doanh thu các ca trong danh sách (không gồm Thu ngoài ca). */
+  /** Tổng doanh thu PHẦN THUỘC NGÀY của các ca trong danh sách (không gồm Thu ngoài ca). */
   revenueTotal: number
+  /** Số ca đã đóng mà số liệu đã đổi sau khi chốt (`drift` khác 0). */
+  driftCount: number
 }
-
-const dayOf = (time: string) => /^(\d{4}-\d{2}-\d{2})/.exec(time.trim())?.[1] ?? ''
 
 export function summarizeDay(shifts: readonly ShiftListItem[], date: string): DayTotals {
   return {
     shiftCount: shifts.length,
     openCount: shifts.filter((s) => s.status === 1).length,
     hungCount: shifts.filter((s) => s.status === 1 && s.hung).length,
-    carriedOver: shifts.filter((s) => {
-      const d = dayOf(s.openTime)
-      return d !== '' && d < date
-    }).length,
-    revenueTotal: shifts.reduce((sum, s) => sum + s.revenue, 0),
+    carriedOver: shifts.filter((s) => s.crossDay.openDate !== '' && s.crossDay.openDate < date).length,
+    // Chỉ phần doanh thu thuộc ngày đang xem (ca qua đêm hiện ở cả ngày mở và ngày chốt, mỗi ngày một phần) ⇒ cộng các dòng
+    // + Thu ngoài ca = báo cáo doanh thu ngày.
+    revenueTotal: shifts.reduce((sum, s) => sum + s.revenueOnDate, 0),
+    driftCount: shifts.filter((s) => hasDrift(s.drift)).length,
   }
+}
+
+/** "2026-11-21" -> "21/11"; không khớp thì giữ nguyên. */
+export function formatDayMonth(ymd: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(ymd)
+  return m ? `${m[2]}/${m[1]}` : ymd
+}
+
+export type ShiftDayView = {
+  /** Ca chạm tới nhiều hơn một ngày (qua đêm). */
+  crossesDays: boolean
+  /** Ca còn kéo sang sau ngày đang xem ⇒ tiền đầu ca / đếm / chênh lệch CHƯA chốt ở dòng này (chỉ hiện đủ ở dòng ngày chốt). */
+  continuesAfter: boolean
+  /** Ghi chú dưới tên ca; rỗng nếu ca nằm gọn trong ngày. */
+  note: string
+}
+
+/**
+ * Cách một ca hiện trong danh sách của ngày `date` (design 14b D16: ca qua đêm hiện ở MỌI ngày chạm tới).
+ * Ca đang mở mà ngày xem là hôm nay thì tiền mặt dự kiến hiện tại có nghĩa ⇒ không coi là "còn kéo sang sau".
+ */
+export function shiftDayView(item: Pick<ShiftListItem, 'crossDay'>, date: string, today: string = todayYmd()): ShiftDayView {
+  const { openDate, closeDate } = item.crossDay
+  const continuesAfter = closeDate !== null ? closeDate > date : date < today
+  const startedBefore = openDate !== '' && openDate < date
+  const crossesDays = closeDate !== null ? openDate !== closeDate : startedBefore || continuesAfter
+  let note = ''
+  if (continuesAfter) {
+    note = closeDate !== null ? `Ca qua đêm, chốt ngày ${formatDayMonth(closeDate)}` : 'Ca qua đêm, chưa chốt'
+  } else if (startedBefore) {
+    note = `Ca qua đêm, mở từ ngày ${formatDayMonth(openDate)}`
+  }
+  return { crossesDays, continuesAfter, note }
 }
 
 export type ReconcileVerdict = { matched: boolean; diff: number; badCount: number }
@@ -300,6 +371,7 @@ export function reconcileFromList(list: ShiftListResult): ShiftReconcile | null 
     systemTotal: list.outside.system.total,
     otherTotal: list.outside.other.total,
     diff: list.reconcile.diff,
+    excludedNoUser: list.reconcile.excludedNoUser,
     orphans: [],
     duplicates: [],
   }
@@ -307,7 +379,7 @@ export function reconcileFromList(list: ShiftListResult): ShiftReconcile | null 
 
 /**
  * Dựng `ShiftCloseResult` từ một dòng danh sách + tóm tắt để tái dùng `buildCloseTicketHtml` (phiếu của F1) cho ca ĐÃ ĐÓNG
- * ở trang quản lý. Danh sách không trả ghi chú (lý do đóng cưỡng bức nằm ở nhật ký máy chủ).
+ * ở trang quản lý. Ghi chú lấy từ `note` của dòng danh sách (ca đóng cưỡng bức: lý do quản lý nhập).
  */
 export function listItemToCloseResult(item: ShiftListItem, summary: ShiftSummary | null): ShiftCloseResult {
   return {
@@ -323,8 +395,8 @@ export function listItemToCloseResult(item: ShiftListItem, summary: ShiftSummary
       countedCash: item.countedCash,
       expectedCash: item.expectedCash ?? summary?.expectedCash ?? null,
       cashDiff: item.cashDiff,
-      // Danh sách không trả lý do; ca đóng cưỡng bức vẫn phải ghi rõ trên phiếu in.
-      note: item.status === 3 ? 'Đóng cưỡng bức bởi quản lý' : '',
+      // Ca đóng cưỡng bức vẫn phải ghi rõ trên phiếu in dù máy chủ không có ghi chú.
+      note: item.note || (item.status === 3 ? 'Đóng cưỡng bức bởi quản lý' : ''),
     },
     summary,
     warnings: null,

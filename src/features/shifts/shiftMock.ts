@@ -16,10 +16,13 @@
 //   (trang /shifts với off ⇒ "Chưa bật chế độ ca"; none | open | pending | warn ⇒ dữ liệu quản lý mặc định, đối soát khớp)
 //
 // Ngừng / Tiếp tục nhận đơn (S3b-FE; B3 chưa có — hình dạng theo handoff/HANDOFF_work-shift-S3b-be.md mục 3):
-//   paused        có ca; đang ngừng nhận đơn MỚI 12 phút (banner thường + nút Tiếp tục)
-//   paused-long   có ca; đã ngừng 47 phút (> 30 phút: banner nhấn mạnh + toast nhắc một lần)
-//   none-paused   CHƯA có ca + đang ngừng 35 phút bởi người ca trước ⇒ Dialog Mở ca hỏi "Tiếp tục nhận đơn?"
-//   none-auto     CHƯA có ca + ngừng TỰ ĐỘNG vì không có ca (`reason:"no_shift"`, S4b) ⇒ banner không có nút
+//   (khối cảnh báo nằm ở TOPBAR — user chốt 2026-11-21; hợp đồng `orderPause {on, manual{…}, noShift, pendingOrders}`)
+//   paused        có ca; đang ngừng nhận đơn MỚI 12 phút (khối đỏ thường + nút Tiếp tục)
+//   paused-long   có ca; đã ngừng 47 phút (> 30 phút: khối nhấn mạnh + toast nhắc một lần)
+//   none-paused   CHƯA có ca + đang ngừng 35 phút bởi người ca trước (`manual.on` VÀ `noShift` cùng true) ⇒ Dialog Mở ca hỏi
+//                 "Tiếp tục nhận đơn?"
+//   none-auto     CHƯA có ca, chế độ 2 (`noShift` true, `manual.on` false, `on` true; S4b) ⇒ khối đỏ không có nút
+//   none-warn     CHƯA có ca, chế độ 1 (`noShift` true nhưng `on` false; S4b) ⇒ khối vàng chỉ nhắc, KHÔNG khoá nút Tạo đơn
 //   (các chế độ còn lại: đang nhận đơn; bấm Ngừng nhận đơn ở widget / Drawer / Dialog Chốt ca để thử)
 // Công tắc chế độ ca (Cài đặt → Ca làm việc): GET|PUT /settings/shift-mode, mock giữ mode trong bộ nhớ trang
 // (mặc định 2 = Bắt buộc mở ca, `effective` = 1 vì chặn thật là S4 ⇒ có dòng ghi chú; `off` bắt đầu ở 0).
@@ -62,8 +65,10 @@ let current: MockShift | null = null
 let seeded = ''
 let closedResult: Json | null = null
 
-type MockPause = { on: boolean; auto: boolean; since: string; byStaffId: number; byName: string; reason: string }
+type MockPause = { on: boolean; since: string; byStaffId: number; byName: string; reason: string }
 let pause: MockPause | null = null
+/** Giả lập S4b: máy chủ báo `noShift` khi không còn ca nào mở (S3b thật luôn `false`). Chỉ bật ở `none-auto` / `none-warn`. */
+let reportNoShift = false
 let modeSetting = 2
 const MOCK_STAFF = { id: 7, name: 'Nguyễn Thu Ngân' }
 const MOCK_PENDING = { service: 3, combo: 1, qrPaid: 1 }
@@ -72,20 +77,19 @@ function ensureSeed(mode: string) {
   if (seeded === mode) return
   seeded = mode
   closedResult = null
-  modeSetting = mode === 'off' ? 0 : 2
+  modeSetting = mode === 'off' ? 0 : mode === 'none-warn' ? 1 : 2
+  reportNoShift = mode === 'none-auto' || mode === 'none-warn' || mode === 'none-paused'
   const minutesAgo = (m: number) => stamp(new Date(Date.now() - m * 60_000))
   pause =
     mode === 'paused'
-      ? { on: true, auto: false, since: minutesAgo(12), byStaffId: MOCK_STAFF.id, byName: MOCK_STAFF.name, reason: 'Kiểm kho giao ca' }
+      ? { on: true, since: minutesAgo(12), byStaffId: MOCK_STAFF.id, byName: MOCK_STAFF.name, reason: 'Kiểm kho giao ca' }
       : mode === 'paused-long'
-        ? { on: true, auto: false, since: minutesAgo(47), byStaffId: MOCK_STAFF.id, byName: MOCK_STAFF.name, reason: '' }
+        ? { on: true, since: minutesAgo(47), byStaffId: MOCK_STAFF.id, byName: MOCK_STAFF.name, reason: '' }
         : mode === 'none-paused'
-          ? { on: true, auto: false, since: minutesAgo(35), byStaffId: 3, byName: 'Trần Văn Ca Trước', reason: 'Kiểm kho giao ca' }
-          : mode === 'none-auto'
-            ? { on: true, auto: true, since: '', byStaffId: 0, byName: '', reason: '' }
-            : null
+          ? { on: true, since: minutesAgo(35), byStaffId: 3, byName: 'Trần Văn Ca Trước', reason: 'Kiểm kho giao ca' }
+          : null
   current =
-    mode === 'none' || mode === 'off' || mode === 'none-paused' || mode === 'none-auto'
+    mode === 'none' || mode === 'off' || mode === 'none-paused' || mode === 'none-auto' || mode === 'none-warn'
       ? null
       : {
           shiftId: 128,
@@ -97,17 +101,19 @@ function ensureSeed(mode: string) {
         }
 }
 
-/** `orderPause` đúng hợp đồng B3: `{on, since, byStaffId, byName, reason, pendingOrders}` (nguồn tự động: `reason:"no_shift"`). */
+/**
+ * `orderPause` đúng hợp đồng chốt 2026-11-21 (`HANDOFF_work-shift-S3b-be.md` mục 3):
+ * `{on, manual:{on, since, byStaffId, byName, reason}, noShift, pendingOrders}`; `on = manual.on || (noShift && chế độ 2)`.
+ */
 function orderPauseJson(): Json {
-  if (pause?.auto) {
-    return { on: 1, since: '', byStaffId: 0, byName: '', reason: 'no_shift', pendingOrders: { service: 0, combo: 0, qrPaid: 0 } }
-  }
+  const manualOn = Boolean(pause?.on)
+  const noShift = reportNoShift && !current
   return {
-    on: pause?.on ? 1 : 0,
-    since: pause?.since ?? '',
-    byStaffId: pause?.byStaffId ?? 0,
-    byName: pause?.byName ?? '',
-    reason: pause?.reason ?? '',
+    on: manualOn || (noShift && modeSetting >= 2),
+    manual: manualOn
+      ? { on: true, since: pause?.since ?? null, byStaffId: pause?.byStaffId ?? null, byName: pause?.byName ?? null, reason: pause?.reason || null }
+      : { on: false, since: null, byStaffId: null, byName: null, reason: null },
+    noShift,
     pendingOrders: MOCK_PENDING,
   }
 }
@@ -178,12 +184,16 @@ export async function mockShiftRequest(mode: string, path: string, body?: unknow
 
   // D2: đọc / đổi chế độ ca — KHÔNG bị SHIFT_DISABLED chặn (đây là chỗ bật tính năng lên).
   if (path === '/settings/shift-mode') {
-    if (typeof req.mode === 'number' || typeof req.mode === 'string') {
+    const isPut = typeof req.mode === 'number' || typeof req.mode === 'string'
+    let changed = false
+    if (isPut) {
       if (![0, 1, 2].includes(req.mode as number)) throw new ApiError('Chế độ ca không hợp lệ', { code: 'INVALID_INPUT' })
+      changed = modeSetting !== req.mode
       modeSetting = req.mode as number
     }
-    // S3: chặn thật là S4 ⇒ chế độ 2 mới chỉ áp dụng như 1.
-    return { mode: modeSetting, effective: modeSetting === 2 ? 1 : modeSetting }
+    // S3: chặn thật là S4 ⇒ chế độ 2 mới chỉ áp dụng như 1. GET `{mode, effective, enabled}`; PUT `{mode, effective, changed}`.
+    const effective = modeSetting === 2 ? 1 : modeSetting
+    return isPut ? { mode: modeSetting, effective, changed } : { mode: modeSetting, effective, enabled: modeSetting > 0 }
   }
 
   if (modeSetting === 0) throw new ApiError('Tính năng ca chưa bật', { code: 'SHIFT_DISABLED' })
@@ -192,14 +202,14 @@ export async function mockShiftRequest(mode: string, path: string, body?: unknow
   if (path === '/orders/intake/pause') {
     const reason = typeof req.reason === 'string' ? req.reason : ''
     if (reason.length > 40 || /['\\]/.test(reason)) throw new ApiError('Lý do không hợp lệ', { code: 'INVALID_INPUT' })
-    if (pause?.on) return { changed: false, state: orderPauseJson() }
-    pause = { on: true, auto: false, since: stamp(new Date()), byStaffId: MOCK_STAFF.id, byName: MOCK_STAFF.name, reason }
-    return { changed: true, state: orderPauseJson() }
+    if (pause?.on) return { changed: false, orderPause: orderPauseJson() }
+    pause = { on: true, since: stamp(new Date()), byStaffId: MOCK_STAFF.id, byName: MOCK_STAFF.name, reason }
+    return { changed: true, orderPause: orderPauseJson() }
   }
   if (path === '/orders/intake/resume') {
-    if (!pause?.on || pause.auto) return { changed: false, state: orderPauseJson() }
+    if (!pause?.on) return { changed: false, orderPause: orderPauseJson() }
     pause = null
-    return { changed: true, state: orderPauseJson() }
+    return { changed: true, orderPause: orderPauseJson() }
   }
 
   // S3 (F2): trang quản lý /shifts — dữ liệu ở shiftManageMock.ts (chế độ riêng: diff | nostock | denied).
@@ -214,7 +224,7 @@ export async function mockShiftRequest(mode: string, path: string, body?: unknow
     }
     if (current) return { resumed: true, shift: briefShift(current) }
     closedResult = null
-    if (pause?.auto) pause = null // S4b: có ca mở ⇒ nguồn tự động "không có ca" hết (cờ thủ công thì giữ nguyên)
+    // Có ca mở ⇒ `noShift` tự hết (cờ thủ công thì giữ nguyên — Q8).
     current = {
       shiftId: 129,
       staffId: 7,
