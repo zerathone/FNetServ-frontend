@@ -7,6 +7,7 @@ export type SettingsSection =
   | 'general'
   | 'workstation'
   | 'orders'
+  | 'shift'
   | 'wsmap'
   | 'security'
 
@@ -18,6 +19,7 @@ export const SETTINGS_SECTIONS: Array<{
   { id: 'general', label: 'Thiết lập chung', description: 'Thông tin phòng máy, làm tròn tiền, mức nạp' },
   { id: 'workstation', label: 'Máy trạm', description: 'Đăng nhập lại, khóa và tự tắt' },
   { id: 'orders', label: 'Đơn hàng', description: 'Cảnh báo hàng đơn chờ' },
+  { id: 'shift', label: 'Ca làm việc', description: 'Chế độ mở ca, chốt ca của thu ngân' },
   { id: 'wsmap', label: 'Sơ đồ máy trạm', description: 'Vị trí máy, tường và đồ vật' },
   { id: 'security', label: 'Bảo mật và lưu trữ', description: 'Tài khoản ADMIN và lưu trữ nhật ký' },
 ]
@@ -67,6 +69,9 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
 
   // Đơn hàng
   { section: 'orders', anchor: 'order-queue', label: 'Cảnh báo hàng đơn chờ', keywords: ['đơn chờ', 'chờ lâu', 'cảnh báo vàng', 'cảnh báo đỏ', 'giữ nguyên liệu', 'số phút', 'đơn hàng', 'gọi món'] },
+
+  // Ca làm việc
+  { section: 'shift', anchor: 'shift-mode', label: 'Chế độ ca làm việc', keywords: ['ca làm việc', 'mở ca', 'chốt ca', 'bắt buộc mở ca', 'ghi sổ ca', 'tắt ca', 'chế độ ca', 'thu ngân', 'bàn giao ca', 'ngừng nhận đơn', 'kiểm kho giao ca'] },
 
   // Sơ đồ máy trạm
   { section: 'wsmap', label: 'Sơ đồ máy trạm', keywords: ['bản đồ', 'vị trí máy', 'sắp xếp máy', 'tường', 'đồ vật', 'bố trí phòng'] },

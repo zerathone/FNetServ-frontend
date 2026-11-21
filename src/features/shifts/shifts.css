@@ -1,0 +1,811 @@
+/* Ca làm việc (task work-shift S2) — chỉ dùng token của design-system (--space-*, --color-*, --radius-*, --font-size-*). */
+
+/* ---------- Widget sidebar (dưới "Nguồn thu ca"; sidebar 15rem / 4.5rem khi thu gọn) ---------- */
+.shift-widget {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) 0.625rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+}
+
+.shift-widget__full {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.shift-widget .shift-widget__mini {
+  display: none;
+  justify-self: center;
+}
+
+.app-shell--collapsed .shift-widget {
+  padding: var(--space-2) 6px;
+}
+
+.app-shell--collapsed .shift-widget .shift-widget__full {
+  display: none;
+}
+
+.app-shell--collapsed .shift-widget .shift-widget__mini {
+  display: inline-flex;
+}
+
+.shift-widget__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.shift-widget__title {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shift-widget__since {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-widget__total {
+  display: grid;
+  gap: 2px;
+}
+
+.shift-widget__total > span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.shift-widget__total strong {
+  color: var(--color-text-primary);
+  font-size: 1.375rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-widget__retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-action-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Chip ở thanh trên: chỉ hiện ở giao diện Cổ điển (nơi sidebar header — và widget ca — bị ẩn). */
+.ds-button.shift-chip {
+  display: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 901px) {
+  :root[data-theme="classic"] .ds-button.shift-chip {
+    display: inline-flex;
+  }
+}
+
+/* ---------- Khung chung của dialog / drawer ---------- */
+.shift-form {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.shift-form__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.shift-facts dt,
+.shift-stats dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-facts dd,
+.shift-stats dd {
+  margin: 2px 0 0;
+  color: var(--color-text-primary);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.shift-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.shift-stats > div {
+  min-width: 0;
+}
+
+/* Số cần nhìn nhất (tiền dự kiến, doanh thu, chênh lệch) lớn hơn các số còn lại. */
+.shift-stats__key dd {
+  font-size: var(--font-size-xl);
+  line-height: 1.2;
+}
+
+/* Chênh lệch tiền mặt: luôn kèm chữ Khớp / Thiếu / Thừa — màu chỉ là phụ. */
+.is-ok {
+  color: color-mix(in srgb, var(--color-success) 65%, var(--color-text-primary));
+}
+
+.is-short {
+  color: var(--color-danger-text);
+}
+
+.is-over {
+  color: color-mix(in srgb, var(--color-warning) 55%, var(--color-text-primary));
+}
+
+.shift-diff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.shift-diff span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-diff strong {
+  font-size: var(--font-size-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-diff small {
+  flex-basis: 100%;
+  color: var(--color-text-muted);
+}
+
+.shift-list {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.25rem;
+}
+
+.shift-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.shift-inline-icon {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.shift-inline-icon svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Footer có 3 nút: cho xuống dòng; "Đăng xuất" của Dialog Mở ca dạt trái, tách khỏi nhóm hành động chính. */
+.ds-dialog:has(.shift-form) .ds-dialog__footer {
+  flex-wrap: wrap;
+}
+
+.shift-dialog__logout {
+  margin-right: auto;
+}
+
+/* Màn kết quả: chênh lệch là số quan trọng nhất ⇒ chiếm cả hàng để không bị ngắt dòng. */
+.shift-stats--result .shift-stats__key {
+  grid-column: 1 / -1;
+}
+
+/* Tóm tắt theo nguồn trong Dialog Chốt ca: mặc định gấp lại để ô "Tiền thực đếm" luôn nằm trong tầm nhìn. */
+.shift-details > summary {
+  padding: var(--space-2) 0;
+  color: var(--color-action-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shift-details[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+/* ---------- Drawer Thông tin ca ---------- */
+.ds-drawer.shift-drawer {
+  width: min(100%, 46rem);
+}
+
+.shift-info {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ---------- Bảng nguồn × hình thức ---------- */
+.shift-table-block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Cuộn ngang CỤC BỘ trong khung (màn hẹp) — trang không bị cuộn ngang. */
+.shift-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.shift-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-md);
+}
+
+.shift-table th,
+.shift-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.shift-table thead th {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.shift-table tbody th {
+  font-weight: 500;
+}
+
+.shift-table .shift-table__num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-table .shift-table__total {
+  font-weight: 650;
+}
+
+/* Cấn trừ: nhạt (thông tin, không vào tổng) nhưng vẫn đạt tương phản chữ muted. */
+.shift-table .shift-table__deduct {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.shift-table .shift-table__refund th,
+.shift-table .shift-table__refund td {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.shift-table .shift-table__empty {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.shift-table tfoot th,
+.shift-table tfoot td {
+  border-top: 2px solid var(--color-border-strong);
+  border-bottom: 0;
+  background: var(--color-surface-subtle);
+  font-weight: 700;
+}
+
+.shift-table__note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ====================================================================================
+   Trang quản lý /shifts (task work-shift S3 / F2)
+   ==================================================================================== */
+
+.shifts-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* Trang cuộn trong khung khi màn thấp (thẻ + dòng đối soát + bảng); bảng luôn còn tối thiểu ~14rem. */
+.page-fill > .page-card.shifts-page {
+  gap: var(--space-3);
+  overflow: auto;
+}
+
+.shifts-page__table {
+  flex: 1 0 14rem;
+  min-height: 0;
+}
+
+.shifts-page__stamp {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Thẻ tóm tắt ngày ---------- */
+.shift-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.shift-kpi {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.shift-kpi__label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+
+.shift-kpi__value {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-kpi__sub {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-kpi__lines {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.shift-kpi__lines > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.shift-kpi__lines dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-kpi__lines dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-kpi__lines small {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+/* ---------- Dòng đối soát ---------- */
+.shift-reconcile__detail {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-bad {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.shift-bad__codes {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Bảng danh sách ca ---------- */
+.shifts-table .shift-table__nowrap,
+.shift-table .shift-table__nowrap {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.shifts-table__row {
+  cursor: pointer;
+}
+
+.shifts-table__row:hover td,
+.shifts-table__row.is-selected td {
+  background: var(--color-surface-hover);
+}
+
+.shifts-table__ca {
+  white-space: nowrap;
+}
+
+.shifts-table__staff {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Ca qua đêm: ghi chú dưới tên nhân viên (biểu tượng + chữ, không chỉ màu). Cho xuống dòng thay vì cắt chữ. */
+.shifts-table__overnight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 14rem;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: normal;
+}
+
+.shifts-table__overnight svg {
+  flex: none;
+}
+
+.shifts-table__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* Doanh thu trong ngày là số cộng ra thẻ tổng ⇒ đậm; doanh thu cả ca là số tham khảo ⇒ nhạt hơn. */
+.data-table td.shifts-table__ondate {
+  font-weight: 650;
+}
+
+.data-table td.shifts-table__shiftwide {
+  color: var(--color-text-secondary);
+}
+
+/* Ô chưa có số ở dòng ngày mở của ca qua đêm — "—" kèm title chỉ sang dòng ngày chốt. */
+.data-table td.shifts-table__deferred {
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
+.shifts-table__empty {
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Chênh lệch luôn kèm chữ Khớp / Thiếu / Thừa; màu chỉ là phụ. */
+.shifts-table__diff {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Màu chênh lệch phải thắng `.data-table td` / `.shift-stats dd` (đặc hiệu cao hơn `.is-*` đơn lẻ). */
+.data-table td.is-ok,
+.shift-stats dd.is-ok {
+  color: color-mix(in srgb, var(--color-success) 65%, var(--color-text-primary));
+}
+
+.data-table td.is-short,
+.shift-stats dd.is-short {
+  color: var(--color-danger-text);
+}
+
+.data-table td.is-over,
+.shift-stats dd.is-over {
+  color: color-mix(in srgb, var(--color-warning) 55%, var(--color-text-primary));
+}
+
+/* Nút dạng liên kết: ô số bấm được (drill-down) và tên ca. Vùng bấm ≥ 32px chiều cao nhờ padding. */
+.shift-table__link {
+  display: inline-block;
+  min-height: 2rem;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  background: none;
+  color: var(--color-action-primary);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.shift-table__link:hover {
+  background: var(--color-surface-hover);
+}
+
+.shift-table__link:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 1px;
+}
+
+/* ---------- Drawer chi tiết (quản lý) ---------- */
+.shift-section-title {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+/* Nút nguy hiểm tách khỏi nhóm hành động thường (dạt trái footer). */
+.shift-drawer__force {
+  margin-right: auto;
+}
+
+.shift-print {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.shift-payments {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--color-border-strong);
+}
+
+.shift-payments__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.shift-payments__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+/* Đang chuyển trang: giữ dữ liệu cũ nhưng mờ đi cho thấy đang tải. */
+.shift-table .is-stale {
+  opacity: 0.55;
+}
+
+.shift-stock {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* ====================================================================================
+   Ngừng / Tiếp tục nhận đơn (task work-shift S3b-FE)
+   ==================================================================================== */
+
+/* "Đang ngừng nhận đơn" ở TOPBAR (user chốt 2026-11-21, thay dải cố định ở đáy màn hình). Phải NẰM TRONG chiều cao topbar hiện có
+   (4rem) — không thêm hàng, không đổi chiều cao khung trang (nhiều trang tính theo 100vh). Cao tối đa 2.75rem. */
+.order-pause-chip {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-height: 2.75rem;
+  /* Cứng trong chiều cao topbar: nội dung dài không được tràn xuống nội dung trang. */
+  overflow: hidden;
+  padding: 0.25rem var(--space-2);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-surface);
+  color: var(--color-danger-text);
+}
+
+.order-pause-chip__icon {
+  flex: none;
+}
+
+/* Tối đa 2 dòng rồi cắt bằng dấu "…" (đủ chữ nằm ở `title` của khối) — không bẻ giữa từ, không tràn khỏi topbar. */
+.order-pause-chip__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  line-height: 1.2;
+}
+
+/* Màn rộng thấy chữ đầy đủ (giờ ngừng + tên); màn hẹp chỉ thấy chữ gọn — phần còn lại nằm ở `title` của khối. */
+.order-pause-chip__long {
+  display: none;
+}
+
+@media (min-width: 1281px) {
+  .order-pause-chip__short {
+    display: none;
+  }
+
+  .order-pause-chip__long {
+    display: inline;
+  }
+}
+
+/* Nút Tiếp tục nhận đơn: gọn trong topbar; màn hẹp chỉ còn biểu tượng (tên nút ở aria-label + title). */
+.order-pause-chip .ds-button {
+  flex: none;
+  min-height: 2.25rem;
+  padding-block: 0.25rem;
+  white-space: nowrap;
+}
+
+/* Quá 30 phút: viền dày + nền đậm hơn + biểu tượng nhấp nháy nhẹ (tắt khi người dùng chọn giảm chuyển động). */
+.order-pause-chip.is-overdue {
+  border-width: 2px;
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--color-danger-surface));
+}
+
+/* "Không có ca" ở chế độ Ghi sổ: chỉ nhắc, không chặn gì ⇒ vàng thay vì đỏ (vẫn kèm biểu tượng + chữ). */
+.order-pause-chip.is-warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-surface);
+  color: var(--color-text-primary);
+}
+
+.order-pause-chip.is-warning .order-pause-chip__icon {
+  color: var(--color-warning);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .order-pause-chip.is-overdue .order-pause-chip__icon {
+    animation: order-pause-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes order-pause-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (max-width: 900px) {
+  .order-pause-chip {
+    gap: var(--space-1);
+    padding-inline: var(--space-1);
+  }
+
+  .order-pause-chip__text {
+    font-size: var(--font-size-xs);
+  }
+
+  .order-pause-chip__resume-label {
+    display: none;
+  }
+
+  /* Chỉ biểu tượng: vẫn giữ vùng bấm 44px. */
+  .order-pause-chip .ds-button.order-pause-chip__resume {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding-inline: var(--space-1);
+  }
+}
+
+/* Hàng thao tác trong Dialog Chốt ca / Drawer Thông tin ca. */
+.shift-intake {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.shift-intake > p {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.shift-intake.is-paused {
+  border-style: solid;
+  border-color: var(--color-danger);
+  background: var(--color-danger-surface);
+}
+
+.shift-intake.is-paused > p {
+  color: var(--color-danger-text);
+  font-weight: 600;
+}
+
+/* Hộp "Tiếp tục nhận đơn" ở Dialog Mở ca. */
+.shift-resume-ask {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.shift-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.shift-check input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-action-primary);
+}
+
+/* Công tắc chế độ ca trong Cài đặt. */
+.shift-mode-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 640px) {
+  .shifts-page__actions {
+    justify-content: flex-start;
+  }
+
+  .shift-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .ds-dialog:has(.shift-form) .ds-dialog__footer .ds-button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .shift-dialog__logout {
+    margin-right: 0;
+  }
+}

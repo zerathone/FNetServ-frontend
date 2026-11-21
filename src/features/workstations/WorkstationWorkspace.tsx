@@ -157,6 +157,7 @@ import { WorkstationMapView } from './map/WorkstationMapView'
 import { hostKey, isCashierMapEnabled, parseLayout } from './map/mapModel.ts'
 import { PrintTicketDialog } from '../orders/PrintTicketDialog'
 import { StaffOrderDialog } from '../orders/StaffOrderDialog'
+import { useIntakePaused } from '../shifts/useOrderIntake'
 import { CallBellIcon } from './CallBellIcon'
 import { InspectorGroup } from './InspectorGroup'
 import { WorkstationSummaryCompact } from './WorkstationSummaryCompact'
@@ -795,6 +796,8 @@ export function WorkstationWorkspace() {
   const isPaused = Boolean(
     inspectedMachine && (inspectedMachine.flagMask & WORKSTATION_FLAGS.CLIENT_PAUSE) !== 0,
   )
+  // task work-shift S3b-FE: ngừng nhận đơn (kiểm kho) ⇒ khoá nút "Tạo đơn" của nhân viên (lớp UX; máy chủ chốt chặn ở S4b).
+  const intakePaused = useIntakePaused()
 
   useEffect(() => {
     setNoteExpanded(false)
@@ -2629,7 +2632,8 @@ export function WorkstationWorkspace() {
                     icon={<CallBellIcon size={ICON.size} />}
                     type="button"
                     variant="primary"
-                    disabled={isPaused}
+                    disabled={isPaused || intakePaused}
+                    title={intakePaused ? 'Đang ngừng nhận đơn — xem thanh trên cùng màn hình' : undefined}
                     onClick={() => setStaffOrderOpen(true)}
                   >
                     Tạo đơn

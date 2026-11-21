@@ -17,6 +17,8 @@ export type DialogProps = {
   footer?: ReactNode
   size?: 'sm' | 'md' | 'lg'
   closeLabel?: string
+  /** Ẩn nút X ở góc (hộp thoại bắt buộc: Esc/click nền do `onClose` tự quyết định bỏ qua). Mặc định hiện. */
+  hideClose?: boolean
   onClose: () => void
 }
 
@@ -28,6 +30,7 @@ export function Dialog({
   footer,
   size = 'md',
   closeLabel = 'Đóng hộp thoại',
+  hideClose = false,
   onClose,
 }: DialogProps) {
   const titleId = useId()
@@ -101,7 +104,9 @@ export function Dialog({
             <h2 id={titleId}>{title}</h2>
             {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
-          <IconButton type="button" label={closeLabel} icon={<X size={20} weight="bold" aria-hidden="true" />} onClick={() => onCloseRef.current()} />
+          {hideClose ? null : (
+            <IconButton type="button" label={closeLabel} icon={<X size={20} weight="bold" aria-hidden="true" />} onClick={() => onCloseRef.current()} />
+          )}
         </header>
         <div className="ds-dialog__body">{children}</div>
         {footer ? <footer className="ds-dialog__footer">{footer}</footer> : null}
