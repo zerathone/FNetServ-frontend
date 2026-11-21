@@ -335,7 +335,258 @@
   font-size: var(--font-size-sm);
 }
 
+/* ====================================================================================
+   Trang quản lý /shifts (task work-shift S3 / F2)
+   ==================================================================================== */
+
+.shifts-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* Trang cuộn trong khung khi màn thấp (thẻ + dòng đối soát + bảng); bảng luôn còn tối thiểu ~14rem. */
+.page-fill > .page-card.shifts-page {
+  gap: var(--space-3);
+  overflow: auto;
+}
+
+.shifts-page__table {
+  flex: 1 0 14rem;
+  min-height: 0;
+}
+
+.shifts-page__stamp {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Thẻ tóm tắt ngày ---------- */
+.shift-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.shift-kpi {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.shift-kpi__label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+
+.shift-kpi__value {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-kpi__sub {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-kpi__lines {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.shift-kpi__lines > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.shift-kpi__lines dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shift-kpi__lines dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-kpi__lines small {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+/* ---------- Dòng đối soát ---------- */
+.shift-reconcile__detail {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.shift-bad {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.shift-bad__codes {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Bảng danh sách ca ---------- */
+.shifts-table .shift-table__nowrap,
+.shift-table .shift-table__nowrap {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.shifts-table__row {
+  cursor: pointer;
+}
+
+.shifts-table__row:hover td,
+.shifts-table__row.is-selected td {
+  background: var(--color-surface-hover);
+}
+
+.shifts-table__ca {
+  white-space: nowrap;
+}
+
+.shifts-table__staff {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shifts-table__empty {
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Chênh lệch luôn kèm chữ Khớp / Thiếu / Thừa; màu chỉ là phụ. */
+.shifts-table__diff {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Màu chênh lệch phải thắng `.data-table td` / `.shift-stats dd` (đặc hiệu cao hơn `.is-*` đơn lẻ). */
+.data-table td.is-ok,
+.shift-stats dd.is-ok {
+  color: color-mix(in srgb, var(--color-success) 65%, var(--color-text-primary));
+}
+
+.data-table td.is-short,
+.shift-stats dd.is-short {
+  color: var(--color-danger-text);
+}
+
+.data-table td.is-over,
+.shift-stats dd.is-over {
+  color: color-mix(in srgb, var(--color-warning) 55%, var(--color-text-primary));
+}
+
+/* Nút dạng liên kết: ô số bấm được (drill-down) và tên ca. Vùng bấm ≥ 32px chiều cao nhờ padding. */
+.shift-table__link {
+  display: inline-block;
+  min-height: 2rem;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  background: none;
+  color: var(--color-action-primary);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.shift-table__link:hover {
+  background: var(--color-surface-hover);
+}
+
+.shift-table__link:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 1px;
+}
+
+/* ---------- Drawer chi tiết (quản lý) ---------- */
+.shift-section-title {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+/* Nút nguy hiểm tách khỏi nhóm hành động thường (dạt trái footer). */
+.shift-drawer__force {
+  margin-right: auto;
+}
+
+.shift-print {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.shift-payments {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--color-border-strong);
+}
+
+.shift-payments__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.shift-payments__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+/* Đang chuyển trang: giữ dữ liệu cũ nhưng mờ đi cho thấy đang tải. */
+.shift-table .is-stale {
+  opacity: 0.55;
+}
+
+.shift-stock {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 @media (max-width: 640px) {
+  .shifts-page__actions {
+    justify-content: flex-start;
+  }
+
   .shift-facts {
     grid-template-columns: 1fr;
   }

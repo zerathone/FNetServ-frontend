@@ -19,6 +19,7 @@ import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
 import { ShiftGate } from '../features/shifts/ShiftGate'
 import { ShiftTopbarChip, ShiftWidget } from '../features/shifts/ShiftWidget'
 import { useShift } from '../features/shifts/useShift'
+import { SHIFT_RIGHTS, shiftRightCodes } from '../features/shifts/shiftManageModel'
 import type { ShiftInfo } from '../api/shift'
 import { NavItemBadges } from './NavItemBadges'
 import { NavSearchBox, NavSearchResults } from './NavSearch'
@@ -34,7 +35,7 @@ import {
   Sun, MoonStars, Monitor, Flame, CaretDown, CashRegister, Ticket,
   CreditCard, Storefront,
   CurrencyCircleDollar, Coins, Clock, Gauge, HandCoins, Wallet, ChartPie, Timer, Notebook, Heartbeat,
-  CalendarPlus, CalendarCheck, BellRinging, Warehouse,
+  CalendarPlus, CalendarCheck, BellRinging, Warehouse, ClipboardText,
 } from '@phosphor-icons/react'
 import { REPORT_PAGES, reportPath, reportViewCodes } from '../features/reports/reportCatalog'
 
@@ -54,6 +55,8 @@ type NavigationItem = {
   icon: ReactNode
   adminOnly?: boolean
   devOnly?: boolean
+  /** Chỉ hiện khi chế độ ca đang bật (INT_SHIFT_MODE ≥ 1) — khách chưa dùng ca không thấy mục thừa. */
+  shiftOnly?: boolean
   /** Hiện khi admin HOẶC có BẤT KỲ mã quyền nào trong danh sách (mã xem + mã xem tất cả). */
   rightAny?: number[]
   /** Nhóm hiển thị trong sidebar (Quản lý + Phân tích). Các mục cùng nhóm phải đứng liền nhau. */
@@ -132,9 +135,11 @@ function isItemVisible(
   item: NavigationItem,
   isAdmin: boolean,
   hasRight: (code: number) => boolean,
+  shiftEnabled: boolean,
 ) {
   if (item.adminOnly && !isAdmin) return false
   if (item.devOnly && !import.meta.env.DEV) return false
+  if (item.shiftOnly && !shiftEnabled) return false
   if (item.rightAny && !isAdmin && !item.rightAny.some(hasRight)) return false
   return true
 }
@@ -157,6 +162,16 @@ const workspaces: readonly Workspace[] = [
       },
       { to: '/orders', label: 'Đơn dịch vụ', shortLabel: 'Đơn', icon: <CallBell size={24} weight="duotone" /> },
       { to: '/online-booking', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarPlus size={24} weight="duotone" /> },
+      // Ca làm việc (S3/F2): nhân viên có quyền "Xem mọi ca" (rightAny; chưa biết mã quyền ⇒ chỉ admin thấy) hoặc admin.
+      {
+        to: '/shifts',
+        label: 'Ca làm việc',
+        shortLabel: 'Ca',
+        icon: <ClipboardText size={24} weight="duotone" />,
+        shiftOnly: true,
+        rightAny: shiftRightCodes(SHIFT_RIGHTS.VIEW_ALL),
+        description: 'doanh thu theo ca, đối soát, đóng ca',
+      },
       { to: '/combo_sale', label: 'Bán COMBO', shortLabel: 'COMBO', icon: <Ticket size={24} weight="duotone" /> },
       { to: '/card-sale', label: 'Bán thẻ nạp', shortLabel: 'Thẻ nạp', icon: <CreditCard size={24} weight="duotone" /> },
       { to: '/logs/voucher', label: 'Giao dịch', shortLabel: 'GD', icon: <ArrowsLeftRight size={24} weight="duotone" /> },
@@ -183,6 +198,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/online-booking/settings', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" />, group: 'mg-sales' },
+      { to: '/shifts', label: 'Ca làm việc', shortLabel: 'Ca', icon: <ClipboardText size={24} weight="duotone" />, group: 'mg-sales', shiftOnly: true },
       // Nhóm 3 — Máy trạm & ứng dụng
       { to: '/workstations', label: 'Máy trạm', shortLabel: 'Máy', icon: <Desktop size={24} weight="duotone" />, group: 'mg-machine' },
       { to: '/machine-groups', label: 'Nhóm máy', shortLabel: 'Nhóm', icon: <DesktopTower size={24} weight="duotone" />, group: 'mg-machine' },
@@ -226,9 +242,10 @@ function getLanding(
   workspace: Workspace,
   isAdmin: boolean,
   hasRight: (code: number) => boolean,
+  shiftEnabled: boolean,
 ) {
   if (!workspace.dynamicLanding) return workspace.landing
-  return workspace.items.find((item) => isItemVisible(item, isAdmin, hasRight))?.to ?? workspace.landing
+  return workspace.items.find((item) => isItemVisible(item, isAdmin, hasRight, shiftEnabled))?.to ?? workspace.landing
 }
 
 function getWorkspace(id: WorkspaceId) {
@@ -267,18 +284,21 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const hasRight = useAuthStore((state) => state.hasRight)
   const rights = useAuthStore((state) => state.rights)
 
+  // task work-shift S2/S3: chế độ ca bật + ca đang mở của mình (Đăng xuất ⇒ Chốt ca; mục menu "Ca làm việc" chỉ hiện khi bật).
+  const { enabled: shiftEnabled, shift: currentShift } = useShift()
+
   const availableWorkspaces = useMemo(
     () =>
       workspaces.filter(
         (item) =>
           (!item.adminOnly || isAdmin) &&
-          item.items.some((navItem) => isItemVisible(navItem, isAdmin, hasRight)),
+          item.items.some((navItem) => isItemVisible(navItem, isAdmin, hasRight, shiftEnabled)),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
-    [isAdmin, hasRight, rights],
+    [isAdmin, hasRight, rights, shiftEnabled],
   )
   const workspace = getWorkspace(workspaceId)
-  const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight))
+  const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight, shiftEnabled))
   // Riêng trang Theo dõi hoạt động tự poll danh sách máy + phần cứng (PollSteps) -> badge ở menu không poll chồng lên.
   const pollNavData = location.pathname !== '/health_monitor'
 
@@ -286,7 +306,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const searchEntries = useMemo(() => {
     const sources: NavSearchSource[] = availableWorkspaces.flatMap((item) =>
       item.items
-        .filter((navItem) => isItemVisible(navItem, isAdmin, hasRight))
+        .filter((navItem) => isItemVisible(navItem, isAdmin, hasRight, shiftEnabled))
         .map((navItem) => ({
           workspaceId: item.id,
           workspaceLabel: item.label,
@@ -298,7 +318,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
     )
     return buildNavSearchEntries(sources, workspaceId)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
-  }, [availableWorkspaces, isAdmin, hasRight, rights, workspaceId])
+  }, [availableWorkspaces, isAdmin, hasRight, rights, workspaceId, shiftEnabled])
   const navSearch = useNavSearch(searchEntries)
   const showNavSearch = workspaceId !== 'pos'
   const navIconByPath = useMemo(() => {
@@ -372,8 +392,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
   })
 
   // task work-shift S2: INT_SHIFT_MODE ≥ 1 và đang có ca ⇒ Đăng xuất mở Dialog Chốt ca thay vì thoát ngay.
-  // mode = 0 / chưa biết / chưa có ca ⇒ logout y hệt cũ.
-  const { enabled: shiftEnabled, shift: currentShift } = useShift()
+  // mode = 0 / chưa biết / chưa có ca ⇒ logout y hệt cũ. (`shiftEnabled`, `currentShift` lấy từ useShift() ở trên.)
   const [closingShift, setClosingShift] = useState<ShiftInfo | null>(null)
   const requestLogout = () => {
     if (shiftEnabled && currentShift) setClosingShift(currentShift)
@@ -386,7 +405,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
     setWorkspaceId(nextId)
     setWorkspaceMenuOpen(false)
     navSearch.clear() // từ khóa gõ ở vai trò này không nên còn sót khi quay lại từ vai trò khác
-    navigate(getLanding(nextWorkspace, isAdmin, hasRight))
+    navigate(getLanding(nextWorkspace, isAdmin, hasRight, shiftEnabled))
   }
 
   const selectSearchEntry = (entry: NavSearchEntry) => {

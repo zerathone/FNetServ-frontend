@@ -25,6 +25,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   '/users': ['khách hàng', 'hội viên', 'nạp tiền', 'số dư', 'tài khoản chơi', 'tìm khách'],
   '/orders': ['order', 'gọi món', 'đồ ăn', 'nước uống', 'dịch vụ chờ', 'phục vụ'],
   '/online-booking': ['đặt chỗ', 'đặt máy', 'booking', 'duyệt đặt máy', 'hủy đặt máy', 'đặt trước'],
+  '/shifts': ['ca làm việc', 'chốt ca', 'mở ca', 'đóng ca', 'đóng cưỡng bức', 'đối soát', 'doanh thu ca', 'bàn giao ca', 'thu ngoài ca'],
   '/combo_sale': ['bán combo', 'gói giờ', 'gói chơi', 'bán gói'],
   '/card-sale': ['bán thẻ', 'thẻ cào', 'mã thẻ', 'nạp thẻ'],
   '/logs/voucher': ['giao dịch', 'phiếu thu', 'phiếu chi', 'lịch sử nạp', 'lịch sử tiền', 'voucher'],

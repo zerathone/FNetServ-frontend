@@ -39,17 +39,17 @@ export function toNumber(value: unknown, fallback = 0): number {
   return fallback
 }
 
-function toNullableNumber(value: unknown): number | null {
+export function toNullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const parsed = toNumber(value, Number.NaN)
   return Number.isNaN(parsed) ? null : parsed
 }
 
-function toText(value: unknown): string {
+export function toText(value: unknown): string {
   return typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value)
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
@@ -151,7 +151,16 @@ export function normalizeSummary(raw: unknown): ShiftSummary {
     refund: { count: toNumber(refund.count), cash: toNumber(refund.cash), online: toNumber(refund.online) },
     totals,
     expectedCash: toNumber(r.expectedCash),
+    refundsQrCanceled: normalizeCountTotal(r.refundsQrCanceled, 'total'),
+    onlineBook: normalizeCountTotal(r.onlineBook, 'walletTotal'),
   }
+}
+
+/** `{count, <totalKey>}` hoặc null (máy chủ chưa có dữ liệu / không gửi). Chỉ ép số khi là đối tượng. */
+function normalizeCountTotal<K extends string>(raw: unknown, totalKey: K): ({ count: number } & Record<K, number>) | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  return { count: toNumber(r.count), [totalKey]: toNumber(r[totalKey]) } as { count: number } & Record<K, number>
 }
 
 /** Đếm đơn chờ — nhận cả dạng số lẫn {count, amount} cho `qrPaidUnconfirmed`; bóc `data` lồng nếu có. */

@@ -10,13 +10,17 @@
 //   open     đang có ca, số liệu mẫu; chốt thành công (không cảnh báo)
 //   pending  đang có ca; /shift/close trả SHIFT_PENDING_ORDERS (khoá nút chốt + hiện số đơn chờ)
 //   warn     đang có ca; chốt thành công nhưng kèm `warnings` (còn ca khác đang mở)
-//   error    đang có ca; /shift/summary và /shift/close trả lỗi máy chủ
+//   error    đang có ca; /shift/summary và /shift/close trả lỗi máy chủ (trang /shifts: /shift/list lỗi)
+//   diff | nostock | denied   chế độ dành riêng cho trang quản lý /shifts (đối soát lệch / không có kho / 403) — ở các
+//            chế độ này thu ngân mock vẫn như `open`. Chi tiết: xem đầu `shiftManageMock.ts`.
+//   (trang /shifts với off ⇒ "Chưa bật chế độ ca"; none | open | pending | warn ⇒ dữ liệu quản lý mặc định, đối soát khớp)
 //
 // Trạng thái ca lưu trong bộ nhớ trang (F5 là về lại như ban đầu). Để thấy số đơn chờ ở Dialog Chốt ca cũng nên
 // bật VITE_ORDERS_MOCK=1 (cảnh báo đọc /orders/pending, /orders/pending/combo của mock đó).
 //
 // Hình dạng dữ liệu mock = hợp đồng S1 mục 4.3–4.5 (GIẢ ĐỊNH ở chỗ hợp đồng mơ hồ — xem handoff S2 "Kết quả thực hiện").
 import { ApiError } from '../../api/client'
+import { isManagePath, isManagedShiftId, mockManageRequest, mockManagedSummary } from './shiftManageMock'
 
 type Json = Record<string, unknown>
 
@@ -104,6 +108,11 @@ export async function mockShiftRequest(mode: string, path: string, body?: unknow
   }
 
   if (mode === 'off') throw new ApiError('Tính năng ca chưa bật', { code: 'SHIFT_DISABLED' })
+
+  // S3 (F2): trang quản lý /shifts — dữ liệu ở shiftManageMock.ts (chế độ riêng: diff | nostock | denied).
+  if (isManagePath(path)) return mockManageRequest(mode, path, body)
+  // Tóm tắt của ca do trang quản lý dựng (mã ≥ 201) — không phụ thuộc ca của thu ngân mock.
+  if (path === '/shift/summary' && isManagedShiftId(req.shiftId)) return mockManagedSummary(mode, req.shiftId)
 
   if (path === '/shift/open') {
     const cash = typeof req.openingCash === 'number' ? req.openingCash : 0

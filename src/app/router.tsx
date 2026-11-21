@@ -149,6 +149,12 @@ const OnlineBookingSettingsPage = lazy(() =>
   })),
 )
 
+const ShiftsPage = lazy(() =>
+  import('../features/shifts/ShiftsPage').then((module) => ({
+    default: module.ShiftsPage,
+  })),
+)
+
 function RouteLoading() {
   return (
     <div className="route-loading" role="status" aria-label="Đang tải trang">
@@ -170,6 +176,9 @@ function ProtectedRoutes() {
           {/* OB-5: trang Quản lý đặt máy online — thu ngân có quyền R_ONLINE_BOOK_APPROVE/CANCEL hoặc
               admin; trang tự kiểm quyền (ẩn nút), server là lớp chặn thật. NGOÀI AdminRoute như /orders. */}
           <Route path="/online-booking" element={<OnlineBookingPage />} />
+          {/* Ca làm việc (task work-shift S3/F2): admin hoặc nhân viên có quyền "Xem mọi ca" → NGOÀI AdminRoute như
+              /online-booking; trang tự kiểm quyền (ẩn khi thiếu), server là lớp chặn thật (403). */}
+          <Route path="/shifts" element={<ShiftsPage />} />
           {/* Thiết lập thông báo nổi/âm báo: tuỳ chọn theo trình duyệt (localStorage), thu ngân nào cũng
               chỉnh được → NGOÀI AdminRoute. Mở từ footer hộp thông báo (chuông). */}
           <Route path="/notification-settings" element={<NotificationSettingsPage />} />

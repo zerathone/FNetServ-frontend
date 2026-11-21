@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/auth'
 
 /** Key theo staffId: logout/login đổi người trong cùng tab không được thấy ca của người trước (cache không bị xoá khi logout). */
 export const shiftCurrentKey = (staffId: number | null) => ['shift', 'current', staffId] as const
-export const shiftSummaryKey = (shiftId: number | null) => ['shift', 'summary', shiftId] as const
+export const shiftSummaryKey = (staffId: number | null, shiftId: number | null) => ['shift', 'summary', staffId, shiftId] as const
 
 const POLL_MS = 60_000
 
@@ -67,13 +67,15 @@ export function useShift() {
 }
 
 /** Tóm tắt ca (tính live ở server) — widget, Drawer và Dialog Chốt ca dùng chung key ⇒ một request / 60 giây. */
-export function useShiftSummary(shiftId: number | null, enabled = true) {
+export function useShiftSummary(shiftId: number | null, enabled = true, poll = true) {
+  const staffId = useAuthStore((state) => state.staffId)
   return useQuery({
-    queryKey: shiftSummaryKey(shiftId),
+    queryKey: shiftSummaryKey(staffId, shiftId),
     queryFn: () => getShiftSummary(shiftId ?? undefined),
     enabled: enabled && shiftId !== null,
     staleTime: 15_000,
-    refetchInterval: POLL_MS,
+    // `poll = false`: ca đã chốt (trang quản lý) — số đã chụp, không đổi nên không cần hỏi lại mỗi phút.
+    refetchInterval: poll ? POLL_MS : false,
     retry: false,
   })
 }
