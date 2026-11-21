@@ -4,7 +4,10 @@ import type {
   ShiftCloseResult,
   ShiftCurrent,
   ShiftInfo,
+  ShiftIntakePending,
   ShiftLastClosed,
+  ShiftModeSetting,
+  ShiftOrderPause,
   ShiftPendingCounts,
   ShiftSource,
   ShiftSummary,
@@ -83,7 +86,8 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
   const mode = toNumber(r.mode, 0)
   const enabled = r.enabled === true && mode >= 1
   if (!enabled) {
-    return { enabled: false, mode: 0, serverTime: toText(r.serverTime), shift: null, lastClosed: null }
+    // mode 0 ⇒ không có khái niệm ngừng nhận đơn (máy chủ trả SHIFT_DISABLED cho pause/resume): bỏ qua orderPause.
+    return { enabled: false, mode: 0, serverTime: toText(r.serverTime), shift: null, lastClosed: null, orderPause: null }
   }
   const parsedShift = r.shift && typeof r.shift === 'object' ? normalizeShiftInfo(r.shift) : null
   // Ca không có shiftId hợp lệ (dữ liệu hỏng) coi như chưa có ca — không dựng "Ca #0".
@@ -94,7 +98,147 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
     serverTime: toText(r.serverTime),
     shift,
     lastClosed: shift ? null : normalizeLastClosed(r.lastClosed),
+    orderPause: normalizeOrderPause(r.orderPause),
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Ngừng / Tiếp tục nhận đơn (task S3b-FE) — design mục 8b. Trạng thái toàn hệ thống, sống qua chốt ca (Q8).
+// ---------------------------------------------------------------------------------------------
+
+/** Lý do tối đa 40 ký tự (khớp server `INT_ORDER_PAUSE.r`). */
+export const MAX_PAUSE_REASON = 40
+/** Q10: ngừng quá 30 phút thì banner nhấn mạnh + nhắc một lần (chỉ nhắc, không tự tiếp tục). */
+export const PAUSE_REMIND_MINUTES = 30
+
+const NO_PENDING: ShiftIntakePending = { service: 0, combo: 0, qrPaid: 0 }
+
+function normalizeIntakePending(raw: unknown): ShiftIntakePending {
+  const r = asRecord(raw)
+  return {
+    service: Math.max(0, toNumber(r.service)),
+    combo: Math.max(0, toNumber(r.combo)),
+    qrPaid: Math.max(0, toNumber(r.qrPaid)),
+  }
+}
+
+function isTruthyFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true'
+}
+
+/**
+ * `orderPause` của `/shift/current`. Hợp đồng B3: `{on, since, byStaffId, byName, reason, pendingOrders}`; design 8b (S4b) còn
+ * cho `reason = "manual" | "no_shift"` ⇒ `reason` mơ hồ (chữ người gõ hay mã nguồn?). Đọc phòng thủ: `source`/`kind` nếu có,
+ * hoặc `reason` đúng bằng "no_shift" / "manual" là mã nguồn; chuỗi khác là lý do người gõ.
+ * Thiếu / sai kiểu ⇒ null (coi như đang nhận đơn — đúng hướng an toàn của server).
+ */
+export function normalizeOrderPause(raw: unknown): ShiftOrderPause | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = asRecord(raw)
+  const on = isTruthyFlag(r.on)
+  const reasonText = toText(r.reason).trim()
+  const codeText = toText(r.source ?? r.kind).trim()
+  const source: ShiftOrderPause['source'] = codeText === 'no_shift' || reasonText === 'no_shift' ? 'no_shift' : 'manual'
+  const reason = reasonText === 'no_shift' || reasonText === 'manual' ? '' : reasonText
+  return {
+    on,
+    source,
+    since: on ? toText(r.since) : '',
+    byStaffId: toNumber(r.byStaffId),
+    byName: toText(r.byName),
+    reason: source === 'manual' ? reason : '',
+    pendingOrders: normalizeIntakePending(r.pendingOrders ?? NO_PENDING),
+  }
+}
+
+/** Phản hồi `/orders/intake/pause|resume`: `{changed, state?/orderPause?}` (B3 ghi "trả {changed, state}"). */
+export function normalizeOrderPauseResponse(raw: unknown): { changed: boolean; orderPause: ShiftOrderPause | null } {
+  const r = asRecord(raw)
+  return { changed: isTruthyFlag(r.changed), orderPause: normalizeOrderPause(r.orderPause ?? r.state) }
+}
+
+/** Chế độ ca hợp lệ 0 | 1 | 2; ngoài khoảng ⇒ 0 (tắt — hướng an toàn). */
+export function normalizeShiftModeSetting(raw: unknown): ShiftModeSetting {
+  const r = asRecord(raw)
+  const clamp = (value: number) => (Number.isInteger(value) && value >= 0 && value <= 2 ? value : 0)
+  const mode = clamp(toNumber(r.mode))
+  return { mode, effective: clamp(toNumber(r.effective, mode)) }
+}
+
+/** Đang ngừng nhận đơn (cả hai nguồn). */
+export function isIntakePaused(orderPause: ShiftOrderPause | null | undefined): boolean {
+  return orderPause?.on === true
+}
+
+/** "YYYY-MM-DD HH:MM:SS" -> mili-giây (coi như UTC — chỉ để TRỪ hai mốc cùng múi giờ máy chủ). Sai định dạng ⇒ null. */
+export function parseServerStamp(value: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(value.trim())
+  if (!m) return null
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))
+}
+
+/**
+ * Số phút đã ngừng. Dùng GIỜ MÁY CHỦ (`serverTime` lúc tải /shift/current + thời gian đã trôi từ lúc tải) để không phụ thuộc
+ * đồng hồ trình duyệt lệch. Không tính được ⇒ null.
+ */
+export function pauseElapsedMinutes(since: string, serverTime: string, fetchedAtMs: number, nowMs: number): number | null {
+  const sinceMs = parseServerStamp(since)
+  const serverMs = parseServerStamp(serverTime)
+  if (sinceMs === null || serverMs === null || fetchedAtMs <= 0) return null
+  const elapsedMs = serverMs - sinceMs + Math.max(0, nowMs - fetchedAtMs)
+  return Math.max(0, Math.floor(elapsedMs / 60_000))
+}
+
+export function isPauseOverdue(minutes: number | null): boolean {
+  return minutes !== null && minutes >= PAUSE_REMIND_MINUTES
+}
+
+/** 45 -> "45 phút"; 65 -> "1 giờ 05 phút"; 120 -> "2 giờ". */
+export function formatElapsed(minutes: number): string {
+  if (minutes < 60) return `${minutes} phút`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest === 0 ? `${hours} giờ` : `${hours} giờ ${String(rest).padStart(2, '0')} phút`
+}
+
+/** "YYYY-MM-DD HH:MM:SS" -> "HH:mm"; không khớp thì giữ nguyên. */
+export function formatClock(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(value.trim())
+  return match ? `${match[4]}:${match[5]}` : value
+}
+
+/** Dòng chính của banner: "Đang ngừng nhận đơn từ 10:02 · A" (+ lý do) hoặc câu cho nguồn tự động "không có ca". */
+export function pauseHeadline(pause: ShiftOrderPause): string {
+  if (pause.source === 'no_shift') return 'Chưa có ca nào mở — đang ngừng nhận đơn'
+  const parts = [`Đang ngừng nhận đơn${pause.since ? ` từ ${formatClock(pause.since)}` : ''}`]
+  if (pause.byName) parts.push(pause.byName)
+  if (pause.reason) parts.push(`Lý do: ${pause.reason}`)
+  return parts.join(' · ')
+}
+
+/** Câu hỏi ở Dialog Mở ca (Q8): "Đang ngừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?" */
+export function pauseResumeQuestion(pause: ShiftOrderPause): string {
+  const from = pause.since ? ` từ ${formatClock(pause.since)}` : ''
+  const by = pause.byName ? ` (bởi ${pause.byName})` : ''
+  return `Đang ngừng nhận đơn${from}${by}. Tiếp tục nhận đơn?`
+}
+
+/** Số đơn đang chờ dạng chữ để nhắc trước khi ngừng; không có đơn nào ⇒ chuỗi rỗng. */
+export function describeIntakePending(pending: ShiftIntakePending): string {
+  const parts: string[] = []
+  if (pending.service > 0) parts.push(`${pending.service} món chờ duyệt`)
+  if (pending.combo > 0) parts.push(`${pending.combo} combo chờ xác nhận`)
+  if (pending.qrPaid > 0) parts.push(`${pending.qrPaid} đơn QR đã trả chưa xác nhận`)
+  return parts.join(', ')
+}
+
+/** Lý do ngừng nhận đơn: ≤ 40 ký tự, không `'` `\` (server `isSqlSafeText`); ký tự điều khiển đã bị `sanitizeNoteInput` đổi thành khoảng trắng. */
+export function validatePauseReason(value: string): string | undefined {
+  if (value.length > MAX_PAUSE_REASON) return `Lý do tối đa ${MAX_PAUSE_REASON} ký tự.`
+  // Hai chuỗi này là MÃ NGUỒN trong `orderPause.reason` (design 8b) — để người dùng gõ sẽ bị đọc nhầm thành nguồn tự động.
+  if (/^\s*(no_shift|manual)\s*$/i.test(value)) return 'Lý do này trùng mã hệ thống, hãy ghi rõ hơn.'
+  if (/['\\]/.test(value)) return "Lý do không dùng dấu nháy đơn (') hoặc gạch chéo ngược (\\)."
+  return undefined
 }
 
 /** Tổng các nguồn: `total` = tiền mặt + chuyển khoản + QR, KHÔNG cộng cấn trừ (Q16b). */

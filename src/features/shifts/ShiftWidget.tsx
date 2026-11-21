@@ -3,8 +3,9 @@
 import { Clock, Info, LockKeyOpen } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { Button, IconButton, StatusBadge } from '../../design-system/components'
+import { PauseIntakeButton } from './PauseIntakeButton'
 import { ShiftInfoDrawer } from './ShiftInfoDrawer'
-import { formatMoney, formatShiftTime } from './shiftModel'
+import { formatMoney, formatShiftTime, isIntakePaused } from './shiftModel'
 import { useShift, useShiftSummary, useShiftUiStore } from './useShift'
 import './shifts.css'
 
@@ -55,7 +56,7 @@ export function ShiftTopbarChip() {
 }
 
 export function ShiftWidget() {
-  const { enabled, shift } = useShift()
+  const { enabled, shift, orderPause } = useShift()
   const summaryQuery = useShiftSummary(shift?.shiftId ?? null)
   const requestOpen = useShiftUiStore((state) => state.requestOpen)
   const [infoOpen, setInfoOpen] = useState(false)
@@ -102,6 +103,7 @@ export function ShiftWidget() {
         <p className="shift-widget__since">
           Ca #{shift.shiftId} · từ {formatShiftTime(shift.openTime)}
         </p>
+        {isIntakePaused(orderPause) ? <StatusBadge tone="danger">Đang ngừng nhận đơn</StatusBadge> : null}
         <div className="shift-widget__total" aria-live="polite">
           <span>Doanh thu ca</span>
           {summaryQuery.isError && total === undefined ? (
@@ -121,6 +123,7 @@ export function ShiftWidget() {
         >
           Thông tin ca
         </Button>
+        <PauseIntakeButton block />
       </div>
       <IconButton
         className="shift-widget__mini"

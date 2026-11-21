@@ -78,6 +78,7 @@ import { OrderSteps } from './OrderSteps'
 import { OrderConfirmDialog } from './OrderConfirmDialog'
 import { PrintTicketDialog } from './PrintTicketDialog'
 import { useOrderActions } from './useOrderActions'
+import { useIntakePaused } from '../shifts/useOrderIntake'
 import { StaffOrderDialog } from './StaffOrderDialog'
 import './orders.css'
 import './staffOrder.css'
@@ -211,6 +212,9 @@ export function OrderWorkspace() {
   // task staff-service-order: "Gọi món hộ" (FE-1) + "In phiếu" theo đơn (FE-2). `printDetailIds` != null ⇒
   // hộp thoại in đang mở; hộp thoại Gọi món hộ tạm ẩn (không xếp chồng 2 modal) nhưng GIỮ state.
   const [staffOrderOpen, setStaffOrderOpen] = useState(false)
+  // task work-shift S3b-FE: đang ngừng nhận đơn (kiểm kho) ⇒ khoá nút tạo đơn của nhân viên (lớp UX; chốt chặn thật ở máy chủ, S4b).
+  // Duyệt / hủy / thu đơn đã có vẫn bật (Q9).
+  const intakePaused = useIntakePaused()
   const [printDetailIds, setPrintDetailIds] = useState<number[] | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
@@ -874,8 +878,13 @@ export function OrderWorkspace() {
             type="button"
             variant="primary"
             icon={<Plus {...actionIconProps} />}
+            disabled={intakePaused}
             onClick={() => setStaffOrderOpen(true)}
-            title="Nhân viên chọn món thay khách đang ngồi máy hoặc khách vãng lai tại quầy"
+            title={
+              intakePaused
+                ? 'Đang ngừng nhận đơn — xem dải đỏ phía dưới màn hình'
+                : 'Nhân viên chọn món thay khách đang ngồi máy hoặc khách vãng lai tại quầy'
+            }
           >
             Tạo đơn
           </Button>

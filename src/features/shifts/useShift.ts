@@ -58,6 +58,10 @@ export function useShift() {
     shift: enabled ? (data?.shift ?? null) : null,
     lastClosed: enabled ? (data?.lastClosed ?? null) : null,
     serverTime: data?.serverTime ?? '',
+    /** Ngừng nhận đơn (S3b-FE): null khi mode 0 / máy chủ không gửi. `on` cho biết có đang ngừng hay không. */
+    orderPause: enabled ? (data?.orderPause ?? null) : null,
+    /** Mốc (ms) tải /shift/current gần nhất — để tính "đã ngừng bao lâu" theo giờ máy chủ. */
+    dataUpdatedAt: query.dataUpdatedAt,
     isLoading: query.isLoading,
     applyOpened,
     applyClosed,

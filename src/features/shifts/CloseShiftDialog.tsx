@@ -3,7 +3,7 @@
 // Server là chốt chặn (SHIFT_PENDING_ORDERS); client chỉ đọc trước để cảnh báo, không tự chặn.
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { CheckCircle, LockKey, Printer, SignOut, Warning } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getBookingList } from '../../api/onlineBooking'
 import { ApiError } from '../../api/client'
@@ -24,7 +24,9 @@ import { describePrintFailure, printerPaper } from '../orders/printTicketModel'
 import { PosPrinterPicker } from '../printers/PosPrinterPicker'
 import { printHtmlToPos, printHtmlViaBrowser, usePosPrintPrefs, usePosPrinters } from '../printers/posPrint'
 import { pickPrinterId } from '../printers/posPrintModel'
+import { PauseIntakeButton } from './PauseIntakeButton'
 import { ShiftSummaryTable } from './ShiftSummaryTable'
+import { useOrderIntake } from './useOrderIntake'
 import {
   MAX_SHIFT_NOTE,
   buildCloseTicketHtml,
@@ -35,6 +37,7 @@ import {
   formatSigned,
   hasPending,
   normalizePendingCounts,
+  pauseHeadline,
   sanitizeNoteInput,
   validateCashInput,
   validateShiftNote,
@@ -104,6 +107,9 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
   const { applyClosed } = useShift()
   const summaryQuery = useShiftSummary(shift.shiftId)
   const warn = useCloseWarnings()
+  const { orderPause, paused: intakePaused } = useOrderIntake()
+  // Hộp xác nhận "Ngừng nhận đơn" đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Dialog Chốt ca (cả hai nghe Esc trên document).
+  const pauseDialogOpen = useRef(false)
   // `idem` sinh MỘT lần khi dialog mở, dùng lại cho mọi lần bấm / thử lại.
   const [idem, setIdem] = useState(() => createIdempotencyKey('shift-close'))
   const [counted, setCounted] = useState<number | null>(null)
@@ -170,7 +176,7 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
       title="Chốt ca và đăng xuất"
       description={`Ca #${shift.shiftId} · ${shift.staffName || 'Nhân viên'} · bắt đầu ${formatShiftDateTime(shift.openTime)}`}
       onClose={() => {
-        if (!busy) onCancel()
+        if (!busy && !pauseDialogOpen.current) onCancel()
       }}
       footer={
         <>
@@ -336,6 +342,23 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
             </p>
           </InlineAlert>
         ) : null}
+        {/* S3b-FE: kiểm kho giao ca ⇒ ngừng nhận đơn TRƯỚC khi chốt (trạng thái sống qua chốt ca, Q8). */}
+        <div className={`shift-intake${intakePaused ? ' is-paused' : ''}`}>
+          <p>
+            {intakePaused && orderPause
+              ? `${pauseHeadline(orderPause)}. Chốt ca không tự bật lại — người mở ca sau sẽ được hỏi có tiếp tục nhận đơn không.`
+              : 'Kiểm kho để giao ca? Ngừng nhận đơn trước khi chốt để số tồn đứng yên. Đơn đang chờ vẫn duyệt, hủy và thu được.'}
+          </p>
+          {/* Đang ngừng thì KHÔNG đặt nút "Tiếp tục nhận đơn" cạnh "Chốt ca" (dễ bấm nhầm giữa lúc kiểm kho); banner vẫn có nút. */}
+          {intakePaused ? null : (
+            <PauseIntakeButton
+              onDialogOpenChange={(next) => {
+                pauseDialogOpen.current = next
+              }}
+            />
+          )}
+        </div>
+
         {!lock && !pendingKnown && (warn.service.isError || warn.combo.isError) ? (
           <p className="shift-form__hint">
             Chưa đọc được số đơn đang chờ — máy chủ vẫn kiểm tra lại lúc chốt.

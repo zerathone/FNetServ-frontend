@@ -4,11 +4,17 @@ import { useMutation } from '@tanstack/react-query'
 import { LockKeyOpen, SignOut } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { ApiError } from '../../api/client'
-import { openShift, type ShiftLastClosed } from '../../api/shift'
+import { openShift, resumeOrderIntake, type ShiftLastClosed } from '../../api/shift'
 import { Button, Dialog, InlineAlert, MoneyInput } from '../../design-system/components'
 import { createIdempotencyKey } from '../../lib/idempotency'
 import { pushToast } from '../../store/toast'
-import { formatMoney, formatShiftDateTime, validateCashInput } from './shiftModel'
+import {
+  formatMoney,
+  formatShiftDateTime,
+  isIntakePaused,
+  pauseResumeQuestion,
+  validateCashInput,
+} from './shiftModel'
 import { useShift, useShiftUiStore } from './useShift'
 import './shifts.css'
 
@@ -32,7 +38,10 @@ export function OpenShiftDialog({
   onLogout,
   logoutPending,
 }: Props) {
-  const { applyOpened } = useShift()
+  const { applyOpened, orderPause } = useShift()
+  // Q8: ngừng nhận đơn sống qua chốt ca — người mở ca sau được HỎI, mặc định KHÔNG tự bật lại.
+  const askResume = isIntakePaused(orderPause) && orderPause?.source === 'manual'
+  const [resumeIntake, setResumeIntake] = useState(false)
   // `idem` sinh MỘT lần khi dialog mở, dùng lại cho mọi lần bấm / thử lại (server chống mở trùng).
   const [idem, setIdem] = useState(() => createIdempotencyKey('shift-open'))
   const [cash, setCash] = useState<number | null>(lastClosed?.countedCash ?? 0)
@@ -42,8 +51,22 @@ export function OpenShiftDialog({
   const fieldError = validateCashInput(cash, 'Tiền mặt đầu ca') ?? serverFieldError ?? undefined
 
   const mutation = useMutation({
-    mutationFn: () => openShift({ idem, openingCash: cash ?? 0 }),
-    onSuccess: async ({ resumed }) => {
+    mutationFn: async () => {
+      const opened = await openShift({ idem, openingCash: cash ?? 0 })
+      // Tiếp tục nhận đơn SAU khi mở ca xong, ngay trong mutation (dialog còn sống để báo lỗi). Lỗi ở bước này không làm
+      // hỏng ca vừa mở: banner vẫn còn nút "Tiếp tục nhận đơn".
+      let resumeFailed = false
+      if (askResume && resumeIntake) {
+        try {
+          await resumeOrderIntake()
+        } catch (resumeError) {
+          console.warn('[shift] đã mở ca nhưng không tiếp tục nhận đơn được:', resumeError)
+          resumeFailed = true
+        }
+      }
+      return { ...opened, resumedIntake: askResume && resumeIntake && !resumeFailed, resumeFailed }
+    },
+    onSuccess: async ({ resumed, resumedIntake, resumeFailed }) => {
       // Trạng thái thật luôn lấy từ /shift/current (replay idem của server có thể trả ảnh chụp cũ — D6).
       const actual = await applyOpened()
       if (!actual) {
@@ -58,6 +81,8 @@ export function OpenShiftDialog({
         resumed ? `Đang tiếp tục ca #${actual.shiftId} đã mở trước đó.` : `Đã mở ca #${actual.shiftId}.`,
         resumed ? 'info' : 'success',
       )
+      if (resumedIntake) pushToast('Đã tiếp tục nhận đơn.', 'success')
+      if (resumeFailed) pushToast('Đã mở ca nhưng chưa tiếp tục nhận đơn được. Bấm Tiếp tục nhận đơn ở dải đỏ phía dưới.')
     },
     onError: (error: Error) => {
       if (error instanceof ApiError && error.code === 'INVALID_INPUT') {
@@ -157,6 +182,24 @@ export function OpenShiftDialog({
           }
           disabled={mutation.isPending}
         />
+
+        {askResume && orderPause ? (
+          <div className="shift-resume-ask">
+            <InlineAlert tone="warning">{pauseResumeQuestion(orderPause)}</InlineAlert>
+            <label className="shift-check">
+              <input
+                type="checkbox"
+                checked={resumeIntake}
+                disabled={mutation.isPending}
+                onChange={(event) => setResumeIntake(event.target.checked)}
+              />
+              Tiếp tục nhận đơn sau khi mở ca
+            </label>
+            <p className="shift-form__hint">
+              Không chọn thì quán vẫn ngừng nhận đơn; có thể bấm Tiếp tục nhận đơn sau ở dải đỏ phía dưới màn hình.
+            </p>
+          </div>
+        ) : null}
 
         {failure ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
         {canViewOnly ? null : (

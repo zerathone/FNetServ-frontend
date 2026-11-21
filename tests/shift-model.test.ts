@@ -75,6 +75,7 @@ test('normalizeCurrent: enabled=false hoặc mode 0 ⇒ tắt hẳn, không ca',
     serverTime: '',
     shift: null,
     lastClosed: null,
+    orderPause: null,
   })
   assert.equal(normalizeCurrent({ enabled: true, mode: 0 }).enabled, false)
   assert.equal(normalizeCurrent(undefined).enabled, false)

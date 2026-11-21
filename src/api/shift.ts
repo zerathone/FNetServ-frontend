@@ -1,11 +1,13 @@
 // task work-shift S2 (F1) — API "Ca làm việc". Hợp đồng: handoff/HANDOFF_work-shift-S1.md mục 4.3–4.5.
 // Server trả dữ liệu thô -> chuẩn hoá ở `features/shifts/shiftModel.ts` (số có thể về dạng chuỗi, thiếu trường...).
 // Mock dev: `VITE_SHIFT_MOCK` (xem features/shifts/shiftMock.ts). Bản build luôn là undefined nên nhánh mock bị loại.
-import { apiGet, apiPost } from './client'
+import { apiGet, apiPost, apiPut } from './client'
 import {
   normalizeCloseResult,
   normalizeCurrent,
+  normalizeOrderPauseResponse,
   normalizeShiftInfo,
+  normalizeShiftModeSetting,
   normalizeSummaryResponse,
 } from '../features/shifts/shiftModel'
 import {
@@ -33,6 +35,25 @@ export type ShiftLastClosed = {
   countedCash: number
 }
 
+/** Số đơn đang chờ lúc ngừng nhận đơn (đơn món chính, combo, đơn QR đã trả chưa xác nhận). */
+export type ShiftIntakePending = { service: number; combo: number; qrPaid: number }
+
+/**
+ * Trạng thái ngừng nhận đơn (task S3b-FE; hợp đồng `handoff/HANDOFF_work-shift-S3b-be.md` mục 3).
+ * `source`: `manual` = nhân viên bấm Ngừng (kiểm kho); `no_shift` = tự động vì không còn ca nào mở (S4b — web đã nhận sẵn).
+ */
+export type ShiftOrderPause = {
+  on: boolean
+  source: 'manual' | 'no_shift'
+  /** "YYYY-MM-DD HH:MM:SS" giờ máy chủ; rỗng khi không ngừng / nguồn tự động. */
+  since: string
+  byStaffId: number
+  byName: string
+  /** Lý do người bấm gõ (≤ 40 ký tự), rỗng nếu không nhập. */
+  reason: string
+  pendingOrders: ShiftIntakePending
+}
+
 export type ShiftCurrent = {
   /** false = `INT_SHIFT_MODE = 0` -> web phải y hệt trước khi có tính năng ca. */
   enabled: boolean
@@ -41,7 +62,12 @@ export type ShiftCurrent = {
   shift: ShiftInfo | null
   /** Chỉ có khi `shift = null`: ca đã chốt gần nhất toàn quán có tiền thực đếm (gợi ý tiền đầu ca). */
   lastClosed: ShiftLastClosed | null
+  /** null = máy chủ không gửi (bản cũ / mode 0). Có thể có với `on = false` (kèm số đơn chờ để hiện khi chuẩn bị ngừng). */
+  orderPause: ShiftOrderPause | null
 }
+
+/** Chế độ ca: 0 tắt · 1 ghi sổ (chưa chặn) · 2 bắt buộc mở ca. `effective` = chế độ máy chủ đang áp dụng thật. */
+export type ShiftModeSetting = { mode: number; effective: number }
 
 export type ShiftSource = {
   key: string
@@ -250,6 +276,32 @@ export async function forceCloseShift(payload: { shiftId: number; note: string }
 /** Đối soát: Σ ca + Thu ngoài ca so với báo cáo doanh thu tổng cùng ngày. */
 export async function reconcileShifts(date: string): Promise<ShiftReconcile> {
   return normalizeReconcile(await call('/shift/reconcile', { date }))
+}
+
+/**
+ * Ngừng nhận đơn (kiểm kho giao ca). Idempotent ở máy chủ: đang ngừng mà gọi lại ⇒ `changed:false`, không ghi nhật ký.
+ * Trả trạng thái mới nhất (`orderPause`) nếu máy chủ gửi kèm, không thì null (nơi gọi đọc lại /shift/current).
+ */
+export async function pauseOrderIntake(reason?: string): Promise<{ changed: boolean; orderPause: ShiftOrderPause | null }> {
+  return normalizeOrderPauseResponse(await call('/orders/intake/pause', reason ? { reason } : {}))
+}
+
+export async function resumeOrderIntake(): Promise<{ changed: boolean; orderPause: ShiftOrderPause | null }> {
+  return normalizeOrderPauseResponse(await call('/orders/intake/resume', {}))
+}
+
+/** Chế độ ca hiện tại (mọi nhân viên đọc được; route không bị `SHIFT_DISABLED` chặn). */
+export async function getShiftMode(): Promise<ShiftModeSetting> {
+  const mocked = await viaMock('/settings/shift-mode')
+  const raw = mocked.hit ? mocked.data : await apiGet<unknown>('/settings/shift-mode')
+  return normalizeShiftModeSetting(raw)
+}
+
+/** Đổi chế độ ca (CHỈ admin — máy chủ kiểm cứng). `mode` 0 | 1 | 2. */
+export async function setShiftMode(mode: number): Promise<ShiftModeSetting> {
+  const mocked = await viaMock('/settings/shift-mode', { mode })
+  const raw = mocked.hit ? mocked.data : await apiPut<unknown, { mode: number }>('/settings/shift-mode', { mode })
+  return normalizeShiftModeSetting(raw)
 }
 
 export async function closeShift(payload: {

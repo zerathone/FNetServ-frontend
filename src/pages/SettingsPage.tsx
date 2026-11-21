@@ -43,6 +43,7 @@ import {
 import { parseSettingsSection, SETTINGS_SECTIONS } from '../features/settings/settingsCatalog'
 import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
 import { OrderSettingsSection } from '../features/orders/OrderSettingsSection'
+import { ShiftModeSection } from '../features/shifts/ShiftModeSection'
 import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
 import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
 import { ScheduledShutdownDialog } from '../features/workstations/ScheduledShutdownDialog'
@@ -634,6 +635,13 @@ export function SettingsPage() {
           {section === 'orders' ? (
             <div id="setting-order-queue">
               <OrderSettingsSection isAdmin={isAdmin} />
+            </div>
+          ) : null}
+
+          {/* Ca làm việc (task work-shift S3b-FE, D2): công tắc chế độ ca — chỉ admin đổi (GET|PUT /settings/shift-mode). */}
+          {section === 'shift' ? (
+            <div id="setting-shift-mode">
+              <ShiftModeSection isAdmin={isAdmin} />
             </div>
           ) : null}
 

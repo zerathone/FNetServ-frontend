@@ -1,9 +1,12 @@
 // task work-shift S2 — Drawer "Thông tin ca": đầu ca, tiền mặt dự kiến, doanh thu theo nguồn × hình thức.
 // Chưa có drill-down giao dịch / tab kho (S3) — cố ý không dựng nút chết.
+import { useRef } from 'react'
 import type { ShiftInfo } from '../../api/shift'
 import { Button, Drawer, StateView } from '../../design-system/components'
+import { PauseIntakeButton } from './PauseIntakeButton'
 import { ShiftSummaryTable } from './ShiftSummaryTable'
-import { formatMoney, formatShiftDateTime } from './shiftModel'
+import { formatMoney, formatShiftDateTime, pauseHeadline } from './shiftModel'
+import { useOrderIntake } from './useOrderIntake'
 import { useShiftSummary } from './useShift'
 import './shifts.css'
 
@@ -16,6 +19,9 @@ type Props = {
 export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
   const summaryQuery = useShiftSummary(shift.shiftId, open)
   const summary = summaryQuery.data
+  const { enabled, orderPause, paused, canResume } = useOrderIntake()
+  // Hộp xác nhận ngừng nhận đơn đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Drawer (cả hai nghe Esc trên document).
+  const pauseDialogOpen = useRef(false)
 
   return (
     <Drawer
@@ -24,7 +30,9 @@ export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
       className="shift-drawer"
       title="Thông tin ca"
       description={`Ca #${shift.shiftId} · ${shift.staffName || 'Nhân viên'}`}
-      onClose={onClose}
+      onClose={() => {
+        if (!pauseDialogOpen.current) onClose()
+      }}
       footer={
         <Button type="button" variant="secondary" onClick={onClose}>
           Đóng
@@ -50,6 +58,21 @@ export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
             <dd>{summary ? formatMoney(summary.totals.total) : '…'}</dd>
           </div>
         </dl>
+
+        {enabled && (!paused || canResume) ? (
+          <div className={`shift-intake${paused ? ' is-paused' : ''}`}>
+            <p>
+              {paused && orderPause
+                ? pauseHeadline(orderPause)
+                : 'Kiểm kho giao ca? Ngừng nhận đơn để số tồn đứng yên, xong thì tiếp tục.'}
+            </p>
+            <PauseIntakeButton
+              onDialogOpenChange={(next) => {
+                pauseDialogOpen.current = next
+              }}
+            />
+          </div>
+        ) : null}
 
         {summaryQuery.isLoading ? (
           <StateView title="Đang tính doanh thu ca" />

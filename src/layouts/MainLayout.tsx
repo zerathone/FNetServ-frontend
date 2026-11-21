@@ -16,6 +16,7 @@ import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
+import { OrderPauseBanner } from '../features/shifts/OrderPauseBanner'
 import { ShiftGate } from '../features/shifts/ShiftGate'
 import { ShiftTopbarChip, ShiftWidget } from '../features/shifts/ShiftWidget'
 import { useShift } from '../features/shifts/useShift'
@@ -690,6 +691,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
         onLogout={() => logoutMutation.mutate()}
         logoutPending={logoutMutation.isPending}
       />
+      {/* task work-shift S3b-FE: dải đỏ "Đang ngừng nhận đơn" mọi trang (tự ẩn khi INT_SHIFT_MODE = 0 hoặc đang nhận đơn). */}
+      <OrderPauseBanner />
     </div>
   )
 }
