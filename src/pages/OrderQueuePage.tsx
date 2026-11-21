@@ -17,6 +17,7 @@ import { useAuthStore } from '../store/auth'
 import { useOrderQueueStore } from '../store/orderQueue'
 import { pushToast } from '../store/toast'
 import { useWsStatusStore } from '../store/wsStatus'
+import { usePendingComboHours } from '../features/shifts/useShift'
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('vi-VN').format(value)
@@ -79,9 +80,10 @@ export function OrderQueuePage() {
 
   // Chạy cả khi đang ở tab Dịch vụ để badge số lượng luôn đúng (đơn combo tiền mặt là khách
   // đang đứng chờ ở máy — không được để thu ngân phải bấm sang tab mới thấy).
+  const comboHours = usePendingComboHours() // task work-shift S2: mode ca ≥ 1 ⇒ 0, mode 0 ⇒ undefined (request cũ)
   const comboQuery = useQuery({
-    queryKey: ['pending-orders-combo'],
-    queryFn: getPendingComboOrders,
+    queryKey: ['pending-orders-combo', comboHours ?? 'default'],
+    queryFn: () => getPendingComboOrders(comboHours),
     refetchInterval: connected ? 30000 : 5000,
   })
   const comboOrders = comboQuery.data ?? []

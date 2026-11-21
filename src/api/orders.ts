@@ -193,8 +193,14 @@ export function getCompletedOrderStats() {
 }
 
 // ===== task 2.24 (P2/P3) — tab "Combo chờ duyệt" =====
-export async function getPendingComboOrders() {
-  const data = await apiGet<PendingComboResponse>('/orders/pending/combo')
+/**
+ * task work-shift S2 (Q18): `hours` có giá trị ⇒ `?hours=<n>` (0 = không lọc thời gian — dùng khi INT_SHIFT_MODE ≥ 1
+ * để thấy đủ đơn chờ). Không truyền ⇒ request y hệt cũ (server tự lọc 24 giờ).
+ * ⚠️ KHÔNG gán thẳng làm `queryFn` (React Query truyền context vào tham số đầu) — bọc `() => getPendingComboOrders(hours)`.
+ */
+export async function getPendingComboOrders(hours?: number) {
+  const query = typeof hours === 'number' ? `?hours=${Math.max(0, Math.floor(hours))}` : ''
+  const data = await apiGet<PendingComboResponse>(`/orders/pending/combo${query}`)
   return data?.items ?? []
 }
 

@@ -13,7 +13,7 @@ export type PosPrinterLike = {
   ipAddress: string
 }
 
-export type PosPrintScope = 'combo' | 'deposit' | 'service'
+export type PosPrintScope = 'combo' | 'deposit' | 'service' | 'shift'
 
 export type PosPrintPrefs = {
   printerId?: number

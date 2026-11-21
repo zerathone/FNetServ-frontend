@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getPendingComboOrders } from '../../api/orders'
 import { useWsStatusStore } from '../../store/wsStatus'
+import { usePendingComboHours } from '../shifts/useShift'
 
 // Chuyển từ OrderWorkspace (/orders) sang trang /combo_sale -- than hàm giữ nguyên.
 
@@ -37,9 +38,12 @@ export function formatZoneList(value: string) {
  */
 export function usePendingComboOrders(enabled = true) {
   const connected = useWsStatusStore((state) => state.connected)
+  // task work-shift S2 (Q18): mode ca ≥ 1 ⇒ ?hours=0; mode 0 ⇒ undefined (request y hệt cũ). Key có thêm `hours`
+  // nhưng vẫn khớp invalidate theo tiền tố ['pending-orders-combo'].
+  const hours = usePendingComboHours()
   const query = useQuery({
-    queryKey: ['pending-orders-combo'],
-    queryFn: getPendingComboOrders,
+    queryKey: ['pending-orders-combo', hours ?? 'default'],
+    queryFn: () => getPendingComboOrders(hours),
     refetchInterval: connected ? 30_000 : 5_000,
     enabled,
   })

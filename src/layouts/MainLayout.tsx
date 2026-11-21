@@ -16,6 +16,10 @@ import { useLicenseInfo } from '../features/license/useLicenseInfo'
 import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineButton'
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
+import { ShiftGate } from '../features/shifts/ShiftGate'
+import { ShiftTopbarChip, ShiftWidget } from '../features/shifts/ShiftWidget'
+import { useShift } from '../features/shifts/useShift'
+import type { ShiftInfo } from '../api/shift'
 import { NavItemBadges } from './NavItemBadges'
 import { NavSearchBox, NavSearchResults } from './NavSearch'
 import { SidebarClock } from './SidebarClock'
@@ -367,6 +371,15 @@ export function MainLayout({ children }: { children: ReactNode }) {
     },
   })
 
+  // task work-shift S2: INT_SHIFT_MODE ≥ 1 và đang có ca ⇒ Đăng xuất mở Dialog Chốt ca thay vì thoát ngay.
+  // mode = 0 / chưa biết / chưa có ca ⇒ logout y hệt cũ.
+  const { enabled: shiftEnabled, shift: currentShift } = useShift()
+  const [closingShift, setClosingShift] = useState<ShiftInfo | null>(null)
+  const requestLogout = () => {
+    if (shiftEnabled && currentShift) setClosingShift(currentShift)
+    else logoutMutation.mutate()
+  }
+
   const changeWorkspace = (nextId: WorkspaceId) => {
     const nextWorkspace = getWorkspace(nextId)
     if (!availableWorkspaces.some((item) => item.id === nextId)) return
@@ -444,6 +457,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
           <LicenseButton />
           <PaymentOnlineButton />
           <PromoBannerCluster />
+          {/* task work-shift S2: lối vào ca cho giao diện Cổ điển (sidebar header bị ẩn); chỉ hiện bằng CSS ở classic. */}
+          {workspaceId === 'pos' ? <ShiftTopbarChip /> : null}
         </div>
 
         <div className="app-topbar__end">
@@ -555,6 +570,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
           </div>
           {/* Chỉ ở vai trò Thu ngân (pos); sang Quản lý / Phân tích thì widget không hiện. */}
           {workspaceId === 'pos' ? <ShiftIncomeWidget /> : null}
+          {/* task work-shift S2: widget ca (tự ẩn khi INT_SHIFT_MODE = 0). */}
+          {workspaceId === 'pos' ? <ShiftWidget /> : null}
         </div>
 
         {/* Thu ngân (pos) không dùng tìm kiếm chức năng — menu chỉ có vài mục, không cần; chỉ Quản lý / Phân tích mới có. */}
@@ -626,7 +643,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
             variant="ghost"
             block
             loading={logoutMutation.isPending}
-            onClick={() => logoutMutation.mutate()}
+            onClick={requestLogout}
           >
             <span aria-hidden="true"><SignOut size={20} weight="bold" /></span>
             <span className="workspace-nav__label">Đăng xuất</span>
@@ -646,6 +663,14 @@ export function MainLayout({ children }: { children: ReactNode }) {
       <main id="main-content" className="app-content" tabIndex={-1}>
         {children}
       </main>
+
+      <ShiftGate
+        workspaceId={workspaceId}
+        closingShift={closingShift}
+        onCloseCancel={() => setClosingShift(null)}
+        onLogout={() => logoutMutation.mutate()}
+        logoutPending={logoutMutation.isPending}
+      />
     </div>
   )
 }

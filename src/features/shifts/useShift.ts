@@ -1,0 +1,110 @@
+// task work-shift S2 (F1) — MỘT nguồn duy nhất cho trạng thái ca của nhân viên đang đăng nhập.
+// React Query: cả MainLayout, widget, dialog và các trang khác dùng chung 1 query ⇒ không nhân request (KNOWLEDGE §65).
+import { useCallback, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { create } from 'zustand'
+import { getShiftCurrent, getShiftSummary, type ShiftCurrent, type ShiftInfo } from '../../api/shift'
+import { useAuthStore } from '../../store/auth'
+
+/** Key theo staffId: logout/login đổi người trong cùng tab không được thấy ca của người trước (cache không bị xoá khi logout). */
+export const shiftCurrentKey = (staffId: number | null) => ['shift', 'current', staffId] as const
+export const shiftSummaryKey = (shiftId: number | null) => ['shift', 'summary', shiftId] as const
+
+const POLL_MS = 60_000
+
+export function useShift() {
+  const token = useAuthStore((state) => state.token)
+  const staffId = useAuthStore((state) => state.staffId)
+  const queryClient = useQueryClient()
+  const query = useQuery({
+    queryKey: shiftCurrentKey(staffId),
+    queryFn: getShiftCurrent,
+    enabled: Boolean(token),
+    // mode = 0 ⇒ Infinity: đúng một lần /shift/current mỗi phiên (không refetch khi mount observer mới / focus lại tab).
+    // Lỗi mạng (chưa có data) ⇒ 5 phút, và không thử lại mỗi lần có component mount: coi như chưa biết.
+    staleTime: (q) => (q.state.data ? (q.state.data.enabled ? 30_000 : Infinity) : 300_000),
+    retryOnMount: false,
+    // mode = 0 (hoặc chưa biết) ⇒ KHÔNG poll.
+    refetchInterval: (q) => (q.state.data?.enabled ? POLL_MS : false),
+    retry: false,
+  })
+
+  // Lỗi mạng ⇒ coi như chưa biết: không bật dialog, không chặn đăng xuất; chỉ ghi vết.
+  useEffect(() => {
+    if (query.error) console.warn('[shift] không đọc được /shift/current — bỏ qua giao diện ca:', query.error)
+  }, [query.error])
+
+  const data = query.data
+  const enabled = data?.enabled === true
+
+  /** Sau mở ca thành công: đặt ngay vào cache (widget hiện tức thì) rồi đồng bộ lại với server. */
+  const applyOpened = useCallback(
+    (shift: ShiftInfo) => {
+      queryClient.setQueryData<ShiftCurrent>(shiftCurrentKey(staffId), (old) =>
+        old ? { ...old, shift, lastClosed: null } : old,
+      )
+      void queryClient.invalidateQueries({ queryKey: ['shift'] })
+    },
+    [queryClient, staffId],
+  )
+
+  /** Sau chốt ca thành công. */
+  const applyClosed = useCallback(() => {
+    queryClient.setQueryData<ShiftCurrent>(shiftCurrentKey(staffId), (old) => (old ? { ...old, shift: null } : old))
+    void queryClient.invalidateQueries({ queryKey: ['shift'] })
+  }, [queryClient, staffId])
+
+  return {
+    enabled,
+    mode: enabled ? (data?.mode ?? 0) : 0,
+    shift: enabled ? (data?.shift ?? null) : null,
+    lastClosed: enabled ? (data?.lastClosed ?? null) : null,
+    serverTime: data?.serverTime ?? '',
+    isLoading: query.isLoading,
+    applyOpened,
+    applyClosed,
+  }
+}
+
+/** Tóm tắt ca (tính live ở server) — widget, Drawer và Dialog Chốt ca dùng chung key ⇒ một request / 60 giây. */
+export function useShiftSummary(shiftId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: shiftSummaryKey(shiftId),
+    queryFn: () => getShiftSummary(shiftId ?? undefined),
+    enabled: enabled && shiftId !== null,
+    staleTime: 15_000,
+    refetchInterval: POLL_MS,
+    retry: false,
+  })
+}
+
+/**
+ * Cửa sổ lọc đơn combo chờ duyệt (Q18): `mode ≥ 1` ⇒ 0 (không lọc thời gian, thấy đủ đơn mà ca có thể chặn chốt);
+ * `mode = 0` ⇒ undefined = KHÔNG gửi tham số (request y hệt trước khi có ca, server tự lọc 24 giờ).
+ */
+export function usePendingComboHours(): number | undefined {
+  const { mode } = useShift()
+  return mode >= 1 ? 0 : undefined
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trạng thái giao diện theo PHIÊN ĐĂNG NHẬP (không localStorage): "Chỉ xem" xong thì không hỏi mở ca lại tới lần đăng
+// nhập sau. Gắn với token nên đăng nhập lại (token mới) tự reset.
+// ---------------------------------------------------------------------------------------------
+
+type ShiftUiState = {
+  dismissedToken: string | null
+  /** Widget bấm "Mở ca" ⇒ mở lại Dialog dù đã "Chỉ xem". */
+  manualOpen: boolean
+  dismiss: (token: string | null) => void
+  requestOpen: () => void
+  clearRequest: () => void
+}
+
+export const useShiftUiStore = create<ShiftUiState>((set) => ({
+  dismissedToken: null,
+  manualOpen: false,
+  dismiss: (token) => set({ dismissedToken: token, manualOpen: false }),
+  requestOpen: () => set({ manualOpen: true }),
+  clearRequest: () => set({ manualOpen: false }),
+}))
