@@ -35,7 +35,9 @@ export function ShiftGate({ workspaceId, closingShift, onCloseCancel, onLogout, 
   }
   if (!enabled) return null
 
-  const showOpen = shift === null && workspaceId === 'pos' && (dismissedToken !== token || manualOpen)
+  // `manualOpen` (bấm "Mở ca" ở widget / thẻ thông báo SHIFT_REQUIRED) mở được ở MỌI vai trò — quản lý cũng có thể bị chặn
+  // thu tiền ở màn của mình; hộp thoại tự mở theo phiên chỉ ở vai trò Thu ngân như trước.
+  const showOpen = shift === null && (manualOpen || (workspaceId === 'pos' && dismissedToken !== token))
   if (!showOpen) return null
 
   return (

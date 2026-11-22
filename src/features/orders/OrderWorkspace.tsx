@@ -36,7 +36,8 @@ import {
 } from '../../design-system/components'
 import { useOrderQueueStore, type OrderView } from '../../store/orderQueue'
 import { useRevenuePrefs } from '../../store/revenuePrefs'
-import { formatShiftStart } from '../../lib/shiftTime'
+import { describeStatsWindow, isShiftWindow, scopeKeyPart } from '../shifts/shiftScopeModel'
+import { useStatsScope } from '../shifts/useShift'
 import { useWsStatusStore } from '../../store/wsStatus'
 import {
   COMPLETED_METHOD_LABEL,
@@ -263,12 +264,17 @@ export function OrderWorkspace() {
   })
   // Số trên tile lấy từ BE (toàn quán, không theo ô tìm kiếm): cùng tập dòng với danh sách nên tổng
   // khớp nhau, và có số hủy mà danh sách không có.
+  // S5: có ca ⇒ ô thống kê tính từ lúc mở ca (`scope=shift`). Danh sách phía trên CỐ Ý giữ 24 giờ, không gửi scope
+  // (không có LIMIT — ca treo nhiều ngày sẽ kéo danh sách rất dài mỗi lần làm mới). Không ca / chế độ 0 ⇒ y hệt trước.
+  const statsScope = useStatsScope()
   const completedStatsQuery = useQuery({
-    queryKey: ['orders-completed', 'stats'],
-    queryFn: getCompletedOrderStats,
+    queryKey: ['orders-completed', 'stats', scopeKeyPart(statsScope)],
+    queryFn: () => getCompletedOrderStats(statsScope),
     refetchInterval: connected ? 30_000 : 5_000,
   })
   const completedStats = completedStatsQuery.data
+  // Nhãn theo `windowSource` máy chủ trả (không theo `window`): "Toàn quán từ khi mở ca (…)" hoặc "Ca từ …" như cũ.
+  const statsWindowLabel = describeStatsWindow(completedStats?.windowSource, completedStats?.shiftStart)
   const completedGroups = useMemo(
     () =>
       groupCompletedOrders(completedTodayQuery.data ?? []).filter(
@@ -949,7 +955,9 @@ export function OrderWorkspace() {
           <button
             type="button"
             className={`order-summary__total order-summary__total--completed ${activeView === 'completed' && !completedMethod ? 'is-active' : ''}`}
-            title={`Đơn dịch vụ đã thu tiền xong hôm nay, toàn quán (không gồm nạp giờ / bán thẻ / combo). Số đếm là số phiếu.${
+            title={`Đơn dịch vụ đã thu tiền xong ${
+              isShiftWindow(completedStats?.windowSource) ? 'từ lúc mở ca' : 'hôm nay'
+            }, toàn quán (không gồm nạp giờ / bán thẻ / combo). Số đếm là số phiếu.${
               deductInRevenue ? '' : ' Không gồm cấn trừ.'
             }`}
             onClick={() => showCompleted(null)}
@@ -963,9 +971,9 @@ export function OrderWorkspace() {
               <small className="order-summary__total-count">
                 {revenueCount !== null ? revenueCount : '—'} đơn
               </small>
-              {formatShiftStart(completedStats?.shiftStart) ? (
-                <small className="order-summary__total-count" title="Thời điểm bắt đầu tính thống kê này (giờ máy chủ).">
-                  Ca từ {formatShiftStart(completedStats?.shiftStart)}
+              {statsWindowLabel ? (
+                <small className="order-summary__total-count" title={statsWindowLabel.title}>
+                  {statsWindowLabel.text}
                 </small>
               ) : null}
             </div>

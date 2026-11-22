@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bank, CheckCircle, CurrencyCircleDollar, HandCoins, QrCode } from '@phosphor-icons/react'
 import { getComboSalesStats, type ComboSaleMethod } from '../../api/combo'
-import { formatShiftStart } from '../../lib/shiftTime'
 import { useRevenuePrefs } from '../../store/revenuePrefs'
+import { describeStatsWindow, isShiftWindow, scopeKeyPart } from '../shifts/shiftScopeModel'
+import { useStatsScope } from '../shifts/useShift'
 // Dùng lại đúng giao diện ô "Hoàn thành" của /orders (class global `order-summary__*`).
 import '../orders/orders.css'
 
@@ -25,14 +26,17 @@ function formatMoney(value: number) {
 }
 
 export function ComboSalesSummary() {
+  // S5: có ca ⇒ `scope=shift` (tính từ lúc mở ca, toàn quán). Không ca / chế độ 0 ⇒ KHÔNG gửi scope: y hệt trước.
+  const scope = useStatsScope()
   const statsQuery = useQuery({
-    queryKey: ['combo-sales-stats'],
-    queryFn: getComboSalesStats,
+    queryKey: ['combo-sales-stats', scopeKeyPart(scope)],
+    queryFn: () => getComboSalesStats(scope),
     refetchInterval: 30_000,
     retry: false,
   })
   const stats = statsQuery.data
-  const shiftStart = formatShiftStart(stats?.shiftStart)
+  // Nhãn theo `windowSource` máy chủ trả (không theo `window`): "Toàn quán từ khi mở ca (…)" hoặc "Ca từ …" như cũ.
+  const windowLabel = describeStatsWindow(stats?.windowSource, stats?.shiftStart)
 
   // Checkbox ở góc ô "Cấn trừ": bỏ check (mặc định) = cấn trừ (trừ vào số dư ví, không phải tiền thu mới) KHÔNG tính vào tổng
   // "Doanh thu". Dùng chung tuỳ chọn với trang Đơn dịch vụ / Đặt máy; chỉ đổi cách hiển thị tổng trên máy này.
@@ -47,7 +51,11 @@ export function ComboSalesSummary() {
       <div className="order-summary__card order-summary__card--completed">
         <div
           className="order-summary__total order-summary__total--completed"
-          title={`Thẻ COMBO đã thu tiền xong trong 24 giờ gần nhất, toàn quán (cùng khung thời gian với trang Đơn dịch vụ). Số đếm là số thẻ.${
+          title={`Thẻ COMBO đã thu tiền xong ${
+            isShiftWindow(stats?.windowSource)
+              ? 'từ lúc mở ca'
+              : 'trong 24 giờ gần nhất'
+          }, toàn quán (cùng khung thời gian với trang Đơn dịch vụ). Số đếm là số thẻ.${
             deductInRevenue ? '' : ' Không gồm cấn trừ.'
           }`}
         >
@@ -60,9 +68,9 @@ export function ComboSalesSummary() {
             <small className="order-summary__total-count">
               {revenueCount !== null ? revenueCount : '—'} thẻ
             </small>
-            {shiftStart ? (
-              <small className="order-summary__total-count" title="Thời điểm bắt đầu tính thống kê này (giờ máy chủ).">
-                Ca từ {shiftStart}
+            {windowLabel ? (
+              <small className="order-summary__total-count" title={windowLabel.title}>
+                {windowLabel.text}
               </small>
             ) : null}
           </div>

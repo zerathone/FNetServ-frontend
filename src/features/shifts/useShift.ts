@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { create } from 'zustand'
 import { getShiftCurrent, getShiftSummary, type ShiftCurrent, type ShiftInfo } from '../../api/shift'
 import { useAuthStore } from '../../store/auth'
+import { statsScopeFor, type ShiftScope } from './shiftScopeModel'
 
 /** Key theo staffId: logout/login đổi người trong cùng tab không được thấy ca của người trước (cache không bị xoá khi logout). */
 export const shiftCurrentKey = (staffId: number | null) => ['shift', 'current', staffId] as const
@@ -69,7 +70,7 @@ export function useShift() {
 }
 
 /** Tóm tắt ca (tính live ở server) — widget, Drawer và Dialog Chốt ca dùng chung key ⇒ một request / 60 giây. */
-export function useShiftSummary(shiftId: number | null, enabled = true, poll = true) {
+export function useShiftSummary(shiftId: number | null, enabled = true, poll: boolean | number = true) {
   const staffId = useAuthStore((state) => state.staffId)
   return useQuery({
     queryKey: shiftSummaryKey(staffId, shiftId),
@@ -77,7 +78,8 @@ export function useShiftSummary(shiftId: number | null, enabled = true, poll = t
     enabled: enabled && shiftId !== null,
     staleTime: 15_000,
     // `poll = false`: ca đã chốt (trang quản lý) — số đã chụp, không đổi nên không cần hỏi lại mỗi phút.
-    refetchInterval: poll ? POLL_MS : false,
+    // `poll = <ms>`: chu kỳ riêng (widget Nguồn thu ca hỏi 30 giây như trước; query dùng chung key nên lấy chu kỳ ngắn nhất).
+    refetchInterval: poll === true ? POLL_MS : poll === false ? false : poll,
     retry: false,
   })
 }
@@ -89,6 +91,16 @@ export function useShiftSummary(shiftId: number | null, enabled = true, poll = t
 export function usePendingComboHours(): number | undefined {
   const { mode } = useShift()
   return mode >= 1 ? 0 : undefined
+}
+
+/**
+ * `scope` cho các ô thống kê (S5): `'shift'` khi chế độ ca bật và người dùng có ca mở, còn lại undefined (⇒ KHÔNG gửi
+ * `scope`, lời gọi y hệt trước). Dùng chung query `/shift/current` của `useShift` nên không thêm request.
+ * Đưa kết quả vào `queryKey` để số theo ca và số 24 giờ không lẫn cache.
+ */
+export function useStatsScope(): ShiftScope | undefined {
+  const { enabled, shift } = useShift()
+  return statsScopeFor({ enabled, shift })
 }
 
 // ---------------------------------------------------------------------------------------------

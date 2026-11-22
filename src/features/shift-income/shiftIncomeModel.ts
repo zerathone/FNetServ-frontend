@@ -9,7 +9,8 @@
 // còn gồm PY_TRANSFER_SERVICE mà các cột hình thức không có.
 // CẤN TRỪ: server hiện CHƯA trả (các dòng *_DEDUCT trong CReportUtils::PaymentTypes đang bị comment). Khi server
 // thêm cột thứ 7 (index 6 = cấn trừ) cho mỗi dòng thì widget tự hiện; chưa có thì `hasDeduct=false`.
-import { parseNum } from '../reports/incomeByStaffModel'
+import type { ShiftSummary } from '../../api/shift.ts'
+import { parseNum } from '../reports/incomeByStaffModel.ts'
 
 export type MethodKey = 'cash' | 'bank' | 'qr' | 'deduct'
 export type SortKey = 'total' | MethodKey
@@ -113,6 +114,77 @@ export function buildShiftIncome(data: unknown): ShiftIncome | null {
     return { ...sumParts(key, name, parts), parts }
   })
   return { sources, hasDeduct }
+}
+
+/** `shift` = số từ `/shift/summary` của ca đang mở; `report` = `/rptv2` type 43 + 24 giờ trượt (như trước khi có ca); `none` = ẩn widget. */
+export type IncomeSourceMode = 'shift' | 'report' | 'none'
+
+/**
+ * Chọn nguồn số cho widget. Có ca đang mở (chế độ ca bật) ⇒ `shift`, theo quyền của chính route `/shift/summary` (xem ca của
+ * mình, không cần quyền báo cáo). Còn lại giữ y hệt trước: có quyền xem báo cáo ca (931043) ⇒ `report`, không ⇒ ẩn.
+ * Chưa đăng nhập / staffId không hợp lệ ⇒ `none`.
+ */
+export function pickIncomeSource(input: {
+  staffId: number | null
+  canViewReport: boolean
+  shiftEnabled: boolean
+  hasShift: boolean
+}): IncomeSourceMode {
+  if (input.staffId === null || input.staffId <= 0) return 'none'
+  if (input.shiftEnabled && input.hasShift) return 'shift'
+  return input.canViewReport ? 'report' : 'none'
+}
+
+/**
+ * Khoá nguồn của `/shift/summary` -> dòng gốc của widget (SOURCE_GROUPS). Máy chủ: member|anonymous|combo|card|service|debt
+ * (`ShiftHandlers.cpp` — `anonymous` ở đây là `anonym` ở type 43).
+ */
+const SUMMARY_SOURCE_TO_ROW: Readonly<Record<string, RowKey>> = {
+  member: 'member',
+  anonymous: 'anonym',
+  combo: 'combo',
+  card: 'card',
+  service: 'service',
+  debt: 'debt',
+}
+
+/**
+ * Dựng số widget từ `/shift/summary` của ca đang mở (S5-FE): CÙNG nguồn với số lúc chốt ca (lọc nhân viên + QR gán theo bảng
+ * phụ), nên có thể khác báo cáo type 43 (design mục 5). Cột `online` của máy chủ = "Chuyển khoản" (`bank`). Cấn trừ luôn có
+ * (`hasDeduct = true`) — như type 43, mặc định KHÔNG tính vào tổng (xem store/revenuePrefs); máy chủ cũng không cộng cấn trừ
+ * vào `total`. Khoá nguồn lạ bị bỏ qua và trả trong `unmapped` để nơi gọi ghi log (không im lặng nuốt tiền).
+ */
+export function buildShiftIncomeFromSummary(summary: Pick<ShiftSummary, 'sources'>): {
+  income: ShiftIncome
+  unmapped: string[]
+} {
+  const byRow = new Map<RowKey, IncomePart<RowKey>>()
+  const unmapped: string[] = []
+  for (const source of summary.sources) {
+    const row = SUMMARY_SOURCE_TO_ROW[source.key]
+    if (!row) {
+      unmapped.push(source.key)
+      continue
+    }
+    const prev = byRow.get(row)
+    byRow.set(row, {
+      key: row,
+      name: prev?.name ?? '',
+      count: (prev?.count ?? 0) + source.count,
+      cash: (prev?.cash ?? 0) + source.cash,
+      bank: (prev?.bank ?? 0) + source.online,
+      qr: (prev?.qr ?? 0) + source.qr,
+      deduct: (prev?.deduct ?? 0) + source.deduct,
+    })
+  }
+  const sources = SOURCE_GROUPS.map<IncomeSource>(({ key, name, rows }) => {
+    const parts = rows.map<IncomePart<RowKey>>((row) => ({
+      ...(byRow.get(row.key) ?? { key: row.key, name: row.name, count: 0, cash: 0, bank: 0, qr: 0, deduct: 0 }),
+      name: row.name,
+    }))
+    return { ...sumParts(key, name, parts), parts }
+  })
+  return { income: { sources, hasDeduct: true }, unmapped }
 }
 
 function sumParts<K extends string>(key: K, name: string, parts: readonly IncomePart[]): IncomePart<K> {

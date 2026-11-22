@@ -17,6 +17,7 @@ import { PaymentOnlineButton } from '../features/payment-online/PaymentOnlineBut
 import { PromoBannerCluster } from '../features/promo-banner/PromoBannerCluster'
 import { ShiftIncomeWidget } from '../features/shift-income/ShiftIncomeWidget'
 import { OrderPauseTopbar } from '../features/shifts/OrderPauseTopbar'
+import { ShiftBlockNotice } from '../features/shifts/ShiftBlockNotice'
 import { ShiftGate } from '../features/shifts/ShiftGate'
 import { ShiftTopbarChip, ShiftWidget } from '../features/shifts/ShiftWidget'
 import { useShift } from '../features/shifts/useShift'
@@ -694,6 +695,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
         onLogout={() => logoutMutation.mutate()}
         logoutPending={logoutMutation.isPending}
       />
+      {/* S5-FE: thẻ thông báo SHIFT_REQUIRED / ORDER_PAUSED dùng chung cho mọi màn (đẩy từ api/client.ts). */}
+      <ShiftBlockNotice />
     </div>
   )
 }

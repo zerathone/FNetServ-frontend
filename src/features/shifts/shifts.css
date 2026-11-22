@@ -809,3 +809,105 @@
     margin-right: 0;
   }
 }
+
+/* ====================================================================================
+   Thẻ thông báo bị chặn vì ca — SHIFT_REQUIRED / ORDER_PAUSED (task work-shift S5-FE)
+   ==================================================================================== */
+
+/* Nổi giữa đáy màn hình, dưới hộp thoại (z-drawer < z-dialog) và dưới toast. Màu theo mức: vàng = việc cần làm (mở ca),
+   đỏ = đang ngừng nhận đơn, xanh = đã xử lý xong. Luôn kèm biểu tượng + chữ, không chỉ dựa vào màu. */
+.shift-block-notice {
+  position: fixed;
+  z-index: var(--z-drawer);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  width: auto;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--color-warning);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-warning-surface);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-primary);
+}
+
+.shift-block-notice[data-code="ORDER_PAUSED"] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-surface);
+}
+
+.shift-block-notice.is-resolved {
+  border-color: var(--color-success);
+  background: var(--color-success-surface);
+}
+
+.shift-block-notice__icon {
+  flex: none;
+  margin-top: 0.125rem;
+  color: var(--color-warning);
+}
+
+.shift-block-notice[data-code="ORDER_PAUSED"] .shift-block-notice__icon {
+  color: var(--color-danger);
+}
+
+.shift-block-notice.is-resolved .shift-block-notice__icon {
+  color: var(--color-success);
+}
+
+.shift-block-notice__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.shift-block-notice__title {
+  font-size: var(--font-size-md);
+  line-height: 1.3;
+}
+
+.shift-block-notice__message {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.shift-block-notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Vùng bấm tối thiểu 44px cho nút trên máy tính bảng. */
+.shift-block-notice .ds-button {
+  min-height: 2.75rem;
+}
+
+.shift-block-notice .ds-icon-button {
+  flex: none;
+  min-width: 2.75rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shift-block-notice {
+    animation: shift-block-notice-in 180ms ease-out;
+  }
+}
+
+@keyframes shift-block-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
