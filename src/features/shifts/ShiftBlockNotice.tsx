@@ -5,7 +5,7 @@
 //   các màn tiền giữ nguyên `idem` (chỉ xoá khi thành công) nên phiếu đã ghi trước đó được trả lại, không ghi đôi (Q-S4-1).
 // - ORDER_PAUSED: câu của máy chủ. Ngừng thủ công ⇒ nút Tiếp tục nhận đơn; không có ca ⇒ nút Mở ca.
 // Khi lý do chặn đã hết (đã mở ca / đã tiếp tục nhận đơn — trạng thái ca tải lại SAU lúc báo lỗi) thẻ đổi sang xanh
-// "đã xong, hãy thử lại" rồi tự đóng. Nằm dưới hộp thoại (z-drawer < z-dialog) nên Dialog Mở ca che được thẻ.
+// "đã xong, hãy thử lại" rồi tự đóng. Nằm TRÊN hộp thoại (lỗi thường phát sinh ngay trong Dialog) và dưới toast.
 import { CheckCircle, LockKeyOpen, PauseCircle, Warning, X } from '@phosphor-icons/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'

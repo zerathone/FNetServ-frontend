@@ -814,11 +814,12 @@
    Thẻ thông báo bị chặn vì ca — SHIFT_REQUIRED / ORDER_PAUSED (task work-shift S5-FE)
    ==================================================================================== */
 
-/* Nổi giữa đáy màn hình, dưới hộp thoại (z-drawer < z-dialog) và dưới toast. Màu theo mức: vàng = việc cần làm (mở ca),
-   đỏ = đang ngừng nhận đơn, xanh = đã xử lý xong. Luôn kèm biểu tượng + chữ, không chỉ dựa vào màu. */
+/* Nổi giữa đáy màn hình, TRÊN hộp thoại (lỗi chặn thường phát sinh ngay trong một Dialog — nếu nằm dưới lớp phủ của Dialog
+   thì nút Mở ca / Tiếp tục nhận đơn bị che) và dưới toast. Dialog Mở ca không bị thẻ che vì bấm Mở ca đã đóng thẻ trước.
+   Màu theo mức: vàng = việc cần làm (mở ca), đỏ = đang ngừng nhận đơn, xanh = đã xử lý xong. Luôn kèm biểu tượng + chữ. */
 .shift-block-notice {
   position: fixed;
-  z-index: var(--z-drawer);
+  z-index: calc(var(--z-dialog) + 10);
   right: var(--space-4);
   bottom: var(--space-4);
   left: var(--space-4);

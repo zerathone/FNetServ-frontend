@@ -78,7 +78,8 @@ export function useShiftSummary(shiftId: number | null, enabled = true, poll: bo
     enabled: enabled && shiftId !== null,
     staleTime: 15_000,
     // `poll = false`: ca đã chốt (trang quản lý) — số đã chụp, không đổi nên không cần hỏi lại mỗi phút.
-    // `poll = <ms>`: chu kỳ riêng (widget Nguồn thu ca hỏi 30 giây như trước; query dùng chung key nên lấy chu kỳ ngắn nhất).
+    // `poll = <ms>`: chu kỳ riêng (widget Nguồn thu ca hỏi 30 giây như trước). Lưu ý: mỗi observer có timer riêng — chỉ khi
+    // các lần gọi trùng thời điểm thì mới gộp thành một request, nên ở vai trò Thu ngân có tối đa vài request/phút tới route này.
     refetchInterval: poll === true ? POLL_MS : poll === false ? false : poll,
     retry: false,
   })

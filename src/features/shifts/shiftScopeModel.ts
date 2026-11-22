@@ -40,13 +40,15 @@ export function scopeKeyPart(scope: ShiftScope | undefined): string {
 /**
  * Các query phải làm mới khi nhận `shift.changed` (mở / chốt / đóng cưỡng bức / đổi chế độ / ngừng / tiếp tục nhận đơn).
  * `['shift']` phủ `/shift/current`, `/shift/summary`, trang quản lý; ba key còn lại là các ô thống kê theo mốc mở ca.
+ * `orders-completed` CHỈ lấy nhánh `stats`: danh sách (`['orders-completed','list']`) luôn là 24 giờ, không đổi theo ca nên
+ * không cần tải lại mỗi khi có người mở / chốt ca / ngừng nhận đơn.
  * KHÔNG lấy số tiền từ event — chỉ là tín hiệu, số thật luôn đọc lại qua REST.
  */
 export const SHIFT_CHANGED_QUERY_KEYS: ReadonlyArray<readonly string[]> = [
   ['shift'],
   ['shift-income'],
   ['combo-sales-stats'],
-  ['orders-completed'],
+  ['orders-completed', 'stats'],
 ]
 
 // ---------------------------------------------------------------------------------------------

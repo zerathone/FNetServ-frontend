@@ -512,11 +512,11 @@ export function ShiftIncomeWidget() {
           className="shift-income__since"
           title={
             fromShift
-              ? 'Số của riêng ca bạn đang mở, tính từ lúc mở ca (giờ máy chủ). Đây là đúng số sẽ ra khi chốt ca.'
+              ? 'Số của riêng ca bạn đang mở, tính từ lúc mở ca (giờ máy chủ), cùng nguồn với số lúc chốt ca. Tổng ở đây còn tuỳ các phương thức và nguồn thu bạn đã chọn tính.'
               : '24 giờ gần nhất của riêng bạn, cùng khung với ô thống kê COMBO.'
           }
         >
-          {fromShift ? 'ca từ' : 'từ'} {sinceLabel}
+          {fromShift ? (sinceLabel ? `ca từ ${sinceLabel}` : 'ca đang mở') : `từ ${sinceLabel}`}
         </span>
         <span className="shift-income__count">{count} lượt thu</span>
       </div>

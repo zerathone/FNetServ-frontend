@@ -49,7 +49,11 @@ test('scopeKeyPart: số theo ca và số 24 giờ không chung key cache', () =
 
 test('SHIFT_CHANGED_QUERY_KEYS: phủ trạng thái ca + widget + hai ô thống kê, không phủ danh sách đơn (24 giờ)', () => {
   const flat = SHIFT_CHANGED_QUERY_KEYS.map((key) => key.join('/'))
-  assert.deepEqual(flat.sort(), ['combo-sales-stats', 'orders-completed', 'shift', 'shift-income'])
+  assert.deepEqual(flat.sort(), ['combo-sales-stats', 'orders-completed/stats', 'shift', 'shift-income'])
+  // Danh sách đơn hoàn thành (key ['orders-completed','list']) KHÔNG được khớp tiền tố nào trong số này.
+  const listKey = ['orders-completed', 'list']
+  const matchesPrefix = (prefix: readonly string[]) => prefix.every((part, index) => listKey[index] === part)
+  assert.equal(SHIFT_CHANGED_QUERY_KEYS.some(matchesPrefix), false)
 })
 
 // ---- nhãn khung thời gian: rẽ nhánh theo windowSource, KHÔNG theo window ----

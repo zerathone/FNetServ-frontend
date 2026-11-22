@@ -3,6 +3,7 @@
 // Store thuần (không import React) để gọi được từ ngoài component, giống `store/toast.ts`.
 import { create } from 'zustand'
 import type { ShiftBlock } from '../features/shifts/shiftScopeModel'
+import { useAuthStore } from './auth'
 
 export type ShiftBlockNotice = ShiftBlock & {
   /** Tăng mỗi lần báo — để lần chặn mới sau khi người dùng đã đóng thẻ vẫn hiện lại. */
@@ -24,3 +25,8 @@ export const useShiftBlockStore = create<ShiftBlockState>((set) => ({
   report: (block) => set({ notice: { ...block, id: nextId++, at: Date.now() } }),
   dismiss: () => set({ notice: null }),
 }))
+
+// Đăng xuất / đổi tài khoản trên cùng tab (SPA không tải lại trang): thẻ của người trước KHÔNG được dính sang người sau.
+useAuthStore.subscribe((state, previous) => {
+  if (state.token !== previous.token) useShiftBlockStore.getState().dismiss()
+})
