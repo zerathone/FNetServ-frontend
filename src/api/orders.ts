@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from './client'
+import { withShiftScope, type ShiftScope, type StatsWindowSource } from '../features/shifts/shiftScopeModel'
 
 export type PendingOrder = {
   serviceDetailId: number
@@ -50,6 +51,10 @@ export type CompletedOrderStats = {
   date: string
   /** Mốc BẮT ĐẦU ca = đầu khung thống kê, "YYYY-MM-DD HH:MM:SS" giờ máy chủ. Optional: BE cũ chưa trả. */
   shiftStart?: string
+  /** Máy chủ S5 luôn trả (`shift` | `rolling24h` | `date`); thiếu = máy chủ cũ ⇒ hiển thị y hệt trước. */
+  windowSource?: StatsWindowSource
+  /** Chỉ có khi `windowSource = 'shift'`. */
+  shiftId?: number
   completed: {
     /** Số PHIẾU (một phiếu gồm nhiều món), không phải số món. */
     count: number
@@ -187,9 +192,14 @@ export function getCompletedTodayOrders() {
   return apiGet<PendingOrder[]>('/orders/completed-today')
 }
 
-/** Tổng hợp tile "Đơn hoàn thành" — CÙNG tập dòng với `getCompletedTodayOrders`, toàn quán. */
-export function getCompletedOrderStats() {
-  return apiGet<CompletedOrderStats>('/orders/completed/stats')
+/**
+ * Tổng hợp tile "Đơn hoàn thành", toàn quán. Khi `scope` không truyền thì CÙNG tập dòng với `getCompletedTodayOrders`.
+ * `scope = 'shift'` (S5) tính từ lúc mở ca; danh sách `getCompletedTodayOrders` CỐ Ý không nhận `scope` (không có LIMIT —
+ * ca treo nhiều ngày sẽ kéo danh sách rất dài mỗi lần làm mới) nên khi có ca số tile có thể khác tổng danh sách.
+ * ⚠️ Đừng gán thẳng làm `queryFn` (React Query nhét context vào tham số đầu).
+ */
+export function getCompletedOrderStats(scope?: ShiftScope) {
+  return apiGet<CompletedOrderStats>(withShiftScope('/orders/completed/stats', scope))
 }
 
 // ===== task 2.24 (P2/P3) — tab "Combo chờ duyệt" =====

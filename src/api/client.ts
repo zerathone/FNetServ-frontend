@@ -1,6 +1,8 @@
 import { useAuthStore } from '../store/auth'
 import { pushToast } from '../store/toast'
 import { useDebugStore } from '../store/debugStore'
+import { useShiftBlockStore } from '../store/shiftBlock'
+import { classifyShiftBlock, pickErrorCode } from '../features/shifts/shiftScopeModel'
 
 // Dev: đi qua Vite proxy (/api -> 127.0.0.1:18099) để tránh CORS (backend chưa gắn
 // Access-Control-Allow-Origin ở phần lớn route).
@@ -52,6 +54,20 @@ export class RbacDeniedError extends Error {
   }
 }
 
+/**
+ * task work-shift S5-FE (F4) — MỘT chỗ dùng chung cho lỗi chặn theo ca: `SHIFT_REQUIRED` (thu tiền / tạo QR khi chưa mở ca,
+ * chế độ Bắt buộc) và `ORDER_PAUSED` (tạo đơn món khi đang ngừng nhận đơn / chưa có ca). Hai mã này luôn là lỗi nghiệp vụ
+ * máy chủ đã từ chối TRƯỚC khi ghi gì (0 ghi) nên không đụng idem của nơi gọi. Báo thẻ thông báo có nút lối tắt (xem
+ * `features/shifts/ShiftBlockNotice`) và trả câu hướng dẫn để dùng làm `message` của `ApiError` — màn nào đang hiện
+ * `error.message` cũng nói đúng câu, không phải sửa từng màn. Mã khác ⇒ null (nơi gọi giữ nguyên hành vi cũ, kể cả cách
+ * lấy `code`: `code` ở cấp ngoài của vỏ CHỈ được đọc để nhận ra hai mã này, không đổi `ApiError.code` của lỗi khác).
+ */
+function noteShiftBlock(code: unknown, message: string, details: unknown) {
+  const block = classifyShiftBlock(code, message, details)
+  if (block) useShiftBlockStore.getState().report(block)
+  return block
+}
+
 async function parseEnvelope<T>(response: Response): Promise<T> {
   let rawBody: unknown
   try {
@@ -99,9 +115,11 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
       url: response.url,
       details: body
     })
-    throw new ApiError(body.message || 'Bạn không có quyền truy cập (403)', {
+    const message = body.message || 'Bạn không có quyền truy cập (403)'
+    const block = noteShiftBlock(code, message, body.data)
+    throw new ApiError(block?.message ?? message, {
       httpStatus: 403,
-      code,
+      code: block?.code ?? code,
       details: rawBody,
     })
   }
@@ -114,9 +132,11 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
       message: errorMsg,
       url: response.url,
     })
-    throw new ApiError(errorMsg, {
+    const errorCode = body?.code ?? body?.data?.code
+    const block = noteShiftBlock(errorCode, errorMsg, body?.data)
+    throw new ApiError(block?.message ?? errorMsg, {
       httpStatus: response.status,
-      code: body?.code ?? body?.data?.code,
+      code: block?.code ?? errorCode,
       details: rawBody,
     })
   }
@@ -147,9 +167,12 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
       url: response.url,
       details: payload
     })
-    throw new ApiError(payload.message || 'Request failed', {
+    const message = payload.message || 'Request failed'
+    // HTTP 200 + status "0" (D29/D48): `data.code` trước, rồi `code` ở cấp ngoài (S4 ghi cả hai).
+    const block = noteShiftBlock(pickErrorCode(details, (payload as { code?: unknown }).code), message, details)
+    throw new ApiError(block?.message ?? message, {
       httpStatus: response.status,
-      code,
+      code: block?.code ?? code,
       details,
     })
   }

@@ -3,18 +3,22 @@ import { CaretDown, CaretRight, CreditCard, Funnel, HandCoins, Money, QrCode } f
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { fetchDynamicReport } from '../../api/dynamic-reports'
 import { useNavBadge } from '../../layouts/useNavBadge'
+import { formatShiftStart } from '../../lib/shiftTime'
 import { useAuthStore } from '../../store/auth'
 import { useRevenuePrefs } from '../../store/revenuePrefs'
 import { REPORT_PAGES } from '../reports/reportCatalog'
+import { useShift, useShiftSummary } from '../shifts/useShift'
 import {
   availableMethods,
   buildShiftIncome,
+  buildShiftIncomeFromSummary,
   formatCompact,
   formatVnd,
   maxCell,
   MANDATORY_METHODS,
   MANDATORY_SOURCES,
   METHOD_LABEL,
+  pickIncomeSource,
   rolling24hWindow,
   ROW_KEYS,
   selectSources,
@@ -238,7 +242,12 @@ export function ShiftIncomeWidget() {
   const canView = useAuthStore((state) =>
     MOCK_MODE ? true : VIEW_RIGHT === undefined ? false : state.hasRight(VIEW_RIGHT),
   )
-  const enabled = canView && staffId !== null && staffId > 0
+  // S5-FE: có ca đang mở (chế độ ca bật) ⇒ lấy số từ `/shift/summary` của ca (đúng số lúc chốt ca), mốc "từ" = giờ mở ca.
+  // Không ca / chế độ 0 ⇒ giữ y hệt trước: `/rptv2` type 43 + 24 giờ trượt, kiểm quyền 931043.
+  const { enabled: shiftEnabled, shift } = useShift()
+  const sourceMode = pickIncomeSource({ staffId, canViewReport: canView, shiftEnabled, hasShift: shift !== null })
+  const fromShift = sourceMode === 'shift'
+  const enabled = sourceMode !== 'none'
 
   const [open, setOpen] = useState(readOpen)
   const [sort, setSort] = useState<SortKey>('total')
@@ -274,10 +283,24 @@ export function ShiftIncomeWidget() {
       }
       return { income: buildShiftIncome(rows), sinceLabel: window.sinceLabel }
     },
-    enabled,
+    enabled: sourceMode === 'report',
     refetchInterval: 30_000,
     retry: false,
   })
+  // Dùng chung key với widget ca ở sidebar / Drawer / Dialog Chốt ca ⇒ không nhân request; `shift.changed` (WS) cũng làm mới key này.
+  const summaryQuery = useShiftSummary(shift?.shiftId ?? null, fromShift, 30_000)
+  const shiftIncome = useMemo(
+    () => (summaryQuery.data ? buildShiftIncomeFromSummary(summaryQuery.data) : null),
+    [summaryQuery.data],
+  )
+  useEffect(() => {
+    // Khoá nguồn lạ (máy chủ thêm nguồn mới) bị bỏ khỏi widget ⇒ ghi vết để không âm thầm lệch số so với màn Ca làm việc.
+    if (shiftIncome && shiftIncome.unmapped.length > 0) {
+      console.warn('[shift-income] nguồn thu lạ trong /shift/summary, widget bỏ qua:', shiftIncome.unmapped)
+    }
+  }, [shiftIncome])
+  const activeQuery = fromShift ? summaryQuery : query
+  const sinceLabel = fromShift ? formatShiftStart(shift?.openTime) : query.data?.sinceLabel
 
   // Đóng bảng cài đặt khi bấm ra ngoài hoặc nhấn Esc.
   useEffect(() => {
@@ -296,7 +319,7 @@ export function ShiftIncomeWidget() {
     }
   }, [settingsOpen])
 
-  const income = query.data?.income ?? null
+  const income = fromShift ? (shiftIncome?.income ?? null) : (query.data?.income ?? null)
   const methodSelection = useMemo<MethodSelection>(
     () => ({ ...baseMethods, deduct: deductInRevenue }),
     [baseMethods, deductInRevenue],
@@ -373,14 +396,14 @@ export function ShiftIncomeWidget() {
 
   if (!income || !summary) {
     return (
-      <section className="shift-income" aria-label="Doanh thu" aria-busy={query.isPending}>
+      <section className="shift-income" aria-label="Doanh thu" aria-busy={activeQuery.isPending}>
         <div className="shift-income__head">
           <span className="shift-income__title">Doanh thu</span>
         </div>
-        {query.isError || query.data ? (
+        {activeQuery.isError || activeQuery.data ? (
           <div className="shift-income__error" role="alert">
             <span>Không tải được số liệu.</span>
-            <button type="button" className="shift-income__retry" onClick={() => void query.refetch()}>
+            <button type="button" className="shift-income__retry" onClick={() => void activeQuery.refetch()}>
               Thử lại
             </button>
           </div>
@@ -485,11 +508,21 @@ export function ShiftIncomeWidget() {
       </div>
 
       <div className="shift-income__meta">
-        <span className="shift-income__since" title="24 giờ gần nhất của riêng bạn, cùng khung với ô thống kê COMBO.">
-          từ {query.data?.sinceLabel}
+        <span
+          className="shift-income__since"
+          title={
+            fromShift
+              ? 'Số của riêng ca bạn đang mở, tính từ lúc mở ca (giờ máy chủ), cùng nguồn với số lúc chốt ca. Tổng ở đây còn tuỳ các phương thức và nguồn thu bạn đã chọn tính.'
+              : '24 giờ gần nhất của riêng bạn, cùng khung với ô thống kê COMBO.'
+          }
+        >
+          {fromShift ? (sinceLabel ? `ca từ ${sinceLabel}` : 'ca đang mở') : `từ ${sinceLabel}`}
         </span>
         <span className="shift-income__count">{count} lượt thu</span>
       </div>
+      {fromShift ? (
+        <p className="shift-income__note">Số theo ca, có thể khác báo cáo doanh thu.</p>
+      ) : null}
 
       {/* Biểu đồ tròn tỷ trọng (trái) + một dòng <biểu tượng> <số tiền> cho từng hình thức; tên + số đầy đủ ở tooltip. */}
       <div className="shift-income__summary">

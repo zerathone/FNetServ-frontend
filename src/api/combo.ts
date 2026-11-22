@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from './client'
+import { withShiftScope, type ShiftScope, type StatsWindowSource } from '../features/shifts/shiftScopeModel'
 
 export type ComboMachineGroup = {
   machineGroupId: number
@@ -114,8 +115,15 @@ export type ComboSalesStats = {
   date: string
   /** Mốc BẮT ĐẦU ca = đầu khung thống kê, "YYYY-MM-DD HH:MM:SS" giờ máy chủ. Optional: BE cũ chưa trả. */
   shiftStart?: string
-  /** '24h' = 24h trượt tính lùi từ lúc gọi (cùng khung với /orders), 'day' = trọn ngày được hỏi. */
-  window: '24h' | 'day'
+  /**
+   * '24h' = 24h trượt tính lùi từ lúc gọi (cùng khung với /orders), 'day' = trọn ngày được hỏi, 'shift' = từ lúc mở ca
+   * (chỉ khi gửi `scope=shift`). ⚠️ Rẽ nhánh hiển thị theo `windowSource`, KHÔNG theo trường này.
+   */
+  window: '24h' | 'day' | 'shift'
+  /** Máy chủ S5 luôn trả; thiếu = máy chủ cũ (coi như 24 giờ trượt / theo ngày, hiển thị y hệt trước). */
+  windowSource?: StatsWindowSource
+  /** Chỉ có khi `windowSource = 'shift'`. */
+  shiftId?: number
   completed: {
     /** Số THẺ COMBO (1 thẻ = 1 phiếu thu), không phải số lần bán. */
     count: number
@@ -125,9 +133,13 @@ export type ComboSalesStats = {
   }
 }
 
-/** Toàn quán, chỉ đọc. Cùng khung thời gian với `/orders/completed/stats`. */
-export function getComboSalesStats() {
-  return apiGet<ComboSalesStats>('/combo/sales/stats')
+/**
+ * Toàn quán, chỉ đọc. Cùng khung thời gian với `/orders/completed/stats`.
+ * `scope = 'shift'` (S5): tính từ lúc mở ca của người đang đăng nhập — chỉ truyền khi có ca (xem `statsScopeFor`);
+ * không truyền ⇒ URL y hệt trước. ⚠️ Đừng gán thẳng làm `queryFn` (React Query nhét context vào tham số đầu).
+ */
+export function getComboSalesStats(scope?: ShiftScope) {
+  return apiGet<ComboSalesStats>(withShiftScope('/combo/sales/stats', scope))
 }
 
 export async function getComboCatalog(status: 'active' | 'all' = 'active') {

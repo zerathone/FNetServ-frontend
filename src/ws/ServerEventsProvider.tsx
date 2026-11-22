@@ -13,6 +13,7 @@ import {
   notificationDescription,
   notificationIsDisplayable,
 } from '../features/notifications/notificationModel'
+import { SHIFT_CHANGED_QUERY_KEYS } from '../features/shifts/shiftScopeModel'
 import { shouldAlert, shouldPlaySound } from '../features/notifications/notificationPrefsModel'
 import { playNotificationSound } from '../features/notifications/notificationSound'
 import { useNotificationPrefs } from '../store/notificationPrefs'
@@ -37,7 +38,12 @@ const SUBSCRIBED_DOMAINS = [
   'payment',
   'system',
   'notification',
+  // task work-shift S5: `shift.changed` (mở / chốt / đóng cưỡng bức / đổi chế độ / ngừng / tiếp tục nhận đơn). Thiếu domain này
+  // thì session đã `subscribe` danh sách cố định sẽ bị server lọc mất event.
+  'shift',
 ]
+/** Gom nhiều `shift.changed` dồn dập (vd mở ca kéo theo tiếp tục nhận đơn) thành một lần làm mới. */
+const SHIFT_CHANGED_DEBOUNCE_MS = 300
 
 export function ServerEventsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
@@ -47,6 +53,7 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
   const orderChangedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chatReactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const shiftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (token) {
@@ -106,6 +113,17 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
       }, CHAT_REACTION_DEBOUNCE_MS)
     }
 
+    // task work-shift S5: `shift.changed` chỉ là TÍN HIỆU ({reason, shiftId?}) — không lấy số tiền / trạng thái từ event, chỉ làm
+    // mới các query về ca và các ô thống kê theo mốc mở ca; số thật đọc lại qua REST. Poll 60 giây của `useShift` vẫn giữ làm
+    // lưới an toàn (đổi trạng thái ngoài REST không phát event).
+    const scheduleShiftInvalidate = () => {
+      if (shiftTimerRef.current) clearTimeout(shiftTimerRef.current)
+      shiftTimerRef.current = setTimeout(() => {
+        shiftTimerRef.current = null
+        for (const queryKey of SHIFT_CHANGED_QUERY_KEYS) void queryClient.invalidateQueries({ queryKey: [...queryKey] })
+      }, SHIFT_CHANGED_DEBOUNCE_MS)
+    }
+
     const unsubscribe = wsClient.subscribe((msg) => {
       switch (msg.type) {
         case 'hello':
@@ -129,6 +147,10 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
           // `order.changed`, nên chỉ cần thêm queryKey của tab combo, KHÔNG thêm message WS mới.
           // task 2.23: debounce ~1000ms cùng cơ chế.
           scheduleOrdersInvalidate()
+          break
+
+        case 'shift.changed':
+          scheduleShiftInvalidate()
           break
 
         case 'member.updated': {
@@ -227,6 +249,8 @@ export function ServerEventsProvider({ children }: { children: React.ReactNode }
       if (orderChangedTimerRef.current) clearTimeout(orderChangedTimerRef.current)
       if (chatTimerRef.current) clearTimeout(chatTimerRef.current)
       if (chatReactTimerRef.current) clearTimeout(chatReactTimerRef.current)
+      if (shiftTimerRef.current) clearTimeout(shiftTimerRef.current)
+      shiftTimerRef.current = null
       chatReactTimerRef.current = null
       wsUpdateTimerRef.current = null
       orderChangedTimerRef.current = null
