@@ -307,7 +307,7 @@ function DrawerBody({ shift, date, canForceClose, onClose }: Omit<Props, 'shift'
                       <p className="shift-form__hint">Không có đơn QR đã thu bị hủy trong ca này.</p>
                     )
                   ) : (
-                    // Máy chủ trả null: hệ thống không ghi ai hủy phiếu QR nào, lúc nào (design 14b D14) — nói thật thay vì im lặng.
+                    // Máy chủ trả null (bản cũ trước cancel-qr-audit, hoặc lỗi đọc) — nói thật thay vì im lặng.
                     <p className="shift-form__hint">
                       Hệ thống chưa thống kê được đơn QR đã thu tiền rồi bị hủy. Nếu có khách cần hoàn tiền, kiểm tra ở Quản lý ›
                       Nhật ký giao dịch.

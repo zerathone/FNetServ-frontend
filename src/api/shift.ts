@@ -130,8 +130,9 @@ export type ShiftSummary = {
   totals: ShiftTotals
   expectedCash: number
   /**
-   * S3 (Q15): đơn QR ĐÃ THU TIỀN rồi bị hủy — tiền đã ở ngân hàng, cần hoàn khách ngoài hệ thống. Máy chủ hiện luôn trả
-   * `null` (hệ thống không ghi ai hủy phiếu QR nào, lúc nào — design 14b D14) ⇒ không hiện dòng nhắc.
+   * S3 (Q15): đơn QR ĐÃ THU TIỀN rồi bị hủy — tiền đã ở ngân hàng, cần hoàn khách ngoài hệ thống. Từ cancel-qr-audit
+   * (2026-11-23) máy chủ trả `{count, total}` = phiếu QR do người của ca này hủy (bảng `workshiftqrcanceltb`; phiếu hủy
+   * trước bản này không có). `null` = máy chủ cũ hoặc lỗi đọc ⇒ "chưa thống kê được".
    */
   refundsQrCanceled?: { count: number; total: number } | null
   onlineBook?: ShiftOnlineBook | null
