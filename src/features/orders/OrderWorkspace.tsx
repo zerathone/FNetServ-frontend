@@ -22,6 +22,7 @@ import {
   getPendingOrders,
   getServicePaidLabel,
   type CompletedPaymentMethod,
+  type PendingOrder,
 } from '../../api/orders'
 import {
   Button,
@@ -51,6 +52,7 @@ import {
   groupCompletedOrders,
   groupOrders,
   groupQrOrders,
+  isPriceBelowList,
   orderAmount,
   qrCancelItems,
   qrSelectKey,
@@ -98,6 +100,23 @@ type QueueEntry =
 
 function formatMoney(value: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`
+}
+
+/**
+ * Q-SEC2-1 (user chốt 2026-11-23): đơn giá lúc đặt thấp hơn bảng giá ⇒ nhãn cảnh báo ngay dưới giá để thu ngân
+ * thấy trước khi làm món. Không chặn thao tác. Chữ + giá bảng giá hiện sẵn (không chỉ dựa màu / tooltip).
+ */
+function PriceBelowListNote({ line }: { line: PendingOrder }) {
+  if (!isPriceBelowList(line)) return null
+  const detail = `Giá lúc đặt ${formatMoney(unitPriceOf(line))} thấp hơn bảng giá hiện tại ${formatMoney(line.price)}`
+  return (
+    <span className="order-card__price-warn" title={detail} aria-label={detail}>
+      <StatusBadge tone="warning">Thấp hơn bảng giá</StatusBadge>
+      <span className="order-card__price-warn-list" aria-hidden="true">
+        Bảng giá {formatMoney(line.price)}
+      </span>
+    </span>
+  )
 }
 
 // Combo chờ duyệt (formatExpireDate / formatZoneList / parseComboCreatedAt + danh sách + Đã thu tiền / Từ chối)
@@ -537,6 +556,7 @@ export function OrderWorkspace() {
             <div className="order-card__line-main">
               <strong>{line.serviceName}</strong>
               <span>{formatMoney(unitPriceOf(line))}</span>
+              <PriceBelowListNote line={line} />
             </div>
             <div className="order-card__line-qty">
               <span className="order-card__line-qty-value">× {line.quantity}</span>
@@ -591,6 +611,7 @@ export function OrderWorkspace() {
             <div className="order-card__line-main">
               <strong>{line.serviceName}</strong>
               <span>{formatMoney(unitPriceOf(line))}</span>
+              <PriceBelowListNote line={line} />
             </div>
             <div className="order-card__line-qty">
               <span className="order-card__line-qty-value">× {line.quantity}</span>
@@ -651,6 +672,7 @@ export function OrderWorkspace() {
             <div className="order-card__line-main">
               <strong>{line.serviceName}</strong>
               <span>{formatMoney(unitPriceOf(line))}</span>
+              <PriceBelowListNote line={line} />
             </div>
             <div className="order-card__line-qty">
               <span className="order-card__line-qty-value">× {line.quantity}</span>
@@ -738,6 +760,7 @@ export function OrderWorkspace() {
             <div className="order-card__line-main">
               <strong>{order.serviceName}</strong>
               <span>{formatMoney(unitPriceOf(order))}</span>
+              <PriceBelowListNote line={order} />
             </div>
             <div className="order-card__line-qty">
               {editable ? <span>Số lượng</span> : null}
@@ -795,6 +818,7 @@ export function OrderWorkspace() {
               <div className="order-card__line-main">
                 <strong>+ {child.serviceName}</strong>
                 <span>{formatMoney(unitPriceOf(child))}</span>
+                <PriceBelowListNote line={child} />
               </div>
               <div className="order-card__line-qty">
                 <span className="order-card__line-qty-value">× {child.quantity}</span>

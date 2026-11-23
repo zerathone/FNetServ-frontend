@@ -245,6 +245,15 @@ export function unitPriceOf(order: PendingOrder) {
   return order.unitPrice ?? order.price
 }
 
+/**
+ * Q-SEC2-1: đơn giá lúc đặt thấp hơn bảng giá hiện tại ⇒ cảnh báo thu ngân (không chặn). Ưu tiên cờ BE
+ * `priceBelowList`; BE cũ chưa có cờ thì tự so `unitPrice` với `price` (chỉ khi có `unitPrice`).
+ */
+export function isPriceBelowList(order: PendingOrder) {
+  if (order.priceBelowList !== undefined) return order.priceBelowList === true
+  return order.unitPrice !== undefined && order.price > 0 && order.unitPrice < order.price
+}
+
 export function clampQuantity(value: number) {
   if (!Number.isFinite(value)) return QTY_MIN
   return Math.min(QTY_MAX, Math.max(QTY_MIN, Math.trunc(value)))

@@ -449,6 +449,21 @@
   min-width: 0;
 }
 
+/* Q-SEC2-1: cảnh báo đơn giá thấp hơn bảng giá — xuống dòng trên màn hẹp, không cắt chữ. */
+.order-card__price-warn {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+
+.order-card__price-warn-list {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, inherit);
+  font-variant-numeric: tabular-nums;
+}
+
 .order-card__line-qty {
   display: flex;
   flex-direction: column;

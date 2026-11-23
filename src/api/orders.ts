@@ -31,6 +31,9 @@ export type PendingOrder = {
   voucherId?: number
   serviceAmount?: number
   unitPrice?: number
+  // Q-SEC2-1 (user chốt 2026-11-23): BE gắn cờ khi đơn giá lúc đặt (máy trạm/đối tác tự khai) THẤP HƠN bảng giá
+  // hiện tại (`price`). Chỉ cảnh báo cho thu ngân, không chặn. Chỉ có khi `?includePaid=1`.
+  priceBelowList?: boolean
 
   // task web-orders-completed-stat — CHỈ có ở `/orders/completed-today` (join PaymentTb).
   //  paidDate/paidTime: lúc THU TIỀN (VoucherDate/Time) — khác serviceDate/serviceTime = lúc khách gọi món

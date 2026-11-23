@@ -14,6 +14,7 @@ import {
   describeProcessedCount,
   groupOrders,
   groupQrOrders,
+  isPriceBelowList,
   lineAmount,
   orderAmount,
   qrAcceptItems,
@@ -45,6 +46,19 @@ function line(partial: Partial<PendingOrder>): PendingOrder {
     ...partial,
   }
 }
+
+test('Q-SEC2-1 isPriceBelowList: uu tien co BE, fallback so unitPrice < price, khai cao hon / bang khong canh bao', () => {
+  // co BE quyet dinh (ke ca khi so lieu FE tu so ra khac)
+  assert.equal(isPriceBelowList(line({ priceBelowList: true, unitPrice: 5000, price: 3500 })), true)
+  assert.equal(isPriceBelowList(line({ priceBelowList: false, unitPrice: 1000, price: 3500 })), false)
+  // BE cu khong co co: tu so
+  assert.equal(isPriceBelowList(line({ unitPrice: 1000, price: 3500 })), true)
+  assert.equal(isPriceBelowList(line({ unitPrice: 3500, price: 3500 })), false)
+  assert.equal(isPriceBelowList(line({ unitPrice: 5000, price: 3500 })), false)
+  // khong co unitPrice (goi khong includePaid) / bang gia 0 => khong canh bao
+  assert.equal(isPriceBelowList(line({ unitPrice: undefined, price: 3500 })), false)
+  assert.equal(isPriceBelowList(line({ unitPrice: 1000, price: 0 })), false)
+})
 
 test('completed: gom theo phieu, sap theo gio THU TIEN (khong theo gio goi mon), lay hinh thuc tu dong dau', () => {
   const rows = [
