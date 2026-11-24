@@ -28,6 +28,7 @@ import {
   InlineAlert,
   MoneyInput,
   PageHeader,
+  RadioCards,
   Segmented,
   StateView,
 } from '../design-system/components'
@@ -491,7 +492,7 @@ export function SettingsPage() {
                   </label>
                   <div id="setting-rounding-type" className="ds-field settings-segmented-field">
                     <span className="ds-field__label">Kiểu làm tròn</span>
-                    <Segmented
+                    <RadioCards
                       ariaLabel="Kiểu làm tròn"
                       value={roundingType === 1 ? '1' : '0'}
                       options={[

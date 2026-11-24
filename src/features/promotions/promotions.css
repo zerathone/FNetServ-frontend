@@ -97,59 +97,6 @@
   text-align: center;
 }
 
-/* ---- Chọn chính sách: thẻ radio, mỗi thẻ có lời giải thích ---- */
-.promo-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: var(--space-3);
-}
-
-.promo-choice {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-default);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.promo-choice:hover {
-  background: var(--color-surface-hover);
-}
-
-.promo-choice input {
-  margin-top: 0.2rem;
-  accent-color: var(--color-action-primary);
-}
-
-.promo-choice:focus-within {
-  outline: 2px solid var(--color-action-primary);
-  outline-offset: 2px;
-}
-
-.promo-choice.is-selected {
-  border-color: var(--color-action-primary);
-  background: color-mix(in srgb, var(--color-action-primary) 8%, transparent);
-}
-
-.promo-choice span {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.promo-choice strong {
-  color: var(--color-text-primary);
-}
-
-.promo-choice small {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
-}
-
 /* ---- Mốc nạp: mỗi dòng là hai ô "icon + nhãn + giá trị" (RuleLabel) và nút xóa ---- */
 .promo-tiers {
   display: grid;
@@ -203,42 +150,6 @@
 
 .promo-rule__fields--discount {
   grid-template-columns: minmax(14rem, 1.4fr) minmax(12rem, 1fr) minmax(11rem, 1fr) minmax(11rem, 1.2fr) auto;
-}
-
-/* Icon + tên trường trong ô tiền tố; dùng chung cho combo (RuleField) và ô tiền (MoneyInput có icon). */
-.promo-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  white-space: nowrap;
-  font-size: var(--font-size-sm);
-  font-weight: 650;
-}
-
-.promo-label > svg {
-  flex: none;
-}
-
-/* Ô "icon + control" một dòng (RuleField): icon là ô tiền tố nền nhạt, cùng kiểu form thêm hội viên. */
-/* KHÔNG đặt overflow:hidden ở đây: nó cắt mất danh sách thả xuống của combo. Góc bo nằm ở ô icon. */
-.promo-group {
-  min-width: 0;
-}
-
-.promo-group__icon {
-  display: flex;
-  align-items: center;
-  align-self: stretch;
-  justify-content: center;
-  min-width: 2.75rem;
-  padding: 0 var(--space-3);
-  border-radius: calc(var(--input-radius) - 1px) 0 0 calc(var(--input-radius) - 1px);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-secondary);
-}
-
-.promo-group .ds-custom-select-trigger {
-  padding-inline: var(--space-3);
 }
 
 .promo-rule__days {

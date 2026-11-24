@@ -56,30 +56,6 @@ export function PeriodCard({
     </section>
   )
 }
-/** Nội dung ô tiền tố: icon + tên trường (chữ luôn hiện để dễ hiểu, không chỉ dựa vào icon). */
-export function RuleLabel({ icon, text }: { icon: ReactNode; text: string }) {
-  return (
-    <span className="promo-label">
-      {icon}
-      <span>{text}</span>
-    </span>
-  )
-}
-
-/**
- * Ô "nhãn + control" trên một dòng — cùng kiểu form thêm hội viên (ds-input-group): ô tiền tố gồm icon + tên trường,
- * control (combo) nằm bên phải trong cùng một khung viền.
- */
-export function RuleField({ label, icon, children }: { label: string; icon: ReactNode; children: ReactNode }) {
-  return (
-    <div className="ds-input-group promo-group">
-      <span className="ds-input-group-separator promo-group__icon">
-        <RuleLabel icon={icon} text={label} />
-      </span>
-      {children}
-    </div>
-  )
-}
 
 /** Thanh lưu dính đáy: nói rõ có thay đổi chưa lưu hay lý do chưa lưu được; nút Lưu chỉ bật khi hợp lệ. */
 export function SaveBar({

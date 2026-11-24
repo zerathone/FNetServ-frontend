@@ -784,13 +784,6 @@
   accent-color: var(--color-action-primary);
 }
 
-/* Công tắc chế độ ca trong Cài đặt. */
-.shift-mode-note {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
 @media (max-width: 640px) {
   .shifts-page__actions {
     justify-content: flex-start;

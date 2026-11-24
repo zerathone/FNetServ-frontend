@@ -665,6 +665,17 @@ input[type="checkbox"].ob-switch:focus-visible {
   color: var(--color-text-secondary);
   text-align: right;
 }
+/* Thẻ radio trong ô điều khiển (co theo nội dung): luôn một hàng ngang, thẻ rộng vừa chữ — khung co theo nội dung
+   không tự tính được bề rộng cho flex-wrap nên trước đó thẻ bị xếp dọc. */
+.ob-row__control .ds-radio-cards {
+  flex-wrap: nowrap;
+}
+
+.ob-row__control .ds-radio-card {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .ob-row {
     flex-direction: column;
@@ -675,6 +686,16 @@ input[type="checkbox"].ob-switch:focus-visible {
   .ob-row__control {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  /* Màn hẹp: ô điều khiển đã đủ bề rộng khung ⇒ cho thẻ giãn đều và được xuống dòng. */
+  .ob-row__control .ds-radio-cards {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .ob-row__control .ds-radio-card {
+    flex: 1 1 10rem;
   }
 }
 .ob-settings__card footer {

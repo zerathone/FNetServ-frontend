@@ -2221,3 +2221,122 @@ input[type="radio"]:disabled {
   margin: 0.25rem 0.125rem;
   background: var(--color-border-strong);
 }
+/* --- RadioCards: chọn MỘT giá trị của form, mỗi lựa chọn là một thẻ radio (có thể kèm dòng giải thích) --- */
+/* Flex-wrap (không dùng lưới auto-fit): nằm trong khung co theo nội dung vẫn xếp NGANG; chỉ xuống dòng khi hết chỗ. */
+.ds-radio-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ds-radio-card {
+  flex: 1 1 12rem;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  cursor: pointer;
+  transition: border-color var(--motion-fast) ease, background-color var(--motion-fast) ease;
+}
+
+.ds-radio-card:hover:not(.is-disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ds-radio-card input {
+  flex: none;
+  margin-top: 0.2rem;
+  accent-color: var(--color-action-primary);
+}
+
+.ds-radio-card:focus-within {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.ds-radio-card.is-selected {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 8%, transparent);
+}
+
+.ds-radio-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ds-radio-card > span {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ds-radio-card strong {
+  color: var(--color-text-primary);
+}
+
+.ds-radio-card small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+/* Thẻ chỉ có nhãn (không có dòng giải thích): canh giữa radio với chữ. */
+.ds-radio-card:not(:has(small)) {
+  align-items: center;
+}
+
+.ds-radio-card:not(:has(small)) input {
+  margin-top: 0;
+}
+/* --- InlineField: "icon + tên trường | control" trên một dòng (ds-input-group). Dùng cho dòng nhập lặp lại, khỏi cần hàng tiêu đề. --- */
+.ds-inline-field {
+  min-width: 0; /* KHÔNG đặt overflow:hidden: nó cắt mất danh sách thả xuống của combo bên trong. */
+}
+
+.ds-inline-field__label {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  min-width: 2.75rem;
+  padding: 0 var(--space-3);
+  border-radius: calc(var(--input-radius) - 1px) 0 0 calc(var(--input-radius) - 1px);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+}
+
+/* Icon + tên trường: cũng dùng làm `icon` của MoneyInput (ô tiền tố của nó). */
+.ds-inline-field__text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+
+.ds-inline-field__text > svg {
+  flex: none;
+}
+
+.ds-inline-field .ds-custom-select-trigger {
+  padding-inline: var(--space-3);
+}
+
+.ds-inline-field > input {
+  padding-inline: var(--space-3);
+}
+
+/* Đơn vị / hậu tố nằm sau ô nhập (kg, %, đ…). */
+.ds-inline-field__suffix {
+  flex: none;
+  padding-right: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}

@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock, ClockCountdown, Desktop, Money, Plus, Trash } from '@phosphor-icons/react'
 import type { MachineGroup } from '../../api/machine-groups'
 import { getPromotionDiscount, getPromotionTime, savePromotionTime, type PromotionTime } from '../../api/promotion'
-import { Button, ConfirmAction, IconButton, InlineAlert, MoneyInput, Select, StateView } from '../../design-system/components'
+import { Button, ConfirmAction, IconButton, InlineAlert, InlineField, InlineFieldLabel, MoneyInput, Select, StateView } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
-import { PeriodCard, RuleField, RuleLabel, SaveBar } from './PromotionParts'
+import { PeriodCard, SaveBar } from './PromotionParts'
 import {
   ALL_DAYS,
   DAY_PRESETS,
@@ -204,7 +204,7 @@ function TimeForm({ priceId, isAnonymous, machineGroups, canSave, onDirtyChange,
             {rules.map((rule, index) => (
               <li key={rule.uid} className={`promo-rule${overlapping.has(index) ? ' is-overlap' : ''}`}>
                 <div className="promo-rule__fields">
-                  <RuleField label="Nhóm máy" icon={<Desktop size={18} weight="bold" aria-hidden="true" />}>
+                  <InlineField label="Nhóm máy" icon={<Desktop size={18} weight="bold" aria-hidden="true" />}>
                     <Select
                       className="ds-select"
                       value={rule.machineGroupId}
@@ -217,8 +217,8 @@ function TimeForm({ priceId, isAnonymous, machineGroups, canSave, onDirtyChange,
                         <option key={group.id} value={group.id}>{group.name}</option>
                       ))}
                     </Select>
-                  </RuleField>
-                  <RuleField label="Từ giờ" icon={<Clock size={18} weight="bold" aria-hidden="true" />}>
+                  </InlineField>
+                  <InlineField label="Từ giờ" icon={<Clock size={18} weight="bold" aria-hidden="true" />}>
                     <Select
                       className="ds-select"
                       value={rule.beginHour}
@@ -231,8 +231,8 @@ function TimeForm({ priceId, isAnonymous, machineGroups, canSave, onDirtyChange,
                     >
                       {HOURS_FROM.map((hour) => <option key={hour} value={hour}>{formatHour(hour)}</option>)}
                     </Select>
-                  </RuleField>
-                  <RuleField label="Đến giờ" icon={<ClockCountdown size={18} weight="bold" aria-hidden="true" />}>
+                  </InlineField>
+                  <InlineField label="Đến giờ" icon={<ClockCountdown size={18} weight="bold" aria-hidden="true" />}>
                     <Select
                       className="ds-select"
                       value={rule.endHour}
@@ -242,10 +242,10 @@ function TimeForm({ priceId, isAnonymous, machineGroups, canSave, onDirtyChange,
                     >
                       {hoursTo(rule.beginHour).map((hour) => <option key={hour} value={hour}>{formatHour(hour)}</option>)}
                     </Select>
-                  </RuleField>
+                  </InlineField>
                   <MoneyInput
                     label="Giá một giờ"
-                    icon={<RuleLabel icon={<Money size={18} weight="bold" aria-hidden="true" />} text="Giá một giờ" />}
+                    icon={<InlineFieldLabel icon={<Money size={18} weight="bold" aria-hidden="true" />} text="Giá một giờ" />}
                     placeholder="Giá một giờ"
                     currency="đ/giờ"
                     value={rule.price}

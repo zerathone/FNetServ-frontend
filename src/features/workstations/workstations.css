@@ -2372,3 +2372,9 @@ body.ws-drag-selecting * {
   min-height: 0;
   overflow: hidden;
 }
+
+/* Hàng "nhãn + thẻ radio": thẻ chiếm phần còn lại của hàng, xuống dòng khi hộp thoại hẹp. */
+.ws-remote__row .ds-radio-cards {
+  flex: 1 1 16rem;
+  min-width: 0;
+}

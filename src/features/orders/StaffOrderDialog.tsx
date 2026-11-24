@@ -27,7 +27,7 @@ import {
 import { payRequest } from '../../api/payment'
 import { getServices } from '../../api/services'
 import { getWorkstationsRuntime } from '../../api/workstations'
-import { Button, Dialog, InlineAlert, Segmented, Select, StateView, StatusBadge } from '../../design-system/components'
+import { Button, Dialog, InlineAlert, RadioCards, Select, StateView, StatusBadge } from '../../design-system/components'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { useAuthStore } from '../../store/auth'
@@ -429,7 +429,7 @@ export function StaffOrderDialog({ open, presetHostName, defaultMode = 'machine'
   const renderCompose = () => (
     <div className="staff-order">
       <section className="staff-order__section" aria-label="Khách được gọi hộ" data-search-field={machineSearchField}>
-        <Segmented
+        <RadioCards
           ariaLabel="Đối tượng gọi món hộ"
           value={mode}
           options={[

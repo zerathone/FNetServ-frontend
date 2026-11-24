@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Gift, Percent, Plus, Trash, Wallet } from '@phosphor-icons/react'
 import { getPromotionMember, savePromotionMember, type PromotionMember } from '../../api/promotion'
-import { Button, IconButton, MoneyInput, StateView, StatusBadge } from '../../design-system/components'
+import { Button, IconButton, InlineFieldLabel, MoneyInput, RadioCards, StateView, StatusBadge } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
-import { PeriodCard, RuleLabel, SaveBar } from './PromotionParts'
+import { PeriodCard, SaveBar } from './PromotionParts'
 import {
   MEMBER_POLICY_OPTIONS,
   defaultPeriod,
@@ -129,23 +129,13 @@ function MemberForm({ priceId, data, canSave, onDirtyChange }: { priceId: number
           <h3 id="promo-policy-title">Chính sách nạp tiền</h3>
           <p>Chọn một cách tặng thêm khi hội viên nạp tiền.</p>
         </header>
-        <div className="promo-choices" role="radiogroup" aria-labelledby="promo-policy-title">
-          {MEMBER_POLICY_OPTIONS.map((option) => (
-            <label key={option.value} className={`promo-choice${draft.policy === option.value ? ' is-selected' : ''}`}>
-              <input
-                type="radio"
-                name="member-policy"
-                checked={draft.policy === option.value}
-                disabled={disabled}
-                onChange={() => setPolicy(option.value)}
-              />
-              <span>
-                <strong>{option.label}</strong>
-                <small>{option.hint}</small>
-              </span>
-            </label>
-          ))}
-        </div>
+        <RadioCards<MemberPolicyKind>
+          ariaLabel="Chính sách nạp tiền"
+          value={draft.policy}
+          disabled={disabled}
+          options={MEMBER_POLICY_OPTIONS.map((option) => ({ value: option.value, label: option.label, description: option.hint }))}
+          onChange={setPolicy}
+        />
 
         {draft.policy === 'accumulate' ? (
           <div className="promo-fields">
@@ -257,7 +247,7 @@ function TierEditor({
           <div className="promo-tier" key={tier.uid}>
             <MoneyInput
               label={`Mốc ${index + 1} — nạp từ`}
-              icon={<RuleLabel icon={<Wallet size={18} weight="bold" aria-hidden="true" />} text="Nạp từ (≥)" />}
+              icon={<InlineFieldLabel icon={<Wallet size={18} weight="bold" aria-hidden="true" />} text="Nạp từ (≥)" />}
               placeholder="Số tiền nạp"
               value={tier.charge}
               disabled={disabled}
@@ -267,7 +257,7 @@ function TierEditor({
             <MoneyInput
               label={`Mốc ${index + 1} — ${kind === 'free' ? 'tặng thêm' : 'phần trăm tặng'}`}
               icon={
-                <RuleLabel
+                <InlineFieldLabel
                   icon={kind === 'free' ? <Gift size={18} weight="bold" aria-hidden="true" /> : <Percent size={18} weight="bold" aria-hidden="true" />}
                   text={valueLabel}
                 />

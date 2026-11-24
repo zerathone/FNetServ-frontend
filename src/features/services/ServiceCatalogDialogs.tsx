@@ -33,7 +33,7 @@ import {
   Dialog,
   IconButton,
   InlineAlert,
-  Segmented,
+  RadioCards,
   Select,
   StateView,
   StatusBadge,
@@ -491,7 +491,7 @@ export function ServiceEditorDialog({
                 <span className="svc-field__label" title="Nhóm dịch vụ">
                   <Folders size={18} weight="bold" aria-hidden="true" />
                 </span>
-                <Segmented
+                <RadioCards
                   ariaLabel="Loại nhóm"
                   value={groupKind}
                   onChange={(kind) => {
@@ -921,7 +921,7 @@ export function GroupsDialog({ open, onClose, canEdit }: { open: boolean; onClos
               </label>
               <div className="ds-field">
                 <span className="ds-field__label">Loại nhóm</span>
-                <Segmented
+                <RadioCards
                   ariaLabel="Loại nhóm"
                   value={draft.typeId === GROUP_TYPE_TOPPING ? 'topping' : 'normal'}
                   disabled={locked}

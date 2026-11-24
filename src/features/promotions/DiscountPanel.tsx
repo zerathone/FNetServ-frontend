@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Desktop, ListNumbers, Money, Plus, Timer, Trash } from '@phosphor-icons/react'
 import type { MachineGroup } from '../../api/machine-groups'
 import { getPromotionDiscount, savePromotionDiscount, type PromotionDiscount } from '../../api/promotion'
-import { Button, IconButton, InlineAlert, MoneyInput, Select, StateView } from '../../design-system/components'
+import { Button, IconButton, InlineAlert, InlineField, InlineFieldLabel, MoneyInput, Select, StateView } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
-import { PeriodCard, RuleField, RuleLabel, SaveBar } from './PromotionParts'
+import { PeriodCard, SaveBar } from './PromotionParts'
 import {
   DISCOUNT_HOURS,
   defaultPeriod,
@@ -132,7 +132,7 @@ function DiscountForm({ priceId, machineGroups, canSave, onDirtyChange, data }: 
             {rules.map((rule, index) => (
               <li key={rule.uid} className="promo-rule">
                 <div className="promo-rule__fields promo-rule__fields--discount">
-                  <RuleField label="Nhóm máy" icon={<Desktop size={18} weight="bold" aria-hidden="true" />}>
+                  <InlineField label="Nhóm máy" icon={<Desktop size={18} weight="bold" aria-hidden="true" />}>
                     <Select
                       className="ds-select"
                       value={rule.machineGroupId}
@@ -145,8 +145,8 @@ function DiscountForm({ priceId, machineGroups, canSave, onDirtyChange, data }: 
                         <option key={group.id} value={group.id}>{group.name}</option>
                       ))}
                     </Select>
-                  </RuleField>
-                  <RuleField label="Đợt" icon={<ListNumbers size={18} weight="bold" aria-hidden="true" />}>
+                  </InlineField>
+                  <InlineField label="Đợt" icon={<ListNumbers size={18} weight="bold" aria-hidden="true" />}>
                     <Select
                       className="ds-select"
                       value={rule.order}
@@ -157,8 +157,8 @@ function DiscountForm({ priceId, machineGroups, canSave, onDirtyChange, data }: 
                       <option value={0}>Bắt đầu</option>
                       <option value={1}>Tiếp theo</option>
                     </Select>
-                  </RuleField>
-                  <RuleField label="Số giờ" icon={<Timer size={18} weight="bold" aria-hidden="true" />}>
+                  </InlineField>
+                  <InlineField label="Số giờ" icon={<Timer size={18} weight="bold" aria-hidden="true" />}>
                     <Select
                       className="ds-select"
                       value={rule.hours}
@@ -168,10 +168,10 @@ function DiscountForm({ priceId, machineGroups, canSave, onDirtyChange, data }: 
                     >
                       {DISCOUNT_HOURS.map((hour) => <option key={hour} value={hour}>{hour} giờ</option>)}
                     </Select>
-                  </RuleField>
+                  </InlineField>
                   <MoneyInput
                     label="Giá"
-                    icon={<RuleLabel icon={<Money size={18} weight="bold" aria-hidden="true" />} text="Giá" />}
+                    icon={<InlineFieldLabel icon={<Money size={18} weight="bold" aria-hidden="true" />} text="Giá" />}
                     placeholder="Giá"
                     value={rule.price}
                     disabled={disabled}

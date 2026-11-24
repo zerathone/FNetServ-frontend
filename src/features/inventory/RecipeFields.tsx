@@ -1,6 +1,7 @@
+import { ForkKnife, Money, Package, Scales, TrendDown } from '@phosphor-icons/react'
 import type { MaterialRow } from '../../api/inventory'
 import type { ServiceItem } from '../../api/services'
-import { Button, InlineAlert, Segmented, Select } from '../../design-system/components'
+import { Button, InlineAlert, InlineField, RadioCards, Select } from '../../design-system/components'
 import { nextDraftKey, type RecipeDraft, type RecipeMode, type ToppingDraft } from './recipeDraftModel'
 import './inventory.css'
 
@@ -23,7 +24,7 @@ export function RecipeFields({
 
   return (
     <>
-      <Segmented<RecipeMode>
+      <RadioCards<RecipeMode>
         ariaLabel="Kiểu công thức"
         value={draft.mode}
         disabled={disabled}
@@ -43,51 +44,51 @@ export function RecipeFields({
 
       {draft.mode === 'recipe' ? (
         <div className="inv-lines">
-          <div className="inv-lines__head" aria-hidden="true">
-            <span>Nguyên liệu</span>
-            <span>Định lượng / 1 phần</span>
-            <span>Hao hụt %</span>
-            <span />
-          </div>
           {draft.lines.map((line) => {
             const unit = materials.find((m) => m.materialId === line.materialId)?.unit
             return (
               <div className="inv-lines__row" key={line.key}>
-                <Select
-                  className="ds-input"
-                  aria-label="Nguyên liệu"
-                  value={line.materialId}
-                  disabled={disabled}
-                  onChange={(e) => setLine(line.key, { materialId: Number(e.target.value) })}
-                >
-                  <option value={0}>Chọn nguyên liệu…</option>
-                  {materials.map((m) => (
-                    <option key={m.materialId} value={m.materialId}>
-                      {m.name}
-                      {m.unit ? ` (${m.unit})` : ''}
-                    </option>
-                  ))}
-                </Select>
-                <span className="inv-lines__qty">
+                <InlineField label="Nguyên liệu" icon={<Package size={18} weight="bold" aria-hidden="true" />}>
+                  <Select
+                    className="ds-input"
+                    aria-label="Nguyên liệu"
+                    value={line.materialId}
+                    disabled={disabled}
+                    onChange={(e) => setLine(line.key, { materialId: Number(e.target.value) })}
+                  >
+                    <option value={0}>Chọn nguyên liệu…</option>
+                    {materials.map((m) => (
+                      <option key={m.materialId} value={m.materialId}>
+                        {m.name}
+                        {m.unit ? ` (${m.unit})` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                </InlineField>
+                <InlineField label="Định lượng" icon={<Scales size={18} weight="bold" aria-hidden="true" />} title="Định lượng nguyên liệu cho 1 phần">
                   <input
                     className="ds-input"
                     inputMode="decimal"
-                    aria-label="Định lượng"
+                    aria-label="Định lượng nguyên liệu cho 1 phần"
+                    placeholder="0"
                     value={line.qty}
                     disabled={disabled}
                     onChange={(e) => setLine(line.key, { qty: e.target.value })}
                   />
-                  {unit ? <small className="inv-muted">{unit}</small> : null}
-                </span>
-                <input
-                  className="ds-input"
-                  inputMode="decimal"
-                  aria-label="Hao hụt phần trăm"
-                  placeholder="0"
-                  value={line.waste}
-                  disabled={disabled}
-                  onChange={(e) => setLine(line.key, { waste: e.target.value })}
-                />
+                  <span className="ds-inline-field__suffix">{unit ? `${unit} / phần` : '/ phần'}</span>
+                </InlineField>
+                <InlineField label="Hao hụt" icon={<TrendDown size={18} weight="bold" aria-hidden="true" />} title="Hao hụt, tính theo phần trăm">
+                  <input
+                    className="ds-input"
+                    inputMode="decimal"
+                    aria-label="Hao hụt phần trăm"
+                    placeholder="0"
+                    value={line.waste}
+                    disabled={disabled}
+                    onChange={(e) => setLine(line.key, { waste: e.target.value })}
+                  />
+                  <span className="ds-inline-field__suffix">%</span>
+                </InlineField>
                 <Button
                   type="button"
                   variant="ghost"
@@ -161,7 +162,7 @@ export function ToppingFields({
 
   return (
     <>
-      <Segmented<'0' | '1'>
+      <RadioCards<'0' | '1'>
         ariaLabel="Cách chọn món bán kèm"
         value={String(draft.single) as '0' | '1'}
         disabled={disabled}
@@ -172,49 +173,50 @@ export function ToppingFields({
         ]}
       />
       <div className="inv-lines">
-        {draft.lines.length > 0 ? (
-          <div className="inv-lines__head" aria-hidden="true">
-            <span>Món bán kèm</span>
-            <span>Lượng nguyên liệu / 1 phần</span>
-            <span>Giá bán kèm (đ)</span>
-            <span />
-          </div>
-        ) : null}
+
         {draft.lines.map((line) => (
           <div className="inv-lines__row" key={line.key}>
-            <Select
-              className="ds-input"
-              aria-label="Món bán kèm"
-              value={line.serviceId}
-              disabled={disabled}
-              onChange={(e) => setLine(line.key, { serviceId: Number(e.target.value) })}
-            >
-              <option value={0}>Chọn món bán kèm…</option>
-              {options.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.unit ? ` (${s.unit})` : ''}
-                </option>
-              ))}
-            </Select>
-            <input
-              className="ds-input"
-              inputMode="decimal"
-              aria-label="Lượng nguyên liệu mỗi phần"
-              placeholder="1"
-              value={line.qty}
-              disabled={disabled}
-              onChange={(e) => setLine(line.key, { qty: e.target.value })}
-            />
-            <input
-              className="ds-input"
-              inputMode="decimal"
-              aria-label="Giá bán kèm"
-              placeholder="0"
-              value={line.price}
-              disabled={disabled}
-              onChange={(e) => setLine(line.key, { price: e.target.value })}
-            />
+            <InlineField label="Món bán kèm" icon={<ForkKnife size={18} weight="bold" aria-hidden="true" />}>
+              <Select
+                className="ds-input"
+                aria-label="Món bán kèm"
+                value={line.serviceId}
+                disabled={disabled}
+                onChange={(e) => setLine(line.key, { serviceId: Number(e.target.value) })}
+              >
+                <option value={0}>Chọn món bán kèm…</option>
+                {options.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.unit ? ` (${s.unit})` : ''}
+                  </option>
+                ))}
+              </Select>
+            </InlineField>
+            <InlineField label="Lượng" icon={<Scales size={18} weight="bold" aria-hidden="true" />} title="Lượng nguyên liệu cho 1 phần">
+              <input
+                className="ds-input"
+                inputMode="decimal"
+                aria-label="Lượng nguyên liệu cho 1 phần"
+                placeholder="1"
+                value={line.qty}
+                disabled={disabled}
+                onChange={(e) => setLine(line.key, { qty: e.target.value })}
+              />
+              <span className="ds-inline-field__suffix">/ phần</span>
+            </InlineField>
+            <InlineField label="Giá bán kèm" icon={<Money size={18} weight="bold" aria-hidden="true" />}>
+              <input
+                className="ds-input"
+                inputMode="decimal"
+                aria-label="Giá bán kèm"
+                placeholder="0"
+                value={line.price}
+                disabled={disabled}
+                onChange={(e) => setLine(line.key, { price: e.target.value })}
+              />
+              <span className="ds-inline-field__suffix">đ</span>
+            </InlineField>
             <Button
               type="button"
               variant="ghost"

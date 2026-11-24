@@ -6,7 +6,7 @@ import {
   type RemoteMode,
   type RemoteStartResult,
 } from '../../api/workstationRealtime'
-import { Button, Dialog, InlineAlert, Segmented } from '../../design-system/components'
+import { Button, Dialog, InlineAlert, RadioCards } from '../../design-system/components'
 import { useWsStatusStore } from '../../store/wsStatus'
 
 // task 2.22r-C/D: hộp thoại "Điều khiển từ xa" — TÍNH NĂNG THỬ NGHIỆM, cho user chọn engine để
@@ -76,7 +76,7 @@ export function RemoteDesktopDialog({ hostName, onClose, onNoVncReady }: Props) 
       <div className="ws-remote">
         <div className="ws-remote__row">
           <span className="ws-remote__label">Mở tại</span>
-          <Segmented<RemoteEngine>
+          <RadioCards<RemoteEngine>
             ariaLabel="Chọn nơi mở màn hình máy trạm"
             value={engine}
             onChange={setEngine}
@@ -104,7 +104,7 @@ export function RemoteDesktopDialog({ hostName, onClose, onNoVncReady }: Props) 
         </p>
         <div className="ws-remote__row">
           <span className="ws-remote__label">Chế độ</span>
-          <Segmented<RemoteMode>
+          <RadioCards<RemoteMode>
             ariaLabel="Chọn chế độ điều khiển từ xa"
             value={mode}
             onChange={setMode}

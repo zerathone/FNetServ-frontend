@@ -19,7 +19,7 @@ import {
   InlineAlert,
   MoneyInput,
   PageHeader,
-  Segmented,
+  RadioCards,
   StateView,
 } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
@@ -534,7 +534,7 @@ export function OnlineBookingSettingsPage() {
               error={errorFor('setting', 'approval_mode')}
               hint="Mặc định duyệt thủ công; chỉ bật tự động khi đã chạy ổn."
             >
-              <Segmented
+              <RadioCards
                 value={settingDraft.approval_mode === 1 ? 'manual' : 'auto'}
                 ariaLabel="Chế độ duyệt"
                 options={[

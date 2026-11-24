@@ -236,28 +236,12 @@
   gap: var(--space-2);
 }
 
-.inv-lines__head,
+/* Mỗi dòng: 3 ô "icon + nhãn | control" (InlineField) + nút Bỏ — không còn hàng tiêu đề cột. */
 .inv-lines__row {
   display: grid;
-  grid-template-columns: minmax(10rem, 2fr) minmax(7rem, 1fr) minmax(7rem, 1fr) auto;
+  grid-template-columns: minmax(16rem, 2.2fr) minmax(13rem, 1.1fr) minmax(10rem, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
-}
-
-.inv-lines__head {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.inv-lines__qty {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.inv-lines__qty .ds-input {
-  min-width: 0;
-  flex: 1;
 }
 
 /* ----- tổng tiêu hao ----- */
@@ -284,10 +268,6 @@
 @media (max-width: 700px) {
   .inv-form {
     grid-template-columns: 1fr;
-  }
-
-  .inv-lines__head {
-    display: none;
   }
 
   .inv-lines__row {

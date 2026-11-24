@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { ApiError } from '../../api/client'
 import { getShiftMode, setShiftMode } from '../../api/shift'
-import { Button, ConfirmAction, InlineAlert, Segmented, StateView } from '../../design-system/components'
+import { Button, ConfirmAction, InlineAlert, RadioCards, StateView } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import { SHIFT_MODE_OPTIONS, describeShiftModeError, shiftModeFromValue, shiftModeToValue } from './shiftModeModel'
 import './shifts.css'
@@ -50,7 +50,6 @@ export function ShiftModeSection({ isAdmin }: { isAdmin: boolean }) {
     else mutation.mutate(mode)
   }
 
-  const selected = SHIFT_MODE_OPTIONS.find((item) => item.mode === current?.mode)
   const effectiveDiffers = current !== undefined && current.effective !== current.mode
 
   return (
@@ -83,19 +82,17 @@ export function ShiftModeSection({ isAdmin }: { isAdmin: boolean }) {
         <div className="shift-form">
           {isAdmin ? null : <InlineAlert tone="warning">Chỉ quản trị viên được đổi chế độ ca.</InlineAlert>}
 
-          <Segmented
+          <RadioCards
             ariaLabel="Chế độ ca làm việc"
             value={shiftModeToValue(current.mode)}
             disabled={!isAdmin || mutation.isPending}
             options={SHIFT_MODE_OPTIONS.map((item) => ({
               value: shiftModeToValue(item.mode),
               label: item.label,
-              title: item.summary,
+              description: item.summary,
             }))}
             onChange={(value) => choose(shiftModeFromValue(value))}
           />
-
-          {selected ? <p className="shift-mode-note">{selected.summary}</p> : null}
 
           {effectiveDiffers ? (
             <InlineAlert tone="info">
@@ -105,14 +102,6 @@ export function ShiftModeSection({ isAdmin }: { isAdmin: boolean }) {
           ) : null}
 
           {failure ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
-
-          <ul className="shift-list">
-            {SHIFT_MODE_OPTIONS.map((item) => (
-              <li key={item.mode}>
-                <strong>{item.label}:</strong> {item.summary}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
