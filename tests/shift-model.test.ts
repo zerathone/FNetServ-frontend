@@ -73,10 +73,16 @@ test('normalizeCurrent: enabled=false hoặc mode 0 ⇒ tắt hẳn, không ca',
     enabled: false,
     mode: 0,
     serverTime: '',
+    loginDayStart: '',
     shift: null,
     lastClosed: null,
     orderPause: null,
   })
+  // mode 0 vẫn giữ mốc ngày đăng nhập (widget Doanh thu dùng khi không có ca).
+  assert.equal(
+    normalizeCurrent({ enabled: false, mode: 0, loginDayStart: '2026-11-23 00:00:00' }).loginDayStart,
+    '2026-11-23 00:00:00',
+  )
   assert.equal(normalizeCurrent({ enabled: true, mode: 0 }).enabled, false)
   assert.equal(normalizeCurrent(undefined).enabled, false)
 })

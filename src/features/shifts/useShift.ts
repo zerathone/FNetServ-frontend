@@ -7,8 +7,12 @@ import { getShiftCurrent, getShiftSummary, type ShiftCurrent, type ShiftInfo } f
 import { useAuthStore } from '../../store/auth'
 import { statsScopeFor, type ShiftScope } from './shiftScopeModel'
 
-/** Key theo staffId: logout/login đổi người trong cùng tab không được thấy ca của người trước (cache không bị xoá khi logout). */
-export const shiftCurrentKey = (staffId: number | null) => ['shift', 'current', staffId] as const
+/**
+ * Key theo staffId + sessionId: logout/login đổi người trong cùng tab không được thấy ca của người trước (cache không bị xoá
+ * khi logout); cùng người đăng nhập lại cũng đọc lại (mode 0 có staleTime Infinity, mà `loginDayStart` đổi theo phiên).
+ */
+export const shiftCurrentKey = (staffId: number | null, sessionId: string | null) =>
+  ['shift', 'current', staffId, sessionId] as const
 export const shiftSummaryKey = (staffId: number | null, shiftId: number | null) => ['shift', 'summary', staffId, shiftId] as const
 
 const POLL_MS = 60_000
@@ -16,9 +20,10 @@ const POLL_MS = 60_000
 export function useShift() {
   const token = useAuthStore((state) => state.token)
   const staffId = useAuthStore((state) => state.staffId)
+  const sessionId = useAuthStore((state) => state.sessionId)
   const queryClient = useQueryClient()
   const query = useQuery({
-    queryKey: shiftCurrentKey(staffId),
+    queryKey: shiftCurrentKey(staffId, sessionId),
     queryFn: getShiftCurrent,
     enabled: Boolean(token),
     // mode = 0 ⇒ Infinity: đúng một lần /shift/current mỗi phiên (không refetch khi mount observer mới / focus lại tab).
@@ -44,14 +49,16 @@ export function useShift() {
    */
   const applyOpened = useCallback(async (): Promise<ShiftInfo | null> => {
     await queryClient.invalidateQueries({ queryKey: ['shift'] })
-    return queryClient.getQueryData<ShiftCurrent>(shiftCurrentKey(staffId))?.shift ?? null
-  }, [queryClient, staffId])
+    return queryClient.getQueryData<ShiftCurrent>(shiftCurrentKey(staffId, sessionId))?.shift ?? null
+  }, [queryClient, staffId, sessionId])
 
   /** Sau chốt ca thành công. */
   const applyClosed = useCallback(() => {
-    queryClient.setQueryData<ShiftCurrent>(shiftCurrentKey(staffId), (old) => (old ? { ...old, shift: null } : old))
+    queryClient.setQueryData<ShiftCurrent>(shiftCurrentKey(staffId, sessionId), (old) =>
+      old ? { ...old, shift: null } : old,
+    )
     void queryClient.invalidateQueries({ queryKey: ['shift'] })
-  }, [queryClient, staffId])
+  }, [queryClient, staffId, sessionId])
 
   return {
     enabled,
@@ -59,6 +66,8 @@ export function useShift() {
     shift: enabled ? (data?.shift ?? null) : null,
     lastClosed: enabled ? (data?.lastClosed ?? null) : null,
     serverTime: data?.serverTime ?? '',
+    /** 00:00 ngày đăng nhập của phiên này (giờ máy chủ), mọi chế độ; '' = chưa biết / máy chủ cũ. */
+    loginDayStart: data?.loginDayStart ?? '',
     /** Ngừng nhận đơn (S3b-FE): null khi mode 0 / máy chủ không gửi. `on` cho biết có đang ngừng hay không. */
     orderPause: enabled ? (data?.orderPause ?? null) : null,
     /** Mốc (ms) tải /shift/current gần nhất — để tính "đã ngừng bao lâu" theo giờ máy chủ. */

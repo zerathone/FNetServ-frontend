@@ -35,6 +35,30 @@ export interface UsersResponse {
   items: UserAccount[]
 }
 
+/**
+ * Một dòng của GET /users?type=combo (parity MFC ComboCardList: Tên đăng nhập, Máy, Thời hạn sử dụng, Thời điểm sử dụng, Ghi chú).
+ * `fromTime`/`toTime`/`note` do server bản mới trả; server cũ không có ⇒ các trường này undefined (model tự xử lý).
+ * `memo` là chuỗi thô (có thể là bản mã) — chỉ đọc `note`.
+ */
+export interface ComboCardRow {
+  userId: number
+  userName: string
+  createDate?: string
+  createTime?: string
+  fromDate?: string
+  fromTime?: string
+  toDate?: string
+  toTime?: string
+  zone?: string
+  memo?: string
+  note?: string
+}
+
+export interface ComboCardsResponse {
+  type: string
+  items: ComboCardRow[]
+}
+
 export interface UserDetail {
   id: number
   userGroupId: number
@@ -183,6 +207,13 @@ export const getUsers = (
   if (q) url += `&q=${encodeURIComponent(q)}`;
   if (q && qby) url += `&qby=${qby}`;
   return apiGet<UsersResponse>(url);
+}
+
+/** Danh sách thẻ combo (tab "Thẻ Combo"). Tìm theo tiền tố tên đăng nhập, lọc ở server sau khi giải mã. */
+export const getComboCards = (limit = 200, offset = 0, q?: string) => {
+  let url = `/users?type=combo&limit=${limit}&offset=${offset}`
+  if (q) url += `&q=${encodeURIComponent(q)}`
+  return apiGet<ComboCardsResponse>(url)
 }
 
 export const getUserDetail = (userId: number) =>
@@ -407,6 +438,12 @@ export const usersApi = {
   giveFree: async (payload: { userId: number; giveMoney: number; idem: string }) => {
     const { apiPost } = await import('./client');
     return apiPost<any, typeof payload>('/user/give-free', payload);
+  },
+
+  // Tặng thời gian miễn phí cho NHÂN VIÊN (phút). Hội viên tặng tiền ở giveFree.
+  giveFreeTime: async (payload: { userId: number; minutes: number; idem: string; note?: string }) => {
+    const { apiPost } = await import('./client');
+    return apiPost<{ voucherId: number; remainTime: number }, typeof payload>('/user/give-free-time', payload);
   },
 
   // Chuyển tiền

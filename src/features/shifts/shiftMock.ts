@@ -164,11 +164,13 @@ export async function mockShiftRequest(mode: string, path: string, body?: unknow
   const req = (body ?? {}) as Json
 
   if (path === '/shift/current') {
-    if (modeSetting === 0) return { enabled: false, mode: 0 }
+    const loginDayStart = `${stamp(new Date()).slice(0, 10)} 00:00:00`
+    if (modeSetting === 0) return { enabled: false, mode: 0, serverTime: stamp(new Date()), loginDayStart }
     return {
       enabled: true,
       mode: modeSetting,
       serverTime: stamp(new Date()),
+      loginDayStart,
       orderPause: orderPauseJson(),
       shift: current ? briefShift(current) : null,
       lastClosed: current

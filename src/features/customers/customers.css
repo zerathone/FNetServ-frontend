@@ -199,6 +199,9 @@
   min-height: calc(var(--table-row-min-height) + 0.25rem); /* 2 dòng chữ (tên + phụ) nên cao hơn dòng 1 badge một chút */
   border: 0;
   border-bottom: 1px solid var(--color-border-subtle);
+  /* Dòng là <button>: không xoá padding mặc định của trình duyệt (1px 6px) thì vùng lưới hẹp hơn header 12px
+     → cột fr co lệch, cột cố định phía sau trôi so với tiêu đề. */
+  padding: 0;
   color: var(--color-text-secondary);
   background: var(--color-surface-default);
   text-align: left;
@@ -257,6 +260,122 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* ── Bảng Thẻ Combo (ComboCardTable): cột Thời hạn / Thời điểm trình bày lại, vẫn MỘT dòng/hàng ──
+   Lưu ý: `.customer-table__row span` (muted + xs) áp cho mọi span trong hàng ⇒ các lớp bên dưới viết dưới
+   `.customer-table__row` để đủ độ ưu tiên ghi đè. */
+.customer-table--combo {
+  min-width: 58rem;
+}
+
+.customer-table__row .customer-combo__span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums; /* ngày giờ thẳng cột giữa các hàng */
+}
+
+.customer-table__row .customer-combo__edge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.customer-table__row .customer-combo__date {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.customer-table__row .customer-combo__time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.customer-table__row .customer-combo__arrow {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.customer-table__row .customer-combo__empty {
+  color: var(--color-text-muted);
+}
+
+/* Nhóm máy: mỗi nhóm một viên trung tính (khác viên giờ có sắc xanh), quá 2 nhóm gộp "+N". */
+.customer-table__row .customer-combo__zones {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.customer-table__row .customer-combo__chip {
+  min-width: 0;
+  max-width: 7rem;
+  min-height: 1.375rem;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  color: var(--color-text-primary);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customer-table__row .customer-combo__chip.is-more {
+  flex: none;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Viên giờ: nền nhạt + viền, không dựa mỗi màu (có biểu tượng đồng hồ và chữ). */
+.customer-table__row .customer-combo__pill {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 1.375rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-action-primary) 28%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 10%, transparent);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.customer-table__row .customer-combo__pill svg {
+  flex: none;
+  color: var(--color-action-primary);
+}
+
+.customer-table__row .customer-combo__pill.is-all-day {
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+}
+
+.customer-table__row .customer-combo__pill.is-all-day svg {
+  color: var(--color-text-muted);
+}
+
+.customer-table__row .customer-combo__time-strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 .customer-pagination {
@@ -641,6 +760,11 @@
   min-width: 0;
 }
 
+/* Hàng chỉ có nút (không còn tiêu đề chữ): đẩy nút sang phải. */
+.customer-section-heading--end {
+  justify-content: flex-end;
+}
+
 .customer-section-actions {
   display: flex;
   flex: 0 0 auto;
@@ -985,6 +1109,12 @@
   justify-items: stretch;
 }
 
+/* Biến thể trong drawer (sửa hồ sơ): không có cột ảnh bên trái, chỉ còn cột chính. */
+.customer-create-form--drawer {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
 .customer-create-form__main {
   display: grid;
   gap: var(--space-4);
@@ -1123,6 +1253,11 @@
 .customer-create-form__pair > .customer-create-form__check {
   flex: none;
   padding-left: 0;
+}
+
+/* Biến thể: ô nhập chiếm hết chỗ còn lại, ô tích "Hoạt động" nằm sát bên phải (sửa hồ sơ: tên đăng nhập + Hoạt động). */
+.customer-create-form__pair--grow > .customer-create-form__field {
+  flex: 1 1 auto;
 }
 
 /* Thỏa thuận sử dụng + chính sách dữ liệu (parity MFC): ô tích và hai link liên kết ngoài. */
@@ -1414,6 +1549,89 @@
   justify-content: center;
   padding-inline: var(--space-2);
   font-size: var(--font-size-sm);
+}
+
+/* Nhân viên: MỘT hàng ba thao tác (thay khay ví + lịch sử của hội viên), ba nút đều secondary; nút xóa ở cuối và đỏ. */
+.customer-staff-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  background: var(--color-surface-subtle);
+}
+
+.customer-staff-actions .ds-button {
+  min-width: 0;
+  min-height: 2.75rem; /* đủ vùng chạm 44px */
+  justify-content: center;
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  text-align: center;
+  white-space: normal;
+}
+
+@media (max-width: 30rem) {
+  .customer-staff-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .customer-staff-actions__free-time {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Dialog tặng thời gian miễn phí cho nhân viên */
+.staff-free-time {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.staff-free-time__input {
+  min-height: 3rem;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-free-time__hint {
+  min-height: 1.25rem; /* giữ chỗ để dòng quy đổi hiện/ẩn không làm hộp thoại nhảy */
+}
+
+.staff-free-time__hint.is-ok {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.staff-free-time__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.staff-free-time__preset {
+  min-height: 2.25rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-free-time__preset:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.staff-free-time__preset[aria-pressed='true'] {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 14%, transparent);
+  font-weight: 600;
 }
 
 .customer-history-dialog {

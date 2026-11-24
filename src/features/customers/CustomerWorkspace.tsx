@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Coins, MagnifyingGlass, UsersThree, XCircle } from '@phosphor-icons/react'
-import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
+import { getComboCards, getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
+import { ComboCardTable } from './ComboCardTable'
+import { comboCardToSeed } from './comboCardModel'
 import {
   Button,
   ConfirmAction,
@@ -106,6 +108,9 @@ const DEFAULT_CUSTOMER_COLUMNS: CustomerColumn[] = [
   'email',
   'note',
 ]
+
+/** Tab Nhân viên không có ví/nhóm hội viên → ẩn các cột này (chốt 2026-11-24). */
+const STAFF_HIDDEN_COLUMNS: readonly CustomerColumn[] = ['moneyRemain', 'moneyMain', 'moneySub', 'groupName']
 
 function readCustomerColumns(): CustomerColumn[] {
   const valid = new Set(CUSTOMER_COLUMNS.map((column) => column.id))
@@ -245,17 +250,38 @@ export function CustomerWorkspace() {
         searchQuery || undefined,
         userType === 'member' ? searchField : undefined,
       ),
+    enabled: userType !== 'combo',
   })
-  const users = useMemo(() => usersQuery.data?.items ?? [], [usersQuery.data])
+  // Tab Thẻ Combo: dữ liệu khác hội viên (hạn dùng, khung giờ, máy) ⇒ API + bảng riêng, cột như MFC.
+  const isComboTab = userType === 'combo'
+  const comboQuery = useQuery({
+    queryKey: ['users', 'combo', page, searchQuery],
+    queryFn: () => getComboCards(PAGE_SIZE, page * PAGE_SIZE, searchQuery || undefined),
+    enabled: isComboTab,
+  })
+  const comboRows = useMemo(() => comboQuery.data?.items ?? [], [comboQuery.data])
+  const activeListQuery = isComboTab ? comboQuery : usersQuery
+  const users = useMemo(() => (isComboTab ? [] : (usersQuery.data?.items ?? [])), [isComboTab, usersQuery.data])
+  const listCount = isComboTab ? comboRows.length : users.length
+  // Cột áp dụng cho tab đang xem: nhân viên bỏ cột ví/nhóm (cả ở bảng lẫn menu "Cột hiển thị").
+  const tabColumns = useMemo(
+    () =>
+      userType === 'staff'
+        ? CUSTOMER_COLUMNS.filter((column) => !STAFF_HIDDEN_COLUMNS.includes(column.id))
+        : CUSTOMER_COLUMNS,
+    [userType],
+  )
   const displayedColumns = useMemo(
-    () => CUSTOMER_COLUMNS.filter((column) => visibleColumns.includes(column.id)),
-    [visibleColumns],
+    () => tabColumns.filter((column) => visibleColumns.includes(column.id)),
+    [tabColumns, visibleColumns],
   )
   const sortedUsers = useMemo(() => {
     const direction = sortDirection === 'asc' ? 1 : -1
+    // Cột đang sắp xếp bị ẩn (vd chuyển sang tab Nhân viên) ⇒ quay về Tên đăng nhập.
+    const sortBy: CustomerColumn = displayedColumns.some((column) => column.id === sortColumn) ? sortColumn : 'userName'
     return [...users].sort((left, right) => {
-      const leftValue = customerColumnValue(left, sortColumn)
-      const rightValue = customerColumnValue(right, sortColumn)
+      const leftValue = customerColumnValue(left, sortBy)
+      const rightValue = customerColumnValue(right, sortBy)
       if (typeof leftValue === 'number' && typeof rightValue === 'number') {
         return (leftValue - rightValue) * direction
       }
@@ -264,7 +290,7 @@ export function CustomerWorkspace() {
         sensitivity: 'base',
       }) * direction
     })
-  }, [sortColumn, sortDirection, users])
+  }, [displayedColumns, sortColumn, sortDirection, users])
   const tableGridStyle = useMemo(
     () => ({
       '--customer-table-columns': displayedColumns.map((column) => column.width).join(' '),
@@ -532,8 +558,8 @@ export function CustomerWorkspace() {
       <div className="customer-tabs" role="tablist" aria-label="Loại tài khoản">
         {([
           ['member', 'Hội viên'],
-          ['combo', 'Thẻ combo'],
           ['staff', 'Nhân viên'],
+          ['combo', 'Thẻ combo'],
         ] as Array<[UserType, string]>).map(([id, label]) => (
           <button
             key={id}
@@ -608,16 +634,16 @@ export function CustomerWorkspace() {
 
       <div className="customer-list-card">
         <ListToolbar
-          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(users.length)}</strong></>}
+          count={<>Tổng <strong>{new Intl.NumberFormat('vi-VN').format(listCount)}</strong></>}
           actions={
             <>
               <RefreshButton
-                loading={usersQuery.isFetching}
-                onClick={() => void usersQuery.refetch()}
+                loading={activeListQuery.isFetching}
+                onClick={() => void activeListQuery.refetch()}
               />
               <ListPagination
                 page={page}
-                canNext={users.length >= PAGE_SIZE}
+                canNext={listCount >= PAGE_SIZE}
                 onPrevious={() => {
                   setPage((current) => Math.max(0, current - 1))
                   setSelectedSeed(null)
@@ -627,6 +653,8 @@ export function CustomerWorkspace() {
                   setSelectedSeed(null)
                 }}
               />
+              {/* Bảng Thẻ Combo có bộ cột cố định như MFC ⇒ không có menu chọn cột. */}
+              {isComboTab ? null : (
               <div className="customer-column-picker">
                 <Button
                   type="button"
@@ -652,7 +680,7 @@ export function CustomerWorkspace() {
                       <strong>Cột hiển thị</strong>
                       <span>Nhấp phải tiêu đề để mở nhanh</span>
                     </div>
-                    {CUSTOMER_COLUMNS.map((column) => (
+                    {tabColumns.map((column) => (
                       <label key={column.id} className={column.required ? 'is-required' : ''}>
                         <input
                           type="checkbox"
@@ -667,9 +695,25 @@ export function CustomerWorkspace() {
                   </div>
                 ) : null}
               </div>
+              )}
             </>
           }
         />
+        {isComboTab ? (
+          <ComboCardTable
+            rows={comboRows}
+            isLoading={comboQuery.isLoading}
+            errorMessage={comboQuery.isError ? (comboQuery.error as Error).message : null}
+            onRetry={() => void comboQuery.refetch()}
+            emptyMessage={
+              searchQuery
+                ? 'Không tìm thấy thẻ combo — kiểm tra lại phần đầu tên đăng nhập.'
+                : 'Chưa có thẻ combo nào.'
+            }
+            selectedId={selected?.userId ?? null}
+            onSelect={(row) => setSelectedSeed(comboCardToSeed(row))}
+          />
+        ) : (
         <div className="customer-table-scroll">
           <div className="customer-table" role="table" aria-rowcount={sortedUsers.length + 1}>
             <div
@@ -746,6 +790,7 @@ export function CustomerWorkspace() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {userType !== 'combo' ? (
@@ -763,7 +808,13 @@ export function CustomerWorkspace() {
         compactHeader
         className="customer-inspector-drawer"
         title={selected?.userName ?? 'Khách hàng'}
-        description={selected ? `${displayName(selected)} · ${selected.groupName || 'Chưa có nhóm'}` : undefined}
+        description={
+          selected
+            ? userType === 'staff'
+              ? 'Nhân viên' // danh sách nhân viên không trả họ tên; họ tên hiện trong hồ sơ bên dưới
+              : `${displayName(selected)} · ${selected.groupName || 'Chưa có nhóm'}`
+            : undefined
+        }
         onClose={() => setSelectedSeed(null)}
       >
         {selected ? (
@@ -780,7 +831,7 @@ export function CustomerWorkspace() {
 
       <ConfirmAction
         open={deleteRequested && Boolean(selected)}
-        title="Xóa tài khoản hội viên?"
+        title={userType === 'staff' ? 'Xóa tài khoản nhân viên?' : 'Xóa tài khoản hội viên?'}
         description={selected?.userName}
         confirmLabel="Xóa tài khoản"
         danger

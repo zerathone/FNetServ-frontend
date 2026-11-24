@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowsClockwise,
@@ -33,9 +33,10 @@ import {
   type UserDetail,
 } from '../../api/users'
 import { getUserGroups } from '../../api/user-groups'
-import { Button, DatePicker, Dialog, Select, StateView } from '../../design-system/components'
+import { Button, Dialog, Select, StateView } from '../../design-system/components'
 import { pushToast } from '../../store/toast'
 import { CustomerCameraDialog } from './CustomerCameraDialog'
+import { DateInput, Field } from './CustomerFormFields'
 import { blobToDataUrl } from './CustomerInspector'
 import { CustomerVerificationDialogs } from './CustomerVerificationDialogs'
 import { MemberRegisterDialog } from './MemberRegisterDialog'
@@ -79,58 +80,6 @@ function randomPassword() {
   const buffer = new Uint32Array(6)
   crypto.getRandomValues(buffer)
   return Array.from(buffer, (value) => String(value % 10)).join('')
-}
-
-type DateInputProps = {
-  id: string
-  placeholder: string
-  value: string
-  onChange: (value: string) => void
-}
-
-/** Nằm trong khung "icon + ngày" của form tạo: dùng biến thể embedded (khung ngoài đã có viền), chữ gợi ý là placeholder. */
-function DateInput({ id, placeholder, value, onChange }: DateInputProps) {
-  return (
-    <DatePicker
-      id={id}
-      className="ds-date-picker--embedded"
-      placeholder={placeholder}
-      aria-label={placeholder}
-      value={value}
-      onChange={onChange}
-    />
-  )
-}
-
-type FieldProps = {
-  /** Tên trường: hiện ở tooltip và cho trình đọc màn hình; chữ hiển thị nằm ở placeholder. */
-  label: string
-  icon: ReactNode
-  wide?: boolean
-  top?: boolean
-  error?: string
-  hint?: string
-  id: string
-  children: ReactNode
-}
-
-function Field({ label, icon, wide, top, error, hint, id, children }: FieldProps) {
-  const groupClasses = ['ds-input-group', 'customer-create-form__group']
-  if (error) groupClasses.push('is-invalid')
-  if (top) groupClasses.push('customer-create-form__group--top')
-  return (
-    <div className={`ds-field customer-create-form__field${wide ? ' customer-create-form__wide' : ''}`}>
-      <div className={groupClasses.join(' ')}>
-        <label className="ds-input-group-separator customer-create-form__label" htmlFor={id} title={label}>
-          {icon}
-          <span className="ds-visually-hidden">{label}</span>
-        </label>
-        {children}
-      </div>
-      {error ? <span id={`${id}-error`} className="ds-field__error" role="alert">{error}</span> : null}
-      {!error && hint ? <span id={`${id}-hint`} className="ds-field__hint">{hint}</span> : null}
-    </div>
-  )
 }
 
 export function CreateUserDialog({ open, kind, onClose, onCreated }: Props) {

@@ -11,7 +11,7 @@ import {
   UserPlus,
   X,
 } from '@phosphor-icons/react'
-import { getUsers, usersApi, type UserAccount, type UserSearchField } from '../api/users'
+import { getComboCards, getUsers, usersApi, type UserAccount, type UserSearchField } from '../api/users'
 import {
   Button,
   ConfirmAction,
@@ -26,6 +26,8 @@ import {
   Select,
 } from '../design-system/components'
 import { AutoGenerateMemberDialog } from '../features/customers/AutoGenerateMemberDialog'
+import { ComboCardTable } from '../features/customers/ComboCardTable'
+import { comboCardToSeed } from '../features/customers/comboCardModel'
 import { CreateUserDialog } from '../features/customers/CreateUserDialog'
 import { CustomerInspector } from '../features/customers/CustomerInspector'
 import { UserAdvancedSearchDrawer } from '../features/customers/UserAdvancedSearchDrawer'
@@ -143,6 +145,9 @@ const DEFAULT_COLUMNS: CustomerColumn[] = [
   'moneyRemain', 'moneyMain', 'moneySub',
   'groupName', 'email', 'note',
 ]
+
+/** Tab Nhân viên không có ví/nhóm hội viên → ẩn các cột này (chốt 2026-11-24). */
+const STAFF_HIDDEN_COLUMNS: readonly CustomerColumn[] = ['moneyRemain', 'moneyMain', 'moneySub', 'groupName']
 
 function columnValue(user: UserAccount, col: CustomerColumn): string | number {
   switch (col) {
@@ -312,8 +317,17 @@ export function UsersPage() {
         searchQuery || undefined,
         activeTab === 'member' ? searchField : undefined,
       ),
-    enabled: !isAdvMode,
+    enabled: !isAdvMode && activeTab !== 'combo',
   })
+
+  // Tab Thẻ Combo: dữ liệu khác hội viên (hạn dùng, khung giờ, máy) ⇒ API + bảng riêng, cột như MFC.
+  const isComboTab = activeTab === 'combo'
+  const comboQuery = useQuery({
+    queryKey: ['users', 'combo', page, searchQuery],
+    queryFn: () => getComboCards(limit, page * limit, searchQuery || undefined),
+    enabled: isComboTab && !isAdvMode,
+  })
+  const comboRows = comboQuery.data?.items ?? []
 
   // Query nâng cao có thể quét toàn bảng PaymentTb (LAPSE) và giữ khoá MyISAM chặn luồng ghi tiền:
   // chỉ chạy khi bấm "Tìm"/đổi trang; không refetch khi focus/mount, không retry, cache 60s.
@@ -329,7 +343,10 @@ export function UsersPage() {
   })
 
   const activeQuery = isAdvMode ? advQuery : quickQuery
-  const { data, isLoading, isError, error } = activeQuery
+  const { data, isLoading: baseLoading, isError: baseError, error: baseErrorValue } = activeQuery
+  const isLoading = isComboTab ? comboQuery.isLoading : baseLoading
+  const isError = isComboTab ? comboQuery.isError : baseError
+  const error = isComboTab ? comboQuery.error : baseErrorValue
   const advTotal = advQuery.data?.total ?? 0
   const currentPage = isAdvMode ? advPage : page
 
@@ -345,7 +362,8 @@ export function UsersPage() {
           ? 'Cần ít nhất một điều kiện lọc (sắp xếp không tính).'
           : null
 
-  const users = data?.items ?? []
+  const users = isComboTab ? [] : (data?.items ?? [])
+  const listCount = isComboTab ? comboRows.length : users.length
 
   // Sync selected user: nếu list refetch thì selected nhận object mới (số dư cập nhật)
   const selected = users.find((u) => u.userId === selectedSeed?.userId) ?? selectedSeed
@@ -359,11 +377,15 @@ export function UsersPage() {
   // Chế độ nâng cao: hiện đủ cột như MFC (kể cả đã nạp/đã dùng) và đổi nhãn khi bật LAPSE.
   const displayedColumns = useMemo(
     () =>
-      CUSTOMER_COLUMNS.filter((col) => isAdvMode || visibleColumns.includes(col.id)).map((col) => ({
+      CUSTOMER_COLUMNS.filter(
+        (col) =>
+          (isAdvMode || visibleColumns.includes(col.id)) &&
+          !(activeTab === 'staff' && STAFF_HIDDEN_COLUMNS.includes(col.id)),
+      ).map((col) => ({
         ...col,
         label: isAdvMode ? advColumnLabel(col.id, col.label, advFilter) : col.label,
       })),
-    [visibleColumns, isAdvMode, advFilter],
+    [visibleColumns, isAdvMode, advFilter, activeTab],
   )
 
   const sortedUsers = useMemo(() => {
@@ -371,13 +393,15 @@ export function UsersPage() {
     // xáo trong 1 trang và che mất thứ tự đó.
     if (isAdvMode) return users
     const direction = sortDirection === 'asc' ? 1 : -1
+    // Cột đang sắp xếp bị ẩn (vd chuyển sang tab Nhân viên) ⇒ quay về Tên đăng nhập, không xếp theo cột không nhìn thấy.
+    const sortBy: CustomerColumn = displayedColumns.some((c) => c.id === sortColumn) ? sortColumn : 'userName'
     return [...users].sort((a, b) => {
-      const av = columnValue(a, sortColumn)
-      const bv = columnValue(b, sortColumn)
+      const av = columnValue(a, sortBy)
+      const bv = columnValue(b, sortBy)
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * direction
       return String(av).localeCompare(String(bv), 'vi', { numeric: true, sensitivity: 'base' }) * direction
     })
-  }, [users, sortColumn, sortDirection, isAdvMode])
+  }, [users, sortColumn, sortDirection, isAdvMode, displayedColumns])
 
   const tableGridStyle = useMemo(
     () => ({ '--customer-table-columns': displayedColumns.map((c) => c.width).join(' ') }) as CSSProperties,
@@ -627,8 +651,8 @@ export function UsersPage() {
       <div className="customer-tabs" role="tablist" aria-label="Loại tài khoản">
         {([
           ['member', 'Hội viên'],
-          ['combo', 'Thẻ Combo'],
           ['staff', 'Nhân viên'],
+          ['combo', 'Thẻ Combo'],
         ] as Array<[UserType, string]>).map(([id, label]) => (
           <button
             key={id}
@@ -773,7 +797,7 @@ export function UsersPage() {
             <>
               Tổng{' '}
               <strong>
-                {new Intl.NumberFormat('vi-VN').format(isAdvMode ? advTotal : users.length)}
+                {new Intl.NumberFormat('vi-VN').format(isAdvMode ? advTotal : listCount)}
               </strong>
             </>
           }
@@ -790,7 +814,7 @@ export function UsersPage() {
               <ListPagination
                 page={currentPage}
                 totalPages={isAdvMode ? Math.max(1, Math.ceil(advTotal / limit)) : undefined}
-                canNext={isAdvMode ? (advPage + 1) * limit < advTotal : users.length >= limit}
+                canNext={isAdvMode ? (advPage + 1) * limit < advTotal : listCount >= limit}
                 onPrevious={() => {
                   if (isAdvMode) setAdvPage((current) => Math.max(0, current - 1))
                   else setPage((current) => Math.max(0, current - 1))
@@ -805,6 +829,21 @@ export function UsersPage() {
             </>
           }
         />
+        {isComboTab ? (
+          <ComboCardTable
+            rows={comboRows}
+            isLoading={isLoading}
+            errorMessage={isError ? (error as Error).message : null}
+            onRetry={() => void queryClient.invalidateQueries({ queryKey: ['users', 'combo', page, searchQuery] })}
+            emptyMessage={
+              searchQuery
+                ? 'Không tìm thấy thẻ combo — kiểm tra lại phần đầu tên đăng nhập.'
+                : 'Chưa có thẻ combo nào.'
+            }
+            selectedId={selected?.userId ?? null}
+            onSelect={(row) => setSelectedSeed(comboCardToSeed(row))}
+          />
+        ) : (
         <div className="customer-table-scroll">
           <div className="customer-table" role="table" aria-rowcount={sortedUsers.length + 1}>
             <div
@@ -900,7 +939,8 @@ export function UsersPage() {
               ))
             )}
           </div>{/* /customer-table */}
-        </div>{/* /customer-table-scroll */}
+        </div>
+        )}
       </div>{/* /customer-list-card */}
 
       {/* ── Account Detail Drawer ──────────────────────────────────────────────── */}
@@ -912,10 +952,11 @@ export function UsersPage() {
         title={selected?.userName ?? 'Tài khoản'}
         description={
           selected
-            ? `${displayName(selected)} · ${
-                selected.groupName ||
-                (activeTab === 'member' ? 'Hội viên' : activeTab === 'staff' ? 'Nhân viên' : 'Thẻ Combo')
-              }`
+            ? activeTab === 'staff'
+              ? 'Nhân viên' // danh sách nhân viên không trả họ tên; họ tên hiện trong hồ sơ bên dưới
+              : `${displayName(selected)} · ${
+                  selected.groupName || (activeTab === 'member' ? 'Hội viên' : 'Thẻ Combo')
+                }`
             : undefined
         }
         onClose={() => setSelectedSeed(null)}
@@ -934,7 +975,7 @@ export function UsersPage() {
       {/* ── Delete confirm ─────────────────────────────────────────────────────── */}
       <ConfirmAction
         open={deleteRequested && Boolean(selected)}
-        title="Xóa tài khoản hội viên?"
+        title={activeTab === 'staff' ? 'Xóa tài khoản nhân viên?' : 'Xóa tài khoản hội viên?'}
         description={selected?.userName}
         confirmLabel="Xóa tài khoản"
         danger

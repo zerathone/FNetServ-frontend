@@ -89,7 +89,15 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
   const enabled = r.enabled === true && mode >= 1
   if (!enabled) {
     // mode 0 ⇒ không có khái niệm ngừng nhận đơn (máy chủ trả SHIFT_DISABLED cho pause/resume): bỏ qua orderPause.
-    return { enabled: false, mode: 0, serverTime: toText(r.serverTime), shift: null, lastClosed: null, orderPause: null }
+    return {
+      enabled: false,
+      mode: 0,
+      serverTime: toText(r.serverTime),
+      loginDayStart: toText(r.loginDayStart),
+      shift: null,
+      lastClosed: null,
+      orderPause: null,
+    }
   }
   const parsedShift = r.shift && typeof r.shift === 'object' ? normalizeShiftInfo(r.shift) : null
   // Ca không có shiftId hợp lệ (dữ liệu hỏng) coi như chưa có ca — không dựng "Ca #0".
@@ -98,6 +106,7 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
     enabled: true,
     mode,
     serverTime: toText(r.serverTime),
+    loginDayStart: toText(r.loginDayStart),
     shift,
     lastClosed: shift ? null : normalizeLastClosed(r.lastClosed),
     orderPause: normalizeOrderPause(r.orderPause),

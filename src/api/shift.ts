@@ -67,6 +67,11 @@ export type ShiftCurrent = {
   enabled: boolean
   mode: number
   serverTime: string
+  /**
+   * "YYYY-MM-DD 00:00:00" (giờ máy chủ) của NGÀY đăng nhập của chính phiên này — có ở MỌI chế độ, kể cả mode 0.
+   * Mốc của widget Doanh thu khi không có ca mở (giống MFC "Doanh thu theo ca"). '' = máy chủ bản cũ chưa gửi.
+   */
+  loginDayStart: string
   shift: ShiftInfo | null
   /** Chỉ có khi `shift = null`: ca đã chốt gần nhất toàn quán có tiền thực đếm (gợi ý tiền đầu ca). */
   lastClosed: ShiftLastClosed | null

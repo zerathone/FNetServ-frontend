@@ -3,17 +3,28 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowBendUpRight,
   ArrowsLeftRight,
+  Buildings,
+  Cake,
+  CalendarX,
   Camera,
   CheckCircle,
   ClockCounterClockwise,
+  Envelope,
   Gift,
+  IdentificationBadge,
   IdentificationCard,
+  MapPin,
+  MapTrifold,
+  NotePencil,
   Receipt,
   PencilSimple,
+  Phone,
   Plus,
   Trash,
   UploadSimple,
+  User,
   UserCircle,
+  UsersThree,
 } from '@phosphor-icons/react'
 import {
   getUserDetail,
@@ -29,7 +40,6 @@ import {
 import { getUserGroups } from '../../api/user-groups'
 import { Select,
   Button,
-  DatePicker,
   InlineAlert,
   StateView,
   StatusBadge,
@@ -37,8 +47,10 @@ import { Select,
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
 import { CustomerCameraDialog } from './CustomerCameraDialog'
+import { DateInput, Field } from './CustomerFormFields'
 import { CustomerHistoryDialog, type CustomerHistoryKind } from './CustomerHistoryDialog'
 import { CustomerVerificationDialogs } from './CustomerVerificationDialogs'
+import { StaffFreeTimeDialog } from './StaffFreeTimeDialog'
 import {
   createCustomerQrDisplayChannel,
   customerQrDisplayChannelName,
@@ -116,8 +128,8 @@ function debtAmount(user: UserAccount) {
   return Math.max(user.debit || 0, Math.abs(Math.min(0, user.moneyRemain || 0)))
 }
 
-function initials(user: UserAccount) {
-  const name = displayName(user)
+function initials(user: UserAccount, fullNameOverride?: string) {
+  const name = fullNameOverride?.trim() || displayName(user)
   if (name === 'Chưa cập nhật') return user.userName.slice(0, 2).toUpperCase()
   return name
     .split(/\s+/)
@@ -209,13 +221,26 @@ export function CustomerInspector({
 }: CustomerInspectorProps) {
   const queryClient = useQueryClient()
   const hasRight = useAuthStore((state) => state.hasRight)
-  const [activeTab, setActiveTab] = useState<InspectorTab>('overview')
+  const isAdmin = useAuthStore((state) => state.isAdmin)
+  const currentStaffId = useAuthStore((state) => state.staffId)
+  // Nhân viên: chỉ có Hồ sơ (không ví, không tổng quan); hội viên giữ nguyên Tổng quan + Hồ sơ.
+  const isStaff = userType === 'staff'
+  const hasProfile = userType === 'member' || isStaff
+  const noun = isStaff ? 'nhân viên' : 'hội viên'
+  // Lý do khoá nút "Thời gian miễn phí" (null = được dùng). Server cũng chặn hai điều này; web chặn sớm cho rõ.
+  const freeTimeBlockReason = !isAdmin
+    ? 'Chỉ quản trị viên được tặng thời gian miễn phí'
+    : currentStaffId !== null && currentStaffId === user.userId
+      ? 'Không thể tự tặng thời gian cho chính mình'
+      : null
+  const [activeTab, setActiveTab] = useState<InspectorTab>(isStaff ? 'profile' : 'overview')
   const [detailRequested, setDetailRequested] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<ProfileDraft | null>(null)
   const [confirmMobileUnpair, setConfirmMobileUnpair] = useState(false)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [historyKind, setHistoryKind] = useState<CustomerHistoryKind | null>(null)
+  const [freeTimeOpen, setFreeTimeOpen] = useState(false)
   const [verificationFlow, setVerificationFlow] = useState<VerificationFlow>(null)
   const [mobilePairDisplay, setMobilePairDisplay] = useState<{
     channelId: string
@@ -232,20 +257,21 @@ export function CustomerInspector({
   const canModifyPortrait = hasRight(RIGHTS.MODIFY_USER)
 
   useEffect(() => {
-    setActiveTab('overview')
+    setActiveTab(userType === 'staff' ? 'profile' : 'overview')
     setDetailRequested(false)
     setEditing(false)
     setDraft(null)
     setConfirmMobileUnpair(false)
     setCameraOpen(false)
     setHistoryKind(null)
+    setFreeTimeOpen(false)
     setVerificationFlow(null)
-  }, [user.userId])
+  }, [user.userId, userType])
 
   const detailQuery = useQuery({
     queryKey: ['user-detail', user.userId],
     queryFn: () => getUserDetail(user.userId),
-    enabled: userType === 'member' && (activeTab === 'overview' || detailRequested),
+    enabled: hasProfile && (activeTab === 'overview' || activeTab === 'profile' || detailRequested),
     retry: false,
   })
 
@@ -256,17 +282,23 @@ export function CustomerInspector({
   const groupsQuery = useQuery({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
-    enabled: Boolean(detailQuery.data && editing),
+    // Nhân viên: danh sách không trả tên nhóm ⇒ cần tra để hiện tên thay vì "#id" ngay ở chế độ xem.
+    enabled: Boolean(detailQuery.data && (editing || isStaff)),
   })
+  const detailGroupName = useMemo(
+    () => (groupsQuery.data ?? []).find((group) => group.id === detailQuery.data?.userGroupId)?.name ?? '',
+    [groupsQuery.data, detailQuery.data?.userGroupId],
+  )
+  // Chỉ đổi trong cùng loại nhóm: nhân viên ↔ nhóm nhân viên, hội viên ↔ nhóm hội viên (server suy loại tài khoản từ nhóm).
   const memberGroups = useMemo(
-    () => (groupsQuery.data ?? []).filter((group) => group.type === 'member'),
-    [groupsQuery.data],
+    () => (groupsQuery.data ?? []).filter((group) => group.type === (isStaff ? 'staff' : 'member')),
+    [groupsQuery.data, isStaff],
   )
 
   const portraitQuery = useQuery({
     queryKey: ['user-portrait', user.userId],
     queryFn: () => getUserPortrait(user.userId),
-    enabled: Boolean(userType === 'member' && detailQuery.data?.portrait.exists),
+    enabled: Boolean(hasProfile && detailQuery.data?.portrait.exists),
     retry: false,
   })
   const portraitUrl = useMemo(
@@ -301,7 +333,7 @@ export function CustomerInspector({
       queryClient.setQueryData<Blob>(['user-portrait', user.userId], blob)
       syncPortraitExists(result.portrait.exists)
       setCameraOpen(false)
-      pushToast('Đã cập nhật ảnh hội viên.', 'success')
+      pushToast(`Đã cập nhật ảnh ${noun}.`, 'success')
     },
     onError: (error: Error) => pushToast(error.message, 'error'),
   })
@@ -312,7 +344,7 @@ export function CustomerInspector({
     onSuccess: (result) => {
       queryClient.removeQueries({ queryKey: ['user-portrait', user.userId], exact: true })
       syncPortraitExists(result.portrait.exists)
-      pushToast('Đã gỡ ảnh hội viên.', 'success')
+      pushToast(`Đã gỡ ảnh ${noun}.`, 'success')
     },
     onError: (error: Error) => pushToast(error.message, 'error'),
   })
@@ -320,7 +352,7 @@ export function CustomerInspector({
   const updateMutation = useMutation({
     mutationFn: (body: UpdateUserDetailBody) => updateUserDetail(body),
     onSuccess: () => {
-      pushToast('Đã cập nhật hồ sơ hội viên.', 'success')
+      pushToast(`Đã cập nhật hồ sơ ${noun}.`, 'success')
       setEditing(false)
       setConfirmMobileUnpair(false)
       void queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -363,20 +395,23 @@ export function CustomerInspector({
 
   const startEditing = () => {
     if (!canEdit) {
-      pushToast('Bạn không có quyền sửa hồ sơ hội viên.', 'info')
+      pushToast(`Bạn không có quyền sửa hồ sơ ${noun}.`, 'info')
       return
     }
     setDetailRequested(true)
     setEditing(true)
   }
 
+  // Nhân viên chỉ có một mục (Hồ sơ) nên không hiện thanh tab.
   const tabs: Array<{ id: InspectorTab; label: string }> =
     userType === 'member'
       ? [
           { id: 'overview', label: 'Tổng quan' },
           { id: 'profile', label: 'Hồ sơ' },
         ]
-      : [{ id: 'overview', label: 'Tổng quan' }]
+      : isStaff
+        ? []
+        : [{ id: 'overview', label: 'Tổng quan' }]
 
   const phoneChanged = Boolean(
     draft && detailQuery.data && draft.phone.trim() !== (detailQuery.data.phone ?? '').trim(),
@@ -438,17 +473,30 @@ export function CustomerInspector({
 
   return (
     <div className="customer-inspector">
-      <div className={`customer-inspector__hero${userType === 'member' ? ' customer-inspector__hero--member' : ''}`}>
+      <div className={`customer-inspector__hero${userType === 'member' || isStaff ? ' customer-inspector__hero--member' : ''}`}>
         <div className="customer-inspector__identity">
-          <div className="customer-avatar" aria-hidden="true">{initials(user)}</div>
+          <div className="customer-avatar" aria-hidden="true">
+            {initials(user, isStaff ? detailQuery.data?.fullName : undefined)}
+          </div>
           <div className="customer-inspector__identity-copy">
-            <strong>{displayName(user)}</strong>
-            <span>{user.userName}</span>
+            {isStaff ? (
+              <>
+                {/* Danh sách nhân viên chỉ trả tên đăng nhập ⇒ họ tên lấy từ hồ sơ; chưa có họ tên thì chỉ hiện tên đăng nhập. */}
+                <strong>{detailQuery.data?.fullName?.trim() || user.userName}</strong>
+                {detailQuery.data?.fullName?.trim() ? <span>{user.userName}</span> : null}
+              </>
+            ) : (
+              <>
+                <strong>{displayName(user)}</strong>
+                <span>{user.userName}</span>
+              </>
+            )}
             <div className="customer-inspector__status-row">
               <div className="customer-inspector__badges">
                 {userType === 'member' ? (
                   <StatusBadge tone="info">{user.groupName || 'Hội viên'}</StatusBadge>
                 ) : null}
+                {isStaff ? <StatusBadge tone="info">Nhân viên</StatusBadge> : null}
               </div>
               {userType === 'member' ? (
                 <button
@@ -543,7 +591,81 @@ export function CustomerInspector({
             </div>
           </>
         ) : null}
+
+        {isStaff ? (
+          // Liên hệ gọn 2x2 như hội viên; số liệu lấy từ hồ sơ (danh sách nhân viên không trả CCCD/điện thoại/email).
+          <div className="customer-inspector__contact-grid">
+            <div className="customer-inspector__contact-column">
+              <div>
+                <span>Điện thoại</span>
+                <strong>
+                  {detailQuery.data
+                    ? detailQuery.data.canViewContact ? maskSensitive(detailQuery.data.phone ?? '') : 'Cần quyền xem liên hệ'
+                    : '—'}
+                </strong>
+              </div>
+              <div>
+                <span>CCCD</span>
+                <strong>
+                  {detailQuery.data
+                    ? detailQuery.data.canViewContact ? maskSensitive(detailQuery.data.idNumber ?? '') : 'Cần quyền xem liên hệ'
+                    : '—'}
+                </strong>
+              </div>
+            </div>
+            <div className="customer-inspector__contact-column">
+              <div>
+                <span>Email</span>
+                <strong title={detailQuery.data?.canViewContact ? detailQuery.data.email ?? undefined : undefined}>
+                  {detailQuery.data
+                    ? detailQuery.data.canViewContact ? detailQuery.data.email || '—' : 'Cần quyền xem liên hệ'
+                    : '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Ngày sinh</span>
+                <strong>{formatDate(detailQuery.data?.birthday)}</strong>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      {isStaff ? (
+        // Chỉ ba thao tác, một hàng: Thời gian miễn phí (+) · Nhật ký sử dụng · Xóa tài khoản (nguy hiểm, tách bằng màu + chữ).
+        <section className="customer-staff-actions" aria-label="Thao tác nhân viên">
+          <Button
+            type="button"
+            variant="secondary"
+            className="customer-staff-actions__free-time"
+            icon={<Plus size={18} weight="bold" aria-hidden="true" />}
+            // Chỉ quản trị viên (như MFC: menu "Ghi giờ miễn phí" chỉ bật cho admin) và không tự tặng cho chính mình.
+            disabled={freeTimeBlockReason !== null}
+            title={freeTimeBlockReason ?? undefined}
+            onClick={() => setFreeTimeOpen(true)}
+          >
+            Thời gian miễn phí
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<ClockCounterClockwise size={18} weight="bold" aria-hidden="true" />}
+            onClick={() => setHistoryKind('usage')}
+          >
+            Nhật ký sử dụng
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            icon={<Trash size={18} weight="bold" aria-hidden="true" />}
+            disabled={!canDelete}
+            title={!canDelete ? 'Chỉ quản trị viên được xóa tài khoản' : undefined}
+            onClick={onRequestDelete}
+          >
+            Xóa tài khoản
+          </Button>
+        </section>
+      ) : null}
 
       {userType === 'member' ? (
         <section className="customer-action-tray" aria-label="Thao tác ví hội viên">
@@ -635,28 +757,39 @@ export function CustomerInspector({
         </section>
       ) : null}
 
-      {userType === 'member' ? (
+      {userType === 'member' || isStaff ? (
         <CustomerHistoryDialog
           kind={historyKind}
-          user={user}
+          user={isStaff ? { ...user, firstName: detailQuery.data?.fullName ?? '', lastName: '' } : user}
           onClose={() => setHistoryKind(null)}
         />
       ) : null}
 
-      <div className="customer-inspector__tabs" role="tablist" aria-label="Chi tiết hội viên">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? 'is-active' : ''}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {isStaff ? (
+        <StaffFreeTimeDialog
+          open={freeTimeOpen}
+          userId={user.userId}
+          displayName={detailQuery.data?.fullName?.trim() || user.userName}
+          onClose={() => setFreeTimeOpen(false)}
+        />
+      ) : null}
+
+      {tabs.length > 0 ? (
+        <div className="customer-inspector__tabs" role="tablist" aria-label={`Chi tiết ${noun}`}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? 'is-active' : ''}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {activeTab === 'overview' ? (
         <div className="customer-inspector__panel" role="tabpanel">
@@ -695,11 +828,10 @@ export function CustomerInspector({
       {activeTab === 'profile' ? (
         <div className="customer-inspector__panel" role="tabpanel">
           <section>
-            <div className="customer-section-heading">
-              <div>
-                <h3>Thông tin hội viên</h3>
-              </div>
-              {!editing ? (
+            {/* Không có dòng tiêu đề "Thông tin hội viên"/"Hồ sơ nhân viên" (tab đã tên là Hồ sơ); chỉ còn hàng nút,
+                và khi đang sửa thì không render để không để lại hàng trống. */}
+            {!editing ? (
+              <div className="customer-section-heading customer-section-heading--end">
                 <div className="customer-section-actions">
                   <Button
                     type="button"
@@ -720,14 +852,14 @@ export function CustomerInspector({
                     Sửa
                   </Button>
                 </div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
 
             {!editing ? (
               <div className="customer-profile-view">
                 <dl className="customer-detail-list customer-detail-list--profile">
                   <div><dt>Họ tên</dt><dd>{detailQuery.data?.fullName || displayName(user)}</dd></div>
-                  <div><dt>Nhóm</dt><dd>{user.groupName || `#${detailQuery.data?.userGroupId ?? '—'}`}</dd></div>
+                  <div><dt>Nhóm</dt><dd>{user.groupName || detailGroupName || `#${detailQuery.data?.userGroupId ?? '—'}`}</dd></div>
                   <div><dt>Điện thoại</dt><dd>{detailQuery.data?.canViewContact ? detailQuery.data.phone || '—' : 'Cần quyền xem liên hệ'}</dd></div>
                   <div><dt>Email</dt><dd>{detailQuery.data?.canViewContact ? detailQuery.data.email || '—' : 'Cần quyền xem liên hệ'}</dd></div>
                   <div className="customer-detail-list__cccd">
@@ -752,10 +884,10 @@ export function CustomerInspector({
                   </div>
                   <div><dt>Ghi chú</dt><dd className="customer-detail-list__note">{detailQuery.data?.note || user.note || '—'}</dd></div>
                 </dl>
-                <aside className="customer-portrait-card" aria-label="Ảnh hội viên">
+                <aside className="customer-portrait-card" aria-label={`Ảnh ${noun}`}>
                   <div className="customer-portrait-frame">
                     {portraitUrl ? (
-                      <img src={portraitUrl} alt={`Ảnh hội viên ${user.userName}`} />
+                      <img src={portraitUrl} alt={`Ảnh ${noun} ${user.userName}`} />
                     ) : (
                       <div className="customer-portrait-placeholder">
                         <span aria-hidden="true"><UserCircle size={48} weight="thin" /></span>
@@ -832,180 +964,219 @@ export function CustomerInspector({
                 </div>
               </div>
             ) : draft && detailQuery.data ? (
-              <form className="customer-profile-form" onSubmit={submitProfile}>
-                <label className="ds-field customer-profile-form__wide">
-                  <span className="ds-field__label">Tên đăng nhập</span>
-                  <input className="ds-input" value={draft.username} disabled />
-                  <small className="ds-field__hint">Đổi tên đăng nhập và mật khẩu là luồng bảo mật riêng.</small>
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Họ tên</span>
-                  <input
-                    className="ds-input"
-                    value={draft.fullName}
-                    maxLength={30}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Nhóm</span>
-                  <Select
-                    className="ds-select"
-                    value={draft.userGroupId}
-                    disabled={!canModifyGroup || groupsQuery.isLoading}
-                    onChange={(event) => setDraft({ ...draft, userGroupId: Number(event.target.value) })}
-                  >
-                    {!memberGroups.some((group) => group.id === draft.userGroupId) ? (
-                      <option value={draft.userGroupId}>{`Nhóm #${draft.userGroupId}`}</option>
-                    ) : null}
-                    {memberGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                  </Select>
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Điện thoại</span>
-                  <input
-                    className="ds-input"
-                    value={draft.phone}
-                    maxLength={30}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => {
-                      setConfirmMobileUnpair(false)
-                      setDraft({ ...draft, phone: event.target.value })
-                    }}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">CCCD</span>
-                  <input
-                    className="ds-input"
-                    value={draft.idNumber}
-                    maxLength={12}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, idNumber: event.target.value })}
-                  />
-                </label>
-                <label className="ds-field customer-profile-form__wide">
-                  <span className="ds-field__label">Email</span>
-                  <input
-                    className="ds-input"
-                    type="email"
-                    value={draft.email}
-                    maxLength={100}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                  />
-                </label>
-                <label className="ds-field customer-profile-form__wide">
-                  <span className="ds-field__label">Địa chỉ</span>
-                  <input
-                    className="ds-input"
-                    value={draft.address}
-                    maxLength={250}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, address: event.target.value })}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Tỉnh / thành</span>
-                  <input
-                    className="ds-input"
-                    value={draft.city}
-                    maxLength={50}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, city: event.target.value })}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Quận / huyện / phường</span>
-                  <input
-                    className="ds-input"
-                    value={draft.district}
-                    maxLength={50}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, district: event.target.value })}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Ngày sinh</span>
-                  <DatePicker
-                    value={draft.birthday}
-                    disabled={!canModifyBasic}
-                    aria-label="Ngày sinh"
-                    onChange={(value) => setDraft({ ...draft, birthday: value })}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Ngày hết hạn</span>
-                  <DatePicker
-                    value={draft.expiryDate}
-                    disabled={!canModifyBasic}
-                    aria-label="Ngày hết hạn"
-                    onChange={(value) => setDraft({ ...draft, expiryDate: value })}
-                  />
-                </label>
-                <label className="ds-field">
-                  <span className="ds-field__label">Giới tính</span>
-                  <Select
-                    className="ds-select"
-                    value={draft.gender}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, gender: Number(event.target.value) as 1 | 2 | 3 })}
-                  >
-                    <option value={1}>Nam</option>
-                    <option value={2}>Nữ</option>
-                    <option value={3}>Khác / chưa chọn</option>
-                  </Select>
-                </label>
-                <div className="customer-profile-form__checks">
-                  <label><input type="checkbox" checked={draft.active} disabled={!canModifyBasic} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} /> Tài khoản hoạt động</label>
-                  <label><input type="checkbox" checked={draft.isVat} disabled={!canModifyBasic} onChange={(event) => setDraft({ ...draft, isVat: event.target.checked })} /> Đồng bộ thông tin VAT</label>
-                </div>
-                <label className="ds-field customer-profile-form__wide">
-                  <span className="ds-field__label">Ghi chú</span>
-                  <textarea
-                    className="ds-input customer-profile-form__note"
-                    value={draft.note}
-                    maxLength={250}
-                    disabled={!canModifyBasic}
-                    onChange={(event) => setDraft({ ...draft, note: event.target.value })}
-                  />
-                  <small className="ds-field__hint">{draft.note.length}/250 ký tự</small>
-                </label>
+              // Phong cách như form "Thêm hội viên" (CreateUserDialog): ô có biểu tượng đứng đầu, nhãn là placeholder,
+              // nhóm có tiêu đề nhỏ IN HOA, lưới hai cột. Không có cột ảnh: ảnh sửa ở chế độ xem.
+              <form className="customer-create-form customer-create-form--drawer" onSubmit={submitProfile} noValidate>
+                <div className="customer-create-form__main">
+                  <fieldset className="customer-create-form__section">
+                    <legend>Tài khoản</legend>
+                    {/* Dòng 1: tên đăng nhập + ô "Hoạt động" (ô tích nằm cùng dòng cho đỡ chật dòng nhóm/hết hạn). */}
+                    <div className="customer-create-form__pair customer-create-form__pair--grow customer-create-form__wide">
+                      <Field
+                        id="profile-username"
+                        label="Tên đăng nhập"
+                        icon={<User size={18} weight="bold" aria-hidden="true" />}
+                        hint="Đổi tên đăng nhập và mật khẩu là luồng bảo mật riêng."
+                      >
+                        <input id="profile-username" className="ds-input" placeholder="Tên đăng nhập" value={draft.username} readOnly disabled />
+                      </Field>
+                      <label className="customer-create-form__check">
+                        <input
+                          type="checkbox"
+                          checked={draft.active}
+                          disabled={!canModifyBasic}
+                          onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                        />
+                        Hoạt động
+                      </label>
+                    </div>
+                    {/* Dòng 2: nhóm + ngày hết hạn, mỗi ô một cột. */}
+                    <Field id="profile-group" label={`Nhóm ${noun}`} icon={<UsersThree size={18} weight="bold" aria-hidden="true" />}>
+                      <Select
+                        id="profile-group"
+                        className="ds-select"
+                        value={draft.userGroupId}
+                        disabled={!canModifyGroup || groupsQuery.isLoading}
+                        onChange={(event) => setDraft({ ...draft, userGroupId: Number(event.target.value) })}
+                      >
+                        {!memberGroups.some((group) => group.id === draft.userGroupId) ? (
+                          <option value={draft.userGroupId}>{`Nhóm #${draft.userGroupId}`}</option>
+                        ) : null}
+                        {memberGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field id="profile-expiry" label="Ngày hết hạn (để trống nếu không giới hạn)" icon={<CalendarX size={18} weight="bold" aria-hidden="true" />}>
+                      <DateInput
+                        id="profile-expiry"
+                        placeholder="Ngày hết hạn"
+                        value={draft.expiryDate}
+                        disabled={!canModifyBasic}
+                        onChange={(value) => setDraft({ ...draft, expiryDate: value })}
+                      />
+                    </Field>
+                  </fieldset>
 
-                {phoneChanged && detailQuery.data.mobile.paired ? (
-                  <label className="customer-mobile-confirm customer-profile-form__wide">
-                    <input
-                      type="checkbox"
-                      checked={confirmMobileUnpair}
-                      onChange={(event) => setConfirmMobileUnpair(event.target.checked)}
-                    />
-                    <span>
-                      Xác nhận ngắt kết nối mobile hiện tại khi đổi số điện thoại. Máy chủ phải xử lý việc này trong cùng giao dịch cập nhật.
-                    </span>
-                  </label>
-                ) : null}
+                  <fieldset className="customer-create-form__section">
+                    <legend>Hồ sơ</legend>
+                    <Field id="profile-fullname" label="Họ tên" icon={<IdentificationBadge size={18} weight="bold" aria-hidden="true" />} wide>
+                      <input
+                        id="profile-fullname"
+                        className="ds-input"
+                        placeholder="Họ tên"
+                        maxLength={30}
+                        autoComplete="off"
+                        value={draft.fullName}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, fullName: event.target.value })}
+                      />
+                    </Field>
+                    <Field id="profile-idnumber" label="CCCD" icon={<IdentificationCard size={18} weight="bold" aria-hidden="true" />}>
+                      <input
+                        id="profile-idnumber"
+                        className="ds-input"
+                        placeholder="CCCD"
+                        inputMode="numeric"
+                        maxLength={12}
+                        autoComplete="off"
+                        value={draft.idNumber}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, idNumber: event.target.value })}
+                      />
+                    </Field>
+                    <Field id="profile-birthday" label="Ngày sinh" icon={<Cake size={18} weight="bold" aria-hidden="true" />}>
+                      <DateInput
+                        id="profile-birthday"
+                        placeholder="Ngày sinh"
+                        value={draft.birthday}
+                        disabled={!canModifyBasic}
+                        onChange={(value) => setDraft({ ...draft, birthday: value })}
+                      />
+                    </Field>
+                    <Field id="profile-phone" label="Điện thoại" icon={<Phone size={18} weight="bold" aria-hidden="true" />}>
+                      <input
+                        id="profile-phone"
+                        className="ds-input"
+                        placeholder="Điện thoại"
+                        type="tel"
+                        inputMode="tel"
+                        maxLength={30}
+                        autoComplete="off"
+                        value={draft.phone}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => {
+                          setConfirmMobileUnpair(false)
+                          setDraft({ ...draft, phone: event.target.value })
+                        }}
+                      />
+                    </Field>
+                    <Field id="profile-email" label="Email" icon={<Envelope size={18} weight="bold" aria-hidden="true" />}>
+                      <input
+                        id="profile-email"
+                        className="ds-input"
+                        placeholder="Email"
+                        type="email"
+                        inputMode="email"
+                        maxLength={100}
+                        autoComplete="off"
+                        value={draft.email}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+                      />
+                    </Field>
+                    <Field id="profile-address" label="Địa chỉ" icon={<MapPin size={18} weight="bold" aria-hidden="true" />} wide>
+                      <input
+                        id="profile-address"
+                        className="ds-input"
+                        placeholder="Địa chỉ"
+                        maxLength={250}
+                        autoComplete="off"
+                        value={draft.address}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+                      />
+                    </Field>
+                    <Field id="profile-city" label="Tỉnh / thành" icon={<Buildings size={18} weight="bold" aria-hidden="true" />}>
+                      <input
+                        id="profile-city"
+                        className="ds-input"
+                        placeholder="Tỉnh / thành"
+                        maxLength={50}
+                        autoComplete="off"
+                        value={draft.city}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, city: event.target.value })}
+                      />
+                    </Field>
+                    <Field id="profile-district" label="Quận / huyện / phường" icon={<MapTrifold size={18} weight="bold" aria-hidden="true" />}>
+                      <input
+                        id="profile-district"
+                        className="ds-input"
+                        placeholder="Quận / huyện / phường"
+                        maxLength={50}
+                        autoComplete="off"
+                        value={draft.district}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, district: event.target.value })}
+                      />
+                    </Field>
+                    {/* Không có ô nhập "Giới tính": `gender` vẫn nằm trong draft và được gửi lại NGUYÊN GIÁ TRỊ cũ; chỉ đổi khi
+                        quét CCCD (applyCccdDraft điền giới tính từ giấy tờ). */}
+                    {/* Không có ô "Đồng bộ thông tin VAT": không dùng khi sửa hồ sơ. `isVat` vẫn nằm trong draft và được gửi
+                        lại NGUYÊN GIÁ TRỊ cũ từ máy chủ (toDraft → toUpdateBody), nên lưu hồ sơ không làm đổi cờ này. */}
+                    <Field
+                      id="profile-note"
+                      label="Ghi chú"
+                      icon={<NotePencil size={18} weight="bold" aria-hidden="true" />}
+                      wide
+                      top
+                      hint={`${draft.note.length}/250 ký tự`}
+                    >
+                      <textarea
+                        id="profile-note"
+                        className="ds-input customer-profile-form__note"
+                        placeholder="Ghi chú"
+                        maxLength={250}
+                        value={draft.note}
+                        disabled={!canModifyBasic}
+                        onChange={(event) => setDraft({ ...draft, note: event.target.value })}
+                      />
+                    </Field>
+                  </fieldset>
 
-                <div className="customer-profile-form__actions customer-profile-form__wide">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={updateMutation.isPending}
-                    onClick={() => {
-                      setEditing(false)
-                      setDraft(detailQuery.data ? toDraft(detailQuery.data) : null)
-                    }}
-                  >
-                    Hủy
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    loading={updateMutation.isPending}
-                    disabled={phoneChanged && detailQuery.data.mobile.paired && !confirmMobileUnpair}
-                  >
-                    Lưu hồ sơ
-                  </Button>
+                  {phoneChanged && detailQuery.data.mobile.paired ? (
+                    <label className="customer-mobile-confirm">
+                      <input
+                        type="checkbox"
+                        checked={confirmMobileUnpair}
+                        onChange={(event) => setConfirmMobileUnpair(event.target.checked)}
+                      />
+                      <span>
+                        Xác nhận ngắt kết nối mobile hiện tại khi đổi số điện thoại. Máy chủ phải xử lý việc này trong cùng giao dịch cập nhật.
+                      </span>
+                    </label>
+                  ) : null}
+
+                  <div className="customer-profile-form__actions">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={updateMutation.isPending}
+                      onClick={() => {
+                        setEditing(false)
+                        setDraft(detailQuery.data ? toDraft(detailQuery.data) : null)
+                      }}
+                    >
+                      Hủy
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      loading={updateMutation.isPending}
+                      disabled={phoneChanged && detailQuery.data.mobile.paired && !confirmMobileUnpair}
+                    >
+                      Lưu hồ sơ
+                    </Button>
+                  </div>
                 </div>
               </form>
             ) : null}
@@ -1016,7 +1187,7 @@ export function CustomerInspector({
 
       <CustomerCameraDialog
         open={cameraOpen}
-        fileName={user.userName || `hoi-vien-${user.userId}`}
+        fileName={user.userName || `${isStaff ? 'nhan-vien' : 'hoi-vien'}-${user.userId}`}
         saving={portraitMutation.isPending}
         onSave={(blob) => portraitMutation.mutate(blob)}
         onClose={() => setCameraOpen(false)}

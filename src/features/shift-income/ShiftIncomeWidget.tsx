@@ -18,8 +18,8 @@ import {
   MANDATORY_METHODS,
   MANDATORY_SOURCES,
   METHOD_LABEL,
+  loginDayWindow,
   pickIncomeSource,
-  rolling24hWindow,
   ROW_KEYS,
   selectSources,
   sortSources,
@@ -243,8 +243,8 @@ export function ShiftIncomeWidget() {
     MOCK_MODE ? true : VIEW_RIGHT === undefined ? false : state.hasRight(VIEW_RIGHT),
   )
   // S5-FE: có ca đang mở (chế độ ca bật) ⇒ lấy số từ `/shift/summary` của ca (đúng số lúc chốt ca), mốc "từ" = giờ mở ca.
-  // Không ca / chế độ 0 ⇒ giữ y hệt trước: `/rptv2` type 43 + 24 giờ trượt, kiểm quyền 931043.
-  const { enabled: shiftEnabled, shift } = useShift()
+  // Không ca / chế độ 0 ⇒ `/rptv2` type 43 từ 00:00 ngày đăng nhập (cách cũ MFC), kiểm quyền 931043.
+  const { enabled: shiftEnabled, shift, loginDayStart } = useShift()
   const sourceMode = pickIncomeSource({ staffId, canViewReport: canView, shiftEnabled, hasShift: shift !== null })
   const fromShift = sourceMode === 'shift'
   const enabled = sourceMode !== 'none'
@@ -264,9 +264,10 @@ export function ShiftIncomeWidget() {
   const setDeductInRevenue = useRevenuePrefs((state) => state.setDeductInRevenue)
 
   const query = useQuery({
-    queryKey: ['shift-income', staffId],
+    // loginDayStart trong key: đăng nhập lại (ngày khác) ⇒ khung mới, không dùng số cũ trong cache.
+    queryKey: ['shift-income', staffId, loginDayStart],
     queryFn: async () => {
-      const window = rolling24hWindow(new Date())
+      const window = loginDayWindow(loginDayStart, new Date())
       let rows: unknown
       if (MOCK_MODE) {
         // import động: nhánh này bị loại khỏi bản build vì MOCK_MODE luôn undefined ở PROD.
@@ -513,7 +514,7 @@ export function ShiftIncomeWidget() {
           title={
             fromShift
               ? 'Số của riêng ca bạn đang mở, tính từ lúc mở ca (giờ máy chủ), cùng nguồn với số lúc chốt ca. Tổng ở đây còn tuỳ các phương thức và nguồn thu bạn đã chọn tính.'
-              : '24 giờ gần nhất của riêng bạn, cùng khung với ô thống kê COMBO.'
+              : 'Số của riêng bạn, tính từ 00:00 ngày bạn đăng nhập (giờ máy chủ), như báo cáo Doanh thu theo ca của bản cũ.'
           }
         >
           {fromShift ? (sinceLabel ? `ca từ ${sinceLabel}` : 'ca đang mở') : `từ ${sinceLabel}`}

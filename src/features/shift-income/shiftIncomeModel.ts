@@ -1,5 +1,5 @@
 // Mô hình dữ liệu widget "Nguồn thu ca" ở sidebar. Nguồn: /rptv2 type 43 (báo cáo ca V2) của CHÍNH nhân viên đang
-// đăng nhập, khung 24 giờ trượt (cùng khung với ô thống kê COMBO / Đơn dịch vụ).
+// đăng nhập, khung từ 00:00 ngày đăng nhập (loginDayWindow) khi không có ca mở; có ca mở thì dùng /shift/summary.
 //
 // Type 43 trả 7 dòng cố định, mỗi dòng [tên, số lượt, tiền mặt, chuyển khoản, QR, tổng]:
 //   dòng 0-5 = 6 nguồn thu, dòng 6 = "Doanh thu" (tổng). Widget gộp 6 dòng đó thành 3 nguồn (SOURCE_GROUPS).
@@ -288,17 +288,24 @@ export interface ShiftWindow {
   sinceLabel: string
 }
 
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
 /**
- * 24 giờ trượt tính lùi từ `now` (đồng bộ với CompletedWindow phía server). Dùng giờ trình duyệt; chặn trên
- * để server mặc định 23:59:59 của `toDate` nên lệch đồng hồ nhỏ không làm mất giao dịch mới.
+ * Khung khi KHÔNG có ca mở (chế độ ca tắt / chưa mở ca): từ 00:00 NGÀY ĐĂNG NHẬP tới hiện tại — cách cũ của MFC
+ * ("Doanh thu theo ca" mặc định 00:00:00 của ngày). Đăng nhập ngày nào thì tính từ 00:00 ngày đó, qua đêm vẫn giữ.
+ * `loginDayStart` = "YYYY-MM-DD 00:00:00" giờ MÁY CHỦ từ /shift/current (cùng nguồn giờ với VoucherDate). Thiếu/hỏng
+ * (máy chủ cũ) ⇒ 00:00 hôm nay theo trình duyệt. Chặn trên để server mặc định 23:59:59 của `toDate` (không mất giao
+ * dịch mới khi đồng hồ lệch nhẹ); `toDate` không bao giờ trước `fromDate`.
  */
-export function rolling24hWindow(now: Date): ShiftWindow {
-  const from = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const date = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+export function loginDayWindow(loginDayStart: string, now: Date): ShiftWindow {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(loginDayStart)
+  const fromDate = match ? `${match[1]}-${match[2]}-${match[3]}` : ymd(now)
+  const today = ymd(now)
+  const [, month, day] = fromDate.split('-')
   return {
-    fromDate: date(from),
-    fromTime: `${pad(from.getHours())}:${pad(from.getMinutes())}:${pad(from.getSeconds())}`,
-    toDate: date(now),
-    sinceLabel: `${pad(from.getHours())}:${pad(from.getMinutes())} ${pad(from.getDate())}/${pad(from.getMonth() + 1)}`,
+    fromDate,
+    fromTime: '00:00:00',
+    toDate: today > fromDate ? today : fromDate,
+    sinceLabel: `00:00 ${day}/${month}`,
   }
 }

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   availableMethods,
   buildShiftIncomeFromSummary,
+  loginDayWindow,
   pickIncomeSource,
   selectSources,
   summarize,
@@ -36,6 +37,32 @@ const SERVER_SOURCES: Src[] = [
 
 const selectAll: SourceSelection = Object.fromEntries(ROW_KEYS.map((key) => [key, true])) as SourceSelection
 const noDeduct: MethodSelection = { cash: true, bank: true, qr: true, deduct: false }
+
+test('loginDayWindow: từ 00:00 ngày đăng nhập (giờ máy chủ), qua đêm vẫn giữ ngày đăng nhập', () => {
+  const now = new Date(2026, 10, 24, 9, 2, 0) // 24/11 09:02 (giờ trình duyệt)
+  assert.deepEqual(loginDayWindow('2026-11-24 00:00:00', now), {
+    fromDate: '2026-11-24',
+    fromTime: '00:00:00',
+    toDate: '2026-11-24',
+    sinceLabel: '00:00 24/11',
+  })
+  // Đăng nhập 23/11, làm qua đêm sang 24/11 => vẫn tính từ 00:00 23/11.
+  assert.deepEqual(loginDayWindow('2026-11-23 00:00:00', now), {
+    fromDate: '2026-11-23',
+    fromTime: '00:00:00',
+    toDate: '2026-11-24',
+    sinceLabel: '00:00 23/11',
+  })
+})
+
+test('loginDayWindow: máy chủ cũ không gửi / chuỗi hỏng => 00:00 hôm nay; đồng hồ trình duyệt chậm => toDate không trước fromDate', () => {
+  const now = new Date(2026, 10, 24, 0, 30, 0)
+  assert.equal(loginDayWindow('', now).fromDate, '2026-11-24')
+  assert.equal(loginDayWindow('abc', now).sinceLabel, '00:00 24/11')
+  const lagging = loginDayWindow('2026-11-25 00:00:00', now)
+  assert.equal(lagging.fromDate, '2026-11-25')
+  assert.equal(lagging.toDate, '2026-11-25')
+})
 
 test('pickIncomeSource: có ca (chế độ ca bật) => shift, KHÔNG cần quyền xem báo cáo', () => {
   assert.equal(pickIncomeSource({ staffId: 5, canViewReport: false, shiftEnabled: true, hasShift: true }), 'shift')
