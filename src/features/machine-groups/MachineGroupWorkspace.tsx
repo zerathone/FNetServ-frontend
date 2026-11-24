@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MagnifyingGlass } from '@phosphor-icons/react'
+import { ArrowsClockwise, MagnifyingGlass, PencilSimple, Trash } from '@phosphor-icons/react'
 import {
   createMachineGroup,
   deleteMachineGroup,
@@ -9,6 +9,7 @@ import {
   type MachineGroup,
   type MachineGroupWriteBody,
 } from '../../api/machine-groups'
+import { getRegisteredWorkstations } from '../../api/workstations'
 import {
   getUserGroups,
   updateUserGroup,
@@ -18,6 +19,7 @@ import {
   Button,
   ConfirmAction,
   Dialog,
+  IconButton,
   InlineAlert,
   MoneyInput,
   PageHeader,
@@ -48,8 +50,11 @@ type CreateResult = {
   failed: string[]
 }
 
-function formatMoney(value: number) {
-  return `${new Intl.NumberFormat('vi-VN').format(value)} đ/giờ`
+/** MFC giới hạn số nhóm máy. */
+const MAX_GROUPS = 20
+
+function formatPlainMoney(value: number) {
+  return new Intl.NumberFormat('vi-VN').format(value)
 }
 
 export function MachineGroupWorkspace() {
@@ -80,7 +85,23 @@ export function MachineGroupWorkspace() {
     queryFn: getUserGroups,
   })
 
+  // Danh sách máy đăng ký trong DB (đổi chậm, không cần poll) -> số máy mỗi nhóm + số máy chưa thuộc nhóm nào.
+  const registeredQuery = useQuery({
+    queryKey: ['workstations-registered'],
+    queryFn: getRegisteredWorkstations,
+    staleTime: 60_000,
+  })
+
   const source = groupsQuery.data ?? []
+  const registered = registeredQuery.data?.items
+  const machineCount = new Map<number, number>()
+  for (const machine of registered ?? []) {
+    machineCount.set(machine.machineGroupId, (machineCount.get(machine.machineGroupId) ?? 0) + 1)
+  }
+  const knownGroupIds = new Set(source.map((group) => group.id))
+  const unassignedCount = groupsQuery.data
+    ? (registered ?? []).filter((machine) => !knownGroupIds.has(machine.machineGroupId)).length
+    : 0
   const priceGroups = (userGroupsQuery.data ?? []).filter(
     (group) => group.typeCode === 1 || group.typeCode === 2,
   )
@@ -273,16 +294,19 @@ export function MachineGroupWorkspace() {
       <PageHeader
         eyebrow="Cấu hình phòng máy"
         title="Nhóm máy"
+        description="Mỗi nhóm máy có bảng giá riêng. Gán máy vào nhóm để tính giá theo khu vực (VIP, phòng thường…)."
         actions={
           <>
-            <Button
-              type="button"
+            <IconButton
+              label="Làm mới danh sách"
+              icon={<ArrowsClockwise size={18} weight="bold" className={groupsQuery.isFetching ? 'machine-group-spin' : undefined} />}
               variant="secondary"
-              loading={groupsQuery.isFetching}
-              onClick={() => void groupsQuery.refetch()}
-            >
-              Làm mới
-            </Button>
+              disabled={groupsQuery.isFetching}
+              onClick={() => {
+                void groupsQuery.refetch()
+                void registeredQuery.refetch()
+              }}
+            />
             <Button
               type="button"
               variant="secondary"
@@ -298,7 +322,7 @@ export function MachineGroupWorkspace() {
               disabled={
                 !canAdd ||
                 !canModifyPrice ||
-                source.length >= 20 ||
+                source.length >= MAX_GROUPS ||
                 userGroupsQuery.isLoading ||
                 userGroupsQuery.isError ||
                 priceGroups.length === 0
@@ -308,8 +332,8 @@ export function MachineGroupWorkspace() {
                   ? 'Cần quyền Thêm nhóm máy (9411).'
                   : !canModifyPrice
                     ? 'Cần quyền Sửa bảng giá (52) để ghi ma trận.'
-                    : source.length >= 20
-                      ? 'MFC giới hạn tối đa 20 nhóm máy.'
+                    : source.length >= MAX_GROUPS
+                      ? `MFC giới hạn tối đa ${MAX_GROUPS} nhóm máy.`
                       : userGroupsQuery.isError
                         ? 'Không tải được các bảng giá.'
                         : priceGroups.length === 0
@@ -333,31 +357,42 @@ export function MachineGroupWorkspace() {
         </InlineAlert>
       ) : null}
 
-      <div className="ds-input-group ds-input-group--search machine-group-search">
-        <div className="ds-search-input">
-          <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
-          <input
-            className="ds-input"
-            type="search"
-            value={search}
-            aria-label="Tìm tên hoặc mô tả"
-            placeholder="Ví dụ: VIP, phòng thường…"
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </div>
+      {unassignedCount > 0 ? (
+        <InlineAlert tone="info">
+          Có {unassignedCount} máy chưa thuộc nhóm nào nên chưa có giá theo nhóm.
+          {canUpdateList ? (
+            <>
+              {' '}
+              <Button type="button" variant="secondary" onClick={() => setUpdateListOpen(true)}>
+                Gán máy vào nhóm
+              </Button>
+            </>
+          ) : null}
+        </InlineAlert>
+      ) : null}
 
-      <section className="machine-group-panel">
-        <header>
-          <div>
-            <strong>Danh sách nhóm máy</strong>
-            <span>
-              {groups.length === source.length
-                ? `${groups.length} nhóm`
-                : `${groups.length}/${source.length} nhóm phù hợp`}
-            </span>
+      <section className="machine-group-panel" aria-label="Danh sách nhóm máy">
+        <div className="machine-group-toolbar">
+          <div className="ds-input-group ds-input-group--search machine-group-search">
+            <div className="ds-search-input">
+              <MagnifyingGlass className="ds-search-input__icon" size={18} weight="bold" aria-hidden="true" />
+              <input
+                className="ds-input"
+                type="search"
+                value={search}
+                aria-label="Tìm tên hoặc mô tả nhóm máy"
+                placeholder="Tìm tên hoặc mô tả…"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
           </div>
-        </header>
+          <p className="machine-group-summary" aria-live="polite">
+            {groups.length === source.length
+              ? `${source.length}/${MAX_GROUPS} nhóm`
+              : `${groups.length} trong ${source.length} nhóm phù hợp`}
+            {registered ? ` · ${registered.length} máy` : ''}
+          </p>
+        </div>
 
         {groupsQuery.isLoading ? (
           <StateView title="Đang tải nhóm máy…" />
@@ -378,66 +413,87 @@ export function MachineGroupWorkspace() {
         ) : groups.length === 0 ? (
           <StateView
             title={search.trim() ? 'Không có nhóm phù hợp' : 'Chưa có nhóm máy'}
-            description={search.trim() ? 'Thử từ khóa khác.' : undefined}
+            description={
+              search.trim()
+                ? 'Thử từ khóa khác.'
+                : canAdd
+                  ? 'Bấm “Thêm nhóm” để tạo nhóm đầu tiên và nhập bảng giá.'
+                  : undefined
+            }
           />
         ) : (
-          <div className="machine-group-grid">
-            {groups.map((group) => (
-              <article className="machine-group-card" key={group.id}>
-                <header>
-                  <div>
-                    <strong>{group.name}</strong>
-                  </div>
-                </header>
-                <p>{group.description || '—'}</p>
-                <section>
-                  <span>Giá khách vãng lai</span>
-                  {group.anonymPriceAmbiguous ? (
-                    <>
-                      <StatusBadge tone="danger">Nhiều bảng giá</StatusBadge>
-                      <div className="machine-group-price-list">
-                        {(group.anonymPrices ?? []).map((price) => (
-                          <div key={price.priceId}>
-                            <span>{price.priceType || `Bảng giá #${price.priceId}`}</span>
-                            <strong>{formatMoney(price.price)}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : group.anonymPrice === null ? (
-                    <StatusBadge tone="warning">Chưa cấu hình</StatusBadge>
-                  ) : (
-                    <strong>{formatMoney(group.anonymPrice)}</strong>
-                  )}
-                </section>
-                <footer>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="machine-group-card__action machine-group-card__action--edit"
-                    disabled={!canEdit}
-                    title={canEdit ? undefined : 'Cần quyền Sửa nhóm máy (9413).'}
-                    onClick={() => openEdit(group)}
-                  >
-                    Sửa
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="machine-group-card__action machine-group-card__action--delete"
-                    disabled={!canDelete}
-                    title={
-                      !canDelete
-                        ? 'Cần quyền Xóa nhóm máy (9412).'
-                        : 'Máy chủ sẽ từ chối nếu nhóm còn tài khoản đang hoạt động.'
-                    }
-                    onClick={() => setDeleting(group)}
-                  >
-                    Xóa
-                  </Button>
-                </footer>
-              </article>
-            ))}
+          <div className="machine-group-table-wrap">
+            <table className="machine-group-table">
+              <thead>
+                <tr>
+                  <th scope="col">Nhóm máy</th>
+                  <th scope="col" className="is-num">Số máy</th>
+                  <th scope="col" className="is-num">
+                    Giá vãng lai <small>đồng/giờ</small>
+                  </th>
+                  <th scope="col">
+                    <span className="machine-group-sr">Thao tác</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((group) => (
+                  <tr key={group.id}>
+                    <th scope="row" className="machine-group-table__name">
+                      <strong>{group.name}</strong>
+                      {group.description ? <span>{group.description}</span> : null}
+                    </th>
+                    <td className="is-num" data-label="Số máy">
+                      {registered ? (
+                        <span className={machineCount.get(group.id) ? undefined : 'machine-group-muted'}>
+                          {machineCount.get(group.id) ?? 0}
+                        </span>
+                      ) : (
+                        <span className="machine-group-muted">—</span>
+                      )}
+                    </td>
+                    <td className="is-num" data-label="Giá vãng lai (đồng/giờ)">
+                      {group.anonymPriceAmbiguous ? (
+                        <div className="machine-group-price-list">
+                          <StatusBadge tone="danger">Nhiều bảng giá</StatusBadge>
+                          {(group.anonymPrices ?? []).map((price) => (
+                            <div key={price.priceId}>
+                              <span>{price.priceType || `Bảng giá #${price.priceId}`}</span>
+                              <strong>{formatPlainMoney(price.price)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : group.anonymPrice === null ? (
+                        <StatusBadge tone="warning">Chưa cấu hình</StatusBadge>
+                      ) : (
+                        <strong className="machine-group-price">{formatPlainMoney(group.anonymPrice)}</strong>
+                      )}
+                    </td>
+                    <td className="machine-group-table__actions">
+                      <IconButton
+                        label={`Sửa nhóm ${group.name}`}
+                        icon={<PencilSimple size={18} weight="bold" />}
+                        disabled={!canEdit}
+                        title={canEdit ? `Sửa nhóm ${group.name}` : 'Cần quyền Sửa nhóm máy (9413).'}
+                        onClick={() => openEdit(group)}
+                      />
+                      <IconButton
+                        label={`Xóa nhóm ${group.name}`}
+                        icon={<Trash size={18} weight="bold" />}
+                        className="machine-group-delete"
+                        disabled={!canDelete}
+                        title={
+                          !canDelete
+                            ? 'Cần quyền Xóa nhóm máy (9412).'
+                            : 'Xóa nhóm. Máy chủ sẽ từ chối nếu nhóm còn tài khoản đang hoạt động.'
+                        }
+                        onClick={() => setDeleting(group)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

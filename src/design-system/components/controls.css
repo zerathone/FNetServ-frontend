@@ -1636,7 +1636,10 @@ input[type="radio"]:disabled {
   color: var(--color-text-secondary);
 }
 
-.ds-money-input--prefixed > input.ds-money-input__control {
+/* Có :hover/:focus để không bị rule nền (cùng có :hover/:focus, ưu tiên cao hơn) ghi đè padding về 0 — số sẽ dính sát ký hiệu tiền. */
+.ds-money-input--prefixed > input.ds-money-input__control,
+.ds-money-input--prefixed > input.ds-money-input__control:hover,
+.ds-money-input--prefixed > input.ds-money-input__control:focus {
   align-self: stretch;
   padding: 0 var(--space-3);
 }

@@ -82,6 +82,35 @@ export interface SettingsOptionsResult {
   denied: string[]
 }
 
+/**
+ * Hình thức thanh toán combo trên máy trạm (`/settings/combo-payment`, option -10006 dạng bitmask).
+ * `fn1 = false` ⇒ license chưa bật FN1: máy chủ luôn cho máy trạm hiện đủ 3 hình thức, cấu hình lưu được nhưng chưa có hiệu lực.
+ * `locked` ⇒ giá trị âm trong DB (khóa hết) — chỉ cấu hình tay; lưu lại ở đây sẽ gỡ khóa.
+ */
+export interface ComboPaymentSettings {
+  qr: boolean
+  cash: boolean
+  deduct: boolean
+  locked: boolean
+  fn1: boolean
+}
+
+export const getComboPaymentSettings = () => apiGet<ComboPaymentSettings>('/settings/combo-payment')
+/** Chỉ ADMIN. Phải bật ít nhất một hình thức. */
+export const updateComboPaymentSettings = (data: Pick<ComboPaymentSettings, 'qr' | 'cash' | 'deduct'>) =>
+  apiPut<void, Pick<ComboPaymentSettings, 'qr' | 'cash' | 'deduct'>>('/settings/combo-payment', data)
+
+/** Hiện đơn giá / thời gian còn lại trên máy trạm (`/settings/client-display`). Có hiệu lực ở lần đăng nhập kế tiếp. */
+export interface ClientDisplaySettings {
+  showPrice: boolean
+  showRemainTime: boolean
+  fn1: boolean
+}
+
+export const getClientDisplaySettings = () => apiGet<ClientDisplaySettings>('/settings/client-display')
+export const updateClientDisplaySettings = (data: Pick<ClientDisplaySettings, 'showPrice' | 'showRemainTime'>) =>
+  apiPut<void, Pick<ClientDisplaySettings, 'showPrice' | 'showRemainTime'>>('/settings/client-display', data)
+
 export const getSettingsOptions = (keys: string[] = []) => {
   const query = keys.length > 0
     ? `?keys=${encodeURIComponent(keys.join(','))}`

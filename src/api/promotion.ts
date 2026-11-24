@@ -32,6 +32,8 @@ export interface PromotionMember {
   freeTiers: PromoFreeTier[];
   percentTiers: PromoPercentTier[];
   firstDeposit: PromoFirstDeposit | null;
+  /** Khoảng ngày chung của các chính sách (server mới); thiếu ở server cũ. */
+  period?: { beginDate: string; endDate: string } | null;
 }
 
 export interface PromotionMemberBody {
@@ -58,8 +60,10 @@ export const savePromotionMember = async (body: PromotionMemberBody): Promise<vo
 // ---- Time (KM khung giờ vàng) ----
 export interface PromoTimeRow {
   price: number;
-  beginTime: string;
-  endTime: string;
+  /** GIỜ NGUYÊN 0..23 (như form MFC) — KHÔNG phải HHMMSS. Server cũ/bản web cũ có thể còn giá trị lệch: dùng `normalizeHour`. */
+  beginTime: number;
+  /** GIỜ NGUYÊN 1..24, lớn hơn `beginTime`. */
+  endTime: number;
   machineGroupId: number;
   dayOfWeekMask: number;
   beginDate?: string;

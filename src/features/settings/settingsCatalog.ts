@@ -6,6 +6,7 @@
 export type SettingsSection =
   | 'general'
   | 'workstation'
+  | 'payment'
   | 'orders'
   | 'shift'
   | 'wsmap'
@@ -18,6 +19,7 @@ export const SETTINGS_SECTIONS: Array<{
 }> = [
   { id: 'general', label: 'Thiết lập chung', description: 'Thông tin phòng máy, làm tròn tiền, mức nạp' },
   { id: 'workstation', label: 'Máy trạm', description: 'Đăng nhập lại, khóa và tự tắt' },
+  { id: 'payment', label: 'Phương thức thanh toán', description: 'Combo ở máy trạm, nạp tiền ở quầy, menu order' },
   { id: 'orders', label: 'Đơn hàng', description: 'Cảnh báo hàng đơn chờ' },
   { id: 'shift', label: 'Ca làm việc', description: 'Chế độ mở ca, chốt ca của thu ngân' },
   { id: 'wsmap', label: 'Sơ đồ máy trạm', description: 'Vị trí máy, tường và đồ vật' },
@@ -66,6 +68,13 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { section: 'workstation', anchor: 'auto-off', label: 'Tự tắt máy Sẵn sàng sau N phút', keywords: ['tự tắt máy', 'máy rảnh', 'máy sẵn sàng', 'tiết kiệm điện', 'shutdown'] },
   { section: 'workstation', anchor: 'auto-close-app', label: 'Tự đóng ứng dụng trên máy Sẵn sàng', keywords: ['đóng game', 'đóng ứng dụng', 'máy sẵn sàng', 'máy rảnh', 'kill app'] },
   { section: 'workstation', anchor: 'chat-channel', label: 'Kênh chat Messenger', keywords: ['messenger', 'facebook', 'zalo', 'chat khách', 'nhắn tin', 'kênh chat'] },
+
+  { section: 'workstation', anchor: 'client-display', label: 'Hiển thị trên máy trạm (đơn giá, thời gian còn lại)', keywords: ['hiện giá', 'ẩn giá', 'đơn giá', 'giá tiền', 'giá nhóm máy', 'thời gian còn lại', 'giá một giờ', 'client'] },
+
+  // Phương thức thanh toán
+  { section: 'payment', anchor: 'combo-payment', label: 'Thanh toán combo tại máy trạm', keywords: ['combo', 'qr', 'chuyển khoản', 'tiền mặt', 'cấn trừ', 'phương thức thanh toán', 'nút thanh toán', 'mua combo'] },
+  { section: 'payment', anchor: 'counter-payment', label: 'Nạp tiền tại thu ngân (chuyển khoản)', keywords: ['chuyển khoản', 'nạp tiền', 'thu ngân', 'quầy', 'bật tắt chuyển khoản', 'nút chuyển khoản'] },
+  { section: 'payment', label: 'Thanh toán menu order (dịch vụ)', keywords: ['menu order', 'dịch vụ', 'gọi món', 'thanh toán dịch vụ', 'icafe'] },
 
   // Đơn hàng
   { section: 'orders', anchor: 'order-queue', label: 'Cảnh báo hàng đơn chờ', keywords: ['đơn chờ', 'chờ lâu', 'cảnh báo vàng', 'cảnh báo đỏ', 'giữ nguyên liệu', 'số phút', 'đơn hàng', 'gọi món'] },

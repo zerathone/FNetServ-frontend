@@ -42,6 +42,8 @@ import {
 } from '../features/settings/settingsModel'
 import { parseSettingsSection, SETTINGS_SECTIONS } from '../features/settings/settingsCatalog'
 import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
+import { ClientDisplaySection } from '../features/settings/ClientDisplaySection'
+import { PaymentMethodsSection } from '../features/settings/PaymentMethodsSection'
 import { OrderSettingsSection } from '../features/orders/OrderSettingsSection'
 import { ShiftModeSection } from '../features/shifts/ShiftModeSection'
 import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
@@ -623,6 +625,9 @@ export function SettingsPage() {
             </form>
           ) : null}
 
+          {/* Hiển thị trên máy trạm (đơn giá, thời gian còn lại): form riêng, PUT /settings/client-display (chỉ admin). */}
+          {section === 'workstation' ? <ClientDisplaySection isAdmin={isAdmin} /> : null}
+
           {/* Kênh chat Messenger: form riêng (PUT /settings/chat riêng, chỉ admin) nên KHÔNG lồng trong form máy trạm. */}
           {section === 'workstation' ? (
             <div id="setting-chat-channel">
@@ -631,6 +636,9 @@ export function SettingsPage() {
           ) : null}
 
           {/* Sơ đồ máy trạm (task ws-map): ADMIN vẽ, mọi nhân viên xem ở trang Máy trạm → Biểu tượng. Lưu riêng (POST /workstations/map). */}
+          {/* Phương thức thanh toán: combo ở máy trạm (bitmask), nạp tiền ở quầy (chuyển khoản), menu order (chưa có). */}
+          {section === 'payment' ? <PaymentMethodsSection isAdmin={isAdmin} /> : null}
+
           {/* Đơn hàng (task topping-kho W1): object cấu hình order dùng chung -- mỗi nhóm một khối (đầu tiên: Hàng đơn chờ). */}
           {section === 'orders' ? (
             <div id="setting-order-queue">

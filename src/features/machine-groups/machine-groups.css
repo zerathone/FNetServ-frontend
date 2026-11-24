@@ -4,154 +4,166 @@
   gap: var(--page-gap);
 }
 
-.machine-group-search {
-  max-width: 30rem;
-}
-
 .machine-group-panel {
-  min-height: 24rem;
+  min-height: 12rem;
   display: grid;
   align-content: start;
   gap: var(--space-3);
 }
 
-.machine-group-panel > header {
+/* Thanh công cụ: ô tìm kiếm bên trái, tóm tắt "n/20 nhóm · m máy" bên phải. */
+.machine-group-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.machine-group-panel > header > div:first-child {
-  display: grid;
-  gap: var(--space-1);
+.machine-group-search {
+  width: min(100%, 24rem);
 }
 
-.machine-group-panel > header > div:last-child {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.machine-group-panel > header strong {
-  color: var(--color-text-primary);
-}
-
-.machine-group-panel > header span {
+.machine-group-summary {
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
 
-.machine-group-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
+.machine-group-spin {
+  animation: machine-group-spin 0.9s linear infinite;
 }
 
-.machine-group-card {
+@keyframes machine-group-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .machine-group-spin {
+    animation: none;
+  }
+}
+
+/* ---- Bảng nhóm máy: so sánh giá giữa các nhóm bằng mắt nên số căn phải, chữ số đều nhau ---- */
+.machine-group-table-wrap {
   min-width: 0;
-  min-height: 11rem;
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  overflow: hidden;
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-default);
   box-shadow: var(--shadow-sm);
 }
 
-.machine-group-card > header,
-.machine-group-card > footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+.machine-group-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.machine-group-card > header > div {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-1);
+.machine-group-table th,
+.machine-group-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: left;
+  vertical-align: middle;
 }
 
-.machine-group-card > header span,
-.machine-group-card > section > span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.machine-group-card > header strong {
-  overflow: hidden;
-  color: var(--color-text-primary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.machine-group-card > p {
-  min-height: 1.25rem;
-  margin: 0;
-  overflow: hidden;
+.machine-group-table thead th {
+  background: var(--color-surface-subtle);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
-.machine-group-card > section {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
+.machine-group-table thead th small {
+  margin-left: var(--space-1);
+  font-size: inherit;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.machine-group-table tbody tr:last-child th,
+.machine-group-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.machine-group-table tbody tr:hover {
   background: var(--color-surface-hover);
 }
 
-.machine-group-card > section > strong {
-  color: var(--color-text-primary);
-  font-size: var(--font-size-xl);
+.machine-group-table .is-num {
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.machine-group-card > section .ds-badge {
-  justify-self: start;
+.machine-group-table__name {
+  min-width: 0;
+  display: table-cell;
+  font-weight: 400;
 }
 
-.machine-group-card > footer {
-  justify-content: flex-end;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border-subtle);
+.machine-group-table__name strong {
+  display: block;
+  color: var(--color-text-primary);
 }
 
-.machine-group-card__action {
-  min-width: 5rem;
-  border: 1px solid var(--color-border-default);
-  background: transparent;
+.machine-group-table__name span {
+  display: -webkit-box;
+  margin-top: var(--space-1);
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.machine-group-card__action--edit {
-  border-color: var(--color-action-primary);
-  color: var(--color-action-primary);
+.machine-group-price {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
 }
 
-.machine-group-card__action--edit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-action-primary) 12%, transparent);
+.machine-group-muted {
+  color: var(--color-text-muted);
 }
 
-.machine-group-card__action--delete {
-  border-color: var(--color-danger);
+/* Thao tác: Sửa và Xóa cách nhau, Xóa chỉ đỏ khi rê vào để không "la" cả bảng. */
+.machine-group-table__actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.machine-group-table__actions > * + * {
+  margin-left: var(--space-2);
+}
+
+.machine-group-delete:hover:not(:disabled) {
+  background: var(--color-danger-surface);
   color: var(--color-danger);
 }
 
-.machine-group-card__action--delete:hover:not(:disabled) {
-  background: var(--color-danger-surface);
+.machine-group-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .machine-group-price-list {
   display: grid;
+  justify-items: end;
   gap: var(--space-1);
 }
 
 .machine-group-price-list > div {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
@@ -278,22 +290,67 @@
   font-size: var(--font-size-xl);
 }
 
-@media (max-width: 1000px) {
-  .machine-group-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+/* Màn hẹp: mỗi nhóm thành một thẻ; tên ở trên, "nhãn … giá trị" bên dưới, thao tác dưới cùng. */
+@media (max-width: 720px) {
+  .machine-group-table-wrap {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .machine-group-table,
+  .machine-group-table tbody,
+  .machine-group-table tr,
+  .machine-group-table th,
+  .machine-group-table td {
+    display: block;
+  }
+
+  .machine-group-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .machine-group-table tbody tr {
+    margin-bottom: var(--space-3);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-default);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+
+  .machine-group-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .machine-group-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .machine-group-table__actions {
+    width: auto;
+    justify-content: flex-end;
+    background: var(--color-surface-subtle);
+  }
+
+  .machine-group-price-list {
+    justify-items: end;
   }
 }
 
 @media (max-width: 650px) {
-  .machine-group-grid,
   .machine-group-form__identity,
   .machine-group-price-editor > div {
     grid-template-columns: 1fr;
-  }
-
-  .machine-group-panel > header {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .machine-transfer-dialog__groups,

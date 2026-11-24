@@ -342,3 +342,149 @@
     padding: var(--space-4);
   }
 }
+
+/* ---- Cài đặt → Phương thức thanh toán: bảng "phương thức × nơi thanh toán" ---- */
+.pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.pay-table th,
+.pay-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.pay-table thead th {
+  vertical-align: bottom;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.pay-table thead th small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.pay-table__context {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pay-table tbody th {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.pay-table td {
+  text-align: center;
+}
+
+.pay-table thead th:not(:first-child) {
+  text-align: center;
+}
+
+.pay-table td .ds-switch {
+  margin-inline: auto;
+}
+
+.pay-table tbody tr:last-child th,
+.pay-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Cột "Menu order" chưa có cài đặt: nhạt hơn để không tranh sự chú ý với cột đang dùng được. */
+.pay-table__soon {
+  color: var(--color-text-muted);
+}
+
+.pay-na {
+  color: var(--color-text-muted);
+}
+
+.pay-matrix__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.pay-matrix__status {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pay-matrix__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* Màn hẹp: mỗi phương thức thành một thẻ, mỗi nơi thanh toán là một dòng "nhãn … công tắc"; ô không có cài đặt ẩn đi. */
+@media (max-width: 720px) {
+  .pay-table,
+  .pay-table tbody,
+  .pay-table tr,
+  .pay-table th,
+  .pay-table td {
+    display: block;
+  }
+
+  .pay-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .pay-table tbody tr {
+    margin-bottom: var(--space-3);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+  }
+
+  .pay-table tbody th {
+    border-bottom: 1px solid var(--color-border-default);
+    background: var(--color-surface-subtle);
+  }
+
+  .pay-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    text-align: left;
+  }
+
+  .pay-table td::before {
+    content: attr(data-label);
+    color: var(--color-text-secondary);
+  }
+
+  .pay-table td .ds-switch {
+    margin-inline: 0;
+  }
+
+  .pay-cell--na {
+    display: none;
+  }
+
+  .pay-matrix__actions {
+    width: 100%;
+  }
+
+  .pay-matrix__actions > * {
+    flex: 1;
+  }
+}

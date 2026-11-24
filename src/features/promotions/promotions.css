@@ -1,0 +1,396 @@
+.promo-workspace {
+  min-width: 0;
+  display: grid;
+  gap: var(--page-gap);
+}
+
+/* Thanh chọn nhóm người dùng + loại khuyến mãi: một hàng, tab nằm bên phải. */
+.promo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+.promo-toolbar__group {
+  min-width: min(100%, 18rem);
+}
+
+.promo-toolbar__tabs {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.promo-panel {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.promo-lead {
+  margin: 0;
+  max-width: 62rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.promo-lead strong {
+  color: var(--color-text-primary);
+}
+
+/* Thẻ nhóm nội dung: tiêu đề + một câu giải thích + phần nhập liệu. */
+.promo-card {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.promo-card > header h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+.promo-card > header p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.promo-period {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Cùng bề rộng chuẩn 21rem của ô khoảng ngày ở các trang báo cáo/nhật ký; màn hẹp thì co theo khung. */
+.promo-period .ds-date-range {
+  width: 21rem;
+  max-width: 100%;
+}
+
+.promo-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-4);
+}
+
+.promo-empty {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+/* ---- Chọn chính sách: thẻ radio, mỗi thẻ có lời giải thích ---- */
+.promo-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-3);
+}
+
+.promo-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.promo-choice:hover {
+  background: var(--color-surface-hover);
+}
+
+.promo-choice input {
+  margin-top: 0.2rem;
+  accent-color: var(--color-action-primary);
+}
+
+.promo-choice:focus-within {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.promo-choice.is-selected {
+  border-color: var(--color-action-primary);
+  background: color-mix(in srgb, var(--color-action-primary) 8%, transparent);
+}
+
+.promo-choice span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.promo-choice strong {
+  color: var(--color-text-primary);
+}
+
+.promo-choice small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+/* ---- Mốc nạp: mỗi dòng là hai ô "icon + nhãn + giá trị" (RuleLabel) và nút xóa ---- */
+.promo-tiers {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.promo-tier {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.promo-tier .promo-delete {
+  justify-self: end;
+}
+
+.promo-delete:hover:not(:disabled) {
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+}
+
+/* ---- Danh sách khung giờ / dòng giảm giá: mỗi dòng là một thẻ nhỏ ---- */
+.promo-rules {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.promo-rule {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.promo-rule.is-overlap {
+  border-color: var(--color-warning);
+}
+
+.promo-rule__fields {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.4fr) minmax(11rem, 1fr) minmax(11rem, 1fr) minmax(14rem, 1.2fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.promo-rule__fields--discount {
+  grid-template-columns: minmax(14rem, 1.4fr) minmax(12rem, 1fr) minmax(11rem, 1fr) minmax(11rem, 1.2fr) auto;
+}
+
+/* Icon + tên trường trong ô tiền tố; dùng chung cho combo (RuleField) và ô tiền (MoneyInput có icon). */
+.promo-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+
+.promo-label > svg {
+  flex: none;
+}
+
+/* Ô "icon + control" một dòng (RuleField): icon là ô tiền tố nền nhạt, cùng kiểu form thêm hội viên. */
+/* KHÔNG đặt overflow:hidden ở đây: nó cắt mất danh sách thả xuống của combo. Góc bo nằm ở ô icon. */
+.promo-group {
+  min-width: 0;
+}
+
+.promo-group__icon {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  min-width: 2.75rem;
+  padding: 0 var(--space-3);
+  border-radius: calc(var(--input-radius) - 1px) 0 0 calc(var(--input-radius) - 1px);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+}
+
+.promo-group .ds-custom-select-trigger {
+  padding-inline: var(--space-3);
+}
+
+.promo-rule__days {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.promo-rule__days-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.promo-days {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* Nút ngày: ≥ 40px để bấm dễ; bật = nền màu chủ đạo (không chỉ dựa vào màu: có aria-pressed + chữ rõ). */
+.promo-day {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-default);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.promo-day:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.promo-day.is-on {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+  color: var(--color-action-primary-text, #fff);
+}
+
+.promo-day:disabled,
+.promo-preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.promo-day:focus-visible,
+.promo-preset:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
+}
+
+.promo-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.promo-preset {
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-action-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.promo-preset:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-action-primary) 10%, transparent);
+}
+
+.promo-rule__summary {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Thanh lưu dính đáy ---- */
+.promo-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-md);
+}
+
+.promo-savebar__status {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.promo-savebar__status.is-error {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.promo-savebar__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .promo-toolbar__tabs {
+    width: 100%;
+    margin-left: 0;
+    overflow-x: auto;
+  }
+
+  .promo-rule__fields,
+  .promo-rule__fields--discount {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .promo-rule__fields .promo-delete {
+    justify-self: end;
+  }
+}
+
+@media (max-width: 560px) {
+  .promo-card {
+    padding: var(--space-3);
+  }
+
+  .promo-rule__fields,
+  .promo-rule__fields--discount {
+    grid-template-columns: 1fr;
+  }
+
+  .promo-rule__summary {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .promo-savebar__actions {
+    width: 100%;
+  }
+
+  .promo-savebar__actions > * {
+    flex: 1;
+  }
+}
