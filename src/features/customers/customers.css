@@ -450,6 +450,21 @@
   gap: var(--space-1);
 }
 
+/* Nút "Sửa tài khoản" chỉ có icon: đẩy sang mép phải khối tên, canh trên cùng. */
+.customer-inspector__hero .customer-inspector__account-button {
+  flex: none;
+  align-self: flex-start;
+  margin-left: auto;
+  width: 3rem;
+  min-width: 3rem;
+  height: 3rem;
+}
+
+/* `.customer-inspector__hero span` tô xám mọi span: trả màu icon về màu của nút. */
+.customer-inspector__hero .customer-inspector__account-button span {
+  color: inherit;
+}
+
 .customer-inspector__hero strong {
   overflow: hidden;
   color: var(--color-text-primary);
@@ -1328,6 +1343,97 @@
 .customer-create-form__affix:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
+}
+
+/* Hộp thoại "Mã kiểm tra": ảnh chữ nhiễu + nút Làm mới cùng hàng, ô nhập bên dưới. */
+.customer-captcha {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.customer-captcha__image-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.customer-captcha__image {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--input-radius);
+  background: #f4f1ea;
+}
+
+.customer-captcha__input {
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.customer-captcha__input::placeholder {
+  letter-spacing: normal;
+  font-weight: 400;
+  text-transform: none;
+}
+
+/* Hộp thoại Tài khoản: cụm "Đổi mật khẩu" gập sẵn, nút chìa khóa mở ra hai ô nhập. */
+.customer-account-password {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.customer-account-password__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  min-height: var(--control-height-compact);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--input-radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.customer-account-password__toggle:hover:not(:disabled) {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+}
+
+.customer-account-password__toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.customer-account-password__toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.customer-account-password__caret {
+  transition: transform 0.15s ease;
+}
+
+.customer-account-password__toggle[aria-expanded='true'] .customer-account-password__caret {
+  transform: rotate(180deg);
+}
+
+.customer-account-password__panel {
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-account-password__caret {
+    transition: none;
+  }
 }
 
 @media (max-width: 720px) {

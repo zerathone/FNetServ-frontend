@@ -5,7 +5,6 @@ import {
   ArrowsLeftRight,
   Buildings,
   Cake,
-  CalendarX,
   Camera,
   CheckCircle,
   ClockCounterClockwise,
@@ -22,9 +21,7 @@ import {
   Plus,
   Trash,
   UploadSimple,
-  User,
   UserCircle,
-  UsersThree,
 } from '@phosphor-icons/react'
 import {
   getUserDetail,
@@ -38,16 +35,20 @@ import {
   type UserDetail,
 } from '../../api/users'
 import { getUserGroups } from '../../api/user-groups'
-import { Select,
+import {
   Button,
+  IconButton,
   InlineAlert,
   StateView,
   StatusBadge,
 } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
 import { pushToast } from '../../store/toast'
+import { CustomerAccountDialog } from './CustomerAccountDialog'
 import { CustomerCameraDialog } from './CustomerCameraDialog'
 import { DateInput, Field } from './CustomerFormFields'
+import { toDraft, toUpdateBody, type ProfileDraft } from './customerProfileModel'
+import { UserEditIcon } from './UserEditIcon'
 import { CustomerHistoryDialog, type CustomerHistoryKind } from './CustomerHistoryDialog'
 import { CustomerVerificationDialogs } from './CustomerVerificationDialogs'
 import { StaffFreeTimeDialog } from './StaffFreeTimeDialog'
@@ -60,6 +61,8 @@ import {
 const RIGHTS = {
   GIVE_MONEY: 11,
   MODIFY_USER: 22,
+  MODIFY_USER_USERNAME: 221,
+  MODIFY_USER_PASSWORD: 222,
   MODIFY_USER_BASIC: 223,
   MODIFY_USER_GROUP: 224,
   MONEY_TRANSFER: 25,
@@ -73,25 +76,6 @@ type VerificationFlow = 'cccd' | 'mobile-pair' | 'mobile-unpair' | null
 type CccdProfileStatus = {
   tone: 'success' | 'warning' | 'danger'
   label: string
-}
-
-type ProfileDraft = {
-  username: string
-  userGroupId: number
-  fullName: string
-  idNumber: string
-  phone: string
-  email: string
-  address: string
-  city: string
-  district: string
-  note: string
-  birthday: string
-  gender: 1 | 2 | 3
-  active: boolean
-  expiryDate: string
-  isVat: boolean
-  usageTimeId: number
 }
 
 export type CustomerInspectorProps = {
@@ -159,50 +143,6 @@ function getCccdProfileStatus(detail: UserDetail): CccdProfileStatus {
     : { tone: 'warning', label: 'Chưa xác nhận' }
 }
 
-function toDraft(detail: UserDetail): ProfileDraft {
-  return {
-    username: detail.username,
-    userGroupId: detail.userGroupId,
-    fullName: detail.fullName,
-    idNumber: detail.idNumber ?? '',
-    phone: detail.phone ?? '',
-    email: detail.email ?? '',
-    address: detail.address ?? '',
-    city: detail.city ?? '',
-    district: detail.district ?? '',
-    note: detail.note,
-    birthday: detail.birthday === '0000-00-00' ? '' : detail.birthday,
-    gender: detail.gender,
-    active: detail.active,
-    expiryDate: detail.expiryDate === '0000-00-00' ? '' : detail.expiryDate,
-    isVat: detail.isVat,
-    usageTimeId: detail.usageTimeId,
-  }
-}
-
-function toUpdateBody(
-  detail: UserDetail,
-  draft: ProfileDraft,
-  confirmMobileUnpair = false,
-): UpdateUserDetailBody {
-  return {
-    id: detail.id,
-    ...draft,
-    fullName: draft.fullName.trim(),
-    idNumber: draft.idNumber.trim(),
-    phone: draft.phone.trim(),
-    email: draft.email.trim(),
-    address: draft.address.trim(),
-    city: draft.city.trim(),
-    district: draft.district.trim(),
-    note: draft.note.trim(),
-    birthday: draft.birthday || '0000-00-00',
-    expiryDate: draft.expiryDate || '0000-00-00',
-    expectedVersion: detail.version,
-    confirmMobileUnpair,
-  }
-}
-
 export function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -241,6 +181,7 @@ export function CustomerInspector({
   const [cameraOpen, setCameraOpen] = useState(false)
   const [historyKind, setHistoryKind] = useState<CustomerHistoryKind | null>(null)
   const [freeTimeOpen, setFreeTimeOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [verificationFlow, setVerificationFlow] = useState<VerificationFlow>(null)
   const [mobilePairDisplay, setMobilePairDisplay] = useState<{
     channelId: string
@@ -253,7 +194,11 @@ export function CustomerInspector({
   const canModifyBasic = hasRight(RIGHTS.MODIFY_USER) || hasRight(RIGHTS.MODIFY_USER_BASIC)
   const canModifyGroup = hasRight(RIGHTS.MODIFY_USER) || hasRight(RIGHTS.MODIFY_USER_GROUP)
   const canViewContact = canModifyBasic || hasRight(RIGHTS.VIEW_USER_CONTACT)
-  const canEdit = canModifyBasic || canModifyGroup
+  const canModifyPassword = hasRight(RIGHTS.MODIFY_USER) || hasRight(RIGHTS.MODIFY_USER_PASSWORD)
+  // Tab Hồ sơ chỉ còn thông tin cá nhân (quyền "sửa cơ bản"); nhóm / hoạt động / hết hạn / mật khẩu ở hộp thoại Tài khoản.
+  const canEdit = canModifyBasic
+  const canModifyUsername = hasRight(RIGHTS.MODIFY_USER) || hasRight(RIGHTS.MODIFY_USER_USERNAME)
+  const canEditAccount = canModifyBasic || canModifyGroup || canModifyPassword || canModifyUsername
   const canModifyPortrait = hasRight(RIGHTS.MODIFY_USER)
 
   useEffect(() => {
@@ -265,6 +210,7 @@ export function CustomerInspector({
     setCameraOpen(false)
     setHistoryKind(null)
     setFreeTimeOpen(false)
+    setAccountOpen(false)
     setVerificationFlow(null)
   }, [user.userId, userType])
 
@@ -283,7 +229,7 @@ export function CustomerInspector({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
     // Nhân viên: danh sách không trả tên nhóm ⇒ cần tra để hiện tên thay vì "#id" ngay ở chế độ xem.
-    enabled: Boolean(detailQuery.data && (editing || isStaff)),
+    enabled: Boolean(detailQuery.data && (accountOpen || isStaff)),
   })
   const detailGroupName = useMemo(
     () => (groupsQuery.data ?? []).find((group) => group.id === detailQuery.data?.userGroupId)?.name ?? '',
@@ -547,6 +493,18 @@ export function CustomerInspector({
               ) : null}
             </div>
           </div>
+          {hasProfile ? (
+            // Góc phải của khối tên: chỉ icon (nhãn ở tooltip/aria). Mở hộp thoại Tài khoản: tên đăng nhập, nhóm, hạn dùng, mật khẩu.
+            <IconButton
+              type="button"
+              variant="secondary"
+              className="customer-inspector__account-button"
+              label={canEditAccount ? 'Sửa tài khoản' : `Bạn không có quyền sửa tài khoản ${noun}`}
+              icon={<UserEditIcon size={26} />}
+              disabled={!canEditAccount || !detailQuery.data}
+              onClick={() => setAccountOpen(true)}
+            />
+          ) : null}
         </div>
 
         {userType === 'member' ? (
@@ -765,6 +723,21 @@ export function CustomerInspector({
         />
       ) : null}
 
+      {hasProfile ? (
+        <CustomerAccountDialog
+          open={accountOpen}
+          detail={detailQuery.data}
+          noun={noun}
+          groups={memberGroups}
+          groupsLoading={groupsQuery.isLoading}
+          canModifyBasic={canModifyBasic}
+          canModifyGroup={canModifyGroup}
+          canModifyPassword={canModifyPassword}
+          canModifyUsername={canModifyUsername}
+          onClose={() => setAccountOpen(false)}
+        />
+      ) : null}
+
       {isStaff ? (
         <StaffFreeTimeDialog
           open={freeTimeOpen}
@@ -968,56 +941,9 @@ export function CustomerInspector({
               // nhóm có tiêu đề nhỏ IN HOA, lưới hai cột. Không có cột ảnh: ảnh sửa ở chế độ xem.
               <form className="customer-create-form customer-create-form--drawer" onSubmit={submitProfile} noValidate>
                 <div className="customer-create-form__main">
+                  {/* Nhóm / hoạt động / hết hạn / mật khẩu không nằm ở đây: xem CustomerAccountDialog (nút "Tài khoản").
+                      Các giá trị đó vẫn nằm trong draft và được gửi lại NGUYÊN như máy chủ trả (toDraft → toUpdateBody). */}
                   <fieldset className="customer-create-form__section">
-                    <legend>Tài khoản</legend>
-                    {/* Dòng 1: tên đăng nhập + ô "Hoạt động" (ô tích nằm cùng dòng cho đỡ chật dòng nhóm/hết hạn). */}
-                    <div className="customer-create-form__pair customer-create-form__pair--grow customer-create-form__wide">
-                      <Field
-                        id="profile-username"
-                        label="Tên đăng nhập"
-                        icon={<User size={18} weight="bold" aria-hidden="true" />}
-                        hint="Đổi tên đăng nhập và mật khẩu là luồng bảo mật riêng."
-                      >
-                        <input id="profile-username" className="ds-input" placeholder="Tên đăng nhập" value={draft.username} readOnly disabled />
-                      </Field>
-                      <label className="customer-create-form__check">
-                        <input
-                          type="checkbox"
-                          checked={draft.active}
-                          disabled={!canModifyBasic}
-                          onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
-                        />
-                        Hoạt động
-                      </label>
-                    </div>
-                    {/* Dòng 2: nhóm + ngày hết hạn, mỗi ô một cột. */}
-                    <Field id="profile-group" label={`Nhóm ${noun}`} icon={<UsersThree size={18} weight="bold" aria-hidden="true" />}>
-                      <Select
-                        id="profile-group"
-                        className="ds-select"
-                        value={draft.userGroupId}
-                        disabled={!canModifyGroup || groupsQuery.isLoading}
-                        onChange={(event) => setDraft({ ...draft, userGroupId: Number(event.target.value) })}
-                      >
-                        {!memberGroups.some((group) => group.id === draft.userGroupId) ? (
-                          <option value={draft.userGroupId}>{`Nhóm #${draft.userGroupId}`}</option>
-                        ) : null}
-                        {memberGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                      </Select>
-                    </Field>
-                    <Field id="profile-expiry" label="Ngày hết hạn (để trống nếu không giới hạn)" icon={<CalendarX size={18} weight="bold" aria-hidden="true" />}>
-                      <DateInput
-                        id="profile-expiry"
-                        placeholder="Ngày hết hạn"
-                        value={draft.expiryDate}
-                        disabled={!canModifyBasic}
-                        onChange={(value) => setDraft({ ...draft, expiryDate: value })}
-                      />
-                    </Field>
-                  </fieldset>
-
-                  <fieldset className="customer-create-form__section">
-                    <legend>Hồ sơ</legend>
                     <Field id="profile-fullname" label="Họ tên" icon={<IdentificationBadge size={18} weight="bold" aria-hidden="true" />} wide>
                       <input
                         id="profile-fullname"
