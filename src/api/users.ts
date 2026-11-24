@@ -202,12 +202,79 @@ export const getUsers = (
   offset = 0,
   q?: string,
   qby?: UserSearchField,
+  /** 'week' = sinh nhật trong tuần hiện tại (thứ Hai → Chủ nhật); 'month' = trong tháng hiện tại. Chỉ hiểu với hội viên/nhân viên. */
+  birthday?: 'week' | 'month',
+  /** 1..12, chỉ dùng khi `birthday = 'month'`; bỏ trống = tháng hiện tại của máy chủ. */
+  birthdayMonth?: number,
 ) => {
   let url = `/users?type=${type}&limit=${limit}&offset=${offset}`;
   if (q) url += `&q=${encodeURIComponent(q)}`;
   if (q && qby) url += `&qby=${qby}`;
+  if (birthday) url += `&birthday=${birthday}`;
+  if (birthday === 'month' && birthdayMonth) url += `&month=${birthdayMonth}`;
   return apiGet<UsersResponse>(url);
 }
+
+/** Tổng số tài khoản từng tab (GET /users/counts: 3 câu COUNT(*) ở server, không tải danh sách). */
+export type UserCounts = {
+  member: number
+  staff: number
+  combo: number
+  /** Số tài khoản có sinh nhật trong tuần hiện tại (T2..CN). Server cũ không trả ⇒ undefined (chip ẩn). */
+  birthdayWeek?: { member: number; staff: number }
+  /**
+   * Số sinh nhật của CẢ 12 tháng (1 lượt GROUP BY ở server): `member[m - 1]` / `staff[m - 1]` là số tài khoản sinh tháng m.
+   * `current` (1..12) là tháng hiện tại của MÁY CHỦ — cùng nguồn với bộ lọc nên nhãn luôn khớp số đếm.
+   */
+  birthdayMonths?: { current: number; member: number[]; staff: number[] }
+}
+
+/** `birthday=1` xin thêm `birthdayWeek` (server quét bảng hội viên một lượt nên chỉ xin khi cần). */
+export const getUserCounts = () => apiGet<UserCounts>('/users/counts?birthday=1')
+
+/**
+ * GET /users/combo-card?userId= — chi tiết một thẻ combo (drawer tab "Thẻ combo").
+ * Các trường ngày/giờ rỗng = chưa có (server đã đổi "0000-00-00" thành ""). `ownerId = 0` = thẻ bán tại quầy.
+ */
+export interface ComboCardDetail {
+  userId: number
+  userName: string
+  /** usertb.Status = 1. */
+  active: boolean
+  expiryDate: string
+  comboDetailId: number
+  /** 0 = dòng không gắn combo nào (vd đặt trước máy online). */
+  comboId: number
+  comboName: string
+  /** 1 = khung giờ cố định trong ngày, 2 = theo thời lượng (tính từ lần đăng nhập đầu). */
+  comboType: number
+  /** Giờ — chỉ có nghĩa khi comboType = 2. */
+  duration: number
+  numOfDay: number
+  /** Bitmask ngày áp dụng: CN=1, T2=2, T3=4, T4=8, T5=16, T6=32, T7=64. */
+  weekday: number
+  price: number
+  /** Tên các nhóm máy áp dụng, nối bằng '|'. */
+  zone: string
+  createDate: string
+  createTime: string
+  fromDate: string
+  fromTime: string
+  toDate: string
+  toTime: string
+  /** Lần đăng nhập đầu tiên; rỗng = thẻ chưa dùng. */
+  firstLoginAt: string
+  remainMinutes: number
+  accept: number
+  paymentId: number
+  ownerId: number
+  ownerName: string
+  /** Món kèm theo catalog combo hiện tại (không phải ảnh chụp lúc bán). */
+  donates: Array<{ name: string; unit: string; quantity: number }>
+}
+
+export const getComboCardDetail = (userId: number) =>
+  apiGet<ComboCardDetail>(`/users/combo-card?userId=${userId}`)
 
 /** Danh sách thẻ combo (tab "Thẻ Combo"). Tìm theo tiền tố tên đăng nhập, lọc ở server sau khi giải mã. */
 export const getComboCards = (limit = 200, offset = 0, q?: string) => {

@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Coins, MagnifyingGlass, UsersThree, XCircle } from '@phosphor-icons/react'
-import { getComboCards, getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
+import { getComboCards, getUserCounts, getUsers, usersApi, type UserAccount, type UserSearchField } from '../../api/users'
+import { BirthdayFilter, type BirthdayChoice } from './BirthdayFilter'
+import { birthdayMonthOptions } from './birthdayModel'
+import { ComboCardInspector } from './ComboCardInspector'
 import { ComboCardTable } from './ComboCardTable'
 import { comboCardToSeed } from './comboCardModel'
 import {
@@ -17,6 +20,7 @@ import {
   PageHeader,
   RefreshButton,
   Select,
+  StatusBadge,
 } from '../../design-system/components'
 import { fingerprintIntent, useIdempotentIntent } from '../../lib/idempotency'
 import { invalidateMoneyQueries } from '../../lib/fintechQueries'
@@ -214,6 +218,9 @@ export function CustomerWorkspace() {
   const [searchQuery, setSearchQuery] = useState(routeSearch)
   // FIXBUG 2026-09-23: tim theo DUNG 1 truong. Gop 3 truong = 3 luot quet bang hoi vien o BE.
   const [searchField, setSearchField] = useState<UserSearchField>('username')
+  // Bộ lọc sinh nhật gộp: `birthdayChoice` = đang CHỌN gì ('week' hoặc số tháng 1..12), `birthdayActive` = có đang lọc danh sách không.
+  const [birthdayChoice, setBirthdayChoice] = useState<BirthdayChoice>('week')
+  const [birthdayActive, setBirthdayActive] = useState(false)
   const [page, setPage] = useState(0)
   const [selectedSeed, setSelectedSeed] = useState<UserAccount | null>(null)
   const [action, setAction] = useState<CustomerAction | null>(null)
@@ -226,7 +233,8 @@ export function CustomerWorkspace() {
   const [deleteRequested, setDeleteRequested] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<CustomerColumn[]>(readCustomerColumns)
   const [columnMenuOpen, setColumnMenuOpen] = useState(false)
-  const [sortColumn, setSortColumn] = useState<CustomerColumn>('userName')
+  // null = thứ tự server: hội viên mới tạo gần nhất lên đầu (UserId giảm dần), phân trang cũng theo thứ tự này.
+  const [sortColumn, setSortColumn] = useState<CustomerColumn | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const transactionIntent = useIdempotentIntent('customer-workspace')
   const depositPrint = useDepositReceiptPrint()
@@ -238,10 +246,13 @@ export function CustomerWorkspace() {
     setPage(0)
   }, [routeSearch])
 
+  // Chip "Sinh nhật tuần này / tháng N": lọc ở server (cả phân trang) — chỉ có nghĩa với hội viên/nhân viên.
+  const birthdayFilter = birthdayActive && userType !== 'combo' ? (birthdayChoice === 'week' ? ('week' as const) : ('month' as const)) : undefined
+  const birthdayMonthArg = typeof birthdayChoice === 'number' ? birthdayChoice : undefined
   const usersQuery = useQuery({
     // `searchField` PHAI nam trong queryKey: thieu no thi doi truong tim se an cache cua
-    // truong truoc -> hien ket qua sai ma khong co loi nao bao.
-    queryKey: ['users', userType, page, searchQuery, searchField],
+    // truong truoc -> hien ket qua sai ma khong co loi nao bao. Tuong tu `birthdayFilter`.
+    queryKey: ['users', userType, page, searchQuery, searchField, birthdayFilter ?? '', birthdayFilter === 'month' ? (birthdayMonthArg ?? 0) : 0],
     queryFn: () =>
       getUsers(
         userType,
@@ -249,9 +260,29 @@ export function CustomerWorkspace() {
         page * PAGE_SIZE,
         searchQuery || undefined,
         userType === 'member' ? searchField : undefined,
+        birthdayFilter,
+        birthdayFilter === 'month' ? birthdayMonthArg : undefined,
       ),
     enabled: userType !== 'combo',
   })
+  // Badge tổng số trên tab: MỘT request nhẹ (3 COUNT ở server) cho cả 3 tab, không tải danh sách.
+  // Key nằm dưới ['users'] ⇒ mọi thao tác thêm/xóa/đổi tài khoản vốn đã invalidate ['users'] sẽ tự làm mới số.
+  // Server cũ chưa có /users/counts ⇒ lỗi âm thầm, badge ẩn (retry:false để không bắn lại 3 lần).
+  const countsQuery = useQuery({
+    queryKey: ['users', 'counts'],
+    queryFn: getUserCounts,
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+  // Số sinh nhật tuần này / tháng này của tab đang xem (hội viên/nhân viên); tab Thẻ combo không có ngày sinh.
+  const birthdayWeekCount = userType === 'combo' ? 0 : (countsQuery.data?.birthdayWeek?.[userType] ?? 0)
+  // Dropdown tháng: bắt đầu từ tháng hiện tại (của máy chủ), tăng dần 12 tháng; mỗi tháng kèm số tài khoản của tab đang xem.
+  const birthdayMonths = countsQuery.data?.birthdayMonths
+  const birthdayMonthOptionList = useMemo(
+    () => birthdayMonthOptions(birthdayMonths?.current ?? 0, userType === 'combo' ? undefined : birthdayMonths?.[userType]),
+    [birthdayMonths, userType],
+  )
   // Tab Thẻ Combo: dữ liệu khác hội viên (hạn dùng, khung giờ, máy) ⇒ API + bảng riêng, cột như MFC.
   const isComboTab = userType === 'combo'
   const comboQuery = useQuery({
@@ -277,8 +308,14 @@ export function CustomerWorkspace() {
   )
   const sortedUsers = useMemo(() => {
     const direction = sortDirection === 'asc' ? 1 : -1
-    // Cột đang sắp xếp bị ẩn (vd chuyển sang tab Nhân viên) ⇒ quay về Tên đăng nhập.
-    const sortBy: CustomerColumn = displayedColumns.some((column) => column.id === sortColumn) ? sortColumn : 'userName'
+    // Chưa chọn cột (hoặc cột đang sắp xếp bị ẩn, vd chuyển sang tab Nhân viên):
+    //  - Hội viên: giữ thứ tự server (mới tạo gần nhất trước) — sắp xếp phía client chỉ trong 1 trang sẽ làm lệch phân trang.
+    //  - Nhân viên: server không có thứ tự ổn định ⇒ Tên đăng nhập tăng dần như trước.
+    const sortBy: CustomerColumn | null =
+      sortColumn && displayedColumns.some((column) => column.id === sortColumn)
+        ? sortColumn
+        : userType === 'staff' ? 'userName' : null
+    if (!sortBy) return users
     return [...users].sort((left, right) => {
       const leftValue = customerColumnValue(left, sortBy)
       const rightValue = customerColumnValue(right, sortBy)
@@ -290,15 +327,18 @@ export function CustomerWorkspace() {
         sensitivity: 'base',
       }) * direction
     })
-  }, [displayedColumns, sortColumn, sortDirection, users])
+  }, [displayedColumns, sortColumn, sortDirection, userType, users])
   const tableGridStyle = useMemo(
     () => ({
       '--customer-table-columns': displayedColumns.map((column) => column.width).join(' '),
     }) as CSSProperties,
     [displayedColumns],
   )
+  // Thẻ combo: lấy hàng mới nhất từ danh sách (tên đăng nhập/ghi chú đổi sau khi sửa tài khoản phải cập nhật theo).
+  const selectedComboRow = isComboTab ? comboRows.find((row) => row.userId === selectedSeed?.userId) : undefined
   const selected =
-    users.find((user) => user.userId === selectedSeed?.userId) ?? selectedSeed
+    (selectedComboRow ? comboCardToSeed(selectedComboRow) : users.find((user) => user.userId === selectedSeed?.userId)) ??
+    selectedSeed
 
   useEffect(() => {
     updateBrowserPreferences({ customerColumns: visibleColumns })
@@ -328,13 +368,29 @@ export function CustomerWorkspace() {
     )
   }
 
+  const chooseBirthday = (choice: BirthdayChoice) => {
+    setBirthdayChoice(choice)
+    setBirthdayActive(true) // chọn một mục trong danh sách = bật lọc theo mục đó
+    setPage(0)
+    setSelectedSeed(null)
+  }
+
+  const toggleBirthday = () => {
+    setBirthdayActive((current) => !current)
+    setPage(0)
+    setSelectedSeed(null)
+  }
   const toggleSort = (column: CustomerColumn) => {
-    if (sortColumn === column) {
-      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
-      return
+    if (sortColumn !== column) {
+      setSortColumn(column)
+      setSortDirection('asc')
+    } else if (sortDirection === 'asc') {
+      setSortDirection('desc')
+    } else {
+      // Lần bấm thứ ba trả về thứ tự server (mới tạo gần nhất trước), giống bảng Thẻ combo.
+      setSortColumn(null)
+      setSortDirection('asc')
     }
-    setSortColumn(column)
-    setSortDirection('asc')
   }
 
   const recipientResults = useQuery({
@@ -574,10 +630,16 @@ export function CustomerWorkspace() {
             }}
           >
             {label}
+            {typeof countsQuery.data?.[id] === 'number' ? (
+              <StatusBadge tone="neutral" dot={false} title={`Tổng số ${label.toLowerCase()}`}>
+                {new Intl.NumberFormat('vi-VN').format(countsQuery.data[id])}
+              </StatusBadge>
+            ) : null}
           </button>
         ))}
       </div>
 
+      <div className="customer-filterbar">
       <form className="customer-search" onSubmit={submitSearch}>
         <label className="ds-field">
           <span className="ds-visually-hidden">{SEARCH_FIELD_LABELS[searchField]}</span>
@@ -630,6 +692,18 @@ export function CustomerWorkspace() {
           </div>
         </label>
       </form>
+
+      {isComboTab || countsQuery.data?.birthdayWeek === undefined || birthdayMonths === undefined ? null : (
+        // Một nút gộp "Sinh nhật tuần / tháng": nửa trái bật-tắt lọc, mũi tên mở danh sách Tuần này + 12 tháng (tháng hiện tại đứng đầu).
+        <BirthdayFilter
+          active={birthdayActive}
+          choice={birthdayChoice}
+          weekCount={birthdayWeekCount}
+          months={birthdayMonthOptionList}
+          onToggle={toggleBirthday}
+          onChoose={chooseBirthday}
+        />
+      )}      </div>
 
 
       <div className="customer-list-card">
@@ -758,9 +832,11 @@ export function CustomerWorkspace() {
               <div className="customer-table__empty" role="row">
                 <div role="cell">
                   Không tìm thấy tài khoản —{' '}
-                  {searchQuery
-                    ? 'kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
-                    : 'danh sách hiện chưa có dữ liệu.'}
+                  {birthdayFilter
+                    ? (birthdayFilter === 'month' ? `tháng ${birthdayMonthArg} chưa có ai sinh nhật` : 'tuần này chưa có ai sinh nhật') + (searchQuery ? ' khớp từ khóa tìm kiếm.' : '.')
+                    : searchQuery
+                      ? 'kiểm tra lại phần đầu tên đăng nhập, số điện thoại hoặc CCCD.'
+                      : 'danh sách hiện chưa có dữ liệu.'}
                 </div>
               </div>
             ) : (
@@ -812,20 +888,27 @@ export function CustomerWorkspace() {
           selected
             ? userType === 'staff'
               ? 'Nhân viên' // danh sách nhân viên không trả họ tên; họ tên hiện trong hồ sơ bên dưới
-              : `${displayName(selected)} · ${selected.groupName || 'Chưa có nhóm'}`
+              : isComboTab
+                ? 'Thẻ combo'
+                : `${displayName(selected)} · ${selected.groupName || 'Chưa có nhóm'}`
             : undefined
         }
         onClose={() => setSelectedSeed(null)}
       >
         {selected ? (
-          <CustomerInspector
-            user={selected}
-            userType={userType}
-            // Xóa đơn đi qua /users/batch (gate quyền 23): thiếu quyền thì ẩn nút. Giữ điều kiện admin cũ.
-            canDelete={isAdmin && hasRight(USER_ADMIN_RIGHTS.DELETE_USER)}
-            onOpenAction={openAction}
-            onRequestDelete={() => setDeleteRequested(true)}
-          />
+          isComboTab ? (
+            // Thẻ combo không có ví/hồ sơ cá nhân: drawer riêng (loại combo, hạn dùng, khu vực, món kèm, chủ thẻ).
+            <ComboCardInspector user={selected} />
+          ) : (
+            <CustomerInspector
+              user={selected}
+              userType={userType}
+              // Xóa đơn đi qua /users/batch (gate quyền 23): thiếu quyền thì ẩn nút. Giữ điều kiện admin cũ.
+              canDelete={isAdmin && hasRight(USER_ADMIN_RIGHTS.DELETE_USER)}
+              onOpenAction={openAction}
+              onRequestDelete={() => setDeleteRequested(true)}
+            />
+          )
         ) : null}
       </Drawer>
 

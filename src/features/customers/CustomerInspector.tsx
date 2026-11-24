@@ -47,6 +47,7 @@ import { pushToast } from '../../store/toast'
 import { CustomerAccountDialog } from './CustomerAccountDialog'
 import { CustomerCameraDialog } from './CustomerCameraDialog'
 import { DateInput, Field } from './CustomerFormFields'
+import { birthdayWeekStatus } from './birthdayModel'
 import { toDraft, toUpdateBody, type ProfileDraft } from './customerProfileModel'
 import { UserEditIcon } from './UserEditIcon'
 import { CustomerHistoryDialog, type CustomerHistoryKind } from './CustomerHistoryDialog'
@@ -95,6 +96,30 @@ function formatDate(value: string | null | undefined) {
   if (!value || value === '0000-00-00') return '—'
   const [year, month, day] = value.split('-')
   return year && month && day ? `${day}/${month}/${year}` : value
+}
+
+/**
+ * Ô "Ngày sinh" (nhãn + giá trị). Khi đang trong tuần sinh nhật, bên phải có một ô bánh sinh nhật
+ * (màu cảnh báo) cao bằng cả nhãn lẫn giá trị.
+ */
+function BirthdayField({ birthday }: { birthday: string | null | undefined }) {
+  const status = birthdayWeekStatus(birthday)
+  return (
+    <div className={`customer-inspector__birthday-field${status ? ' customer-inspector__birthday-field--active' : ''}`}>
+      <span>Ngày sinh</span>
+      <strong>{formatDate(birthday)}</strong>
+      {status ? (
+        <span
+          className={`customer-inspector__birthday-badge${status.kind === 'today' ? ' customer-inspector__birthday-badge--today' : ''}`}
+          role="img"
+          aria-label={status.label}
+          title={status.label}
+        >
+          <Cake size={26} weight="fill" aria-hidden="true" />
+        </span>
+      ) : null}
+    </div>
+  )
 }
 
 function maskSensitive(value: string | undefined) {
@@ -541,10 +566,7 @@ export function CustomerInspector({
                     {canViewContact ? user.email || '—' : 'Cần quyền xem liên hệ'}
                   </strong>
                 </div>
-                <div>
-                  <span>Ngày sinh</span>
-                  <strong>{formatDate(detailQuery.data?.birthday)}</strong>
-                </div>
+                <BirthdayField birthday={detailQuery.data?.birthday} />
               </div>
             </div>
           </>
@@ -580,10 +602,7 @@ export function CustomerInspector({
                     : '—'}
                 </strong>
               </div>
-              <div>
-                <span>Ngày sinh</span>
-                <strong>{formatDate(detailQuery.data?.birthday)}</strong>
-              </div>
+              <BirthdayField birthday={detailQuery.data?.birthday} />
             </div>
           </div>
         ) : null}
