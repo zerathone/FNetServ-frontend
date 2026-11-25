@@ -75,6 +75,27 @@ export function toppingDraftFromConfig(config: Pick<RecipeConfig, 'toppings' | '
   }
 }
 
+const emptyRecipeLine = () => ({ key: nextDraftKey(), materialId: 0, qty: '', waste: '' })
+
+/**
+ * Công tắc "Có công thức nguyên liệu". Bật: nhóm thường ⇒ 'recipe' (nhiều nguyên liệu, có sẵn 1 dòng trống), nhóm kèm
+ * thêm ⇒ 'material' (đúng 1 nguyên liệu). Tắt ⇒ 'none'. Danh sách dòng / nguyên liệu đã nhập được GIỮ để bật lại không mất.
+ */
+export function setRecipeEnabled(draft: RecipeDraft, enabled: boolean, toppingGroup: boolean): RecipeDraft {
+  if (!enabled) return { ...draft, mode: 'none' }
+  if (toppingGroup) return { ...draft, mode: 'material' }
+  return { ...draft, mode: 'recipe', lines: draft.lines.length > 0 ? draft.lines : [emptyRecipeLine()] }
+}
+
+/**
+ * Đổi loại nhóm của món khi công thức đang bật: nhóm kèm thêm chỉ được 1 nguyên liệu ('material'), nhóm thường nhiều
+ * nguyên liệu ('recipe'). Đang tắt ('none') thì giữ nguyên. Dữ liệu của kiểu bên kia được giữ, đổi lại nhóm còn nguyên.
+ */
+export function recipeDraftForGroup(draft: RecipeDraft, toppingGroup: boolean): RecipeDraft {
+  if (draft.mode === 'none') return draft
+  return setRecipeEnabled(draft, true, toppingGroup)
+}
+
 /** null = hợp lệ. Chế độ 'none' luôn hợp lệ (nghĩa là gỡ công thức). */
 export function validateRecipe(draft: RecipeDraft): string | null {
   if (draft.mode === 'recipe') {

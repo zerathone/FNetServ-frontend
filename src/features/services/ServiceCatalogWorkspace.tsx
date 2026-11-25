@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { ListChecks, MagnifyingGlass, TrayArrowDown } from '@phosphor-icons/react'
+import { CookingPot, ListChecks, MagnifyingGlass, Package, Plus, TrayArrowDown } from '@phosphor-icons/react'
 import { getServiceGroups, setServiceActive } from '../../api/serviceCatalog'
 import { getServicesWithRecipe, type ServiceItem } from '../../api/services'
 import {
@@ -27,7 +27,8 @@ import { ImportVoucherDialog, StocktakeVoucherDialog } from '../inventory/Finish
 import { diffBadge, formatInt, MAX_BATCH_LINES, stockDiff } from '../inventory/finishedStockModel'
 import { UnitsDialog } from '../inventory/MaterialDialogs'
 import { GroupsDialog, PendingOrdersDialog, ServiceEditorDialog } from './ServiceCatalogDialogs'
-import { ServiceRecipeTags } from './ServiceRecipeTags'
+import { ServiceRecipeTags, ServiceToppingTags } from './ServiceRecipeTags'
+import { formatAmount, hasRecipeConfig, hasToppingConfig, serviceStockView } from './serviceStockEstimate'
 import { ServiceThumb } from './ServiceThumb'
 import {
   compareGroups,
@@ -65,7 +66,12 @@ type ServiceSortKey = 'price' | 'stock' | 'expected'
 /** Món không quản lý tồn không có số tồn / dự kiến ⇒ null ⇒ luôn xếp cuối dù tăng hay giảm. */
 const SERVICE_SORT: Record<ServiceSortKey, (s: ServiceItem) => SortValue> = {
   price: (s) => s.price,
-  stock: (s) => (s.inventoryManagement === 1 ? s.inventory : null),
+  // Cùng số với cột hiển thị: món vừa quản lý tồn vừa có công thức lấy số nhỏ hơn (serviceStockEstimate.ts).
+  stock: (s) => {
+    if (s.inventoryManagement !== 1) return null
+    const view = serviceStockView(s)
+    return view.kind === 'managed' ? view.amount : s.inventory
+  },
   expected: (s) => (s.inventoryManagement === 1 ? s.inventoryExpected : null),
 }
 
@@ -82,6 +88,9 @@ export function ServiceCatalogWorkspace() {
   const [saleFilter, setSaleFilter] = useState<SaleFilter>('all')
   // Chỉ hiện món bán kèm (thuộc nhóm topping); độc lập với hai bộ lọc trên.
   const [toppingOnly, setToppingOnly] = useState(false)
+  // Chỉ hiện món CÓ công thức nguyên liệu / CÓ món bán kèm (khác `toppingOnly`: món thuộc nhóm kèm thêm); độc lập với các bộ lọc khác.
+  const [recipeOnly, setRecipeOnly] = useState(false)
+  const [withToppingsOnly, setWithToppingsOnly] = useState(false)
   // Lọc theo nhóm: 0 = mọi nhóm, còn lại = groupId.
   const [groupFilter, setGroupFilter] = useState(0)
   const [page, setPage] = useState(0)
@@ -138,6 +147,9 @@ export function ServiceCatalogWorkspace() {
     // Vẫn nằm dưới ['services'] ⇒ mọi `invalidateQueries(['services'])` sau khi lưu món/công thức làm mới trang này.
     queryKey: ['services', 'catalog'],
     queryFn: getServicesWithRecipe,
+    // Tab "Quản lý tồn" (FinishedTab) có query riêng nhẹ hơn (`useFinishedServices`) và không dùng dữ liệu này ⇒ không chạy các
+    // câu SQL công thức / bán kèm / tồn nguyên liệu khi đang ở tab đó (quay lại tab Dịch vụ thì tải lại).
+    enabled: tab === 'services',
   })
 
   const groupsQuery = useQuery({ queryKey: ['services', 'groups'], queryFn: getServiceGroups })
@@ -170,6 +182,8 @@ export function ServiceCatalogWorkspace() {
         matchesServiceStock(service, stockFilter) &&
         (saleFilter === 'all' || (saleFilter === 'off') === isDiscontinued(service)) &&
         (!toppingOnly || service.groupTypeId === GROUP_TYPE_TOPPING) &&
+        (!recipeOnly || hasRecipeConfig(service)) &&
+        (!withToppingsOnly || hasToppingConfig(service)) &&
         (groupFilter === 0|| service.groupId === groupFilter) &&
         (!normalizedSearch ||
           service.name.toLocaleLowerCase('vi').includes(normalizedSearch) ||
@@ -217,6 +231,11 @@ export function ServiceCatalogWorkspace() {
   const toppingCount = source.filter((service) => service.groupTypeId === GROUP_TYPE_TOPPING).length
   // Server cũ chưa trả groupTypeId ⇒ không phân biệt được topping ⇒ không hiện nút.
   const canFilterTopping = source.some((service) => service.groupTypeId !== undefined)
+  // Công thức / món bán kèm đến từ `include=recipe,topping`; server cũ không trả ⇒ không hiện nút (không lọc ra danh sách trống).
+  const recipeCount = source.filter(hasRecipeConfig).length
+  const withToppingsCount = source.filter(hasToppingConfig).length
+  const canFilterRecipe = source.some((service) => service.recipe !== undefined)
+  const canFilterWithToppings = source.some((service) => service.toppings !== undefined)
 
   const toggleStock = (value: ServiceStockFilter) => {
     setStockFilter((current) => (current === value ? 'all' : value))
@@ -230,20 +249,38 @@ export function ServiceCatalogWorkspace() {
     setToppingOnly((current) => !current)
     setPage(0)
   }
-  // Nút tổng "N mặt hàng": bỏ mọi bộ lọc trên thanh thống kê (tồn kho, trạng thái bán, topping).
+  const toggleRecipe = () => {
+    setRecipeOnly((current) => !current)
+    setPage(0)
+  }
+  const toggleWithToppings = () => {
+    setWithToppingsOnly((current) => !current)
+    setPage(0)
+  }
+  // Nút tổng "N mặt hàng": bỏ mọi bộ lọc trên thanh thống kê (tồn kho, trạng thái bán, topping, công thức, bán kèm).
   const resetStatFilters = () => {
     setStockFilter('all')
     setSaleFilter('all')
     setToppingOnly(false)
+    setRecipeOnly(false)
+    setWithToppingsOnly(false)
     setPage(0)
   }
 
   const hasActiveFilter =
-    stockFilter !== 'all' || saleFilter !== 'all' || toppingOnly || search.trim() !== '' || groupFilter !== 0
+    stockFilter !== 'all' ||
+    saleFilter !== 'all' ||
+    toppingOnly ||
+    recipeOnly ||
+    withToppingsOnly ||
+    search.trim() !== '' ||
+    groupFilter !== 0
   const clearFilters = () => {
     setStockFilter('all')
     setSaleFilter('all')
     setToppingOnly(false)
+    setRecipeOnly(false)
+    setWithToppingsOnly(false)
     setGroupFilter(0)
     setSearch('')
     setPage(0)
@@ -298,7 +335,7 @@ export function ServiceCatalogWorkspace() {
       <section className="service-panel__summary" aria-label="Tóm tắt danh mục dịch vụ">
         <button
           type="button"
-          className={`service-stat service-stat--total ${stockFilter === 'all' && saleFilter === 'all' && !toppingOnly ? 'is-active' : ''}`}
+          className={`service-stat service-stat--total ${stockFilter === 'all' && saleFilter === 'all' && !toppingOnly && !recipeOnly && !withToppingsOnly ? 'is-active' : ''}`}
           onClick={resetStatFilters}
         >
           <strong>{new Intl.NumberFormat('vi-VN').format(source.length)}</strong>
@@ -377,6 +414,35 @@ export function ServiceCatalogWorkspace() {
               <span className="service-stat__label">Kèm thêm</span>
               <strong>{toppingCount}</strong>
             </button>
+          </div>
+        ) : null}
+        {/* Nhóm lọc thứ tư: cấu hình của món — có công thức nguyên liệu / có món bán kèm (icon trùng với tag ở cột Mặt hàng). */}
+        {canFilterRecipe || canFilterWithToppings ? (
+          <div className="service-stat-row">
+            {canFilterRecipe ? (
+              <button
+                type="button"
+                className={`service-stat ${recipeOnly ? 'is-active' : ''}`}
+                onClick={toggleRecipe}
+                title="Chỉ hiện món có công thức nguyên liệu (nhiều nguyên liệu hoặc gắn một nguyên liệu)"
+              >
+                <CookingPot className="service-stat__icon" size={14} weight="bold" aria-hidden="true" />
+                <span className="service-stat__label">Có công thức</span>
+                <strong>{recipeCount}</strong>
+              </button>
+            ) : null}
+            {canFilterWithToppings ? (
+              <button
+                type="button"
+                className={`service-stat ${withToppingsOnly ? 'is-active' : ''}`}
+                onClick={toggleWithToppings}
+                title="Chỉ hiện món có món bán kèm"
+              >
+                <Plus className="service-stat__icon" size={14} weight="bold" aria-hidden="true" />
+                <span className="service-stat__label">Có bán kèm</span>
+                <strong>{withToppingsCount}</strong>
+              </button>
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -544,7 +610,12 @@ export function ServiceCatalogWorkspace() {
               </thead>
               <tbody>
                 {visibleServices.map((service) => {
-                  const stock = serviceStockLabel(service)
+                  // Tồn hiển thị: thành phẩm, hoặc ước lượng từ nguyên liệu (xem serviceStockEstimate.ts). Món vừa quản lý tồn
+                  // vừa có công thức ⇒ lấy số nhỏ hơn, badge màu theo số hiệu dụng đó.
+                  const stockView = serviceStockView(service)
+                  const stock = serviceStockLabel(
+                    stockView.kind === 'managed' ? { ...service, inventory: stockView.amount } : service,
+                  )
                   const diffTag = diffBadge(stockDiff(service))
                   const system = isReadonlyService(service)
                   const stopped = isDiscontinued(service)
@@ -573,8 +644,14 @@ export function ServiceCatalogWorkspace() {
                                 </StatusBadge>
                               ) : null}
                             </div>
-                            {/* Dòng hệ thống (FFOOD…) không nằm trong danh mục công thức ⇒ khỏi gọi server. */}
-                            {system ? null : <ServiceRecipeTags service={service} />}
+                            {/* Dòng hệ thống (FFOOD…) không nằm trong danh mục công thức ⇒ khỏi gọi server. Công thức và món bán
+                                kèm xếp CHỒNG trong một cột dồn phải ⇒ hai dòng thẳng mép phải với nhau theo cấu trúc. */}
+                            {system ? null : (
+                              <div className="service-table__tags">
+                                <ServiceRecipeTags service={service} />
+                                <ServiceToppingTags service={service} />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -584,12 +661,31 @@ export function ServiceCatalogWorkspace() {
                         {/* Dạng: [số lượng] đơn vị — màu badge cho biết trạng thái, chữ trạng thái chỉ hiện ở tooltip.
                             Không quản lý tồn ⇒ badge trung tính, không chấm tròn, nội dung "—". */}
                         <div className="service-table__stock">
-                          <StatusBadge tone={stock.tone} dot={stock.dot} title={stock.label}>
-                            {service.inventoryManagement === 1
-                              ? new Intl.NumberFormat('vi-VN').format(service.inventory)
-                              : '—'}
-                          </StatusBadge>
-                          {service.inventoryManagement === 1 ? <span>{service.unit}</span> : null}
+                          {stockView.kind === 'estimate' ? (
+                            // Số ƯỚC LƯỢNG từ nguyên liệu (không phải sổ sách kho thành phẩm): icon nguyên liệu + dấu "~",
+                            // khác badge của tồn thành phẩm để không bị nhầm.
+                            <span
+                              className={`service-table__estimate${stockView.amount <= 0 ? ' is-out' : ''}`}
+                              title={`${stockView.amount <= 0 ? 'Hết nguyên liệu. ' : ''}${stockView.detail}`}
+                            >
+                              <Package size={14} weight="bold" aria-hidden="true" />
+                              {stockView.amount <= 0 ? 'Hết' : `~${formatAmount(stockView.amount)}`}
+                              {stockView.unit ? <small>{stockView.unit}</small> : null}
+                            </span>
+                          ) : (
+                            <>
+                              <StatusBadge
+                                tone={stock.tone}
+                                dot={stock.dot}
+                                title={stockView.kind === 'managed' && stockView.detail ? `${stock.label}. ${stockView.detail}` : stock.label}
+                              >
+                                {service.inventoryManagement === 1
+                                  ? new Intl.NumberFormat('vi-VN').format(stockView.kind === 'managed' ? stockView.amount : service.inventory)
+                                  : '—'}
+                              </StatusBadge>
+                              {service.inventoryManagement === 1 ? <span>{service.unit}</span> : null}
+                            </>
+                          )}
                         </div>
                       </td>
                       <td>

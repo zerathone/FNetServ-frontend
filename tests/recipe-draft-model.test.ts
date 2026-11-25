@@ -5,8 +5,10 @@ import {
   emptyRecipeDraft,
   emptyToppingDraft,
   recipeChanged,
+  recipeDraftForGroup,
   recipeDraftFromConfig,
   recipeSaveBody,
+  setRecipeEnabled,
   toppingChanged,
   toppingDraftFromConfig,
   toppingSaveBody,
@@ -110,4 +112,30 @@ test('toppingChanged: ca hai rong -> khong doi du doi cach chon; tat het topping
   assert.equal(toppingChanged(d, { ...d, single: 1 }), true)
   // tat roi bat lai voi danh sach cu giu nguyen -> khong doi
   assert.equal(toppingChanged(d, { ...d, enabled: true }), false)
+})
+
+test('setRecipeEnabled: bat theo loai nhom, tat giu du lieu', () => {
+  const off = emptyRecipeDraft()
+  // nhom thuong: nhieu nguyen lieu, co san 1 dong trong
+  const normal = setRecipeEnabled(off, true, false)
+  assert.equal(normal.mode, 'recipe')
+  assert.equal(normal.lines.length, 1)
+  // nhom kem them: dung 1 nguyen lieu
+  assert.equal(setRecipeEnabled(off, true, true).mode, 'material')
+  // tat -> none, giu lines/materialId de bat lai khong mat
+  const filled = { ...normal, lines: [{ ...normal.lines[0], materialId: 5, qty: '2' }], materialId: 7 }
+  const tatCa = setRecipeEnabled(filled, false, false)
+  assert.equal(tatCa.mode, 'none')
+  assert.equal(tatCa.lines[0].materialId, 5)
+  assert.equal(setRecipeEnabled(tatCa, true, false).lines[0].qty, '2')
+})
+
+test('recipeDraftForGroup: doi nhom khi cong thuc dang bat', () => {
+  const draft = { ...emptyRecipeDraft(), mode: 'recipe' as const, lines: [{ key: 'a', materialId: 5, qty: '1', waste: '' }] }
+  const topping = recipeDraftForGroup(draft, true)
+  assert.equal(topping.mode, 'material')
+  assert.equal(topping.lines.length, 1) // giu lai de doi nhom lai khong mat
+  assert.equal(recipeDraftForGroup(topping, false).mode, 'recipe')
+  // dang tat thi khong tu bat
+  assert.equal(recipeDraftForGroup(emptyRecipeDraft(), true).mode, 'none')
 })

@@ -742,6 +742,8 @@
 .workspace-nav__count--playing { --workspace-nav-count-color: var(--color-info); }
 .workspace-nav__count--available { --workspace-nav-count-color: var(--color-success); }
 .workspace-nav__count--disconnected { --workspace-nav-count-color: var(--color-danger); }
+.workspace-nav__count--low { --workspace-nav-count-color: var(--color-warning); }
+.workspace-nav__count--out { --workspace-nav-count-color: var(--color-danger); }
 
 /* --- Nav group headers (chỉ workspace Phân tích) --- */
 .workspace-nav__group-header {

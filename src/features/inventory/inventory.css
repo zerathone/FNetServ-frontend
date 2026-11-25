@@ -244,6 +244,68 @@
   gap: var(--space-2);
 }
 
+/* Công thức nhiều nguyên liệu: lưới cột, tiêu đề cột (icon + chữ) một lần ở trên, mỗi dòng chỉ ô nhập trơn. */
+.inv-recipe {
+  gap: var(--space-2);
+  /* Lề phải của chữ trong ô nhập số (.ds-input: viền 1px + đệm space-3) — tiêu đề cột số và ô chỉ-đọc dùng chung để thẳng hàng. */
+  --inv-recipe-num-pad: calc(var(--space-3) + 1px);
+}
+
+.inv-recipe__row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 2.2fr) minmax(7rem, 1fr) minmax(6rem, 0.8fr) 2.5rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.inv-recipe__head {
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.inv-recipe__th {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-recipe__th > svg {
+  flex: none;
+}
+
+/* Cột chỉ-đọc canh phải: tiêu đề thẳng hàng với giá trị bên dưới (cùng lề phải với .inv-recipe__readonly). */
+.inv-recipe__th--end {
+  justify-content: flex-end;
+  padding: 0 var(--inv-recipe-num-pad) 0 0;
+}
+
+.inv-recipe__num {
+  width: 100%;
+  min-width: 0;
+  text-align: right;
+}
+
+/* Bảng một nguyên liệu (nhóm kèm thêm): một cột, không quá rộng. */
+.inv-recipe--single .inv-recipe__row {
+  grid-template-columns: minmax(10rem, 24rem);
+}
+
+/* Ô chỉ-đọc trong bảng (vd giá bán kèm): chữ thường, canh phải, số thẳng hàng; cao bằng ô nhập để dòng không lệch. */
+.inv-recipe__readonly {
+  padding: 0 var(--inv-recipe-num-pad) 0 0;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* ----- tổng tiêu hao ----- */
 .inv-summary {
   display: flex;

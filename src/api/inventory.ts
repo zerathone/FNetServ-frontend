@@ -119,6 +119,8 @@ export type RecipeLine = {
   qty: string
   wastePercent: string
   materialActive: number
+  /** Tồn nguyên liệu hiện tại (decimal chuẩn) — CHỈ có ở `GET /services?include=recipe` (server mới), `/service/recipe-config` không trả. */
+  stockQty?: string
 }
 
 export type ToppingLine = {

@@ -68,6 +68,12 @@
 .service-stat__dot--stopped { background: var(--color-text-secondary); opacity: 0.55; }
 .service-stat__dot--topping { background: var(--color-info); }
 
+/* Icon thay chấm màu ở nút lọc công thức / bán kèm (cùng kích thước 14px với icon trong tag). */
+.service-stat__icon {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
 .service-stat__label {
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -191,6 +197,18 @@
   min-width: 0;
 }
 
+/* Cột tag dồn phải, xếp chồng: dòng công thức rồi dòng món bán kèm; mỗi dòng dồn về mép phải của cột nên hai dòng thẳng nhau.
+   Món chỉ có một loại thì vẫn một tầng như trước. */
+.service-table__tags {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  margin-left: auto;
+}
+
 .service-table__title {
   display: flex;
   flex: 0 1 auto;
@@ -206,8 +224,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
+  max-width: 100%;
   min-width: 0;
-  margin-left: auto;
   overflow: hidden;
 }
 
@@ -231,6 +249,30 @@
 .service-recipe__tag.is-inactive {
   text-decoration: line-through;
   opacity: 0.7;
+}
+
+/* Dòng món bán kèm: icon dấu cộng + tag, dồn phải như tag công thức. */
+.service-topping {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.service-recipe__icon,
+.service-topping__icon {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* Hết hàng theo kho: màu cảnh báo (kèm chữ trong tooltip, không chỉ dựa vào màu). */
+.service-topping__tag.is-out {
+  border-color: var(--color-warning);
+  background: var(--color-warning-surface);
+  color: var(--color-text-primary);
 }
 
 .service-recipe__tag--more {
@@ -284,6 +326,25 @@
   gap: var(--space-2);
   min-width: 10rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Tồn ƯỚC LƯỢNG theo nguyên liệu: chữ + icon nguyên liệu, không viền badge (khác tồn thành phẩm). */
+.service-table__estimate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  cursor: help;
+}
+
+.service-table__estimate small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.service-table__estimate.is-out {
+  color: var(--color-danger);
+  font-weight: 600;
 }
 
 .service-table__sale {

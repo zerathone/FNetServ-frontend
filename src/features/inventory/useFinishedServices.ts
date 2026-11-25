@@ -1,14 +1,16 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getServicesWithRecipe, type ServiceItem } from '../../api/services'
+import { getServices, type ServiceItem } from '../../api/services'
 import { isManagedStock } from './finishedStockModel'
 
 /**
- * Danh sách mặt hàng cho các màn kho THÀNH PHẨM. Dùng đúng query key của trang Dịch vụ & hàng hóa
- * (`['services', 'catalog']`) ⇒ một request cho cả trang, và mọi `invalidateQueries(['services'])` làm mới lại.
+ * Danh sách mặt hàng cho các màn kho THÀNH PHẨM. Chỉ cần tồn / tên / nhóm / đơn vị — những field server luôn trả — nên gọi
+ * `GET /services` THƯỜNG, KHÔNG kèm `include=recipe,topping` (các câu SQL gộp công thức + bán kèm + tồn nguyên liệu chỉ phục vụ
+ * tab Dịch vụ của danh mục, tách riêng 2026-11-25 để màn kho không phải chạy thêm). Khoá riêng `['services', 'finished']` vẫn
+ * nằm dưới `['services']` ⇒ mọi `invalidateQueries(['services'])` làm mới lại.
  */
 export function useFinishedServices() {
-  const query = useQuery({ queryKey: ['services', 'catalog'], queryFn: getServicesWithRecipe })
+  const query = useQuery({ queryKey: ['services', 'finished'], queryFn: getServices })
   const all = query.data
   const managed = useMemo(() => (all ?? []).filter(isManagedStock), [all])
   const byId = useMemo(() => {

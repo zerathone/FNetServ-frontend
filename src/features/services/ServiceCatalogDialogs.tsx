@@ -48,6 +48,7 @@ import {
   emptyToppingDraft,
   nextDraftKey,
   recipeChanged,
+  recipeDraftForGroup,
   recipeDraftFromConfig,
   recipeSaveBody,
   toppingChanged,
@@ -496,6 +497,9 @@ export function ServiceEditorDialog({
                   value={groupKind}
                   onChange={(kind) => {
                     setGroupKind(kind)
+                    // Công thức đang bật: nhóm kèm thêm chỉ 1 nguyên liệu, nhóm thường nhiều nguyên liệu (dữ liệu của kiểu
+                    // bên kia được giữ để đổi lại nhóm không mất).
+                    setRecipe((cur) => recipeDraftForGroup(cur, kind === 'topping'))
                     const list = kind === 'topping' ? choices.topping : choices.normal
                     if (!list.some((g) => g.groupId === draft.groupId)) patch({ groupId: 0 })
                   }}
@@ -675,8 +679,14 @@ export function ServiceEditorDialog({
         {configurable && !configLoading && !configError ? (
           <>
             <section className="inv-block svc-form__wide" aria-label="Công thức nguyên liệu">
-              <h3>Công thức nguyên liệu</h3>
-              <RecipeFields draft={recipe} onChange={setRecipe} materials={materials} disabled={!configReady} />
+              {/* Không có <h3> riêng: nhãn công tắc "Có công thức nguyên liệu" đã là tiêu đề (tránh lặp 2 dòng). */}
+              <RecipeFields
+                draft={recipe}
+                onChange={setRecipe}
+                materials={materials}
+                disabled={!configReady}
+                toppingGroup={groupKind === 'topping'}
+              />
               {service && initial && recipe.mode === 'none' && initial.recipe.mode !== 'none' ? (
                 <InlineAlert tone="info">
                   Lưu sẽ gỡ công thức hiện có; món này không còn trừ nguyên liệu khi bán.

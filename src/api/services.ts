@@ -43,6 +43,46 @@ export type ServiceItem = {
    * Cùng hình dạng với `/service/recipe-config` (`qty` là chuỗi decimal chuẩn, vd "1.500").
    */
   recipe?: RecipeLine[]
+  /**
+   * Nguyên liệu mà món "là nguyên liệu" (servicetb.zMaterialId > 0) đại diện + tồn — CHỈ có ở `?include=recipe` và chỉ món
+   * thuộc loại đó. `undefined` = không phải món loại đó HOẶC server cũ.
+   */
+  material?: ServiceMaterial
+  /**
+   * Món bán kèm của món (kèm tồn để tính "còn bao nhiêu phần") — CHỈ có ở `?include=topping`, server mới. `[]` = không có món
+   * bán kèm; `undefined` = server cũ / không hỏi.
+   */
+  toppings?: ServiceTopping[]
+}
+
+export type ServiceMaterial = {
+  materialId: number
+  name: string
+  unit: string
+  /** Tồn nguyên liệu (decimal chuẩn, vd "12.500"). */
+  stockQty: string
+  active: number
+}
+
+export type ServiceTopping = {
+  /** ServiceId của món bán kèm. */
+  serviceId: number
+  name: string
+  unit: string
+  /** Giá thực tính cho khách = giá bán của món bán kèm (VND). */
+  price: number
+  /** Lượng nguyên liệu trừ / 1 topping của CẶP (món cha, topping); "0.000" = chưa khai, server tính là 1. */
+  toppingQty: string
+  /** > 0 = topping gắn nguyên liệu (trừ `materialstb`); 0 = topping thường / thành phẩm. */
+  zMaterialId: number
+  inventoryManagement: number
+  /** Tồn thành phẩm của món bán kèm — chỉ có nghĩa khi `inventoryManagement === 1`. */
+  inventory: number
+  active: number
+  materialName: string
+  materialUnit: string
+  materialStock: string
+  materialActive: number
 }
 
 export function getServices() {
@@ -50,11 +90,12 @@ export function getServices() {
 }
 
 /**
- * Danh sách kèm công thức từng món trong CÙNG một request (server gộp 1 câu SQL, không N+1). Dùng queryKey riêng
- * (`['services', 'catalog']`) — KHÔNG dùng chung `['services']` với các nơi gọi `getServices()` vì hình dạng dữ liệu khác.
+ * Danh sách kèm công thức + món bán kèm (+ tồn nguyên liệu) từng món trong CÙNG một request (server gộp vài câu SQL cho cả
+ * danh mục, không N+1). Dùng queryKey riêng (`['services', 'catalog']`) — KHÔNG dùng chung `['services']` với các nơi gọi
+ * `getServices()` vì hình dạng dữ liệu khác.
  */
 export function getServicesWithRecipe() {
-  return apiGet<ServiceItem[]>('/services?include=recipe')
+  return apiGet<ServiceItem[]>('/services?include=recipe,topping')
 }
 
 export const servicesApi = {

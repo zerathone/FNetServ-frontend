@@ -2,6 +2,7 @@ import { CalendarPlus, CallBell, Ticket, Wallet } from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
 import { usePendingComboOrders } from '../features/checkout/comboPendingModel'
 import { useHealthAlertSummary } from '../features/health-monitor/useHealthAlertSummary'
+import { useMaterialNavCounts } from '../features/inventory/useMaterialNavCounts'
 import { useBookingNavCounts } from '../features/online-booking/useBookingNavCounts'
 import { useOrderNavCounts } from '../features/orders/useOrderNavCounts'
 import {
@@ -21,7 +22,7 @@ import { useNavBadge, type NavBadgeState } from './useNavBadge'
 //   - số tăng / giảm / về 0 thì chớp (sáng -> mờ -> sáng) 10 giây (useNavBadge); về 0 thì chấm nán lại số 0
 //     và chớp 3 giây rồi mới biến mất.
 
-export type NavBadgeTone = 'playing' | 'available' | 'disconnected' | 'pending' | 'accepted' | 'confirmed'
+export type NavBadgeTone = 'playing' | 'available' | 'disconnected' | 'pending' | 'accepted' | 'confirmed' | 'low' | 'out'
 
 function NavCountChip({
   badge,
@@ -101,6 +102,24 @@ function BookingBadges() {
   )
 }
 
+// Nguyên liệu: sắp hết = warning, hết tồn = danger (cùng màu với trang Nguyên liệu). CHỈ hiện khi số > 0 (user chốt 2026-11-25):
+// khác 4 mục trên, về 0 là mất ngay, KHÔNG nán lại chấm số 0.
+function positiveOnly(badge: NavBadgeState): NavBadgeState {
+  return badge.value > 0 ? badge : { ...badge, visible: false }
+}
+
+function MaterialBadges() {
+  const counts = useMaterialNavCounts(true)
+  const low = positiveOnly(useNavBadge(counts?.low))
+  const out = positiveOnly(useNavBadge(counts?.out))
+  return (
+    <CountsGroup show={low.visible || out.visible}>
+      <NavCountChip badge={low} tone="low" title="Nguyên liệu sắp hết" label="Nguyên liệu sắp hết" />
+      <NavCountChip badge={out} tone="out" title="Nguyên liệu hết tồn" label="Nguyên liệu hết tồn" />
+    </CountsGroup>
+  )
+}
+
 const SELF_PAYMENT_ICON: Record<SelfPaymentKind, typeof Wallet> = {
   deposit: Wallet,
   combo: Ticket,
@@ -161,6 +180,8 @@ export function NavItemBadges({ to, pollNavData }: { to: string; pollNavData: bo
       return <ComboBadges />
     case '/online-booking':
       return <BookingBadges />
+    case '/inventory':
+      return <MaterialBadges />
     case '/logs/voucher':
       return <TransactionBadge />
     case '/health_monitor':
