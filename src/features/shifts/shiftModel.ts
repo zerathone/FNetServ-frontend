@@ -88,7 +88,8 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
   const mode = toNumber(r.mode, 0)
   const enabled = r.enabled === true && mode >= 1
   if (!enabled) {
-    // mode 0 ⇒ không có khái niệm ngừng nhận đơn (máy chủ trả SHIFT_DISABLED cho pause/resume): bỏ qua orderPause.
+    // mode 0 ⇒ không có ca, nhưng "Dừng/Tiếp tục nhận đơn" dùng ĐỘC LẬP chế độ ca (user chốt 2026-11-25): máy chủ mới gửi
+    // kèm `orderPause`; máy chủ cũ không gửi ⇒ null ⇒ không có tính năng, ẩn nút.
     return {
       enabled: false,
       mode: 0,
@@ -96,7 +97,7 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
       loginDayStart: toText(r.loginDayStart),
       shift: null,
       lastClosed: null,
-      orderPause: null,
+      orderPause: normalizeOrderPause(r.orderPause),
     }
   }
   const parsedShift = r.shift && typeof r.shift === 'object' ? normalizeShiftInfo(r.shift) : null
@@ -114,7 +115,7 @@ export function normalizeCurrent(raw: unknown): ShiftCurrent {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Ngừng / Tiếp tục nhận đơn (task S3b-FE) — design mục 8b. Trạng thái toàn hệ thống, sống qua chốt ca (Q8).
+// Dừng / Tiếp tục nhận đơn (task S3b-FE) — design mục 8b. Trạng thái toàn hệ thống, sống qua chốt ca (Q8).
 // ---------------------------------------------------------------------------------------------
 
 /** Lý do tối đa 40 ký tự (khớp server `INT_ORDER_PAUSE.r`). */
@@ -233,18 +234,18 @@ export function formatClock(value: string): string {
 }
 
 /**
- * Dòng chính của banner. Cờ thủ công thắng (người ca sau cần thấy ai ngừng): "Đang ngừng nhận đơn từ 10:02 · A · Lý do: …".
- * Không có cờ thủ công mà vẫn chặn (`noShift` + chế độ 2): "Chưa có ca nào mở — đang ngừng nhận đơn". Chế độ 1: chỉ nhắc.
+ * Dòng chính của banner. Cờ thủ công thắng (người ca sau cần thấy ai ngừng): "Dừng nhận đơn từ 10:02 · A · Lý do: …".
+ * Không có cờ thủ công mà vẫn chặn (`noShift` + chế độ 2): "Chưa có ca nào mở — đang dừng nhận đơn". Chế độ 1: chỉ nhắc.
  */
 export function pauseHeadline(pause: ShiftOrderPause): string {
   const { manual } = pause
   if (manual.on) {
-    const parts = [`Đang ngừng nhận đơn${manual.since ? ` từ ${formatClock(manual.since)}` : ''}`]
+    const parts = [`Dừng nhận đơn${manual.since ? ` từ ${formatClock(manual.since)}` : ''}`]
     if (manual.byName) parts.push(manual.byName)
     if (manual.reason) parts.push(`Lý do: ${manual.reason}`)
     return parts.join(' · ')
   }
-  return pause.on ? 'Chưa có ca nào mở — đang ngừng nhận đơn' : 'Chưa có ca nào đang mở'
+  return pause.on ? 'Chưa có ca nào mở — đang dừng nhận đơn' : 'Chưa có ca nào đang mở'
 }
 
 export type PauseChipText = {
@@ -263,18 +264,19 @@ export type PauseChipText = {
 export function pauseChipText(pause: ShiftOrderPause, minutes: number | null): PauseChipText {
   const { manual } = pause
   if (manual.on) {
-    const long = `Đang ngừng nhận đơn${manual.since ? ` từ ${formatClock(manual.since)}` : ''}${manual.byName ? ` · ${manual.byName}` : ''}`
+    // Gọn (2026-11-25): chỉ giờ dừng; tên người dừng + lý do nằm ở `tooltip` (qua pauseHeadline).
+    const long = `Dừng nhận đơn${manual.since ? ` từ ${formatClock(manual.since)}` : ''}`
     const lines = [pauseHeadline(pause)]
-    if (minutes !== null) lines.push(`Đã ngừng ${formatElapsed(minutes)}.`)
+    if (minutes !== null) lines.push(`Đã dừng ${formatElapsed(minutes)}.`)
     lines.push('Duyệt, hủy và thu đơn đã có vẫn dùng được.')
-    if (isPauseOverdue(minutes)) lines.push('Kiểm kho xong thì bấm Tiếp tục nhận đơn để khách gọi món lại.')
-    return { short: 'Đang ngừng nhận đơn', long, tooltip: lines.join(' ') }
+    if (isPauseOverdue(minutes)) lines.push('Sẵn sàng thì bấm Tiếp tục nhận đơn để khách gọi món lại.')
+    return { short: 'Dừng nhận đơn', long, tooltip: lines.join(' ') }
   }
   if (pause.on) {
     return {
-      short: 'Đang ngừng nhận đơn',
-      long: 'Chưa có ca nào mở — đang ngừng nhận đơn',
-      tooltip: 'Chưa có ca nào mở nên quán đang ngừng nhận đơn. Ca đầu tiên được mở thì quán nhận đơn trở lại.',
+      short: 'Dừng nhận đơn',
+      long: 'Chưa có ca nào mở — đang dừng nhận đơn',
+      tooltip: 'Chưa có ca nào mở nên quán đang dừng nhận đơn. Ca đầu tiên được mở thì quán nhận đơn trở lại.',
     }
   }
   return {
@@ -284,11 +286,11 @@ export function pauseChipText(pause: ShiftOrderPause, minutes: number | null): P
   }
 }
 
-/** Câu hỏi ở Dialog Mở ca (Q8): "Đang ngừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?" — dựa vào `manual`. */
+/** Câu hỏi ở Dialog Mở ca (Q8): "Dừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?" — dựa vào `manual`. */
 export function pauseResumeQuestion(pause: ShiftOrderPause): string {
   const from = pause.manual.since ? ` từ ${formatClock(pause.manual.since)}` : ''
   const by = pause.manual.byName ? ` (bởi ${pause.manual.byName})` : ''
-  return `Đang ngừng nhận đơn${from}${by}. Tiếp tục nhận đơn?`
+  return `Dừng nhận đơn${from}${by}. Tiếp tục nhận đơn?`
 }
 
 /** Số đơn đang chờ dạng chữ để nhắc trước khi ngừng; không có đơn nào ⇒ chuỗi rỗng. */
@@ -300,7 +302,7 @@ export function describeIntakePending(pending: ShiftIntakePending): string {
   return parts.join(', ')
 }
 
-/** Lý do ngừng nhận đơn: ≤ 40 ký tự, không `'` `\` (server `isSqlSafeText`); ký tự điều khiển đã bị `sanitizeNoteInput` đổi thành khoảng trắng. */
+/** Lý do dừng nhận đơn: ≤ 40 ký tự, không `'` `\` (server `isSqlSafeText`); ký tự điều khiển đã bị `sanitizeNoteInput` đổi thành khoảng trắng. */
 export function validatePauseReason(value: string): string | undefined {
   if (value.length > MAX_PAUSE_REASON) return `Lý do tối đa ${MAX_PAUSE_REASON} ký tự.`
   if (/['\\]/.test(value)) return "Lý do không dùng dấu nháy đơn (') hoặc gạch chéo ngược (\\)."

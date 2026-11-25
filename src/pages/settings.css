@@ -403,11 +403,6 @@
   border-bottom: 0;
 }
 
-/* Cột "Menu order" chưa có cài đặt: nhạt hơn để không tranh sự chú ý với cột đang dùng được. */
-.pay-table__soon {
-  color: var(--color-text-muted);
-}
-
 .pay-na {
   color: var(--color-text-muted);
 }

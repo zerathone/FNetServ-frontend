@@ -633,6 +633,114 @@
   gap: var(--space-3);
 }
 
+/* Khung giữ vị trí cho nút nổi (nút không cuộn theo lưới). */
+.svc-lib__scroller {
+  position: relative;
+}
+
+.svc-lib__sentinel {
+  grid-column: 1 / -1;
+  height: 1px;
+}
+
+/* Cụm nổi: nút "Lên đầu" (vòng = vị trí cuộn) + số ảnh đã tải / tổng bên dưới. */
+.svc-lib__float {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-2);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  pointer-events: none;
+}
+
+.svc-lib__float > * {
+  pointer-events: auto;
+}
+
+.svc-lib__count {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-default);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
+}
+
+/* Nút "Lên đầu" + vòng vị trí cuộn. 44x44 đạt vùng chạm tối thiểu. */
+.svc-lib__top {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-surface-default);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: transform 150ms ease-out, background-color 150ms ease-out;
+}
+
+.svc-lib__top:hover {
+  background: var(--color-surface-hover);
+}
+
+.svc-lib__top:active {
+  transform: scale(0.95);
+}
+
+.svc-lib__top:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.svc-lib__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.svc-lib__ring circle {
+  fill: none;
+  stroke-width: 3;
+}
+
+.svc-lib__ring-track {
+  stroke: var(--color-border-default);
+}
+
+.svc-lib__ring-value {
+  stroke: var(--color-action-primary);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 250ms ease-out;
+}
+
+.svc-lib__top.is-loading .svc-lib__ring-value {
+  animation: svc-lib-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes svc-lib-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svc-lib__top,
+  .svc-lib__ring-value {
+    transition: none;
+  }
+  .svc-lib__top.is-loading .svc-lib__ring-value {
+    animation: none;
+  }
+}
+
 .svc-groups {
   display: grid;
   gap: var(--space-3);

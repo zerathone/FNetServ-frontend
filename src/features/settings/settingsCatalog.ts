@@ -74,13 +74,13 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   // Phương thức thanh toán
   { section: 'payment', anchor: 'combo-payment', label: 'Thanh toán combo tại máy trạm', keywords: ['combo', 'qr', 'chuyển khoản', 'tiền mặt', 'cấn trừ', 'phương thức thanh toán', 'nút thanh toán', 'mua combo'] },
   { section: 'payment', anchor: 'counter-payment', label: 'Nạp tiền tại thu ngân (chuyển khoản)', keywords: ['chuyển khoản', 'nạp tiền', 'thu ngân', 'quầy', 'bật tắt chuyển khoản', 'nút chuyển khoản'] },
-  { section: 'payment', label: 'Thanh toán menu order (dịch vụ)', keywords: ['menu order', 'dịch vụ', 'gọi món', 'thanh toán dịch vụ', 'icafe'] },
+  { section: 'payment', anchor: 'service-payment', label: 'Thanh toán menu order (dịch vụ)', keywords: ['menu order', 'dịch vụ', 'gọi món', 'thanh toán dịch vụ', 'icafe', 'qr', 'tiền mặt', 'cấn trừ', 'phương thức thanh toán'] },
 
   // Đơn hàng
   { section: 'orders', anchor: 'order-queue', label: 'Cảnh báo hàng đơn chờ', keywords: ['đơn chờ', 'chờ lâu', 'cảnh báo vàng', 'cảnh báo đỏ', 'giữ nguyên liệu', 'số phút', 'đơn hàng', 'gọi món'] },
 
   // Ca làm việc
-  { section: 'shift', anchor: 'shift-mode', label: 'Chế độ ca làm việc', keywords: ['ca làm việc', 'mở ca', 'chốt ca', 'bắt buộc mở ca', 'ghi sổ ca', 'tắt ca', 'chế độ ca', 'thu ngân', 'bàn giao ca', 'ngừng nhận đơn', 'kiểm kho giao ca'] },
+  { section: 'shift', anchor: 'shift-mode', label: 'Chế độ ca làm việc', keywords: ['ca làm việc', 'mở ca', 'chốt ca', 'bắt buộc mở ca', 'ghi sổ ca', 'tắt ca', 'chế độ ca', 'thu ngân', 'bàn giao ca', 'dừng nhận đơn', 'dừng nhận đơn', 'tạm dừng nhận đơn', 'kiểm kho giao ca'] },
 
   // Sơ đồ máy trạm
   { section: 'wsmap', label: 'Sơ đồ máy trạm', keywords: ['bản đồ', 'vị trí máy', 'sắp xếp máy', 'tường', 'đồ vật', 'bố trí phòng'] },

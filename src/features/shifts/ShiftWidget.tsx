@@ -103,7 +103,7 @@ export function ShiftWidget() {
         <p className="shift-widget__since">
           Ca #{shift.shiftId} · từ {formatShiftTime(shift.openTime)}
         </p>
-        {isIntakePaused(orderPause) ? <StatusBadge tone="danger">Đang ngừng nhận đơn</StatusBadge> : null}
+        {isIntakePaused(orderPause) ? <StatusBadge tone="danger">Dừng nhận đơn</StatusBadge> : null}
         <div className="shift-widget__total" aria-live="polite">
           <span>Doanh thu ca</span>
           {summaryQuery.isError && total === undefined ? (

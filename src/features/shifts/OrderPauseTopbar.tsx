@@ -1,6 +1,6 @@
-// task work-shift S3b-FE — khối "Đang ngừng nhận đơn" Ở THANH TRÊN CÙNG (topbar), mọi trang (user chốt 2026-11-21: chuyển từ dải cố
+// task work-shift S3b-FE — khối "Dừng nhận đơn" Ở THANH TRÊN CÙNG (topbar), mọi trang (user chốt 2026-11-21: chuyển từ dải cố
 // định ở đáy màn hình lên topbar). Nằm TRONG chiều cao topbar hiện có (4rem) — không thêm hàng nên không đẩy layout xuống
-// (nhiều trang tính chiều cao theo 100vh). Màn hẹp: chữ rút gọn còn "Đang ngừng nhận đơn" + nút chỉ biểu tượng; giờ ngừng,
+// (nhiều trang tính chiều cao theo 100vh). Màn hẹp: chữ rút gọn còn "Dừng nhận đơn" + nút chỉ biểu tượng; giờ ngừng,
 // tên, lý do, thời gian đã ngừng nằm ở `title` (tooltip).
 // Cờ thủ công: khối đỏ + nút "Tiếp tục nhận đơn". Quá 30 phút (Q10): nhấn mạnh + nhắc MỘT lần, KHÔNG tự tiếp tục.
 // "Không có ca" (`noShift`, S4b): chế độ Bắt buộc ⇒ khối đỏ không nút (tự hết khi có người mở ca); chế độ Ghi sổ ⇒ khối vàng chỉ nhắc.
@@ -32,7 +32,7 @@ function markReminded(since: string) {
 }
 
 export function OrderPauseTopbar() {
-  const { orderPause } = useOrderIntake()
+  const { enabled: shiftOn, orderPause } = useOrderIntake()
   const minutes = usePauseElapsedMinutes()
   const overdue = isPauseOverdue(minutes)
   const manualSince = orderPause?.manual.on ? orderPause.manual.since : ''
@@ -41,10 +41,12 @@ export function OrderPauseTopbar() {
     if (!overdue || !manualSince || minutes === null || wasReminded(manualSince)) return
     markReminded(manualSince)
     pushToast(
-      `Đã ngừng nhận đơn ${formatElapsed(minutes)}. Kiểm kho xong thì bấm Tiếp tục nhận đơn.`,
+      shiftOn
+        ? `Đã dừng nhận đơn ${formatElapsed(minutes)}. Kiểm kho xong thì bấm Tiếp tục nhận đơn.`
+        : `Đã dừng nhận đơn ${formatElapsed(minutes)}. Sẵn sàng thì bấm Tiếp tục nhận đơn.`,
       'info',
     )
-  }, [overdue, manualSince, minutes])
+  }, [overdue, manualSince, minutes, shiftOn])
 
   if (!orderPause) return null
   const manual = orderPause.manual.on
@@ -58,7 +60,7 @@ export function OrderPauseTopbar() {
 
   return (
     <div
-      className={`order-pause-chip${overdue ? ' is-overdue' : ''}${warningOnly ? ' is-warning' : ''}`}
+      className={`order-pause-chip${overdue ? ' is-overdue' : ''}${warningOnly ? ' is-warning' : ''}${manual ? ' has-action' : ''}`}
       role="status"
       aria-live="polite"
       title={text.tooltip}
@@ -69,7 +71,7 @@ export function OrderPauseTopbar() {
         <strong className="order-pause-chip__short">{text.short}</strong>
         <strong className="order-pause-chip__long">
           {text.long}
-          {manual && overdue && minutes !== null ? ` · đã ngừng ${formatElapsed(minutes)}` : ''}
+          {manual && overdue && minutes !== null ? ` · đã dừng ${formatElapsed(minutes)}` : ''}
         </strong>
       </span>
       {manual ? <PauseIntakeButton compact /> : null}

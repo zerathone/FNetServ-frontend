@@ -23,7 +23,16 @@ import {
 } from '@phosphor-icons/react'
 import { Children, forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'neutral' | 'ghost' | 'outline' | 'danger' | 'danger-outline' | 'warning-outline'
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'neutral'
+  | 'ghost'
+  | 'outline'
+  | 'danger'
+  | 'danger-outline'
+  | 'warning-outline'
+  | 'warning'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant

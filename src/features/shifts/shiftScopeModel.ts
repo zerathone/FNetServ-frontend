@@ -41,7 +41,7 @@ export function scopeKeyPart(scope: ShiftScope | undefined): string {
  * Các query phải làm mới khi nhận `shift.changed` (mở / chốt / đóng cưỡng bức / đổi chế độ / ngừng / tiếp tục nhận đơn).
  * `['shift']` phủ `/shift/current`, `/shift/summary`, trang quản lý; ba key còn lại là các ô thống kê theo mốc mở ca.
  * `orders-completed` CHỈ lấy nhánh `stats`: danh sách (`['orders-completed','list']`) luôn là 24 giờ, không đổi theo ca nên
- * không cần tải lại mỗi khi có người mở / chốt ca / ngừng nhận đơn.
+ * không cần tải lại mỗi khi có người mở / chốt ca / dừng nhận đơn.
  * KHÔNG lấy số tiền từ event — chỉ là tín hiệu, số thật luôn đọc lại qua REST.
  */
 export const SHIFT_CHANGED_QUERY_KEYS: ReadonlyArray<readonly string[]> = [
@@ -90,7 +90,7 @@ export const ORDER_PAUSED_CODE = 'ORDER_PAUSED'
 
 /** Câu cố định theo handoff F4; máy chủ trả câu khác nhau theo `reason` nên web không dùng `message` của SHIFT_REQUIRED. */
 export const SHIFT_REQUIRED_MESSAGE = 'Bạn chưa mở ca. Hãy mở ca rồi thử lại.'
-const ORDER_PAUSED_FALLBACK = 'Quán đang tạm ngừng nhận đơn, vui lòng thử lại sau.'
+const ORDER_PAUSED_FALLBACK = 'Quán đang tạm dừng nhận đơn, vui lòng thử lại sau.'
 
 export type ShiftBlockAction = 'open-shift' | 'resume-intake'
 
@@ -127,7 +127,7 @@ export function classifyShiftBlock(code: unknown, message: unknown, details?: un
     const source = cleanText(asRecord(details).source)
     return {
       code: ORDER_PAUSED_CODE,
-      title: 'Đang ngừng nhận đơn',
+      title: 'Dừng nhận đơn',
       message: cleanText(message) || ORDER_PAUSED_FALLBACK,
       actions: source === 'manual' ? ['resume-intake'] : source === 'no_shift' ? ['open-shift'] : [],
     }

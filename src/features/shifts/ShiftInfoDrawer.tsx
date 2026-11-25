@@ -20,7 +20,7 @@ export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
   const summaryQuery = useShiftSummary(shift.shiftId, open)
   const summary = summaryQuery.data
   const { enabled, orderPause, manualPaused: paused } = useOrderIntake()
-  // Hộp xác nhận ngừng nhận đơn đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Drawer (cả hai nghe Esc trên document).
+  // Hộp xác nhận dừng nhận đơn đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Drawer (cả hai nghe Esc trên document).
   const pauseDialogOpen = useRef(false)
 
   return (
@@ -65,7 +65,7 @@ export function ShiftInfoDrawer({ open, shift, onClose }: Props) {
             <p>
               {paused && orderPause
                 ? pauseHeadline(orderPause)
-                : 'Kiểm kho giao ca? Ngừng nhận đơn để số tồn đứng yên, xong thì tiếp tục.'}
+                : 'Kiểm kho giao ca? Dừng nhận đơn để số tồn đứng yên, xong thì tiếp tục.'}
             </p>
             <PauseIntakeButton
               onDialogOpenChange={(next) => {

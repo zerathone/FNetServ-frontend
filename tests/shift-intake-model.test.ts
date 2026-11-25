@@ -70,7 +70,7 @@ test('normalizeOrderPause: noShift + chế độ 2 ⇒ on mà không manual (kho
   assert.equal(isIntakePaused(pause), true)
   assert.equal(isManualPaused(pause), false)
   assert.equal(isNoShiftWarningOnly(pause), false)
-  assert.equal(pauseHeadline(pause), 'Chưa có ca nào mở — đang ngừng nhận đơn')
+  assert.equal(pauseHeadline(pause), 'Chưa có ca nào mở — đang dừng nhận đơn')
 })
 
 test('normalizeOrderPause: noShift + chế độ 1 ⇒ on=false mà noShift=true: CHỈ cảnh báo, không khoá nút', () => {
@@ -86,7 +86,7 @@ test('normalizeOrderPause: A ngừng thủ công rồi chốt ca cuối ⇒ manu
   assert.ok(pause)
   assert.equal(isManualPaused(pause), true) // Dialog Mở ca hỏi "Tiếp tục nhận đơn?" dựa vào đây
   assert.equal(isNoShiftWarningOnly(pause), false)
-  assert.match(pauseHeadline(pause), /^Đang ngừng nhận đơn từ 10:02 · A/)
+  assert.match(pauseHeadline(pause), /^Dừng nhận đơn từ 10:02 · A/)
 })
 
 test('normalizeOrderPause: thiếu / sai kiểu ⇒ null hoặc coi như đang nhận đơn', () => {
@@ -106,9 +106,15 @@ test('normalizeOrderPause: thiếu / sai kiểu ⇒ null hoặc coi như đang n
   assert.equal(normalizeOrderPause({ ...manualRaw, manual: { ...manualRaw.manual, reason: 'no_shift' } })?.manual.reason, 'no_shift')
 })
 
-test('normalizeCurrent: mode 0 bỏ qua orderPause; mode ≥ 1 mang theo orderPause', () => {
+test('normalizeCurrent: orderPause độc lập chế độ ca — mang theo cả mode 0 (nếu máy chủ gửi) lẫn mode ≥ 1', () => {
+  // Mode 0: vẫn không có ca (enabled=false) nhưng giữ orderPause để nút Ngừng/Nhận đơn dùng được (user chốt 2026-11-25).
   const off = normalizeCurrent({ enabled: false, mode: 0, orderPause: manualRaw })
-  assert.equal(off.orderPause, null)
+  assert.equal(off.enabled, false)
+  assert.equal(off.shift, null)
+  assert.equal(off.orderPause?.on, true)
+  assert.equal(off.orderPause?.manual.byName, 'A')
+  // Máy chủ cũ không gửi orderPause ở mode 0 ⇒ null ⇒ ẩn nút.
+  assert.equal(normalizeCurrent({ enabled: false, mode: 0 }).orderPause, null)
   const on = normalizeCurrent({ enabled: true, mode: 2, shift: null, orderPause: manualRaw })
   assert.equal(on.orderPause?.on, true)
   assert.equal(normalizeCurrent({ enabled: true, mode: 1 }).orderPause, null) // máy chủ cũ không gửi
@@ -127,34 +133,36 @@ test('normalizeOrderPauseResponse: {changed, orderPause} cùng hình dạng /shi
 test('pauseHeadline / pauseResumeQuestion theo đúng câu design 8b', () => {
   const pause = normalizeOrderPause(manualRaw)
   assert.ok(pause)
-  assert.equal(pauseHeadline(pause), 'Đang ngừng nhận đơn từ 10:02 · A · Lý do: Kiểm kho giao ca')
+  assert.equal(pauseHeadline(pause), 'Dừng nhận đơn từ 10:02 · A · Lý do: Kiểm kho giao ca')
   assert.equal(
     pauseHeadline({ ...pause, manual: { ...pause.manual, reason: '' } }),
-    'Đang ngừng nhận đơn từ 10:02 · A',
+    'Dừng nhận đơn từ 10:02 · A',
   )
-  assert.equal(pauseResumeQuestion(pause), 'Đang ngừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?')
+  assert.equal(pauseResumeQuestion(pause), 'Dừng nhận đơn từ 10:02 (bởi A). Tiếp tục nhận đơn?')
   assert.equal(
     pauseResumeQuestion({ ...pause, manual: { ...pause.manual, byName: '' } }),
-    'Đang ngừng nhận đơn từ 10:02. Tiếp tục nhận đơn?',
+    'Dừng nhận đơn từ 10:02. Tiếp tục nhận đơn?',
   )
 })
 
-test('pauseChipText (khối ở topbar): chữ gọn luôn giữ ý chính; giờ + tên ở bản đầy đủ; lý do + thời gian ở tooltip', () => {
+test('pauseChipText (khối ở topbar): chữ gọn luôn giữ ý chính; giờ ở bản đầy đủ; tên + lý do + thời gian ở tooltip', () => {
   const manual = normalizeOrderPause(manualRaw)
   assert.ok(manual)
   const chip = pauseChipText(manual, 47)
-  assert.equal(chip.short, 'Đang ngừng nhận đơn')
-  assert.equal(chip.long, 'Đang ngừng nhận đơn từ 10:02 · A')
+  assert.equal(chip.short, 'Dừng nhận đơn')
+  assert.equal(chip.long, 'Dừng nhận đơn từ 10:02') // gọn: không còn tên người ngừng trên thanh
+  assert.doesNotMatch(chip.long, /·/)
+  assert.match(chip.tooltip, / · A/) // tên người ngừng nằm ở tooltip
   assert.match(chip.tooltip, /Lý do: Kiểm kho giao ca/)
-  assert.match(chip.tooltip, /Đã ngừng 47 phút/)
+  assert.match(chip.tooltip, /Đã dừng 47 phút/)
   assert.match(chip.tooltip, /Tiếp tục nhận đơn/) // quá 30 phút: nhắc bấm tiếp tục
   assert.doesNotMatch(pauseChipText(manual, 12).tooltip, /kiểm kho xong thì bấm/i)
-  assert.doesNotMatch(pauseChipText(manual, null).tooltip, /Đã ngừng \d/)
+  assert.doesNotMatch(pauseChipText(manual, null).tooltip, /Đã dừng \d/)
 
   const blocking = normalizeOrderPause({ ...idleRaw, on: true, noShift: true })
   assert.ok(blocking)
-  assert.equal(pauseChipText(blocking, null).short, 'Đang ngừng nhận đơn')
-  assert.equal(pauseChipText(blocking, null).long, 'Chưa có ca nào mở — đang ngừng nhận đơn')
+  assert.equal(pauseChipText(blocking, null).short, 'Dừng nhận đơn')
+  assert.equal(pauseChipText(blocking, null).long, 'Chưa có ca nào mở — đang dừng nhận đơn')
 
   const warn = normalizeOrderPause({ ...idleRaw, noShift: true })
   assert.ok(warn)

@@ -56,7 +56,7 @@ export class RbacDeniedError extends Error {
 
 /**
  * task work-shift S5-FE (F4) — MỘT chỗ dùng chung cho lỗi chặn theo ca: `SHIFT_REQUIRED` (thu tiền / tạo QR khi chưa mở ca,
- * chế độ Bắt buộc) và `ORDER_PAUSED` (tạo đơn món khi đang ngừng nhận đơn / chưa có ca). Hai mã này luôn là lỗi nghiệp vụ
+ * chế độ Bắt buộc) và `ORDER_PAUSED` (tạo đơn món khi đang dừng nhận đơn / chưa có ca). Hai mã này luôn là lỗi nghiệp vụ
  * máy chủ đã từ chối TRƯỚC khi ghi gì (0 ghi) nên không đụng idem của nơi gọi. Báo thẻ thông báo có nút lối tắt (xem
  * `features/shifts/ShiftBlockNotice`) và trả câu hướng dẫn để dùng làm `message` của `ApiError` — màn nào đang hiện
  * `error.message` cũng nói đúng câu, không phải sửa từng màn. Mã khác ⇒ null (nơi gọi giữ nguyên hành vi cũ, kể cả cách

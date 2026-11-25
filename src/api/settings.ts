@@ -100,6 +100,25 @@ export const getComboPaymentSettings = () => apiGet<ComboPaymentSettings>('/sett
 export const updateComboPaymentSettings = (data: Pick<ComboPaymentSettings, 'qr' | 'cash' | 'deduct'>) =>
   apiPut<void, Pick<ComboPaymentSettings, 'qr' | 'cash' | 'deduct'>>('/settings/combo-payment', data)
 
+/**
+ * Hình thức thanh toán MENU ORDER (dịch vụ) trên máy trạm (`/settings/service-payment`, option -2005 'services' của iCafe,
+ * cùng bitmask với combo). Chưa có dòng cấu hình hoặc giá trị sai ⇒ máy chủ trả mặc định CHỈ Tiền mặt, `isDefault = true`.
+ * Menu do iCafe hiển thị nên chỉ có hiệu lực với iCafe 2.1.88 trở lên; FNet không chặn ở `/order`.
+ * `raw` = giá trị gốc trong DB (để soi khi `isDefault` mà DB có giá trị lạ).
+ */
+export interface ServicePaymentSettings {
+  qr: boolean
+  cash: boolean
+  deduct: boolean
+  isDefault: boolean
+  raw: string
+}
+
+export const getServicePaymentSettings = () => apiGet<ServicePaymentSettings>('/settings/service-payment')
+/** Chỉ ADMIN. Phải bật ít nhất một hình thức. Tạo dòng cấu hình nếu chưa có. */
+export const updateServicePaymentSettings = (data: Pick<ServicePaymentSettings, 'qr' | 'cash' | 'deduct'>) =>
+  apiPut<void, Pick<ServicePaymentSettings, 'qr' | 'cash' | 'deduct'>>('/settings/service-payment', data)
+
 /** Hiện đơn giá / thời gian còn lại trên máy trạm (`/settings/client-display`). Có hiệu lực ở lần đăng nhập kế tiếp. */
 export interface ClientDisplaySettings {
   showPrice: boolean

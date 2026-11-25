@@ -17,7 +17,7 @@ export const SHIFT_MODE_OPTIONS: readonly ShiftModeOption[] = [
   {
     mode: 2,
     label: 'Bắt buộc mở ca',
-    summary: 'Thu ngân phải mở ca mới thu được tiền; không có ca đang mở thì quán tạm ngừng nhận đơn và thanh toán QR.',
+    summary: 'Thu ngân phải mở ca mới thu được tiền; không có ca đang mở thì quán tạm dừng nhận đơn và thanh toán QR.',
   },
 ]
 

@@ -15,15 +15,15 @@
 //            chế độ này thu ngân mock vẫn như `open`. Chi tiết: xem đầu `shiftManageMock.ts`.
 //   (trang /shifts với off ⇒ "Chưa bật chế độ ca"; none | open | pending | warn ⇒ dữ liệu quản lý mặc định, đối soát khớp)
 //
-// Ngừng / Tiếp tục nhận đơn (S3b-FE; B3 chưa có — hình dạng theo handoff/HANDOFF_work-shift-S3b-be.md mục 3):
+// Dừng / Tiếp tục nhận đơn (S3b-FE; B3 chưa có — hình dạng theo handoff/HANDOFF_work-shift-S3b-be.md mục 3):
 //   (khối cảnh báo nằm ở TOPBAR — user chốt 2026-11-21; hợp đồng `orderPause {on, manual{…}, noShift, pendingOrders}`)
-//   paused        có ca; đang ngừng nhận đơn MỚI 12 phút (khối đỏ thường + nút Tiếp tục)
+//   paused        có ca; đang dừng nhận đơn MỚI 12 phút (khối đỏ thường + nút Tiếp tục)
 //   paused-long   có ca; đã ngừng 47 phút (> 30 phút: khối nhấn mạnh + toast nhắc một lần)
 //   none-paused   CHƯA có ca + đang ngừng 35 phút bởi người ca trước (`manual.on` VÀ `noShift` cùng true) ⇒ Dialog Mở ca hỏi
 //                 "Tiếp tục nhận đơn?"
 //   none-auto     CHƯA có ca, chế độ 2 (`noShift` true, `manual.on` false, `on` true; S4b) ⇒ khối đỏ không có nút
 //   none-warn     CHƯA có ca, chế độ 1 (`noShift` true nhưng `on` false; S4b) ⇒ khối vàng chỉ nhắc, KHÔNG khoá nút Tạo đơn
-//   (các chế độ còn lại: đang nhận đơn; bấm Ngừng nhận đơn ở widget / Drawer / Dialog Chốt ca để thử)
+//   (các chế độ còn lại: đang nhận đơn; bấm Dừng nhận đơn ở widget / Drawer / Dialog Chốt ca để thử)
 // Công tắc chế độ ca (Cài đặt → Ca làm việc): GET|PUT /settings/shift-mode, mock giữ mode trong bộ nhớ trang
 // (mặc định 2 = Bắt buộc mở ca, `effective` = 1 vì chặn thật là S4 ⇒ có dòng ghi chú; `off` bắt đầu ở 0).
 //

@@ -35,10 +35,10 @@ export type ShiftLastClosed = {
   countedCash: number
 }
 
-/** Số đơn đang chờ lúc ngừng nhận đơn (đơn món chính, combo, đơn QR đã trả chưa xác nhận). */
+/** Số đơn đang chờ lúc dừng nhận đơn (đơn món chính, combo, đơn QR đã trả chưa xác nhận). */
 export type ShiftIntakePending = { service: number; combo: number; qrPaid: number }
 
-/** Cờ ngừng nhận đơn do nhân viên bấm (kiểm kho giao ca). Sống qua chốt ca (Q8). */
+/** Cờ dừng nhận đơn do nhân viên bấm (kiểm kho giao ca). Sống qua chốt ca (Q8). */
 export type ShiftManualPause = {
   on: boolean
   /** "YYYY-MM-DD HH:MM:SS" giờ máy chủ; rỗng khi không ngừng. */
@@ -50,7 +50,7 @@ export type ShiftManualPause = {
 }
 
 /**
- * Trạng thái ngừng nhận đơn — hợp đồng đã chốt 2026-11-21 (`handoff/HANDOFF_work-shift-S3b-be.md` mục 3), tách nguồn khỏi lý do:
+ * Trạng thái dừng nhận đơn — hợp đồng đã chốt 2026-11-21 (`handoff/HANDOFF_work-shift-S3b-be.md` mục 3), tách nguồn khỏi lý do:
  *  - `on`: trạng thái CHẶN hiệu lực (S3b = `manual.on`; S4b = `manual.on || (noShift && chế độ 2)`). Nút Tạo đơn khoá theo cờ này.
  *  - `manual`: cờ do người bấm. Dialog Mở ca hỏi "Tiếp tục nhận đơn?" dựa vào `manual.on` (kể cả khi `noShift` cũng true).
  *  - `noShift`: không còn ca nào mở. Chế độ 1 thì `on = false` mà `noShift = true` ⇒ chỉ cảnh báo, không khoá nút.
@@ -341,7 +341,7 @@ export async function reconcileShifts(date: string): Promise<ShiftReconcile> {
 }
 
 /**
- * Ngừng nhận đơn (kiểm kho giao ca). Idempotent ở máy chủ: đang ngừng mà gọi lại ⇒ `changed:false`, không ghi nhật ký.
+ * Dừng nhận đơn (kiểm kho giao ca). Idempotent ở máy chủ: đang ngừng mà gọi lại ⇒ `changed:false`, không ghi nhật ký.
  * Trả trạng thái mới nhất (`orderPause`) nếu máy chủ gửi kèm, không thì null (nơi gọi đọc lại /shift/current).
  */
 export async function pauseOrderIntake(reason?: string): Promise<{ changed: boolean; orderPause: ShiftOrderPause | null }> {

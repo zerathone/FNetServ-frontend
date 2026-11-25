@@ -1,5 +1,5 @@
 // task work-shift S5-FE (F4) — thẻ thông báo khi máy chủ chặn thao tác vì ca: `SHIFT_REQUIRED` (thu tiền / tạo QR khi chưa mở ca,
-// chế độ Bắt buộc) và `ORDER_PAUSED` (tạo đơn món khi đang ngừng nhận đơn hoặc chưa có ca). `api/client.ts` đẩy vào
+// chế độ Bắt buộc) và `ORDER_PAUSED` (tạo đơn món khi đang dừng nhận đơn hoặc chưa có ca). `api/client.ts` đẩy vào
 // `useShiftBlockStore` ở MỘT chỗ chung nên mọi màn đều có thẻ này mà không phải sửa từng màn.
 // - SHIFT_REQUIRED: "Bạn chưa mở ca. Hãy mở ca rồi thử lại." + nút Mở ca (Dialog Mở ca có sẵn). Bấm lại thao tác sau khi mở ca:
 //   các màn tiền giữ nguyên `idem` (chỉ xoá khi thành công) nên phiếu đã ghi trước đó được trả lại, không ghi đôi (Q-S4-1).

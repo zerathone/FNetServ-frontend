@@ -81,6 +81,7 @@ import { OrderSteps } from './OrderSteps'
 import { OrderConfirmDialog } from './OrderConfirmDialog'
 import { PrintTicketDialog } from './PrintTicketDialog'
 import { useOrderActions } from './useOrderActions'
+import { PauseIntakeButton } from '../shifts/PauseIntakeButton'
 import { useIntakePaused } from '../shifts/useOrderIntake'
 import { StaffOrderDialog } from './StaffOrderDialog'
 import './orders.css'
@@ -232,7 +233,7 @@ export function OrderWorkspace() {
   // task staff-service-order: "Gọi món hộ" (FE-1) + "In phiếu" theo đơn (FE-2). `printDetailIds` != null ⇒
   // hộp thoại in đang mở; hộp thoại Gọi món hộ tạm ẩn (không xếp chồng 2 modal) nhưng GIỮ state.
   const [staffOrderOpen, setStaffOrderOpen] = useState(false)
-  // task work-shift S3b-FE: đang ngừng nhận đơn (kiểm kho) ⇒ khoá nút tạo đơn của nhân viên (lớp UX; chốt chặn thật ở máy chủ, S4b).
+  // task work-shift S3b-FE: đang dừng nhận đơn (kiểm kho) ⇒ khoá nút tạo đơn của nhân viên (lớp UX; chốt chặn thật ở máy chủ, S4b).
   // Duyệt / hủy / thu đơn đã có vẫn bật (Q9).
   const intakePaused = useIntakePaused()
   const [printDetailIds, setPrintDetailIds] = useState<number[] | null>(null)
@@ -912,12 +913,14 @@ export function OrderWorkspace() {
             onClick={() => setStaffOrderOpen(true)}
             title={
               intakePaused
-                ? 'Đang ngừng nhận đơn — xem thanh trên cùng màn hình'
+                ? 'Dừng nhận đơn — xem thanh trên cùng màn hình'
                 : 'Nhân viên chọn món thay khách đang ngồi máy hoặc khách vãng lai tại quầy'
             }
           >
             Tạo đơn
           </Button>
+          {/* Công tắc nhận / dừng nhận đơn: một nút, đổi theo trạng thái; dùng được cả khi chế độ ca tắt (user chốt 2026-11-25). */}
+          <PauseIntakeButton />
           <PollingStatus
             connected={connected}
             // Lỗi của danh sách đơn đã duyệt (vd Server cũ chưa có /orders/accepted-unpaid) chỉ báo ở

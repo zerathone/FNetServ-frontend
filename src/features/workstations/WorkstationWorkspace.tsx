@@ -796,7 +796,7 @@ export function WorkstationWorkspace() {
   const isPaused = Boolean(
     inspectedMachine && (inspectedMachine.flagMask & WORKSTATION_FLAGS.CLIENT_PAUSE) !== 0,
   )
-  // task work-shift S3b-FE: ngừng nhận đơn (kiểm kho) ⇒ khoá nút "Tạo đơn" của nhân viên (lớp UX; máy chủ chốt chặn ở S4b).
+  // task work-shift S3b-FE: dừng nhận đơn (kiểm kho) ⇒ khoá nút "Tạo đơn" của nhân viên (lớp UX; máy chủ chốt chặn ở S4b).
   const intakePaused = useIntakePaused()
 
   useEffect(() => {
@@ -2633,7 +2633,7 @@ export function WorkstationWorkspace() {
                     type="button"
                     variant="primary"
                     disabled={isPaused || intakePaused}
-                    title={intakePaused ? 'Đang ngừng nhận đơn — xem thanh trên cùng màn hình' : undefined}
+                    title={intakePaused ? 'Dừng nhận đơn — xem thanh trên cùng màn hình' : undefined}
                     onClick={() => setStaffOrderOpen(true)}
                   >
                     Tạo đơn

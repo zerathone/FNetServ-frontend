@@ -39,7 +39,7 @@ export function OpenShiftDialog({
   logoutPending,
 }: Props) {
   const { applyOpened, orderPause } = useShift()
-  // Q8: ngừng nhận đơn sống qua chốt ca — người mở ca sau được HỎI, mặc định KHÔNG tự bật lại.
+  // Q8: dừng nhận đơn sống qua chốt ca — người mở ca sau được HỎI, mặc định KHÔNG tự bật lại.
   // Hỏi theo cờ THỦ CÔNG (`manual.on`), không theo `on`: người ca trước ngừng rồi chốt ca cuối thì `noShift` cũng true.
   const askResume = isManualPaused(orderPause)
   const [resumeIntake, setResumeIntake] = useState(false)
@@ -197,7 +197,7 @@ export function OpenShiftDialog({
               Tiếp tục nhận đơn sau khi mở ca
             </label>
             <p className="shift-form__hint">
-              Không chọn thì quán vẫn ngừng nhận đơn; có thể bấm Tiếp tục nhận đơn sau ở thanh trên cùng của màn hình.
+              Không chọn thì quán vẫn dừng nhận đơn; có thể bấm Tiếp tục nhận đơn sau ở thanh trên cùng của màn hình.
             </p>
           </div>
         ) : null}

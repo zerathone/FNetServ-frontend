@@ -1,4 +1,4 @@
-// task work-shift S3b-FE — Ngừng / Tiếp tục nhận đơn (design mục 8b). Trạng thái nằm trong `/shift/current` (`orderPause`) nên
+// task work-shift S3b-FE — Dừng / Tiếp tục nhận đơn (design mục 8b). Trạng thái nằm trong `/shift/current` (`orderPause`) nên
 // KHÔNG thêm poll mới: dùng chu kỳ 60 giây của `useShift`; sau pause/resume chỉ `invalidateQueries(['shift','current'])`.
 // Ở bước này máy chủ CHƯA chặn tạo đơn (S4b) — web chỉ hiện trạng thái và khoá nút tạo đơn của nhân viên như lớp UX.
 import { useEffect, useState } from 'react'

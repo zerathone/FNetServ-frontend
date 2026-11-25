@@ -480,7 +480,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
           <PromoBannerCluster />
           {/* task work-shift S2: lối vào ca cho giao diện Cổ điển (sidebar header bị ẩn); chỉ hiện bằng CSS ở classic. */}
           {workspaceId === 'pos' ? <ShiftTopbarChip /> : null}
-          {/* task work-shift S3b-FE: "Đang ngừng nhận đơn" mọi trang/vai trò, nằm trong chiều cao topbar (tự ẩn khi INT_SHIFT_MODE = 0
+          {/* task work-shift S3b-FE: "Dừng nhận đơn" mọi trang/vai trò, nằm trong chiều cao topbar (tự ẩn khi INT_SHIFT_MODE = 0
               hoặc đang nhận đơn). Đặt cạnh chip ca để giao diện Cổ điển (không có widget sidebar) cũng thấy ngay. */}
           <OrderPauseTopbar />
         </div>

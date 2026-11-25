@@ -620,49 +620,58 @@
 }
 
 /* ====================================================================================
-   Ngừng / Tiếp tục nhận đơn (task work-shift S3b-FE)
+   Dừng / Tiếp tục nhận đơn (task work-shift S3b-FE)
    ==================================================================================== */
 
-/* "Đang ngừng nhận đơn" ở TOPBAR (user chốt 2026-11-21, thay dải cố định ở đáy màn hình). Phải NẰM TRONG chiều cao topbar hiện có
-   (4rem) — không thêm hàng, không đổi chiều cao khung trang (nhiều trang tính theo 100vh). Cao tối đa 2.75rem. */
+/* "Dừng nhận đơn" ở TOPBAR (user chốt 2026-11-21, thay dải cố định ở đáy màn hình). Phải NẰM TRONG chiều cao topbar hiện có
+   (4rem) — không thêm hàng, không đổi chiều cao khung trang (nhiều trang tính theo 100vh).
+   Thiết kế gọn (2026-11-25): MỘT viên thuốc cao 2.25rem, MỘT dòng: [⏸ Dừng nhận đơn từ 11:41  ▶ Tiếp tục].
+   Người ngừng, lý do, thời gian đã ngừng nằm ở `title` (tooltip) — không chiếm chỗ trên thanh. */
 .order-pause-chip {
   display: flex;
   flex: 0 1 auto;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  max-height: 2.75rem;
-  /* Cứng trong chiều cao topbar: nội dung dài không được tràn xuống nội dung trang. */
-  overflow: hidden;
-  padding: 0.25rem var(--space-2);
+  height: 2.25rem;
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-danger);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   background: var(--color-danger-surface);
   color: var(--color-danger-text);
+}
+
+/* Có nút bên phải: nút nằm sát mép viên thuốc (đồng tâm với bo tròn) thay vì cách lề chữ. */
+.order-pause-chip.has-action {
+  padding-right: 0.1875rem;
 }
 
 .order-pause-chip__icon {
   flex: none;
 }
 
-/* Tối đa 2 dòng rồi cắt bằng dấu "…" (đủ chữ nằm ở `title` của khối) — không bẻ giữa từ, không tràn khỏi topbar. */
+/* Một dòng, quá chỗ thì cắt "…" (đủ chữ nằm ở `title`) — không bẻ dòng nên chip không bao giờ cao hơn 2.25rem. */
 .order-pause-chip__text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-sm);
+  font-weight: 650;
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Màn rộng thấy chữ đầy đủ (giờ ngừng + tên); màn hẹp chỉ thấy chữ gọn — phần còn lại nằm ở `title` của khối. */
+.order-pause-chip__text strong {
+  font-weight: inherit;
+}
+
+/* Màn rộng thấy thêm giờ ngừng ("từ 11:41"); màn hẹp chỉ thấy chữ gọn — phần còn lại nằm ở `title` của khối. */
 .order-pause-chip__long {
   display: none;
 }
 
-@media (min-width: 1281px) {
+@media (min-width: 1025px) {
   .order-pause-chip__short {
     display: none;
   }
@@ -672,12 +681,26 @@
   }
 }
 
-/* Nút Tiếp tục nhận đơn: gọn trong topbar; màn hẹp chỉ còn biểu tượng (tên nút ở aria-label + title). */
+/* Nút Tiếp tục: nút phụ nhỏ (không còn nút xanh to tranh sự chú ý với chữ cảnh báo). Màn hẹp chỉ còn biểu tượng (tên nút ở
+   aria-label + title); vùng bấm luôn ≥ 44px nhờ lớp ::after mở rộng vô hình (không làm chip cao thêm). */
 .order-pause-chip .ds-button {
   flex: none;
-  min-height: 2.25rem;
-  padding-block: 0.25rem;
+  height: 1.75rem;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
   white-space: nowrap;
+}
+
+.order-pause-chip .ds-button:hover:not(:disabled) {
+  transform: none;
+}
+
+.order-pause-chip__resume::after {
+  content: '';
+  position: absolute;
+  inset: -0.5rem -0.25rem;
 }
 
 /* Quá 30 phút: viền dày + nền đậm hơn + biểu tượng nhấp nháy nhẹ (tắt khi người dùng chọn giảm chuyển động). */
@@ -712,7 +735,7 @@
 @media (max-width: 900px) {
   .order-pause-chip {
     gap: var(--space-1);
-    padding-inline: var(--space-1);
+    padding-left: var(--space-2);
   }
 
   .order-pause-chip__text {
@@ -723,11 +746,10 @@
     display: none;
   }
 
-  /* Chỉ biểu tượng: vẫn giữ vùng bấm 44px. */
+  /* Chỉ biểu tượng (tròn 1.75rem); vùng bấm vẫn 44px nhờ ::after ở trên. */
   .order-pause-chip .ds-button.order-pause-chip__resume {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    padding-inline: var(--space-1);
+    width: 1.75rem;
+    padding: 0;
   }
 }
 
@@ -809,7 +831,7 @@
 
 /* Nổi giữa đáy màn hình, TRÊN hộp thoại (lỗi chặn thường phát sinh ngay trong một Dialog — nếu nằm dưới lớp phủ của Dialog
    thì nút Mở ca / Tiếp tục nhận đơn bị che) và dưới toast. Dialog Mở ca không bị thẻ che vì bấm Mở ca đã đóng thẻ trước.
-   Màu theo mức: vàng = việc cần làm (mở ca), đỏ = đang ngừng nhận đơn, xanh = đã xử lý xong. Luôn kèm biểu tượng + chữ. */
+   Màu theo mức: vàng = việc cần làm (mở ca), đỏ = đang dừng nhận đơn, xanh = đã xử lý xong. Luôn kèm biểu tượng + chữ. */
 .shift-block-notice {
   position: fixed;
   z-index: calc(var(--z-dialog) + 10);

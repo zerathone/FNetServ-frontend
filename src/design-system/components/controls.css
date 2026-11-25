@@ -140,6 +140,22 @@
   background: color-mix(in srgb, var(--color-warning) 14%, transparent);
 }
 
+/* Nut quan trong, mau canh bao (vd "Tiep tuc nhan don"): nen warning-surface + vien warning + chu pha text-primary (cung cach
+   chu cua warning-outline de du tuong phan). Co nen rieng nen doc duoc ca tren nen do/vang cua chip canh bao. */
+.ds-button--warning {
+  color: color-mix(in srgb, var(--color-warning) 70%, var(--color-text-primary));
+  background: var(--color-warning-surface);
+  border-color: var(--color-warning);
+}
+
+.ds-button--warning:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-warning) 22%, var(--color-warning-surface));
+}
+
+.ds-button--warning:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-warning) 32%, var(--color-warning-surface));
+}
+
 .ds-button--block {
   width: 100%;
 }

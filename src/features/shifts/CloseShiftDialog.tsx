@@ -108,7 +108,7 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
   const summaryQuery = useShiftSummary(shift.shiftId)
   const warn = useCloseWarnings()
   const { orderPause, manualPaused: intakePaused } = useOrderIntake()
-  // Hộp xác nhận "Ngừng nhận đơn" đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Dialog Chốt ca (cả hai nghe Esc trên document).
+  // Hộp xác nhận "Dừng nhận đơn" đang mở ⇒ Esc chỉ đóng hộp đó, không đóng luôn Dialog Chốt ca (cả hai nghe Esc trên document).
   const pauseDialogOpen = useRef(false)
   // `idem` sinh MỘT lần khi dialog mở, dùng lại cho mọi lần bấm / thử lại.
   const [idem, setIdem] = useState(() => createIdempotencyKey('shift-close'))
@@ -342,13 +342,13 @@ function CloseFormDialog({ shift, onCancel, onClosed }: FormProps) {
             </p>
           </InlineAlert>
         ) : null}
-        {/* S3b-FE: kiểm kho giao ca ⇒ ngừng nhận đơn TRƯỚC khi chốt (trạng thái sống qua chốt ca, Q8). */}
+        {/* S3b-FE: kiểm kho giao ca ⇒ dừng nhận đơn TRƯỚC khi chốt (trạng thái sống qua chốt ca, Q8). */}
         {orderPause ? (
         <div className={`shift-intake${intakePaused ? ' is-paused' : ''}`}>
           <p>
             {intakePaused && orderPause
               ? `${pauseHeadline(orderPause)}. Chốt ca không tự bật lại — người mở ca sau sẽ được hỏi có tiếp tục nhận đơn không.`
-              : 'Kiểm kho để giao ca? Ngừng nhận đơn trước khi chốt để số tồn đứng yên. Đơn đang chờ vẫn duyệt, hủy và thu được.'}
+              : 'Kiểm kho để giao ca? Dừng nhận đơn trước khi chốt để số tồn đứng yên. Đơn đang chờ vẫn duyệt, hủy và thu được.'}
           </p>
           {/* Đang ngừng thì KHÔNG đặt nút "Tiếp tục nhận đơn" cạnh "Chốt ca" (dễ bấm nhầm giữa lúc kiểm kho); thanh trên cùng vẫn có nút. */}
           {intakePaused ? null : (

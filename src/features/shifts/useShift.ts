@@ -17,6 +17,9 @@ export const shiftSummaryKey = (staffId: number | null, shiftId: number | null) 
 
 const POLL_MS = 60_000
 
+/** Cần đọc lại định kỳ: chế độ ca bật, hoặc máy chủ có gửi `orderPause` (dừng nhận đơn độc lập chế độ ca). */
+const needsLive = (data: ShiftCurrent) => data.enabled || data.orderPause !== null
+
 export function useShift() {
   const token = useAuthStore((state) => state.token)
   const staffId = useAuthStore((state) => state.staffId)
@@ -26,12 +29,13 @@ export function useShift() {
     queryKey: shiftCurrentKey(staffId, sessionId),
     queryFn: getShiftCurrent,
     enabled: Boolean(token),
-    // mode = 0 ⇒ Infinity: đúng một lần /shift/current mỗi phiên (không refetch khi mount observer mới / focus lại tab).
-    // Lỗi mạng (chưa có data) ⇒ 5 phút, và không thử lại mỗi lần có component mount: coi như chưa biết.
-    staleTime: (q) => (q.state.data ? (q.state.data.enabled ? 30_000 : Infinity) : 300_000),
+    // mode = 0 VÀ máy chủ không gửi orderPause (bản cũ) ⇒ Infinity: đúng một lần /shift/current mỗi phiên (không refetch
+    // khi mount observer mới / focus lại tab). Mode 0 mà máy chủ có gửi orderPause (nút Ngừng/Nhận đơn độc lập chế độ ca) ⇒
+    // làm tươi như mode bật để thấy ngay khi máy khác bấm. Lỗi mạng (chưa có data) ⇒ 5 phút, không thử lại mỗi lần mount.
+    staleTime: (q) => (q.state.data ? (needsLive(q.state.data) ? 30_000 : Infinity) : 300_000),
     retryOnMount: false,
-    // mode = 0 (hoặc chưa biết) ⇒ KHÔNG poll.
-    refetchInterval: (q) => (q.state.data?.enabled ? POLL_MS : false),
+    // Không cần "sống" (mode 0 + máy chủ cũ, hoặc chưa biết) ⇒ KHÔNG poll.
+    refetchInterval: (q) => (q.state.data && needsLive(q.state.data) ? POLL_MS : false),
     retry: false,
   })
 
@@ -68,8 +72,11 @@ export function useShift() {
     serverTime: data?.serverTime ?? '',
     /** 00:00 ngày đăng nhập của phiên này (giờ máy chủ), mọi chế độ; '' = chưa biết / máy chủ cũ. */
     loginDayStart: data?.loginDayStart ?? '',
-    /** Ngừng nhận đơn (S3b-FE): null khi mode 0 / máy chủ không gửi. `on` cho biết có đang ngừng hay không. */
-    orderPause: enabled ? (data?.orderPause ?? null) : null,
+    /**
+     * Dừng nhận đơn (S3b-FE): ĐỘC LẬP chế độ ca (user chốt 2026-11-25) — có cả khi mode 0. null khi máy chủ cũ không gửi.
+     * `on` cho biết có đang ngừng hay không.
+     */
+    orderPause: data?.orderPause ?? null,
     /** Mốc (ms) tải /shift/current gần nhất — để tính "đã ngừng bao lâu" theo giờ máy chủ. */
     dataUpdatedAt: query.dataUpdatedAt,
     isLoading: query.isLoading,

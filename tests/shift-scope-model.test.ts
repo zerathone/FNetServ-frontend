@@ -97,18 +97,18 @@ test('classifyShiftBlock: SHIFT_REQUIRED => câu cố định + nút Mở ca, b�
 })
 
 test('classifyShiftBlock: ORDER_PAUSED ngừng thủ công => message máy chủ + nút Tiếp tục nhận đơn', () => {
-  const block = classifyShiftBlock('ORDER_PAUSED', 'Quán đang tạm ngừng nhận đơn, vui lòng quay lại sau', {
+  const block = classifyShiftBlock('ORDER_PAUSED', 'Quán đang tạm dừng nhận đơn, vui lòng quay lại sau', {
     code: 'ORDER_PAUSED',
     source: 'manual',
   })
   assert.equal(block?.code, ORDER_PAUSED_CODE)
-  assert.equal(block?.message, 'Quán đang tạm ngừng nhận đơn, vui lòng quay lại sau')
+  assert.equal(block?.message, 'Quán đang tạm dừng nhận đơn, vui lòng quay lại sau')
   assert.deepEqual(block?.actions, ['resume-intake'])
 })
 
 test('classifyShiftBlock: ORDER_PAUSED không có ca => nút Mở ca; nguồn lạ/thiếu => không nút (không đoán)', () => {
   assert.deepEqual(
-    classifyShiftBlock('ORDER_PAUSED', 'Quán chưa mở ca, tạm ngừng nhận đơn. Vui lòng quay lại sau', { source: 'no_shift' })?.actions,
+    classifyShiftBlock('ORDER_PAUSED', 'Quán chưa mở ca, tạm dừng nhận đơn. Vui lòng quay lại sau', { source: 'no_shift' })?.actions,
     ['open-shift'],
   )
   assert.deepEqual(classifyShiftBlock('ORDER_PAUSED', 'x', { source: 'khac' })?.actions, [])
@@ -118,7 +118,7 @@ test('classifyShiftBlock: ORDER_PAUSED không có ca => nút Mở ca; nguồn l�
 
 test('classifyShiftBlock: ORDER_PAUSED thiếu message => câu dự phòng tiếng Việt, không để trống', () => {
   const block = classifyShiftBlock('ORDER_PAUSED', '   ', { source: 'manual' })
-  assert.match(block?.message ?? '', /tạm ngừng nhận đơn/)
+  assert.match(block?.message ?? '', /tạm dừng nhận đơn/)
 })
 
 test('classifyShiftBlock: mã khác / không có mã => null (lỗi thường, xử lý như cũ)', () => {
