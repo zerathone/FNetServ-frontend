@@ -130,6 +130,119 @@ export const getClientDisplaySettings = () => apiGet<ClientDisplaySettings>('/se
 export const updateClientDisplaySettings = (data: Pick<ClientDisplaySettings, 'showPrice' | 'showRemainTime'>) =>
   apiPut<void, Pick<ClientDisplaySettings, 'showPrice' | 'showRemainTime'>>('/settings/client-display', data)
 
+/**
+ * task settings-opts — 7 route thiết lập bổ sung (additive). GET: mọi nhân viên; PUT: CHỈ quản trị viên (máy chủ trả
+ * "forbidden" cho người khác). PUT gửi TỪNG PHẦN (trường vắng = giữ nguyên) và trả lại đúng shape của GET.
+ * Máy chủ chưa cập nhật ⇒ 404 (nơi dùng hiển thị "cần cập nhật Server").
+ */
+
+/** Kiểu lịch sao lưu: 0 tắt / 1 mỗi giờ / 2 mỗi ngày / 3 mỗi tuần (khớp `Scheduler.h`). */
+export type BackupScheduleType = 0 | 1 | 2 | 3
+
+/**
+ * `/settings/backup-schedule`. `time` dạng "HH:MM" (mỗi giờ: máy chủ chỉ so PHÚT). `day` là thứ thật 0..6 =
+ * Chủ nhật..Thứ bảy (máy chủ tự đổi sang chỉ số MFC), `null` = giá trị đang lưu không hợp lệ ⇒ phải chọn lại.
+ * `mysqlDataDir` chỉ đọc, rỗng = máy chủ không dò được thư mục dữ liệu MySQL.
+ */
+export interface BackupScheduleSettings {
+  type: BackupScheduleType
+  time: string
+  day: number | null
+  compress: boolean
+  backupPath: string
+  mysqlDataDir: string
+}
+
+/** PUT từng phần. Tắt lịch = `{ type: 0 }` — KHÔNG xoá `backupPath`. `type ≠ 0` cần `time` + `backupPath` (+ `day` nếu mỗi tuần). */
+export type BackupScheduleUpdate = Partial<Pick<BackupScheduleSettings, 'type' | 'time' | 'compress' | 'backupPath'>> & {
+  day?: number
+}
+
+export const getBackupSchedule = () => apiGet<BackupScheduleSettings>('/settings/backup-schedule')
+export const updateBackupSchedule = (data: BackupScheduleUpdate) =>
+  apiPut<BackupScheduleSettings, BackupScheduleUpdate>('/settings/backup-schedule', data)
+
+/** `/settings/webblock-auto`: mỗi giờ máy chủ tự tải danh sách chặn web đã ký số từ máy chủ FNet. */
+export interface WebBlockAutoSettings {
+  autoUpdate: boolean
+}
+
+export const getWebBlockAuto = () => apiGet<WebBlockAutoSettings>('/settings/webblock-auto')
+export const updateWebBlockAuto = (data: WebBlockAutoSettings) =>
+  apiPut<WebBlockAutoSettings, WebBlockAutoSettings>('/settings/webblock-auto', data)
+
+/** `/settings/refund`: thời hạn hoàn tiền (phút). GET trả đúng giá trị đang lưu kể cả ngoài 5..1440; PUT chỉ nhận 5..1440. */
+export interface RefundSettings {
+  timeoutMinutes: number
+}
+
+export const getRefundSettings = () => apiGet<RefundSettings>('/settings/refund')
+export const updateRefundSettings = (data: RefundSettings) =>
+  apiPut<RefundSettings, RefundSettings>('/settings/refund', data)
+
+/**
+ * `/settings/qr-flags`: hai cờ QR đọc TƯƠI từ DB (hiệu lực ≤ 30 giây). `manualEffective = pendingBook && manualConfirm`
+ * (xác nhận thủ công chỉ chạy khi ghi sổ đơn QR đang bật).
+ */
+export interface QrFlagsSettings {
+  pendingBook: boolean
+  manualConfirm: boolean
+  manualEffective: boolean
+}
+
+export type QrFlagsUpdate = Partial<Pick<QrFlagsSettings, 'pendingBook' | 'manualConfirm'>>
+
+export const getQrFlags = () => apiGet<QrFlagsSettings>('/settings/qr-flags')
+export const updateQrFlags = (data: QrFlagsUpdate) => apiPut<QrFlagsSettings, QrFlagsUpdate>('/settings/qr-flags', data)
+
+/**
+ * `/settings/notify`: thông báo trên MÁY CHỦ (khác tùy chọn chuông/âm báo lưu ở trình duyệt). `chargeReqKeywords` là chuỗi
+ * từ khóa phân tách bằng dấu phẩy; PUT chuỗi rỗng ⇒ máy chủ đặt về `defaultChargeReqKeywords`.
+ */
+export interface NotifyServerSettings {
+  enabled: boolean
+  chargeReqKeywords: string
+  defaultChargeReqKeywords: string
+}
+
+export type NotifyServerUpdate = Partial<Pick<NotifyServerSettings, 'enabled' | 'chargeReqKeywords'>>
+
+export const getNotifyServerSettings = () => apiGet<NotifyServerSettings>('/settings/notify')
+export const updateNotifyServerSettings = (data: NotifyServerUpdate) =>
+  apiPut<NotifyServerSettings, NotifyServerUpdate>('/settings/notify', data)
+
+/**
+ * `/settings/client-runtime`: cờ máy trạm nhận qua cấu hình máy chủ. `pausedResetMinutes` chỉ nhận 0 (tắt) hoặc 3..60
+ * nhưng GET trả đúng giá trị đang lưu kể cả 1/2/>60. Máy trạm áp dụng khi nhận lại cấu hình (không có đẩy realtime).
+ */
+export interface ClientRuntimeSettings {
+  pausedResetMinutes: number
+  hwMonitor: boolean
+  hubWeb: boolean
+  ipStrict: boolean
+}
+
+export type ClientRuntimeUpdate = Partial<ClientRuntimeSettings>
+
+export const getClientRuntime = () => apiGet<ClientRuntimeSettings>('/settings/client-runtime')
+export const updateClientRuntime = (data: ClientRuntimeUpdate) =>
+  apiPut<ClientRuntimeSettings, ClientRuntimeUpdate>('/settings/client-runtime', data)
+
+/**
+ * `/settings/remote`: `wsServer` (WebSocket) và `wsVnc` (điều khiển màn hình máy trạm qua trình duyệt). Máy chủ từ chối
+ * `wsVnc = true` khi `wsServer = false` — tắt `wsServer` phải gửi kèm `wsVnc: false`.
+ */
+export interface RemoteControlSettings {
+  wsServer: boolean
+  wsVnc: boolean
+}
+
+export type RemoteControlUpdate = Partial<RemoteControlSettings>
+
+export const getRemoteControl = () => apiGet<RemoteControlSettings>('/settings/remote')
+export const updateRemoteControl = (data: RemoteControlUpdate) =>
+  apiPut<RemoteControlSettings, RemoteControlUpdate>('/settings/remote', data)
+
 export const getSettingsOptions = (keys: string[] = []) => {
   const query = keys.length > 0
     ? `?keys=${encodeURIComponent(keys.join(','))}`

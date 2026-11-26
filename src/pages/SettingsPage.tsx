@@ -43,8 +43,14 @@ import {
 } from '../features/settings/settingsModel'
 import { parseSettingsSection, SETTINGS_SECTIONS } from '../features/settings/settingsCatalog'
 import { ChatSettingsSection } from '../features/chat/ChatSettingsSection'
+import { BackupScheduleSection } from '../features/settings/BackupScheduleSection'
 import { ClientDisplaySection } from '../features/settings/ClientDisplaySection'
+import { ClientRuntimeSection } from '../features/settings/ClientRuntimeSection'
 import { PaymentMethodsSection } from '../features/settings/PaymentMethodsSection'
+import { QrFlagsSection } from '../features/settings/QrFlagsSection'
+import { RefundSection } from '../features/settings/RefundSection'
+import { RemoteControlSection } from '../features/settings/RemoteControlSection'
+import { WebBlockAutoSection } from '../features/settings/WebBlockAutoSection'
 import { OrderSettingsSection } from '../features/orders/OrderSettingsSection'
 import { ShiftModeSection } from '../features/shifts/ShiftModeSection'
 import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
@@ -550,6 +556,9 @@ export function SettingsPage() {
             </form>
           ) : null}
 
+          {/* Thời hạn hoàn tiền (task settings-opts): form riêng, PUT /settings/refund (chỉ admin). */}
+          {section === 'general' ? <RefundSection isAdmin={isAdmin} /> : null}
+
           {section === 'workstation' && wsGeneralQuery.data && wsShutdownQuery.data && wsCloseAppQuery.data ? (
             <form className="settings-section" onSubmit={saveWorkstation}>
               <header>
@@ -629,6 +638,9 @@ export function SettingsPage() {
           {/* Hiển thị trên máy trạm (đơn giá, thời gian còn lại): form riêng, PUT /settings/client-display (chỉ admin). */}
           {section === 'workstation' ? <ClientDisplaySection isAdmin={isAdmin} /> : null}
 
+          {/* Vận hành máy trạm (task settings-opts): form riêng, PUT /settings/client-runtime (chỉ admin). */}
+          {section === 'workstation' ? <ClientRuntimeSection isAdmin={isAdmin} /> : null}
+
           {/* Kênh chat Messenger: form riêng (PUT /settings/chat riêng, chỉ admin) nên KHÔNG lồng trong form máy trạm. */}
           {section === 'workstation' ? (
             <div id="setting-chat-channel">
@@ -639,6 +651,9 @@ export function SettingsPage() {
           {/* Sơ đồ máy trạm (task ws-map): ADMIN vẽ, mọi nhân viên xem ở trang Máy trạm → Biểu tượng. Lưu riêng (POST /workstations/map). */}
           {/* Phương thức thanh toán: combo ở máy trạm (bitmask), nạp tiền ở quầy (chuyển khoản), menu order (chưa có). */}
           {section === 'payment' ? <PaymentMethodsSection isAdmin={isAdmin} /> : null}
+
+          {/* Cờ thanh toán QR (task settings-opts): ghi sổ đơn QR + xác nhận thủ công, PUT /settings/qr-flags (chỉ admin). */}
+          {section === 'payment' ? <QrFlagsSection isAdmin={isAdmin} /> : null}
 
           {/* Đơn hàng (task topping-kho W1): object cấu hình order dùng chung -- mỗi nhóm một khối (đầu tiên: Hàng đơn chờ). */}
           {section === 'orders' ? (
@@ -786,6 +801,11 @@ export function SettingsPage() {
                   </footer>
                 </form>
               ) : null}
+
+              {/* Task settings-opts: sao lưu, danh sách chặn web tự cập nhật, điều khiển từ xa — mỗi khối một form, PUT chỉ admin. */}
+              <BackupScheduleSection isAdmin={isAdmin} />
+              <WebBlockAutoSection isAdmin={isAdmin} />
+              <RemoteControlSection isAdmin={isAdmin} />
             </div>
           ) : null}
         </div>

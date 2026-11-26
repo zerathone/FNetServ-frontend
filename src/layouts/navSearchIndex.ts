@@ -45,7 +45,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   '/logs/server': ['log máy chủ', 'server', 'lỗi máy chủ', 'nhật ký server'],
   '/logs/webhistory': ['lịch sử web', 'duyệt web', 'website đã truy cập', 'trình duyệt', 'url'],
   '/settings': ['cấu hình', 'thiết lập', 'tùy chỉnh', 'setting'],
-  '/notification-settings': ['chuông', 'âm báo', 'âm thanh', 'thông báo nổi', 'popup', 'báo động', 'nhắc'],
+  '/notification-settings': ['chuông', 'âm báo', 'âm thanh', 'thông báo nổi', 'popup', 'báo động', 'nhắc', 'thông báo máy chủ', 'khách xin nạp', 'từ khóa xin nạp tiền'],
   '/printers': ['in hóa đơn', 'in bill', 'in phiếu', 'máy in nhiệt', 'k80', 'esc/pos', 'printer', 'cổng 9100'],
   '/staff-rights': ['phân quyền', 'quyền hạn', 'nhân viên', 'thu ngân', 'tài khoản nhân viên', 'cấp quyền', 'rights'],
   '/ui-catalog': ['component', 'thành phần giao diện', 'storybook'],
@@ -119,11 +119,14 @@ export function buildNavSearchEntries(
   const settingsPage = entries.find((entry) => entry.to === '/settings')
   if (settingsPage) {
     for (const item of SETTINGS_SEARCH_ENTRIES) {
-      const sectionLabel = SETTINGS_SECTIONS.find((section) => section.id === item.section)?.label
-      const trail = makeTrail([settingsPage.trail, settingsPage.label, sectionLabel])
+      // Khối nằm ở trang khác (vd "Thông báo trên máy chủ" ở /notification-settings): dùng `to` + tên trang.
+      const sectionLabel = item.section
+        ? SETTINGS_SECTIONS.find((section) => section.id === item.section)?.label
+        : item.pageLabel
+      const trail = makeTrail([settingsPage.trail, item.section ? settingsPage.label : undefined, sectionLabel])
       entries.push({
-        key: `setting:${item.section}:${item.anchor ?? ''}:${item.label}`,
-        to: settingsPath(item.section, item.anchor),
+        key: `setting:${item.section ?? item.to ?? ''}:${item.anchor ?? ''}:${item.label}`,
+        to: item.to ?? (item.section ? settingsPath(item.section, item.anchor) : '/settings'),
         label: item.label,
         trail,
         workspaceId: settingsPage.workspaceId,

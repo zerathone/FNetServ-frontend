@@ -39,9 +39,14 @@ export function settingsPath(section: SettingsSection, anchor?: string) {
 }
 
 export type SettingsSearchEntry = {
-  section: SettingsSection
+  /** Mục của trang Cài đặt; `null` = khối nằm ở trang khác (khi đó bắt buộc có `to`). */
+  section: SettingsSection | null
   /** id phần tử trong trang (không gồm tiền tố `setting-`) để cuộn tới + nháy sáng. Bỏ trống = đầu mục. */
   anchor?: string
+  /** Đường dẫn đầy đủ khi khối không nằm trong trang Cài đặt (vd `/notification-settings?focus=notify-server`). */
+  to?: string
+  /** Tên trang hiển thị trong đường dẫn chữ khi `section = null`. */
+  pageLabel?: string
   label: string
   keywords: string[]
 }
@@ -57,6 +62,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { section: 'general', anchor: 'refund-online', label: 'Hoàn tiền khi ngừng sử dụng', keywords: ['trả lại tiền', 'hoàn tiền', 'kết thúc phiên', 'ngừng chơi'] },
   { section: 'general', anchor: 'refund-offline', label: 'Hoàn tiền khi mất kết nối', keywords: ['trả lại tiền', 'hoàn tiền', 'mất điện', 'mất mạng', 'rớt mạng'] },
   { section: 'general', anchor: 'charge-warning', label: 'Tiếp tục tính tiền khi mất kết nối', keywords: ['tính tiền', 'cảnh báo mất kết nối', 'hội viên', 'mất điện', 'rớt mạng'] },
+  { section: 'general', anchor: 'refund-timeout', label: 'Thời hạn hoàn tiền (số phút)', keywords: ['hoàn tiền', 'trả lại tiền', 'hết hạn hoàn tiền', 'quá hạn hoàn tiền', 'số phút hoàn tiền', 'phiếu thu', 'refund', 'thoi han hoan tien', 'hoan tien'] },
 
   // Máy trạm
   { section: 'workstation', anchor: 'sys-functions', label: 'Chức năng hệ thống trên máy trạm', keywords: ['chức năng hệ thống', 'task manager', 'registry', 'cmd', 'chặn chức năng', 'client'] },
@@ -71,10 +77,14 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
 
   { section: 'workstation', anchor: 'client-display', label: 'Hiển thị trên máy trạm (đơn giá, thời gian còn lại)', keywords: ['hiện giá', 'ẩn giá', 'đơn giá', 'giá tiền', 'giá nhóm máy', 'thời gian còn lại', 'giá một giờ', 'client'] },
 
+  { section: 'workstation', anchor: 'client-runtime', label: 'Vận hành máy trạm (tự khởi động lại, giám sát phần cứng, hub web, kiểm tra IP)', keywords: ['tự khởi động lại', 'khởi động lại máy trạm', 'máy treo', 'treo máy', 'paused reset', 'watcher', 'chống gian lận', 'giám sát phần cứng', 'phần cứng', 'nhiệt độ', 'hub web', 'hub máy trạm', 'kiểm tra ip', 'địa chỉ ip', 'ip nghiêm ngặt', 'nat', 'client_ip_mismatch', 'client', 'tu khoi dong lai', 'may tram', 'giam sat phan cung', 'kiem tra ip'] },
+
   // Phương thức thanh toán
   { section: 'payment', anchor: 'combo-payment', label: 'Thanh toán combo tại máy trạm', keywords: ['combo', 'qr', 'chuyển khoản', 'tiền mặt', 'cấn trừ', 'phương thức thanh toán', 'nút thanh toán', 'mua combo'] },
   { section: 'payment', anchor: 'counter-payment', label: 'Nạp tiền tại thu ngân (chuyển khoản)', keywords: ['chuyển khoản', 'nạp tiền', 'thu ngân', 'quầy', 'bật tắt chuyển khoản', 'nút chuyển khoản'] },
   { section: 'payment', anchor: 'service-payment', label: 'Thanh toán menu order (dịch vụ)', keywords: ['menu order', 'dịch vụ', 'gọi món', 'thanh toán dịch vụ', 'icafe', 'qr', 'tiền mặt', 'cấn trừ', 'phương thức thanh toán'] },
+
+  { section: 'payment', anchor: 'qr-flags', label: 'Thanh toán QR: ghi sổ đơn và xác nhận thủ công', keywords: ['qr', 'mã qr', 'chuyển khoản', 'ghi sổ đơn qr', 'đã nhận được tiền', 'xác nhận thủ công', 'xác nhận tay', 'thu ngân xác nhận', 'đơn chờ thanh toán', 'ghi so don qr', 'da nhan duoc tien', 'xac nhan thu cong'] },
 
   // Đơn hàng
   { section: 'orders', anchor: 'order-queue', label: 'Cảnh báo hàng đơn chờ', keywords: ['đơn chờ', 'chờ lâu', 'cảnh báo vàng', 'cảnh báo đỏ', 'giữ nguyên liệu', 'số phút', 'đơn hàng', 'gọi món'] },
@@ -89,4 +99,10 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { section: 'security', anchor: 'admin-account', label: 'Đổi tài khoản / mật khẩu ADMIN phần mềm', keywords: ['mật khẩu admin', 'đổi mật khẩu', 'tên đăng nhập', 'quản trị', 'tài khoản quản trị'] },
   { section: 'security', anchor: 'ws-admin-account', label: 'Đổi tài khoản ADMIN máy trạm', keywords: ['mật khẩu admin máy trạm', 'admin client', 'đổi mật khẩu', 'quyền admin trên máy trạm'] },
   { section: 'security', anchor: 'retention', label: 'Lưu trữ nhật ký (thời gian giữ)', keywords: ['thời gian giữ nhật ký', 'dọn dẹp', 'xóa nhật ký', 'giữ dữ liệu', 'số ngày', 'sao lưu', 'backup', 'log', 'tự động dọn', 'nhật ký hệ thống', 'nhật ký thẻ nạp', 'nhật ký website', 'nhật ký máy chủ', 'nhật ký sử dụng', 'nhật ký cảnh báo', 'bản ghi'] },
+  { section: 'security', anchor: 'backup-schedule', label: 'Lịch sao lưu dữ liệu', keywords: ['sao lưu', 'sao luu', 'backup', 'lịch sao lưu', 'lich sao luu', 'sao lưu tự động', 'sao lưu mỗi ngày', 'sao lưu mỗi tuần', 'sao lưu mỗi giờ', 'nén bản sao', 'thư mục sao lưu', 'thư mục lưu', 'datadir', 'myisam', 'mysql', 'cơ sở dữ liệu', 'dữ liệu', 'du lieu'] },
+  { section: 'security', anchor: 'webblock-auto', label: 'Tự cập nhật danh sách chặn web', keywords: ['chặn web', 'chan web', 'danh sách chặn', 'cập nhật chặn web', 'tự cập nhật', 'blacklist', 'cấm web', 'website', 'icafe', 'fnet'] },
+  { section: 'security', anchor: 'remote-control', label: 'Điều khiển từ xa (WebSocket, điều khiển màn hình máy trạm)', keywords: ['điều khiển từ xa', 'dieu khien tu xa', 'remote', 'vnc', 'novnc', 'websocket', 'ws', 'xem màn hình', 'điều khiển màn hình', 'màn hình máy trạm', 'màn hình máy khách', 'thời gian thực'] },
+
+  // Trang Thiết lập thông báo (khối quản trị viên, cờ của cả máy chủ)
+  { section: null, to: '/notification-settings?focus=notify-server', pageLabel: 'Thiết lập thông báo', anchor: 'notify-server', label: 'Thông báo trên máy chủ (khách xin nạp tiền)', keywords: ['thông báo máy chủ', 'thong bao may chu', 'khách xin nạp', 'khach xin nap', 'xin nạp tiền', 'từ khóa xin nạp', 'từ khóa nạp tiền', 'tin nhắn hội viên', 'chuông máy chủ', 'bật tắt thông báo', 'notify'] },
 ]
