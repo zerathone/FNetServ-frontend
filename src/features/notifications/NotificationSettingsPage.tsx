@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ArrowCounterClockwise,
   Bell,
@@ -11,7 +12,9 @@ import {
   ShieldCheck,
 } from '@phosphor-icons/react'
 import { Button, InlineAlert, PageHeader, StatusBadge, Switch } from '../../design-system/components'
+import { useAuthStore } from '../../store/auth'
 import { useNotificationPrefs } from '../../store/notificationPrefs'
+import { NotifyServerSection } from '../settings/NotifyServerSection'
 import { pushToast } from '../../store/toast'
 import {
   groupSummary,
@@ -143,6 +146,22 @@ function GroupCard({ group }: { group: NotificationGroupDef }) {
 export function NotificationSettingsPage() {
   const prefs = useNotificationPrefs()
   const [masterExpanded, setMasterExpanded] = useState(true)
+  const isAdmin = useAuthStore((state) => state.isAdmin)
+  // Đến từ tìm kiếm menu (?focus=notify-server): cuộn tới khối thông báo trên máy chủ + nháy sáng.
+  const [searchParams] = useSearchParams()
+  const focusAnchor = searchParams.get('focus')
+
+  useEffect(() => {
+    if (!focusAnchor) return
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`setting-${focusAnchor}`)
+      if (!target) return
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      target.classList.add('ops-flash')
+      window.setTimeout(() => target.classList.remove('ops-flash'), 2200)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusAnchor])
 
   const sendTest = () => {
     pushToast('Đây là thông báo thử — thông báo nổi đang hoạt động.', 'info')
@@ -211,6 +230,11 @@ export function NotificationSettingsPage() {
       {NOTIFICATION_GROUPS.map((group) => (
         <GroupCard key={group.id} group={group} />
       ))}
+
+      {/* Khối ADMIN riêng: cờ của cả máy chủ (task settings-opts), tách rõ với tùy chọn lưu ở trình duyệt phía trên. */}
+      <div className="ops-notify-server">
+        <NotifyServerSection isAdmin={isAdmin} />
+      </div>
     </section>
   )
 }
