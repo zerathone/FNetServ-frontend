@@ -103,6 +103,30 @@ type ApproveOrderResponse = {
   amount?: number
   /** task orders-qr-qty (P5): món chạm ngưỡng cảnh báo tồn sau khi trừ. */
   inventoryWarnings?: InventoryWarning[]
+  /** Duyệt đơn trừ nguyên liệu theo công thức: nguyên liệu không đủ tồn → KHÔNG trừ, KHÔNG chặn duyệt. */
+  materialShort?: MaterialShortItem[]
+  /** Dòng iCafe ghi thiếu/lệch `iRecipe` (không trừ nguyên liệu) → server đã trừ theo CÔNG THỨC khi duyệt. */
+  recipeWarnings?: RecipeWarning[]
+}
+
+export type MaterialShortItem = {
+  detailId: number
+  materialId: number
+  materialName: string
+  stockQty: string
+  need: string
+}
+export type RecipeWarning = {
+  detailId: number
+  serviceName: string
+  /** Giá trị iCafe đã ghi trên dòng đơn. */
+  iRecipe: number
+  /** Số dòng công thức thật của món. */
+  recipe: number
+  /** Đã trừ nguyên liệu theo công thức lần này. */
+  deducted: boolean
+  /** Có nguyên liệu thiếu tồn nên không trừ được. */
+  short: boolean
 }
 
 /**

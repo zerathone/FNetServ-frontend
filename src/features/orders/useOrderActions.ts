@@ -26,6 +26,7 @@ import {
   clampQuantity,
   clearAcceptedVouchers,
   describeInventoryWarnings,
+  describeMaterialWarnings,
   describeProcessedCount,
   qrAcceptItems,
   qrCancelItems,
@@ -162,6 +163,7 @@ export function useOrderActions(options: Options = {}) {
       pushToast(`${result.message}${detail}`, result.tone)
       const lowStock = describeInventoryWarnings(response.inventoryWarnings)
       if (lowStock) pushToast(lowStock, 'info')
+      for (const warning of describeMaterialWarnings(response)) pushToast(warning, 'info')
       refreshServiceQueue()
       void invalidateMoneyQueries(queryClient)
     },
@@ -194,6 +196,7 @@ export function useOrderActions(options: Options = {}) {
       )
       const lowStock = describeInventoryWarnings(response.inventoryWarnings)
       if (lowStock) pushToast(lowStock, 'info')
+      for (const warning of describeMaterialWarnings(response)) pushToast(warning, 'info')
       refreshServiceQueue()
     },
     onError: (error) => {

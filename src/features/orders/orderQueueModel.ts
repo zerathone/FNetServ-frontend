@@ -376,6 +376,34 @@ export function describeInventoryWarnings(
   return `Sắp hết hàng: ${warnings.map((w) => `${w.serviceName} còn ${w.inventory}`).join('; ')}.`
 }
 
+/**
+ * Cảnh báo kho nguyên liệu lúc duyệt đơn (KNOWLEDGE §82). Trả tối đa 2 câu:
+ * - `recipe`: menu gửi lên thiếu công thức (iCafe ghi thiếu/lệch `iRecipe` ở dòng đơn) → server đã trừ theo CÔNG THỨC món.
+ * - `short`: nguyên liệu không đủ tồn → KHÔNG trừ (đơn vẫn được duyệt) — cần nhập kho/kiểm kê.
+ */
+export function describeMaterialWarnings(response: {
+  materialShort?: Array<{ materialName: string; stockQty: string; need: string }>
+  recipeWarnings?: Array<{ serviceName: string; deducted: boolean }>
+}) {
+  const out: string[] = []
+  const recipe = response.recipeWarnings ?? []
+  if (recipe.length > 0) {
+    const names = Array.from(new Set(recipe.map((w) => w.serviceName)))
+    out.push(
+      `menu gửi lên thiếu công thức: ${names.join(', ')} — đã trừ nguyên liệu theo công thức của món khi duyệt.`,
+    )
+  }
+  const short = response.materialShort ?? []
+  if (short.length > 0) {
+    out.push(
+      `Thiếu nguyên liệu, KHÔNG trừ được: ${short
+        .map((s) => `${s.materialName || 'nguyên liệu'} (tồn ${s.stockQty}, cần ${s.need})`)
+        .join('; ')}.`,
+    )
+  }
+  return out
+}
+
 /** KNOWLEDGE §47: `accepted/cancelled === 0` ⇒ KHÔNG báo thành công. */
 export function describeProcessedCount(count: number, verb: string) {
   if (count <= 0) {

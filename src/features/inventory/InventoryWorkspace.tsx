@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from '@phosphor-icons/react'
-import { Button, PageHeader, Segmented, type SegmentedOption } from '../../design-system/components'
+import { Button, InlineAlert, PageHeader, Segmented, type SegmentedOption } from '../../design-system/components'
 import { useAuthStore } from '../../store/auth'
+import { useMaterialFeature } from './useMaterialFeature'
 import { VOUCHER_BUTTON_LABEL, type MaterialMoveType } from './inventoryModel'
 import { ClosingPeriodBar, ClosingTab } from './ClosingTab'
 import { MaterialBatchDialog } from './MaterialBatchDialog'
@@ -67,6 +68,8 @@ export function InventoryWorkspace() {
   const canStock = useAuthStore((s) => s.hasRight)(68)
   const [voucher, setVoucher] = useState<MaterialMoveType | null>(null)
   const voucherType = tab === 'stock' ? VIEW_VOUCHER_TYPE[view] : undefined
+  // Menu đã ẩn mục này khi cờ tắt; vào thẳng bằng đường dẫn thì nói rõ vì sao đơn mới không trừ nguyên liệu.
+  const materialFeatureOff = useMaterialFeature().enabled === false
 
   const changeView = (next: StockView) =>
     setParams(next === DEFAULT_VIEW ? { tab: 'stock' } : { tab: 'stock', view: next }, { replace: true })
@@ -91,6 +94,11 @@ export function InventoryWorkspace() {
           ) : undefined
         }
       />
+      {materialFeatureOff ? (
+        <InlineAlert tone="info">
+          Bán kèm và kho nguyên liệu đang tắt (Cài đặt → Đơn hàng). Đơn mới không trừ nguyên liệu; dữ liệu đã có vẫn xem và chỉnh được.
+        </InlineAlert>
+      ) : null}
       <Segmented<Tab>
         ariaLabel="Chức năng kho"
         value={tab}

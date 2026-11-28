@@ -220,6 +220,11 @@
   font-size: var(--font-size-md, var(--font-size-sm));
 }
 
+/* Dòng mô tả dưới tiêu đề khối: bỏ lề mặc định của <p> (không thì cộng thêm vào gap của lưới, dòng giãn xa). */
+.inv-block > p {
+  margin: 0;
+}
+
 .inv-block__foot {
   display: flex;
   align-items: center;

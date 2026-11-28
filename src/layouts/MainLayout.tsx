@@ -21,6 +21,7 @@ import { ShiftBlockNotice } from '../features/shifts/ShiftBlockNotice'
 import { ShiftGate } from '../features/shifts/ShiftGate'
 import { ShiftTopbarChip, ShiftWidget } from '../features/shifts/ShiftWidget'
 import { useShift } from '../features/shifts/useShift'
+import { useMaterialFeature } from '../features/inventory/useMaterialFeature'
 import { SHIFT_RIGHTS } from '../features/shifts/shiftManageModel'
 import type { ShiftInfo } from '../api/shift'
 import { NavItemBadges } from './NavItemBadges'
@@ -59,6 +60,8 @@ type NavigationItem = {
   devOnly?: boolean
   /** Chỉ hiện khi chế độ ca đang bật (INT_SHIFT_MODE ≥ 1) — khách chưa dùng ca không thấy mục thừa. */
   shiftOnly?: boolean
+  /** Ẩn khi cờ "Bán kèm + kho nguyên liệu" (option -2003) CHẮC CHẮN đang tắt; chưa biết (lỗi / máy chủ cũ) ⇒ vẫn hiện. */
+  materialOnly?: boolean
   /** Hiện khi admin HOẶC có BẤT KỲ mã quyền nào trong danh sách (mã xem + mã xem tất cả). */
   rightAny?: number[]
   /** Nhóm hiển thị trong sidebar (Quản lý + Phân tích). Các mục cùng nhóm phải đứng liền nhau. */
@@ -138,10 +141,12 @@ function isItemVisible(
   isAdmin: boolean,
   hasRight: (code: number) => boolean,
   shiftEnabled: boolean,
+  materialEnabled = true,
 ) {
   if (item.adminOnly && !isAdmin) return false
   if (item.devOnly && !import.meta.env.DEV) return false
   if (item.shiftOnly && !shiftEnabled) return false
+  if (item.materialOnly && !materialEnabled) return false
   if (item.rightAny && !isAdmin && !item.rightAny.some(hasRight)) return false
   return true
 }
@@ -196,7 +201,7 @@ const workspaces: readonly Workspace[] = [
       { to: '/staff-rights', label: 'Phân quyền nhân viên', shortLabel: 'Quyền', icon: <ShieldCheck size={24} weight="duotone" />, group: 'mg-customer' },
       // Nhóm 2 — Dịch vụ & bán hàng
       { to: '/services', label: 'Dịch vụ & hàng hóa', shortLabel: 'DV', icon: <Storefront size={24} weight="duotone" />, group: 'mg-sales' },
-      { to: '/inventory', label: 'Nguyên liệu', shortLabel: 'Nguyên liệu', icon: <Warehouse size={24} weight="duotone" />, group: 'mg-sales' },
+      { to: '/inventory', label: 'Nguyên liệu', shortLabel: 'Nguyên liệu', icon: <Warehouse size={24} weight="duotone" />, group: 'mg-sales', materialOnly: true },
       { to: '/combos', label: 'COMBO', shortLabel: 'CB', icon: <Ticket size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/promotions', label: 'Khuyến mãi', shortLabel: 'KM', icon: <SealPercent size={24} weight="duotone" />, group: 'mg-sales' },
       { to: '/online-booking/settings', label: 'Đặt máy online', shortLabel: 'Đặt máy', icon: <CalendarCheck size={24} weight="duotone" />, group: 'mg-sales' },
@@ -288,19 +293,21 @@ export function MainLayout({ children }: { children: ReactNode }) {
 
   // task work-shift S2/S3: chế độ ca bật + ca đang mở của mình (Đăng xuất ⇒ Chốt ca; mục menu "Ca làm việc" chỉ hiện khi bật).
   const { enabled: shiftEnabled, shift: currentShift } = useShift()
+  // Cờ -2003 dùng chung với FFood quầy: tắt ⇒ ẩn mục Nguyên liệu (kho hàng hóa nằm ở trang Dịch vụ nên không bị ảnh hưởng).
+  const materialEnabled = useMaterialFeature().enabled !== false
 
   const availableWorkspaces = useMemo(
     () =>
       workspaces.filter(
         (item) =>
           (!item.adminOnly || isAdmin) &&
-          item.items.some((navItem) => isItemVisible(navItem, isAdmin, hasRight, shiftEnabled)),
+          item.items.some((navItem) => isItemVisible(navItem, isAdmin, hasRight, shiftEnabled, materialEnabled)),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
-    [isAdmin, hasRight, rights, shiftEnabled],
+    [isAdmin, hasRight, rights, shiftEnabled, materialEnabled],
   )
   const workspace = getWorkspace(workspaceId)
-  const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight, shiftEnabled))
+  const navigationItems = workspace.items.filter((item) => isItemVisible(item, isAdmin, hasRight, shiftEnabled, materialEnabled))
   // Riêng trang Theo dõi hoạt động tự poll danh sách máy + phần cứng (PollSteps) -> badge ở menu không poll chồng lên.
   const pollNavData = location.pathname !== '/health_monitor'
 
@@ -308,7 +315,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const searchEntries = useMemo(() => {
     const sources: NavSearchSource[] = availableWorkspaces.flatMap((item) =>
       item.items
-        .filter((navItem) => isItemVisible(navItem, isAdmin, hasRight, shiftEnabled))
+        .filter((navItem) => isItemVisible(navItem, isAdmin, hasRight, shiftEnabled, materialEnabled))
         .map((navItem) => ({
           workspaceId: item.id,
           workspaceLabel: item.label,
@@ -320,7 +327,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
     )
     return buildNavSearchEntries(sources, workspaceId)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `rights` là phụ thuộc thật của hasRight
-  }, [availableWorkspaces, isAdmin, hasRight, rights, workspaceId, shiftEnabled])
+  }, [availableWorkspaces, isAdmin, hasRight, rights, workspaceId, shiftEnabled, materialEnabled])
   const navSearch = useNavSearch(searchEntries)
   const showNavSearch = workspaceId !== 'pos'
   const navIconByPath = useMemo(() => {

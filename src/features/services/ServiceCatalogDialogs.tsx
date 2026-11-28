@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CaretDown, CaretUp } from '@phosphor-icons/react'
 import {
   ArrowCounterClockwise,
+  BellRinging,
   CurrencyCircleDollar,
   Folders,
   ImageSquare,
@@ -46,7 +47,6 @@ import { RecipeFields, ToppingFields } from '../inventory/RecipeFields'
 import {
   emptyRecipeDraft,
   emptyToppingDraft,
-  nextDraftKey,
   recipeChanged,
   recipeDraftForGroup,
   recipeDraftFromConfig,
@@ -370,11 +370,7 @@ export function ServiceEditorDialog({
     <Dialog
       open={open}
       title={service ? 'Sửa mặt hàng' : 'Thêm mặt hàng'}
-      description={
-        service
-          ? 'Tồn kho không sửa ở đây — nhập kho/kiểm kê ở trang Kho. Ngừng bán dùng nút riêng trên thẻ món.'
-          : 'Món mới có tồn = 0. Bật “Quản lý tồn kho” rồi nhập kho ở trang Kho để bán.'
-      }
+      description="Món mới có tồn = 0. Bật “Quản lý tồn kho” rồi nhập kho ở trang Kho để bán."
       size="lg"
       // Thư viện ảnh đang mở: Esc/bấm nền chỉ đóng thư viện, không đóng luôn form.
       onClose={mutation.isPending || libraryOpen ? () => undefined : onClose}
@@ -629,33 +625,32 @@ export function ServiceEditorDialog({
             </aside>
           ) : null}
         </div>
-        <div className="svc-form__wide">
+        {/* Khối riêng, có đường kẻ ngăn với phần thông tin phía trên (cùng kiểu khối công thức / bán kèm bên dưới). */}
+        <section className="inv-block svc-form__wide" aria-label="Quản lý tồn kho">
           <Switch
             checked={draft.inventoryManagement}
             onCheckedChange={(checked) => patch({ inventoryManagement: checked })}
             label="Quản lý tồn kho"
-            description={
-              draft.inventoryManagement
-                ? 'Món quản lý tồn chỉ hiện ở menu bán khi còn tồn > 0 — nhập kho ở tab Kho hàng hóa.'
-                : 'Không theo dõi số lượng tồn của món này.'
-            }
+            description="Nhập kho, quản lý số lượng tồn của món này."
           />
-          {service ? (
-            <small className="svc-muted">Chỉ đổi được khi tồn = 0 và món không còn đơn chưa hoàn tất.</small>
+          {draft.inventoryManagement ? (
+            <SvcField
+              id="svc-warning"
+              label="Cảnh báo khi tồn ≤ (để trống = không cảnh báo)"
+              icon={<BellRinging size={18} weight="bold" aria-hidden="true" />}
+            >
+              <input
+                id="svc-warning"
+                className="ds-input"
+                inputMode="numeric"
+                placeholder="Cảnh báo khi tồn ≤ (để trống = không cảnh báo)"
+                autoComplete="off"
+                value={draft.warning}
+                onChange={(e) => patch({ warning: e.target.value })}
+              />
+            </SvcField>
           ) : null}
-        </div>
-        {draft.inventoryManagement ? (
-          <label className="ds-field svc-form__wide">
-            <span className="ds-field__label">Cảnh báo khi tồn ≤ (để trống = không cảnh báo)</span>
-            <input
-              className="ds-input"
-              inputMode="numeric"
-              placeholder="Ví dụ: 5"
-              value={draft.warning}
-              onChange={(e) => patch({ warning: e.target.value })}
-            />
-          </label>
-        ) : null}
+        </section>
         {!service ? (
           <div className="svc-form__wide">
             <Switch
@@ -679,7 +674,7 @@ export function ServiceEditorDialog({
         {configurable && !configLoading && !configError ? (
           <>
             <section className="inv-block svc-form__wide" aria-label="Công thức nguyên liệu">
-              {/* Không có <h3> riêng: nhãn công tắc "Có công thức nguyên liệu" đã là tiêu đề (tránh lặp 2 dòng). */}
+              {/* Không có <h3> riêng: nhãn công tắc "Công thức nguyên liệu" đã là tiêu đề (tránh lặp 2 dòng). */}
               <RecipeFields
                 draft={recipe}
                 onChange={setRecipe}
@@ -695,31 +690,15 @@ export function ServiceEditorDialog({
             </section>
             <section className="inv-block svc-form__wide" aria-label="Món bán kèm">
               <h3>Món bán kèm</h3>
-              <Switch
-                checked={topping.enabled}
+              <p className="svc-muted">Khách chọn thêm món/nguyên liệu khi gọi món này (ví dụ topping trà sữa). Không có dòng nào = món không bán kèm.</p>
+              <ToppingFields
+                draft={topping}
+                // Không còn công tắc: có dòng = có món bán kèm, xoá hết dòng = gỡ (model giữ `enabled` đồng bộ với số dòng).
+                onChange={(next) => setTopping({ ...next, enabled: next.lines.length > 0 })}
+                services={allServices}
+                selfId={selfId}
                 disabled={!configReady}
-                onCheckedChange={(checked) =>
-                  setTopping((cur) => ({
-                    ...cur,
-                    enabled: checked,
-                    lines:
-                      checked && cur.lines.length === 0
-                        ? [{ key: nextDraftKey(), serviceId: 0, qty: '', price: '' }]
-                        : cur.lines,
-                  }))
-                }
-                label="Có món bán kèm"
-                description="Khách chọn thêm món/nguyên liệu khi gọi món này (ví dụ topping trà sữa)."
               />
-              {topping.enabled ? (
-                <ToppingFields
-                  draft={topping}
-                  onChange={setTopping}
-                  services={allServices}
-                  selfId={selfId}
-                  disabled={!configReady}
-                />
-              ) : null}
               {configProblem ? <span className="inv-error">{configProblem}</span> : null}
               {!canConfigure ? (
                 <small className="svc-muted">Cần quyền Sửa dịch vụ (62) để cấu hình công thức và món bán kèm.</small>

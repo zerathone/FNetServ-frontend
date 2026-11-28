@@ -52,6 +52,7 @@ import { RefundSection } from '../features/settings/RefundSection'
 import { RemoteControlSection } from '../features/settings/RemoteControlSection'
 import { WebBlockAutoSection } from '../features/settings/WebBlockAutoSection'
 import { OrderSettingsSection } from '../features/orders/OrderSettingsSection'
+import { ShopCounterSection } from '../features/settings/ShopCounterSection'
 import { ShiftModeSection } from '../features/shifts/ShiftModeSection'
 import { WorkstationMapEditor } from '../features/workstations/map/WorkstationMapEditor'
 import { ClientSystemFunctionDialog } from '../features/workstations/ClientSystemFunctionDialog'
@@ -656,6 +657,9 @@ export function SettingsPage() {
           {section === 'payment' ? <QrFlagsSection isAdmin={isAdmin} /> : null}
 
           {/* Đơn hàng (task topping-kho W1): object cấu hình order dùng chung -- mỗi nhóm một khối (đầu tiên: Hàng đơn chờ). */}
+          {/* Bán kèm + kho nguyên liệu (option -2003 dùng chung với iCafe/FFood quầy): GET|PUT /settings/shop-counter (PUT chỉ admin). */}
+          {section === 'orders' ? <ShopCounterSection isAdmin={isAdmin} /> : null}
+
           {section === 'orders' ? (
             <div id="setting-order-queue">
               <OrderSettingsSection isAdmin={isAdmin} />

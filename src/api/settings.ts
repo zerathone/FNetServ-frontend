@@ -114,6 +114,43 @@ export interface ServicePaymentSettings {
   raw: string
 }
 
+/**
+ * Cờ dùng chung "Bán kèm + kho nguyên liệu" (`/settings/shop-counter`, option -2003 của iCafe/FFood quầy — chuỗi `token;cao;rộng`).
+ * `enabled` = có chuỗi (khác rỗng, khác "0"): bán kèm (topping), trừ kho nguyên liệu khi duyệt đơn, trang Nguyên liệu, nút
+ * "Bán tại quầy" mở FFood. KHÔNG gồm kho hàng hóa (thành phẩm). `schemaReady = false`: cơ sở dữ liệu chưa có bảng kho nguyên liệu.
+ * `changed` chỉ có ở response của PUT (false = máy chủ đã ở đúng trạng thái đó).
+ */
+export interface ShopCounterSettings {
+  enabled: boolean
+  schemaReady: boolean
+  /** Cao/rộng (px) cửa sổ FFood quầy — đoạn 2 và 3 của chuỗi. Đang tắt thì lấy từ bản sao; không có ⇒ mặc định 640 × 1280. */
+  height: number
+  width: number
+  /** false = chuỗi chưa khai báo cao/rộng (phần mềm máy chủ dùng mặc định 640 × 1280). */
+  hasSize: boolean
+  changed?: boolean
+}
+
+/** Gửi từng phần. `height` và `width` luôn đi cùng nhau, chỉ hợp lệ khi tính năng đang/sẽ bật. */
+export interface ShopCounterUpdate {
+  enabled?: boolean
+  height?: number
+  width?: number
+}
+
+/** Khoảng hợp lệ (px) — cùng luật Server. */
+export const SHOP_COUNTER_SIZE_MIN = 200
+export const SHOP_COUNTER_SIZE_MAX = 4000
+
+/** Mọi nhân viên đọc được. Máy chủ cũ chưa có route ⇒ lỗi; người gọi coi là "chưa biết", không ẩn gì. */
+export const getShopCounterSettings = () => apiGet<ShopCounterSettings>('/settings/shop-counter')
+/**
+ * Chỉ ADMIN. Tắt giữ lại chuỗi cũ (token + cao/rộng) để bật lại không mất; sửa cao/rộng giữ nguyên token. Cờ có hiệu lực ngay;
+ * cao/rộng chỉ áp dụng khi cửa sổ FFood quầy của phần mềm máy chủ được tạo lại (mở lại phần mềm).
+ */
+export const updateShopCounterSettings = (patch: ShopCounterUpdate) =>
+  apiPut<ShopCounterSettings, ShopCounterUpdate>('/settings/shop-counter', patch)
+
 export const getServicePaymentSettings = () => apiGet<ServicePaymentSettings>('/settings/service-payment')
 /** Chỉ ADMIN. Phải bật ít nhất một hình thức. Tạo dòng cấu hình nếu chưa có. */
 export const updateServicePaymentSettings = (data: Pick<ServicePaymentSettings, 'qr' | 'cash' | 'deduct'>) =>

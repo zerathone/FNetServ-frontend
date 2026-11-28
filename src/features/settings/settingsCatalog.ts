@@ -20,7 +20,7 @@ export const SETTINGS_SECTIONS: Array<{
   { id: 'general', label: 'Thiết lập chung', description: 'Thông tin phòng máy, làm tròn tiền, mức nạp' },
   { id: 'workstation', label: 'Máy trạm', description: 'Đăng nhập lại, khóa và tự tắt' },
   { id: 'payment', label: 'Phương thức thanh toán', description: 'Combo ở máy trạm, nạp tiền ở quầy, menu order' },
-  { id: 'orders', label: 'Đơn hàng', description: 'Cảnh báo hàng đơn chờ' },
+  { id: 'orders', label: 'Đơn hàng', description: 'Bán kèm, kho nguyên liệu, cảnh báo hàng đơn chờ' },
   { id: 'shift', label: 'Ca làm việc', description: 'Chế độ mở ca, chốt ca của thu ngân' },
   { id: 'wsmap', label: 'Sơ đồ máy trạm', description: 'Vị trí máy, tường và đồ vật' },
   { id: 'security', label: 'Bảo mật và lưu trữ', description: 'Tài khoản ADMIN và lưu trữ nhật ký' },
@@ -87,6 +87,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { section: 'payment', anchor: 'qr-flags', label: 'Thanh toán QR: ghi sổ đơn và xác nhận thủ công', keywords: ['qr', 'mã qr', 'chuyển khoản', 'ghi sổ đơn qr', 'đã nhận được tiền', 'xác nhận thủ công', 'xác nhận tay', 'thu ngân xác nhận', 'đơn chờ thanh toán', 'ghi so don qr', 'da nhan duoc tien', 'xac nhan thu cong'] },
 
   // Đơn hàng
+  { section: 'orders', anchor: 'shop-counter', label: 'Bán kèm và kho nguyên liệu', keywords: ['bán kèm', 'topping', 'kho nguyên liệu', 'nguyên liệu', 'công thức', 'trừ kho', 'bán tại quầy', 'ffood', 'icafe', 'tiêu hao', 'ban kem', 'kho nguyen lieu'] },
   { section: 'orders', anchor: 'order-queue', label: 'Cảnh báo hàng đơn chờ', keywords: ['đơn chờ', 'chờ lâu', 'cảnh báo vàng', 'cảnh báo đỏ', 'giữ nguyên liệu', 'số phút', 'đơn hàng', 'gọi món'] },
 
   // Ca làm việc

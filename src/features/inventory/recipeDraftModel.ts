@@ -119,7 +119,7 @@ export function recipeChanged(initial: RecipeDraft, current: RecipeDraft): boole
 /** null = hợp lệ. Tắt "có món bán kèm" thì không xét danh sách. */
 export function validateTopping(serviceId: number, draft: ToppingDraft): string | null {
   if (!draft.enabled) return null
-  if (draft.lines.length === 0) return 'Thêm ít nhất một món bán kèm, hoặc tắt “Có món bán kèm”.'
+  if (draft.lines.length === 0) return 'Thêm ít nhất một món bán kèm.'
   return validateToppingDraft(serviceId, draft.lines)
 }
 

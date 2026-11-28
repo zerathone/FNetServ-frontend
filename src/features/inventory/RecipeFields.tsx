@@ -37,7 +37,7 @@ export function RecipeFields({
         checked={draft.mode !== 'none'}
         disabled={disabled}
         onCheckedChange={(checked) => onChange(setRecipeEnabled(draft, checked, Boolean(toppingGroup)))}
-        label="Có công thức nguyên liệu"
+        label="Công thức nguyên liệu"
         description={
           toppingGroup
             ? 'Món kèm thêm này trừ kho một nguyên liệu khi bán.'
